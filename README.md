@@ -54,8 +54,8 @@ npm run typecheck  # types only
 On Connect 5 the ladder holds from Acorn up to Vane (measured 75-94% per rung),
 but **Quill and Vane are effectively level there** — Quill wins about 56%, under
 the 65% bar the project holds itself to. The reason is in
-[CLAUDE.md](CLAUDE.md#known-soft-quill--vane-on-connect-5) along with everything
-that was tried: Vane's patient parity game is close to ideal on a taller board,
+[feature_ideas.md](feature_ideas.md#dead-end-the-quill--vane-rung-on-connect-5)
+along with everything that was tried: Vane's patient parity game is ideal on a taller board,
 and Quill's edge — solving the endgame outright — mostly doesn't get to happen
 when the crossover is at ply 44 of 72. It's written down rather than papered
 over.

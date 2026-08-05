@@ -89,31 +89,11 @@ So both scale with the board: `depthFor` divides depth by log(width)/log(7), and
 construction (width 7 → identity). If you add a bot or a variant and a rung goes
 soft, check whether it's clipping the budget *before* touching the weights.
 
-### Known soft: `quill > vane` on Connect 5
-
-It measures ~56% over 8 games, under the 65% bar, and it is not currently fixed.
-What was tried and measured, so nobody repeats it:
-
-| change | rate |
-| --- | --- |
-| Connect 4 settings (depth 10, over budget) | 0% |
-| derived depth 9, scaled budget | 38% |
-| depth 10 forced, old weights | 25% |
-| **connect5 weights, parity 34 → 46** | **56%** |
-| parity 52 | 56% (plateau) |
-| earlier crossover, `exactFrom` 50 → 44 | 50% |
-| depth 10 + parity 46 | 19% |
-
-The cause is real rather than a tuning accident: Vane's parity-heavy vector is
-close to optimal on a taller board with longer runs, and Quill's separator on
-Connect 4 — solving the endgame outright — barely fires on Connect 5, because
-the crossover lands at ply 44 of 72 and most games are decided first. Extra
-depth actively hurts. The remaining untried lever is a per-variant `slipRate` on
-Vane, which would work but weakens Vane rather than strengthening Quill, and
-changes Vane's character on that board.
-
-`bots.test.ts` asserts the four Connect 5 rungs that hold and deliberately does
-not assert this one. Don't add it as a passing test without moving the number.
+`quill > vane` on Connect 5 is known soft (~56%, under the bar) and deliberately
+not asserted in `bots.test.ts`. The measurements and the dead ends are in
+[feature_ideas.md](feature_ideas.md#dead-end-the-quill--vane-rung-on-connect-5) —
+read them before retuning it, and don't add it as a passing test without moving
+the number.
 
 ## Never scale sprite art fractionally
 

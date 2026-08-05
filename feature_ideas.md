@@ -1,7 +1,36 @@
 # Feature ideas
 
-Things we decided were good but deliberately deferred. Not a backlog to burn
-down — just enough detail that picking one up later doesn't start from scratch.
+Things we decided were good but deliberately deferred, and things we tried that
+didn't work. Not a backlog to burn down — just enough detail that picking one up
+later doesn't start from scratch.
+
+## Dead end: the `quill > vane` rung on Connect 5
+
+Quill wins about 56% over 8 games, under the 65% bar the ladder holds itself to.
+Everything below was measured with `npm run measure:ladder connect5 8 quill`, so
+nobody repeats it:
+
+| change | rate |
+| --- | --- |
+| Connect 4 settings (depth 10, over the node budget) | 0% |
+| derived depth 9, scaled budget | 38% |
+| depth 10 forced, Connect 4 weights | 25% |
+| **Connect 5 weights, parity 34 → 46** (shipped) | **56%** |
+| parity 52 | 56% — plateau |
+| earlier crossover, `exactFrom` 50 → 44 | 50% |
+| depth 10 + parity 46 | 19% |
+
+The cause looks structural rather than like a tuning accident. Vane's
+parity-heavy vector is close to optimal on a taller board with longer runs, and
+Quill's separator on Connect 4 — solving the endgame outright — barely fires on
+Connect 5, because the crossover lands at ply 44 of 72 and most decisive games
+end first. Extra depth actively hurts, which is the "deeper with worse weights is
+weaker" effect showing up cleanly.
+
+The untried lever is a per-variant `slipRate` on Vane. It would work, but it
+fixes the rung by weakening Vane rather than strengthening Quill, and it costs
+Vane its near-flawless character on that board. Worth doing only if Connect 5
+becomes a headline mode rather than a second option.
 
 ## Roguelike ladder run
 
