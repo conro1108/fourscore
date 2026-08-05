@@ -13,16 +13,7 @@
  * like seven opponents rather than one opponent at seven depths.
  */
 
-import {
-  CELLS,
-  COLUMN_MASKS,
-  HEIGHT,
-  MOVE_ORDER,
-  Position,
-  WIDTH,
-  computeAlignmentSpots,
-  popcount,
-} from "./board.js";
+import { CONNECT4, Position, type Variant, computeAlignmentSpots, popcount } from "./board.js";
 
 export interface EvalWeights {
   /** Value of holding the middle columns, where more lines cross. */
@@ -54,36 +45,56 @@ export const BALANCED_WEIGHTS: EvalWeights = {
 /** A win is worth more than any positional consideration can add up to. */
 export const WIN_SCORE = 100_000;
 
-/** Rows are indexed from the bottom, so row 0 is the first row and counts as odd. */
-const ODD_ROWS = rowsMask((row) => row % 2 === 0);
-const EVEN_ROWS = rowsMask((row) => row % 2 === 1);
-
-function rowsMask(pick: (row: number) => boolean): bigint {
-  let m = 0n;
-  for (let col = 0; col < WIDTH; col++) {
-    for (let row = 0; row < HEIGHT; row++) {
-      if (pick(row)) m |= 1n << (BigInt(col) * BigInt(HEIGHT + 1) + BigInt(row));
-    }
-  }
-  return m;
+/**
+ * The lookup tables `evaluate` needs, derived from a board geometry.
+ *
+ * Cached per variant rather than rebuilt: these are pure functions of the
+ * geometry, and `evaluate` runs at every leaf of every bot's search.
+ */
+interface EvalTables {
+  /** Rows indexed from the bottom, so row 0 is the first row and counts as odd. */
+  oddRows: bigint;
+  evenRows: bigint;
+  /** Columns grouped by centre value, so scoring the centre costs a popcount per group. */
+  centerGroups: readonly { value: number; mask: bigint }[];
 }
 
-/** Roughly how many of the possible lines pass through each column. */
-const CENTER_VALUE: readonly number[] = [1, 2, 3, 4, 3, 2, 1];
+const TABLES = new WeakMap<Variant, EvalTables>();
 
-/**
- * The columns grouped by their centre value, so scoring centre control costs
- * four popcounts per side instead of seven. `evaluate` runs at every leaf of
- * every bot's search, and popcount over a bigint is not free.
- */
-const CENTER_GROUPS: readonly { value: number; mask: bigint }[] = (() => {
+function tablesFor(v: Variant): EvalTables {
+  let t = TABLES.get(v);
+  if (t) return t;
+
+  const rowsMask = (pick: (row: number) => boolean): bigint => {
+    let m = 0n;
+    for (let col = 0; col < v.width; col++) {
+      for (let row = 0; row < v.height; row++) {
+        if (pick(row)) m |= 1n << (BigInt(col) * v.h1 + BigInt(row));
+      }
+    }
+    return m;
+  };
+
+  // Roughly how many of the possible lines pass through each column: it rises
+  // linearly from each edge and flattens once a full run fits on both sides.
+  // For 7-wide Connect 4 that reproduces the old hand-written [1,2,3,4,3,2,1].
+  const centerValue = (col: number): number =>
+    Math.min(col + 1, v.width - col, v.width - v.run + 1);
+
   const byValue = new Map<number, bigint>();
-  for (let col = 0; col < WIDTH; col++) {
-    const value = CENTER_VALUE[col]!;
-    byValue.set(value, (byValue.get(value) ?? 0n) | COLUMN_MASKS[col]!);
+  for (let col = 0; col < v.width; col++) {
+    const value = centerValue(col);
+    byValue.set(value, (byValue.get(value) ?? 0n) | v.columnMasks[col]!);
   }
-  return [...byValue].map(([value, mask]) => ({ value, mask }));
-})();
+
+  t = {
+    oddRows: rowsMask((row) => row % 2 === 0),
+    evenRows: rowsMask((row) => row % 2 === 1),
+    centerGroups: [...byValue].map(([value, mask]) => ({ value, mask })),
+  };
+  TABLES.set(v, t);
+  return t;
+}
 
 /**
  * Score `p` from the point of view of the player to move.
@@ -92,16 +103,18 @@ const CENTER_GROUPS: readonly { value: number; mask: bigint }[] = (() => {
  * the search handles those, because it knows whose move produced them.
  */
 export function evaluate(p: Position, w: EvalWeights): number {
+  const v = p.variant;
+  const t = tablesFor(v);
   const mine = p.position;
   const theirs = p.position ^ p.mask;
   const playable = p.possibleMoves();
 
-  const myThreats = computeAlignmentSpots(mine, p.mask);
-  const theirThreats = computeAlignmentSpots(theirs, p.mask);
+  const myThreats = computeAlignmentSpots(mine, p.mask, v);
+  const theirThreats = computeAlignmentSpots(theirs, p.mask, v);
 
   // Red moves on even plies, and red is the player who wants odd rows.
-  const myRows = p.moves % 2 === 0 ? ODD_ROWS : EVEN_ROWS;
-  const theirRows = p.moves % 2 === 0 ? EVEN_ROWS : ODD_ROWS;
+  const myRows = p.moves % 2 === 0 ? t.oddRows : t.evenRows;
+  const theirRows = p.moves % 2 === 0 ? t.evenRows : t.oddRows;
 
   let score = 0;
 
@@ -109,7 +122,7 @@ export function evaluate(p: Position, w: EvalWeights): number {
   score += w.parity * (popcount(myThreats & myRows) - popcount(theirThreats & theirRows));
   score += w.immediate * (popcount(myThreats & playable) - popcount(theirThreats & playable));
 
-  for (const { value, mask } of CENTER_GROUPS) {
+  for (const { value, mask } of t.centerGroups) {
     score += w.center * value * (popcount(mine & mask) - popcount(theirs & mask));
   }
 
@@ -144,7 +157,7 @@ export function searchHeuristic(
   const ctx = { nodes: 0, limit: nodeLimit };
   const moves: HeuristicMoveScore[] = [];
 
-  for (const col of MOVE_ORDER) {
+  for (const col of p.variant.moveOrder) {
     if (!p.canPlay(col)) continue;
     if (p.isWinningMove(col)) {
       moves.push({ col, score: WIN_SCORE - p.moves });
@@ -183,7 +196,7 @@ function negamax(
   // An immediate win ends it. Subtracting the ply count makes a win now worth
   // more than the same win later, so a winning bot actually closes the game out
   // instead of shuffling around in a position it has already won.
-  for (const col of MOVE_ORDER) {
+  for (const col of p.variant.moveOrder) {
     if (p.canPlay(col) && p.isWinningMove(col)) return WIN_SCORE - p.moves;
   }
 
@@ -191,7 +204,7 @@ function negamax(
   if (depth <= 0 || ctx.nodes > ctx.limit) return evaluate(p, w);
 
   let value = -Infinity;
-  for (const col of MOVE_ORDER) {
+  for (const col of p.variant.moveOrder) {
     if (!p.canPlay(col)) continue;
     const child = p.clone();
     child.play(col);
@@ -206,6 +219,6 @@ function negamax(
 }
 
 /** True if the score came from a proven win or loss rather than the evaluator. */
-export function isDecisive(score: number): boolean {
-  return Math.abs(score) > WIN_SCORE - CELLS - 1;
+export function isDecisive(score: number, v: Variant = CONNECT4): boolean {
+  return Math.abs(score) > WIN_SCORE - v.cells - 1;
 }

@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import type { Grade, PlyRecord, Player, Review as ReviewData } from "@fourscore/engine";
+import type { Grade, PlyRecord, Player, Review as ReviewData, Variant } from "@fourscore/engine";
 
 const GRADE_LABEL: Record<Grade, string> = {
   best: "best",
@@ -23,13 +23,14 @@ const GRADE_LABEL: Record<Grade, string> = {
   unknown: "unproven",
 };
 
-const COLUMN_NAMES = ["1", "2", "3", "4", "5", "6", "7"];
+/** Columns are 1-indexed on screen; the engine counts from zero. */
+const colName = (col: number): string => String(col + 1);
 
 function describe(rec: PlyRecord): string {
   if (rec.grade === "unknown") return "Too early in the game to solve exactly.";
-  if (rec.grade === "best") return `Column ${COLUMN_NAMES[rec.col]} was the best move available.`;
+  if (rec.grade === "best") return `Column ${colName(rec.col)} was the best move available.`;
 
-  const best = rec.bestCols.map((c) => COLUMN_NAMES[c]).join(" or ");
+  const best = rec.bestCols.map(colName).join(" or ");
   if (rec.turningPoint) {
     const was = (rec.bestScore ?? 0) > 0 ? "a won game" : "a drawn game";
     const now = (rec.playedScore ?? 0) < 0 ? "a lost one" : "a drawn one";
@@ -47,9 +48,19 @@ interface Props {
   onSelect: (ply: number | null) => void;
   onBack: () => void;
   onRematch: () => void;
+  variant: Variant;
 }
 
-export function Review({ review, humanPlayer, lost, selected, onSelect, onBack, onRematch }: Props) {
+export function Review({
+  review,
+  humanPlayer,
+  lost,
+  selected,
+  onSelect,
+  onBack,
+  onRematch,
+  variant,
+}: Props) {
   const [showAll, setShowAll] = useState(false);
 
   const mine = review.plies.filter((p) => p.player === humanPlayer);
@@ -114,7 +125,7 @@ export function Review({ review, humanPlayer, lost, selected, onSelect, onBack, 
               onClick={() => onSelect(selected === rec.ply ? null : rec.ply)}
             >
               <span className="ply__num">{Math.floor(rec.ply / 2) + 1}</span>
-              <span className="ply__col">col {COLUMN_NAMES[rec.col]}</span>
+              <span className="ply__col">col {colName(rec.col)}</span>
               <span className={`ply__grade ply__grade--${rec.grade}`}>{GRADE_LABEL[rec.grade]}</span>
             </button>
             {selected === rec.ply && <p className="ply__detail">{describe(rec)}</p>}
@@ -131,7 +142,11 @@ export function Review({ review, humanPlayer, lost, selected, onSelect, onBack, 
       {review.skipped > 0 && (
         <p className="review__footnote">
           {review.skipped} early {review.skipped === 1 ? "move" : "moves"} couldn&rsquo;t be solved
-          exactly. Connect 4&rsquo;s opening is out of reach without a precomputed book.
+          exactly. {variant.name}&rsquo;s opening is out of reach without a precomputed book
+          {variant.run > 4
+            ? `, and a ${variant.width}×${variant.height} board puts far more of the game behind that horizon than Connect 4 does`
+            : ""}
+          .
         </p>
       )}
 

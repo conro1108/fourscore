@@ -14,7 +14,7 @@
  * snapshot, and calls `animateDrop` when a disc is played.
  */
 
-import type { Cell, Mood, Player } from "@fourscore/engine";
+import { CONNECT4, type Cell, type Mood, type Player, type Variant } from "@fourscore/engine";
 import {
   BOARD_COLORS,
   DISC_MUTED,
@@ -29,22 +29,57 @@ import {
 import { artCanvas, overlay, tint, type Art } from "./pixel.js";
 
 export const CELL = 16;
-export const COLS = 7;
-export const ROWS = 6;
 const FRAME = 4;
-
-export const SCENE_W = COLS * CELL + FRAME * 2; // 120
-const BOARD_H = ROWS * CELL + FRAME * 2; // 104
 const BOT_H = 34;
 const GHOST_Y = 34;
-export const BOARD_Y = BOT_H + 14; // 48
-export const SCENE_H = BOARD_Y + BOARD_H; // 152
-
 const CREATURE_SCALE = 2;
-const CREATURE_X = (SCENE_W - 16 * CREATURE_SCALE) / 2;
+
+/**
+ * The scene's pixel geometry for a variant.
+ *
+ * The buffer used to be a hardcoded 120x152. It now grows with the board — 9x8
+ * Connect 5 needs 152x184 — but every number in here is still an integer
+ * multiple of the 16px cell, and nothing is ever scaled fractionally. A bigger
+ * buffer is fine; a fractional one is what wrecks the art.
+ */
+export interface SceneLayout {
+  cols: number;
+  rows: number;
+  width: number;
+  height: number;
+  boardY: number;
+  boardH: number;
+  creatureX: number;
+}
+
+export function layoutFor(v: Variant): SceneLayout {
+  const cols = v.width;
+  const rows = v.height;
+  const width = cols * CELL + FRAME * 2;
+  const boardH = rows * CELL + FRAME * 2;
+  const boardY = BOT_H + 14;
+  return {
+    cols,
+    rows,
+    width,
+    height: boardY + boardH,
+    boardY,
+    boardH,
+    // Rounded to a whole pixel: the creature blits at exactly 2x, and an odd
+    // buffer width would otherwise land it on a half pixel and resample it.
+    creatureX: Math.round((width - 16 * CREATURE_SCALE) / 2),
+  };
+}
+
+/** Connect 4's dimensions, for callers that just need a default canvas size. */
+export const DEFAULT_LAYOUT = layoutFor(CONNECT4);
+export const SCENE_W = DEFAULT_LAYOUT.width; // 120
+export const SCENE_H = DEFAULT_LAYOUT.height; // 152
+export const BOARD_Y = DEFAULT_LAYOUT.boardY;
 
 const cellX = (col: number): number => FRAME + col * CELL + (CELL - DISC_SIZE) / 2;
-const cellY = (row: number): number => BOARD_Y + FRAME + row * CELL + (CELL - DISC_SIZE) / 2;
+const cellY = (row: number, L: SceneLayout): number =>
+  L.boardY + FRAME + row * CELL + (CELL - DISC_SIZE) / 2;
 
 export interface Coord {
   row: number;
@@ -58,6 +93,7 @@ export interface ColumnMark {
 }
 
 export interface SceneModel {
+  variant: Variant;
   grid: Cell[][];
   winningCells: readonly Coord[];
   hoverCol: number | null;
@@ -76,7 +112,8 @@ export interface SceneModel {
 }
 
 const EMPTY_MODEL: SceneModel = {
-  grid: Array.from({ length: ROWS }, () => Array<Cell>(COLS).fill(null)),
+  variant: CONNECT4,
+  grid: Array.from({ length: CONNECT4.height }, () => Array<Cell>(CONNECT4.width).fill(null)),
   winningCells: [],
   hoverCol: null,
   marks: [],
@@ -112,6 +149,7 @@ export class BoardScene {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private model: SceneModel = EMPTY_MODEL;
+  private layout: SceneLayout = DEFAULT_LAYOUT;
   private drop: DropAnim | null = null;
   private raf = 0;
   private running = false;
@@ -120,8 +158,8 @@ export class BoardScene {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    canvas.width = SCENE_W;
-    canvas.height = SCENE_H;
+    canvas.width = DEFAULT_LAYOUT.width;
+    canvas.height = DEFAULT_LAYOUT.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
     ctx.imageSmoothingEnabled = false;
@@ -131,7 +169,21 @@ export class BoardScene {
   }
 
   update(model: SceneModel): void {
+    if (model.variant !== this.model.variant) this.resize(model.variant);
     this.model = model;
+  }
+
+  /**
+   * Switch board geometry. Resizing the canvas resets its context state, so
+   * smoothing has to be turned off again — leaving it on is exactly the bug
+   * that makes the art go soft, and it wouldn't show up until someone changed
+   * variant mid-session.
+   */
+  private resize(v: Variant): void {
+    this.layout = layoutFor(v);
+    this.canvas.width = this.layout.width;
+    this.canvas.height = this.layout.height;
+    this.ctx.imageSmoothingEnabled = false;
   }
 
   /**
@@ -156,9 +208,9 @@ export class BoardScene {
   columnAt(clientX: number): number | null {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width === 0) return null;
-    const x = ((clientX - rect.left) / rect.width) * SCENE_W;
+    const x = ((clientX - rect.left) / rect.width) * this.layout.width;
     const col = Math.floor((x - FRAME) / CELL);
-    return col >= 0 && col < COLS ? col : null;
+    return col >= 0 && col < this.layout.cols ? col : null;
   }
 
   destroy(): void {
@@ -177,7 +229,7 @@ export class BoardScene {
     const m = this.model;
 
     ctx.fillStyle = m.dimmed ? "#1a141f" : "#241c2c";
-    ctx.fillRect(0, 0, SCENE_W, SCENE_H);
+    ctx.fillRect(0, 0, this.layout.width, this.layout.height);
 
     this.drawCreature(now);
     this.drawGhost();
@@ -200,7 +252,7 @@ export class BoardScene {
       if (mark.kind === "played" && best.has(mark.col)) continue;
       ctx.fillStyle = mark.kind === "best" ? "#6fbf73" : "#e0a33c";
       const x = FRAME + mark.col * CELL + CELL / 2;
-      const y = BOARD_Y - 8;
+      const y = this.layout.boardY - 8;
       for (let i = 0; i < 4; i++) {
         ctx.fillRect(x - i, y + i, i * 2, 1);
       }
@@ -229,7 +281,7 @@ export class BoardScene {
       0,
       sprite.w,
       sprite.h,
-      CREATURE_X,
+      this.layout.creatureX,
       1 + bob,
       sprite.w * CREATURE_SCALE,
       sprite.h * CREATURE_SCALE,
@@ -267,7 +319,7 @@ export class BoardScene {
     ctx.fillStyle = "#c9c2d4";
     for (let i = 0; i < 3; i++) {
       if (i >= lit) continue;
-      ctx.fillRect(CREATURE_X + 36 + i * 4, 6, 2, 2);
+      ctx.fillRect(this.layout.creatureX + 36 + i * 4, 6, 2, 2);
     }
   }
 
@@ -291,18 +343,19 @@ export class BoardScene {
   private drawBoard(now: number): void {
     const { ctx } = this;
     const m = this.model;
+    const L = this.layout;
 
     ctx.fillStyle = m.dimmed ? "#332f4d" : BOARD_COLORS.face;
-    ctx.fillRect(0, BOARD_Y, SCENE_W, BOARD_H);
+    ctx.fillRect(0, L.boardY, L.width, L.boardH);
     ctx.fillStyle = m.dimmed ? "#26243a" : BOARD_COLORS.edge;
-    ctx.fillRect(0, BOARD_Y + BOARD_H - 3, SCENE_W, 3);
+    ctx.fillRect(0, L.boardY + L.boardH - 3, L.width, 3);
     ctx.fillStyle = m.dimmed ? "#413d63" : BOARD_COLORS.highlight;
-    ctx.fillRect(0, BOARD_Y, SCENE_W, 1);
+    ctx.fillRect(0, L.boardY, L.width, 1);
 
     // Column tint under the pointer, so the target reads before you commit.
     if (m.interactive && m.hoverCol !== null && !this.drop) {
       ctx.fillStyle = "rgba(255,255,255,0.07)";
-      ctx.fillRect(FRAME + m.hoverCol * CELL, BOARD_Y + FRAME - 2, CELL, ROWS * CELL + 4);
+      ctx.fillRect(FRAME + m.hoverCol * CELL, L.boardY + FRAME - 2, CELL, L.rows * CELL + 4);
     }
 
     const hole = artCanvas(HOLE);
@@ -310,10 +363,10 @@ export class BoardScene {
     // Winning discs pulse; everything else is static so the pulse is legible.
     const pulseOn = Math.floor(now / 380) % 2 === 0;
 
-    for (let row = 0; row < ROWS; row++) {
-      for (let col = 0; col < COLS; col++) {
+    for (let row = 0; row < L.rows; row++) {
+      for (let col = 0; col < L.cols; col++) {
         const x = cellX(col);
-        const y = cellY(row);
+        const y = cellY(row, L);
 
         const hidden = this.drop && this.drop.row === row && this.drop.col === col;
         const cell = hidden ? null : m.grid[row]?.[col] ?? null;
@@ -354,7 +407,7 @@ export class BoardScene {
 
     const t = Math.min(1, (now - drop.start) / drop.duration);
     const from = GHOST_Y;
-    const to = cellY(drop.row);
+    const to = cellY(drop.row, this.layout);
     // Quadratic, so it accelerates like something falling rather than sliding.
     const y = Math.round(from + (to - from) * t * t);
 

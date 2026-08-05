@@ -58,26 +58,36 @@ export class EngineClient {
     });
   }
 
-  async decide(botId: string, history: readonly number[]): Promise<BotDecision> {
+  async decide(
+    botId: string,
+    variantId: string,
+    history: readonly number[],
+  ): Promise<BotDecision> {
     const res = await this.send<DecideResponse>({
       type: "decide",
       botId,
+      variantId,
       history: [...history],
     });
     return res.decision;
   }
 
-  async review(history: readonly number[], forPlayer?: Player): Promise<Review> {
+  async review(
+    variantId: string,
+    history: readonly number[],
+    forPlayer?: Player,
+  ): Promise<Review> {
     const res = await this.send<ReviewResponse>({
       type: "review",
+      variantId,
       history: [...history],
       forPlayer,
     });
     return res.review;
   }
 
-  async reset(botId: string): Promise<void> {
-    await this.send({ type: "reset", botId });
+  async reset(botId: string, variantId: string): Promise<void> {
+    await this.send({ type: "reset", botId, variantId });
   }
 
   destroy(): void {

@@ -85,8 +85,13 @@ are the ones the solver can't do live, and they're also the cheapest to store.
 
 ## Smaller things
 
-- **Board variants** — 5x4 tiny, 8x7 wide, Pop Out rules, boards with holes.
-  Cheap: the engine is already parameterized on width/height.
+- **Board variants** — ~~5x4 tiny, 8x7 wide~~, Pop Out rules, boards with holes.
+  Board size and run length are now real parameters (`makeVariant` in
+  `board.ts`), so new rectangular boards are a config change — Connect 5 on 9x8
+  ships. Two things that looked cheap and weren't: the transposition table's
+  float64 key store silently loses precision past 7x6, and a roster tuned on one
+  board has to be re-swept on another (`tools/ladder.ts`). Pop Out and holes are
+  still real work, because both break "the board only fills upward".
 - **A bot that trash-talks based on its own eval** — not scripted lines, lines
   selected by how won/lost it actually thinks it is.
 - **Daily puzzle** — a real position from a real game, "you're to move, there's

@@ -14,7 +14,7 @@
  * one that admits its range.
  */
 
-import { HEIGHT, Position, WIDTH, type Cell, type Player } from "./board.js";
+import { CONNECT4, Position, type Cell, type Player, type Variant } from "./board.js";
 import { SearchAborted, TranspositionTable, analyze } from "./solver.js";
 
 export type MatchStatus = "playing" | "won" | "draw";
@@ -26,10 +26,16 @@ export interface Coord {
 }
 
 export class Match {
-  position = new Position();
+  readonly variant: Variant;
+  position: Position;
   readonly history: number[] = [];
   winner: Player | null = null;
   winningCells: Coord[] = [];
+
+  constructor(variant: Variant = CONNECT4) {
+    this.variant = variant;
+    this.position = new Position(0n, 0n, 0, variant);
+  }
 
   get status(): MatchStatus {
     if (this.winner) return "won";
@@ -64,18 +70,18 @@ export class Match {
 
     if (winning) {
       this.winner = mover;
-      this.winningCells = findWinningLine(this.position.grid(), mover);
+      this.winningCells = findWinningLine(this.position.grid(), mover, this.variant);
     }
     return true;
   }
 
   /** A copy of the position as it stood after `ply` moves. */
   positionAt(ply: number): Position {
-    return Position.fromMoves(this.history.slice(0, ply));
+    return Position.fromMoves(this.history.slice(0, ply), this.variant);
   }
 
-  static fromMoves(cols: readonly number[]): Match {
-    const m = new Match();
+  static fromMoves(cols: readonly number[], variant: Variant = CONNECT4): Match {
+    const m = new Match(variant);
     for (const c of cols) {
       if (!m.play(c)) throw new Error(`illegal move: column ${c}`);
     }
@@ -83,8 +89,12 @@ export class Match {
   }
 }
 
-/** The four-or-more cells that won it, for highlighting. */
-export function findWinningLine(grid: Cell[][], player: Player): Coord[] {
+/** The cells that won it, for highlighting. */
+export function findWinningLine(
+  grid: Cell[][],
+  player: Player,
+  v: Variant = CONNECT4,
+): Coord[] {
   const dirs = [
     [1, 0],
     [0, 1],
@@ -92,19 +102,21 @@ export function findWinningLine(grid: Cell[][], player: Player): Coord[] {
     [1, -1],
   ] as const;
 
-  for (let row = 0; row < HEIGHT; row++) {
-    for (let col = 0; col < WIDTH; col++) {
+  const { width, height, run } = v;
+
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
       if (grid[row]![col] !== player) continue;
       for (const [dc, dr] of dirs) {
         const line: Coord[] = [{ row, col }];
         let r = row + dr;
         let c = col + dc;
-        while (r >= 0 && r < HEIGHT && c >= 0 && c < WIDTH && grid[r]![c] === player) {
+        while (r >= 0 && r < height && c >= 0 && c < width && grid[r]![c] === player) {
           line.push({ row: r, col: c });
           r += dr;
           c += dc;
         }
-        if (line.length >= 4) return line;
+        if (line.length >= run) return line;
       }
     }
   }
@@ -148,6 +160,7 @@ export interface ReviewOptions {
   forPlayer?: Player;
   /** Nodes per position before giving up and grading `unknown`. */
   nodeLimit?: number;
+  variant?: Variant;
 }
 
 /**
@@ -183,14 +196,14 @@ export function gradeMove(bestScore: number, playedScore: number): Grade {
  * opening for the same budget than going forwards would.
  */
 export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}): Review {
-  const { forPlayer, nodeLimit = 2_000_000 } = opts;
+  const { forPlayer, nodeLimit = 2_000_000, variant = CONNECT4 } = opts;
   const table = new TranspositionTable(23);
   const plies: PlyRecord[] = [];
   let skipped = 0;
   let giveUp = false;
 
   for (let ply = history.length - 1; ply >= 0; ply--) {
-    const before = Position.fromMoves(history.slice(0, ply));
+    const before = Position.fromMoves(history.slice(0, ply), variant);
     const player = before.turn;
     const col = history[ply]!;
 

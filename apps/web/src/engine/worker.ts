@@ -12,16 +12,24 @@
  * headroom. The UI resets a brain when its match ends.
  */
 
-import { BotBrain, Position, byId, reviewMatch } from "@fourscore/engine";
+import { BotBrain, Position, byId, reviewMatch, variantById } from "@fourscore/engine";
 import type { Request, Response } from "./protocol.js";
 
+/**
+ * Brains are keyed by bot *and* variant. A transposition table holds positions
+ * from one geometry and its keys mean nothing under another, so sharing one
+ * across variants would feed the solver garbage hits.
+ */
 const brains = new Map<string, BotBrain>();
 
-function brainFor(botId: string): BotBrain {
-  let brain = brains.get(botId);
+const brainKey = (botId: string, variantId: string): string => `${botId}@${variantId}`;
+
+function brainFor(botId: string, variantId: string): BotBrain {
+  const key = brainKey(botId, variantId);
+  let brain = brains.get(key);
   if (!brain) {
     brain = new BotBrain(byId(botId));
-    brains.set(botId, brain);
+    brains.set(key, brain);
   }
   return brain;
 }
@@ -33,18 +41,24 @@ self.onmessage = (event: MessageEvent<Request>) => {
   try {
     switch (req.type) {
       case "decide": {
+        const variant = variantById(req.variantId);
         const started = performance.now();
-        const decision = brainFor(req.botId).decide(Position.fromMoves(req.history));
+        const decision = brainFor(req.botId, req.variantId).decide(
+          Position.fromMoves(req.history, variant),
+        );
         post({ type: "decided", id: req.id, decision, elapsed: performance.now() - started });
         break;
       }
       case "review": {
-        const review = reviewMatch(req.history, { forPlayer: req.forPlayer });
+        const review = reviewMatch(req.history, {
+          forPlayer: req.forPlayer,
+          variant: variantById(req.variantId),
+        });
         post({ type: "reviewed", id: req.id, review });
         break;
       }
       case "reset": {
-        brains.delete(req.botId);
+        brains.delete(brainKey(req.botId, req.variantId));
         post({ type: "reset", id: req.id });
         break;
       }

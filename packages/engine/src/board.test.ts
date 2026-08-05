@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   BOARD_MASK,
   CELLS,
+  CONNECT4,
+  CONNECT5,
   HEIGHT,
   MOVE_ORDER,
   Position,
   WIDTH,
   alignment,
+  makeVariant,
   popcount,
+  type Variant,
 } from "./board.js";
 
 /** Bit index of a cell, row 0 being the bottom of the column. */
@@ -20,31 +24,48 @@ const bit = (col: number, row: number): bigint => 1n << (BigInt(col) * BigInt(HE
  * near an edge, so the real coverage here is the fuzz test at the bottom rather
  * than any single example above it.
  */
-function refWins(grid: (string | null)[][], player: string): boolean {
+function refWins(grid: (string | null)[][], player: string, v: Variant): boolean {
   const dirs = [
     [0, 1],
     [1, 0],
     [1, 1],
     [1, -1],
   ] as const;
-  for (let r = 0; r < HEIGHT; r++) {
-    for (let c = 0; c < WIDTH; c++) {
+  for (let r = 0; r < v.height; r++) {
+    for (let c = 0; c < v.width; c++) {
       if (grid[r]![c] !== player) continue;
       for (const [dc, dr] of dirs) {
         let n = 1;
         let rr = r + dr;
         let cc = c + dc;
-        while (rr >= 0 && rr < HEIGHT && cc >= 0 && cc < WIDTH && grid[rr]![cc] === player) {
+        while (rr >= 0 && rr < v.height && cc >= 0 && cc < v.width && grid[rr]![cc] === player) {
           n++;
           rr += dr;
           cc += dc;
         }
-        if (n >= 4) return true;
+        if (n >= v.run) return true;
       }
     }
   }
   return false;
 }
+
+/**
+ * The variants the fuzz test runs over.
+ *
+ * The two shipping boards, plus two that exist only here: a cramped 5x4 run-3
+ * board, because short runs on a small board put every line right up against an
+ * edge and that's where wraparound bugs live, and a 10x9 run-6 board to check
+ * the shift schedules keep working at a run length nothing else exercises. The
+ * whole point of the geometry rewrite is that N is a parameter, and a test that
+ * only ever sees 4 and 5 wouldn't be testing that.
+ */
+const FUZZ_VARIANTS: readonly Variant[] = [
+  CONNECT4,
+  CONNECT5,
+  makeVariant({ id: "tiny3", name: "Tiny 3", width: 5, height: 4, run: 3 }),
+  makeVariant({ id: "wide6", name: "Wide 6", width: 10, height: 9, run: 6 }),
+];
 
 describe("layout", () => {
   it("packs every playable cell and nothing else", () => {
@@ -178,18 +199,18 @@ describe("nonLosingMoves", () => {
   });
 });
 
-describe("fuzz against the reference implementation", () => {
+describe.each(FUZZ_VARIANTS)("fuzz against the reference implementation ($id)", (v) => {
   it("agrees on win detection over random games", () => {
     let rng = 12345;
     const next = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff);
 
     for (let game = 0; game < 400; game++) {
-      const p = new Position();
-      const grid: (string | null)[][] = Array.from({ length: HEIGHT }, () =>
-        Array<string | null>(WIDTH).fill(null),
+      const p = Position.fromMoves([], v);
+      const grid: (string | null)[][] = Array.from({ length: v.height }, () =>
+        Array<string | null>(v.width).fill(null),
       );
 
-      while (p.moves < CELLS) {
+      while (p.moves < v.cells) {
         const legal = p.legalMoves();
         if (legal.length === 0) break;
         const col = legal[next() % legal.length]!;
@@ -203,7 +224,7 @@ describe("fuzz against the reference implementation", () => {
         p.play(col);
 
         // ...checked against what the reference sees after it has.
-        expect(claimed).toBe(refWins(grid, player));
+        expect(claimed).toBe(refWins(grid, player, v));
         if (claimed) break;
       }
     }
@@ -214,9 +235,9 @@ describe("fuzz against the reference implementation", () => {
     const next = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff);
 
     for (let game = 0; game < 100; game++) {
-      const p = new Position();
-      const grid: (string | null)[][] = Array.from({ length: HEIGHT }, () =>
-        Array<string | null>(WIDTH).fill(null),
+      const p = Position.fromMoves([], v);
+      const grid: (string | null)[][] = Array.from({ length: v.height }, () =>
+        Array<string | null>(v.width).fill(null),
       );
       for (let ply = 0; ply < 20; ply++) {
         const legal = p.legalMoves();
@@ -227,5 +248,38 @@ describe("fuzz against the reference implementation", () => {
       }
       expect(p.grid()).toEqual(grid);
     }
+  });
+
+  /**
+   * `alignment` and `isWinningMove` come from different code paths —
+   * `computeAlignmentSpots` predicts a win before the disc lands, `alignment`
+   * confirms one after. They have to agree, and on a random position they
+   * usually agree for the wrong reason (both say no), so this drives play until
+   * someone actually wins.
+   */
+  it("agrees with alignment on the finished position", () => {
+    let rng = 4242;
+    const next = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff);
+    let decided = 0;
+
+    for (let game = 0; game < 200; game++) {
+      const p = Position.fromMoves([], v);
+      while (p.moves < v.cells) {
+        const legal = p.legalMoves();
+        if (legal.length === 0) break;
+        const col = legal[next() % legal.length]!;
+        const won = p.isWinningMove(col);
+        p.play(col);
+        if (won) {
+          // `position` flipped to the loser on play, so the winner is the xor.
+          expect(alignment(p.position ^ p.mask, v)).toBe(true);
+          expect(alignment(p.position, v)).toBe(false);
+          decided++;
+          break;
+        }
+      }
+    }
+
+    expect(decided).toBeGreaterThan(0);
   });
 });

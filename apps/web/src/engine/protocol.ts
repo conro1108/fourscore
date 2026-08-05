@@ -6,6 +6,7 @@ export interface DecideRequest {
   type: "decide";
   id: number;
   botId: string;
+  variantId: string;
   /** The game so far. The worker rebuilds the position from it. */
   history: number[];
 }
@@ -13,6 +14,7 @@ export interface DecideRequest {
 export interface ReviewRequest {
   type: "review";
   id: number;
+  variantId: string;
   history: number[];
   forPlayer?: Player;
 }
@@ -22,6 +24,7 @@ export interface ResetRequest {
   type: "reset";
   id: number;
   botId: string;
+  variantId: string;
 }
 
 export type Request = DecideRequest | ReviewRequest | ResetRequest;

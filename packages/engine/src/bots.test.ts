@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BotBrain, ROSTER, byId } from "./bots.js";
 import { Match } from "./match.js";
-import { Position } from "./board.js";
+import { CONNECT4, CONNECT5, Position } from "./board.js";
 
 /** Deterministic RNG, so a flaky ladder can't pass by luck. */
 function mulberry32(seed: number): () => number {
@@ -15,11 +15,11 @@ function mulberry32(seed: number): () => number {
 }
 
 /** Play one game. Returns the winning bot id, or null for a draw. */
-function playMatch(aId: string, bId: string, seed: number): string | null {
+function playMatch(aId: string, bId: string, seed: number, variant = CONNECT4): string | null {
   const rng = mulberry32(seed);
   const a = new BotBrain(byId(aId), rng);
   const b = new BotBrain(byId(bId), rng);
-  const match = new Match();
+  const match = new Match(variant);
 
   while (match.status === "playing") {
     // Red moves on even plies, and `a` is red.
@@ -33,13 +33,19 @@ function playMatch(aId: string, bId: string, seed: number): string | null {
 }
 
 /** Score a head-to-head, alternating who opens. Returns `strong`'s points out of games. */
-function headToHead(strongId: string, weakId: string, games: number, seed = 1): number {
+function headToHead(
+  strongId: string,
+  weakId: string,
+  games: number,
+  seed = 1,
+  variant = CONNECT4,
+): number {
   let points = 0;
   for (let g = 0; g < games; g++) {
     const strongOpens = g % 2 === 0;
     const winner = strongOpens
-      ? playMatch(strongId, weakId, seed + g * 7919)
-      : playMatch(weakId, strongId, seed + g * 7919);
+      ? playMatch(strongId, weakId, seed + g * 7919, variant)
+      : playMatch(weakId, strongId, seed + g * 7919, variant);
     if (winner === strongId) points += 1;
     else if (winner === null) points += 0.5;
   }
@@ -127,6 +133,29 @@ describe("the ladder is actually a ladder", () => {
     });
   }
 
+  /**
+   * The bottom four rungs on Connect 5.
+   *
+   * Adding the variant inverted rungs that were fine on Connect 4, so the
+   * ladder needs asserting per board rather than once. These four are the ones
+   * that hold and are cheap enough to run every time — the sweep in
+   * `tools/ladder.ts` covers `vane > cinder` (48s) and the known-soft
+   * `quill > vane`, both too slow to live here.
+   */
+  const connect5Rungs = [
+    ["pebble", "acorn", 8],
+    ["moss", "pebble", 8],
+    ["bramble", "moss", 8],
+    ["cinder", "bramble", 6],
+  ] as const;
+
+  for (const [strong, weak, games] of connect5Rungs) {
+    it(`${strong} beats ${weak} on Connect 5`, () => {
+      const points = headToHead(strong, weak, games, 1, CONNECT5);
+      expect(points).toBeGreaterThan(games * 0.65);
+    });
+  }
+
   it("vane beats moss handily", () => {
     // A deep rung against a shallow one, as a sanity check on the top half
     // without paying for a full adjacent-pair sweep on every test run.
@@ -173,7 +202,7 @@ describe("the oracle", () => {
   it("solves exactly once the board is deep enough", () => {
     const brain = new BotBrain(byId("oracle"), mulberry32(2));
     const p = Position.fromMoves([3, 3, 4, 4, 2, 2, 5, 5, 1, 1, 0]);
-    expect(p.moves).toBeGreaterThanOrEqual(byId("oracle").exactFrom);
+    expect(p.moves).toBeGreaterThanOrEqual(brain.exactFrom(CONNECT4));
     expect(brain.decide(p).exact).toBe(true);
   });
 

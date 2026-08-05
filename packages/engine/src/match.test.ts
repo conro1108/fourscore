@@ -1,7 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { HEIGHT, Position, WIDTH } from "./board.js";
+import { CONNECT5, HEIGHT, Position, WIDTH } from "./board.js";
 import { Match, findWinningLine, gradeMove, reviewMatch } from "./match.js";
 import { analyze } from "./solver.js";
+
+describe("Connect 5", () => {
+  it("needs five in a row, not four", () => {
+    // Four along the bottom, which would already have won on Connect 4.
+    const four = Match.fromMoves([0, 0, 1, 1, 2, 2, 3, 3], CONNECT5);
+    expect(four.status).toBe("playing");
+    expect(four.winner).toBe(null);
+
+    expect(four.play(4)).toBe(true);
+    expect(four.winner).toBe("red");
+    expect(four.winningCells).toHaveLength(5);
+    expect(four.winningCells.map((c) => c.col).sort()).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("uses the wider board", () => {
+    const m = new Match(CONNECT5);
+    expect(m.play(8)).toBe(true); // column 8 doesn't exist on Connect 4
+    expect(m.play(9)).toBe(false);
+    for (let i = 0; i < CONNECT5.height - 1; i++) m.play(0);
+    expect(m.position.canPlay(0)).toBe(true); // 8 rows, not 6
+  });
+
+  it("reviews a game on the bigger board", () => {
+    // Short and decisive: the point is that the review runs end to end on a
+    // variant, grading what it can and admitting the rest, not that it proves
+    // much — Connect 5's opening is far past the solver's horizon.
+    const history = [0, 0, 1, 1, 2, 2, 3, 3, 4];
+    const review = reviewMatch(history, { variant: CONNECT5, nodeLimit: 200_000 });
+    expect(review.plies).toHaveLength(history.length);
+    expect(review.plies.map((p) => p.ply)).toEqual(history.map((_, i) => i));
+    // Every ply is either proven or honestly labelled unknown; nothing invented.
+    for (const p of review.plies) {
+      if (p.grade === "unknown") expect(p.bestScore).toBe(null);
+      else expect(p.bestScore).not.toBe(null);
+    }
+  });
+});
 
 describe("Match", () => {
   it("starts empty with red to move", () => {

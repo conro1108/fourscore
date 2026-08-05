@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; background: #15111a; font-family: monospace; color: #ddd; }
+      .row { display: flex; gap: 24px; padding: 16px; align-items: flex-start; }
+      canvas { image-rendering: pixelated; }
+      figcaption { font-size: 12px; padding-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="row" id="row"></div>
+    <script type="module">
+      import { CONNECT4, CONNECT5, Match } from "@fourscore/engine";
+      import { BoardScene, layoutFor } from "/src/render/boardScene.ts";
+
+      const cases = [
+        { v: CONNECT4, moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1], scale: 3 },
+        { v: CONNECT5, moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2], scale: 3 },
+      ];
+
+      for (const c of cases) {
+        const L = layoutFor(c.v);
+        const fig = document.createElement("figure");
+        fig.style.margin = "0";
+        const canvas = document.createElement("canvas");
+        canvas.style.width = L.width * c.scale + "px";
+        canvas.style.height = L.height * c.scale + "px";
+        fig.appendChild(canvas);
+        const cap = document.createElement("figcaption");
+        cap.textContent = `${c.v.name} ${c.v.width}x${c.v.height} buffer ${L.width}x${L.height} @${c.scale}x`;
+        fig.appendChild(cap);
+        document.getElementById("row").appendChild(fig);
+
+        const scene = new BoardScene(canvas);
+        const match = Match.fromMoves(c.moves, c.v);
+        scene.update({
+          variant: c.v,
+          grid: match.position.grid(),
+          winningCells: match.winningCells,
+          hoverCol: 2,
+          marks: [{ col: 1, kind: "best" }, { col: 4, kind: "played" }],
+          botId: "vane",
+          botColors: { body: "#7b6bb5", shade: "#524689" },
+          mood: "smug",
+          thinking: false,
+          humanPlayer: "red",
+          interactive: true,
+          dimmed: false,
+        });
+      }
+    </script>
+  </body>
+</html>

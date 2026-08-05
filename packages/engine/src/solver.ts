@@ -20,11 +20,10 @@
  */
 
 import {
-  CELLS,
-  COLUMN_MASKS,
-  MOVE_ORDER,
+  CONNECT4,
   Position,
-  WIDTH,
+  VARIANTS,
+  type Variant,
   computeAlignmentSpots,
   popcount,
 } from "./board.js";
@@ -32,52 +31,75 @@ import {
 /** Beyond any real score, for "no result yet". */
 export const SCORE_UNKNOWN = 127;
 
-/** The best possible score: winning on the very first available ply. */
-export const MAX_SCORE = Math.floor((CELLS + 1) / 2) - 3;
+/**
+ * The best possible score on a board: winning as early as the run length
+ * allows, which is ply `2 * run - 1`, with everything after it left unplayed.
+ */
+export const maxScoreOf = (v: Variant): number => Math.floor(v.cells / 2) - v.run + 1;
+
+/** Connect 4's bounds, for callers that only deal with the default board. */
+export const MAX_SCORE = maxScoreOf(CONNECT4);
 export const MIN_SCORE = -MAX_SCORE;
 
 const FLAG_EMPTY = 0;
 const FLAG_UPPER = 1;
 const FLAG_LOWER = 2;
 
+const LO_MASK = 0xffffffffn;
+const HI_SHIFT = 32n;
+
 /**
  * Fixed-size open-addressed transposition table.
  *
- * Keys are `Position.key()` values, which fit in 49 bits — comfortably inside
- * the 53 bits a float64 stores exactly, so a `Float64Array` holds them without
- * loss and without the allocation churn of a `Map` of bigints. Collisions
- * simply overwrite: a wrong hit costs a re-search, not a wrong answer, because
- * the stored value is always re-validated against the current window.
+ * Keys are stored as a 32-bit low half and whatever is left over, rather than
+ * as one float64. On Connect 4 a `key()` is at most 49 bits and would fit in a
+ * float64's 53 bits of exact integer, but the packing needs `width * (height +
+ * 1)` bits and any board past 7x6 blows through that — Connect 5's 9x8 needs
+ * 81. A float64 doesn't fail loudly there; it rounds, so two different
+ * positions start comparing equal and the "exact" solver quietly returns wrong
+ * scores. Splitting the key keeps the comparison exact at every board size.
+ *
+ * Collisions simply overwrite: a wrong hit costs a re-search, not a wrong
+ * answer, because the stored value is always re-validated against the current
+ * window. That is only true while the key comparison itself is exact, which is
+ * the whole reason for the split.
  */
 export class TranspositionTable {
   private readonly size: number;
-  private readonly keys: Float64Array;
+  private readonly keysLo: Uint32Array;
+  private readonly keysHi: Float64Array;
   private readonly vals: Int8Array;
   private readonly flags: Uint8Array;
 
   constructor(sizeLog2 = 20) {
     this.size = 1 << sizeLog2;
-    this.keys = new Float64Array(this.size);
+    this.keysLo = new Uint32Array(this.size);
+    this.keysHi = new Float64Array(this.size);
     this.vals = new Int8Array(this.size);
     this.flags = new Uint8Array(this.size);
   }
 
-  private index(key: number): number {
-    // key is up to 2^49; a plain modulo by a power of two would only ever see
-    // the low bits, which vary slowly between sibling positions. Mixing the
-    // high bits down first keeps the table from clustering.
-    return (key ^ Math.floor(key / 0x100000000)) & (this.size - 1);
+  private index(lo: number, hi: number): number {
+    // The low bits vary slowly between sibling positions, so a plain modulo by
+    // a power of two would cluster badly. Mixing the high half down first is
+    // what keeps the table spread out.
+    return (lo ^ hi) & (this.size - 1);
   }
 
-  get(key: number): { value: number; flag: number } | null {
-    const i = this.index(key);
-    if (this.flags[i] === FLAG_EMPTY || this.keys[i] !== key) return null;
+  get(key: bigint): { value: number; flag: number } | null {
+    const lo = Number(key & LO_MASK);
+    const hi = Number(key >> HI_SHIFT);
+    const i = this.index(lo, hi);
+    if (this.flags[i] === FLAG_EMPTY || this.keysLo[i] !== lo || this.keysHi[i] !== hi) return null;
     return { value: this.vals[i]!, flag: this.flags[i]! };
   }
 
-  put(key: number, value: number, flag: number): void {
-    const i = this.index(key);
-    this.keys[i] = key;
+  put(key: bigint, value: number, flag: number): void {
+    const lo = Number(key & LO_MASK);
+    const hi = Number(key >> HI_SHIFT);
+    const i = this.index(lo, hi);
+    this.keysLo[i] = lo;
+    this.keysHi[i] = hi;
     this.vals[i] = value;
     this.flags[i] = flag;
   }
@@ -109,9 +131,13 @@ export class SearchAborted extends Error {
  * costs more than the ordering itself — this is the innermost loop in the
  * program and it runs a few million times a second.
  */
-const MAX_PLY = CELLS + 1;
-const ORDER_MOVES: bigint[][] = Array.from({ length: MAX_PLY }, () => new Array<bigint>(WIDTH));
-const ORDER_SCORES: Int32Array[] = Array.from({ length: MAX_PLY }, () => new Int32Array(WIDTH));
+const MAX_PLY = Math.max(...VARIANTS.map((v) => v.cells)) + 1;
+const MAX_WIDTH = Math.max(...VARIANTS.map((v) => v.width));
+const ORDER_MOVES: bigint[][] = Array.from({ length: MAX_PLY }, () => new Array<bigint>(MAX_WIDTH));
+const ORDER_SCORES: Int32Array[] = Array.from(
+  { length: MAX_PLY },
+  () => new Int32Array(MAX_WIDTH),
+);
 
 /**
  * Order candidate moves best-first into the scratch arrays for `ply`, and
@@ -125,12 +151,13 @@ const ORDER_SCORES: Int32Array[] = Array.from({ length: MAX_PLY }, () => new Int
 function orderMoves(p: Position, possible: bigint, ply: number): number {
   const moves = ORDER_MOVES[ply]!;
   const scores = ORDER_SCORES[ply]!;
+  const v = p.variant;
   let n = 0;
 
-  for (const col of MOVE_ORDER) {
-    const move = possible & COLUMN_MASKS[col]!;
+  for (const col of v.moveOrder) {
+    const move = possible & v.columnMasks[col]!;
     if (move === 0n) continue;
-    const score = popcount(computeAlignmentSpots(p.position | move, p.mask | move));
+    const score = popcount(computeAlignmentSpots(p.position | move, p.mask | move, v));
     let i = n;
     while (i > 0 && scores[i - 1]! < score) {
       moves[i] = moves[i - 1]!;
@@ -153,29 +180,30 @@ function orderMoves(p: Position, possible: bigint, ply: number): number {
 function negamax(p: Position, alpha: number, beta: number, ctx: SearchContext, ply = 0): number {
   if (++ctx.nodes > ctx.nodeLimit) throw new SearchAborted();
 
+  const cells = p.variant.cells;
   const possible = p.nonLosingMoves();
   if (possible === 0n) {
     // Every move loses immediately — the opponent wins as soon as they can.
-    return -Math.floor((CELLS - p.moves) / 2);
+    return -Math.floor((cells - p.moves) / 2);
   }
 
-  if (p.moves >= CELLS - 2) return 0; // no room for anyone to win
+  if (p.moves >= cells - 2) return 0; // no room for anyone to win
 
   // Nobody can win on their very next move (we'd have returned already), so
   // tighten the window against the soonest win that is still possible. This is
   // pure profit: it often collapses the window to nothing without any search.
-  const min = -Math.floor((CELLS - 2 - p.moves) / 2);
+  const min = -Math.floor((cells - 2 - p.moves) / 2);
   if (alpha < min) {
     alpha = min;
     if (alpha >= beta) return alpha;
   }
-  let max = Math.floor((CELLS - 1 - p.moves) / 2);
+  let max = Math.floor((cells - 1 - p.moves) / 2);
   if (beta > max) {
     beta = max;
     if (alpha >= beta) return beta;
   }
 
-  const key = Number(p.key());
+  const key = p.key();
   const entry = ctx.table.get(key);
   if (entry) {
     if (entry.flag === FLAG_UPPER) {
@@ -199,7 +227,7 @@ function negamax(p: Position, alpha: number, beta: number, ctx: SearchContext, p
     const move = moves[i]!;
     // The child, built inline: XOR flips the perspective to the opponent, and
     // the move joins the shared mask.
-    const child = new Position(p.position ^ p.mask, p.mask | move, p.moves + 1);
+    const child = new Position(p.position ^ p.mask, p.mask | move, p.moves + 1, p.variant);
 
     // Null window: we only need to know whether this child beats alpha, not by
     // how much. If it does, the wider re-search happens at the parent's parent.
@@ -248,16 +276,18 @@ export function solveScoreWithStats(
     nodeLimit: opts.nodeLimit ?? Number.MAX_SAFE_INTEGER,
   };
 
+  const cells = p.variant.cells;
+
   // An immediate win is worth checking before any of the machinery starts —
   // it's the single most common case in a real game.
-  for (const col of MOVE_ORDER) {
+  for (const col of p.variant.moveOrder) {
     if (p.canPlay(col) && p.isWinningMove(col)) {
-      return { score: Math.floor((CELLS + 1 - p.moves) / 2), stats: { nodes: 0 } };
+      return { score: Math.floor((cells + 1 - p.moves) / 2), stats: { nodes: 0 } };
     }
   }
 
-  let min = -Math.floor((CELLS - p.moves) / 2);
-  let max = Math.floor((CELLS + 1 - p.moves) / 2);
+  let min = -Math.floor((cells - p.moves) / 2);
+  let max = Math.floor((cells + 1 - p.moves) / 2);
 
   while (min < max) {
     // Bias the probe toward zero: draws and near-draws are much more common
@@ -302,10 +332,10 @@ export function analyze(p: Position, opts: SolveOptions = {}): Analysis {
   const table = opts.table ?? new TranspositionTable();
   const moves: MoveScore[] = [];
 
-  for (let col = 0; col < WIDTH; col++) {
+  for (let col = 0; col < p.variant.width; col++) {
     if (!p.canPlay(col)) continue;
     if (p.isWinningMove(col)) {
-      moves.push({ col, score: Math.floor((CELLS + 1 - p.moves) / 2) });
+      moves.push({ col, score: Math.floor((p.variant.cells + 1 - p.moves) / 2) });
       continue;
     }
     const child = p.clone();

@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CONNECT4,
   Match,
   Position,
   ROSTER,
@@ -20,6 +21,7 @@ import {
   type Mood,
   type Player,
   type Review as ReviewData,
+  type Variant,
 } from "@fourscore/engine";
 import { engineClient } from "./engine/client.js";
 import { BoardScene, type ColumnMark, type SceneModel } from "./render/boardScene.js";
@@ -50,7 +52,15 @@ interface Record_ {
   draws: number;
 }
 
-const RECORD_KEY = "fourscore.record.v1";
+/**
+ * Bumped from v1 because records are now keyed by `bot@variant`. Beating Vane
+ * at Connect 4 and beating Vane at Connect 5 are different achievements, and
+ * merging them would quietly inflate every existing record the moment someone
+ * played a variant game.
+ */
+const RECORD_KEY = "fourscore.record.v2";
+
+const recordKey = (botId: string, variantId: string): string => `${botId}@${variantId}`;
 
 function loadRecord(): Record<string, Record_> {
   try {
@@ -66,6 +76,7 @@ export function App() {
 
   const [screen, setScreen] = useState<Screen>("select");
   const [bot, setBot] = useState<BotProfile | null>(null);
+  const [variant, setVariant] = useState<Variant>(CONNECT4);
   const [history, setHistory] = useState<number[]>([]);
   const [humanFirst, setHumanFirst] = useState(true);
 
@@ -85,14 +96,19 @@ export function App() {
   const historyRef = useRef<number[]>([]);
   historyRef.current = history;
 
-  const match = useMemo(() => Match.fromMoves(history), [history]);
+  const match = useMemo(() => Match.fromMoves(history, variant), [history, variant]);
   const humanPlayer: Player = humanFirst ? "red" : "yellow";
   const botPlayer: Player = humanFirst ? "yellow" : "red";
+
+  // The variant the move sequencer should use. Read from a ref rather than
+  // closed over, because `playMove` is deliberately built once.
+  const variantRef = useRef<Variant>(variant);
+  variantRef.current = variant;
 
   // -- moves ----------------------------------------------------------------
 
   const playMove = useCallback(async (col: number) => {
-    const pos = Position.fromMoves(historyRef.current);
+    const pos = Position.fromMoves(historyRef.current, variantRef.current);
     if (!pos.canPlay(col)) return;
 
     const row = pos.landingRow(col);
@@ -108,12 +124,14 @@ export function App() {
   }, []);
 
   const startMatch = useCallback(
-    (profile: BotProfile, playerFirst: boolean) => {
+    (profile: BotProfile, playerFirst: boolean, v: Variant) => {
       // Fire and forget: clearing the bot's table is housekeeping, and making
       // the screen transition wait on a worker round-trip means a hiccup in the
       // worker reads to the player as a dead button.
-      void client.reset(profile.id).catch(() => {});
+      void client.reset(profile.id, v.id).catch(() => {});
       setBot(profile);
+      setVariant(v);
+      variantRef.current = v;
       setHumanFirst(playerFirst);
       historyRef.current = [];
       setHistory([]);
@@ -144,7 +162,7 @@ export function App() {
     (async () => {
       try {
         const [d] = await Promise.all([
-          client.decide(bot.id, historyRef.current),
+          client.decide(bot.id, variant.id, historyRef.current),
           sleep(MIN_THINK_MS),
         ]);
         // Bail if anything moved under us — StrictMode double-invokes effects in
@@ -162,22 +180,35 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [screen, bot, match.status, match.turn, botPlayer, history.length, locked, client, playMove]);
+  }, [
+    screen,
+    bot,
+    variant,
+    match.status,
+    match.turn,
+    botPlayer,
+    history.length,
+    locked,
+    client,
+    playMove,
+  ]);
 
   // -- record ---------------------------------------------------------------
 
   const recorded = useRef<string | null>(null);
   useEffect(() => {
     if (!bot || match.status === "playing") return;
-    const stamp = `${bot.id}:${history.join(",")}`;
+    const stamp = `${bot.id}@${variant.id}:${history.join(",")}`;
     if (recorded.current === stamp) return;
     recorded.current = stamp;
 
+    const key = recordKey(bot.id, variant.id);
+
     setRecord((prev) => {
-      const cur = prev[bot.id] ?? { wins: 0, losses: 0, draws: 0 };
+      const cur = prev[key] ?? { wins: 0, losses: 0, draws: 0 };
       const next = {
         ...prev,
-        [bot.id]: {
+        [key]: {
           wins: cur.wins + (match.winner === humanPlayer ? 1 : 0),
           losses: cur.losses + (match.winner === botPlayer ? 1 : 0),
           draws: cur.draws + (match.winner === null ? 1 : 0),
@@ -190,7 +221,7 @@ export function App() {
       }
       return next;
     });
-  }, [bot, match.status, match.winner, humanPlayer, botPlayer, history]);
+  }, [bot, variant, match.status, match.winner, humanPlayer, botPlayer, history]);
 
   // -- review ---------------------------------------------------------------
 
@@ -201,19 +232,21 @@ export function App() {
       // Scoped to the human: `reviewMatch` picks the turning point from whatever
       // plies it graded, and grading both sides would let it headline the bot's
       // losing move as though it were yours.
-      const r = await client.review(historyRef.current, humanPlayer);
+      const r = await client.review(variant.id, historyRef.current, humanPlayer);
       setReview(r);
       setReviewPly(r.turningPoint?.ply ?? null);
     } finally {
       setReviewing(false);
     }
-  }, [bot, client, humanPlayer]);
+  }, [bot, client, humanPlayer, variant]);
 
   // -- scene model ----------------------------------------------------------
 
   const sceneModel: SceneModel = useMemo(() => {
     const showing = reviewPly != null && review != null;
-    const shownPosition = showing ? Position.fromMoves(history.slice(0, reviewPly)) : match.position;
+    const shownPosition = showing
+      ? Position.fromMoves(history.slice(0, reviewPly), variant)
+      : match.position;
 
     const marks: ColumnMark[] = [];
     if (showing) {
@@ -225,6 +258,7 @@ export function App() {
     }
 
     return {
+      variant,
       grid: shownPosition.grid(),
       winningCells: showing ? [] : match.winningCells,
       hoverCol,
@@ -237,12 +271,31 @@ export function App() {
       interactive: match.status === "playing" && match.turn === humanPlayer && !locked && !thinking,
       dimmed: showing,
     };
-  }, [match, history, hoverCol, bot, mood, thinking, humanPlayer, locked, reviewPly, review]);
+  }, [
+    match,
+    variant,
+    history,
+    hoverCol,
+    bot,
+    mood,
+    thinking,
+    humanPlayer,
+    locked,
+    reviewPly,
+    review,
+  ]);
 
   // -- render ---------------------------------------------------------------
 
   if (screen === "select" || !bot) {
-    return <BotSelect record={record} onPick={(b) => startMatch(b, true)} />;
+    return (
+      <BotSelect
+        record={record}
+        variant={variant}
+        onVariant={setVariant}
+        onPick={(b) => startMatch(b, true, variant)}
+      />
+    );
   }
 
   const over = match.status !== "playing";
@@ -256,6 +309,7 @@ export function App() {
         </button>
         <div className="match-bar__bot">
           {bot.name}
+          <span className="match-bar__variant">{variant.name}</span>
           {decision?.exact && <span className="badge badge--solved">solving exactly</span>}
         </div>
       </header>
@@ -285,10 +339,13 @@ export function App() {
             {match.winner === null ? "A draw." : won ? "You win." : `${bot.name} wins.`}
           </h2>
           <div className="button-row">
-            <button className="button button--primary" onClick={() => startMatch(bot, humanFirst)}>
+            <button
+              className="button button--primary"
+              onClick={() => startMatch(bot, humanFirst, variant)}
+            >
               Rematch
             </button>
-            <button className="button" onClick={() => startMatch(bot, !humanFirst)}>
+            <button className="button" onClick={() => startMatch(bot, !humanFirst, variant)}>
               Rematch, {humanFirst ? "they" : "you"} start
             </button>
           </div>
@@ -311,7 +368,8 @@ export function App() {
           selected={reviewPly}
           onSelect={setReviewPly}
           onBack={() => setScreen("select")}
-          onRematch={() => startMatch(bot, humanFirst)}
+          onRematch={() => startMatch(bot, humanFirst, variant)}
+          variant={variant}
         />
       )}
     </div>

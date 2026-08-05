@@ -12,6 +12,9 @@
     "preview": "npm run preview -w @fourscore/web",
     "test": "vitest run",
     "test:watch": "vitest",
+    "measure:solve": "vite-node packages/engine/tools/measure-solve.ts --",
+    "measure:ladder": "vite-node packages/engine/tools/ladder.ts --",
+    "measure:bench": "vite-node packages/engine/tools/bench-solve.ts",
     "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/web --noEmit"
   },
   "devDependencies": {
