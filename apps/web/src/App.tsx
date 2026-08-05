@@ -354,7 +354,8 @@ export function App() {
           </button>
           {reviewing && (
             <p className="review__footnote">
-              Solving the position exactly. This takes a few seconds.
+              Reading the game back — solving the end exactly, estimating the rest. This takes a
+              few seconds.
             </p>
           )}
         </div>

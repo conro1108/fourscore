@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import type { Grade, PlyRecord, Player, Review as ReviewData, Variant } from "@fourscore/engine";
+import { EvalCurve } from "./EvalCurve.js";
 
 const GRADE_LABEL: Record<Grade, string> = {
   best: "best",
@@ -20,17 +21,30 @@ const GRADE_LABEL: Record<Grade, string> = {
   inaccuracy: "loose",
   mistake: "mistake",
   blunder: "blunder",
-  unknown: "unproven",
+  unknown: "unreadable",
 };
 
 /** Columns are 1-indexed on screen; the engine counts from zero. */
 const colName = (col: number): string => String(col + 1);
 
+/**
+ * The sentence for a ply.
+ *
+ * Estimated plies get hedged language throughout — "looks", "prefers" — because
+ * the numbers behind them are a depth-6 opinion, not a result. Proven ones get
+ * to be flat and declarative, which is the whole reward for being provable.
+ */
 function describe(rec: PlyRecord): string {
-  if (rec.grade === "unknown") return "Too early in the game to solve exactly.";
-  if (rec.grade === "best") return `Column ${colName(rec.col)} was the best move available.`;
+  if (rec.grade === "unknown") return "Nothing readable here.";
 
   const best = rec.bestCols.map(colName).join(" or ");
+
+  if (rec.source === "estimated") {
+    if (rec.grade === "best") return `Column ${colName(rec.col)} looks like the pick here.`;
+    return `Too early to prove, but the engine prefers column ${best}.`;
+  }
+
+  if (rec.grade === "best") return `Column ${colName(rec.col)} was the best move available.`;
   if (rec.turningPoint) {
     const was = (rec.bestScore ?? 0) > 0 ? "a won game" : "a drawn game";
     const now = (rec.playedScore ?? 0) < 0 ? "a lost one" : "a drawn one";
@@ -66,6 +80,7 @@ export function Review({
   const mine = review.plies.filter((p) => p.player === humanPlayer);
   const notable = mine.filter((p) => p.grade !== "best" && p.grade !== "good");
   const shown = showAll ? mine : notable.length > 0 ? notable : mine.slice(-6);
+  const proven = mine.filter((p) => p.source === "proven");
 
   /**
    * "No turning point" means two very different things.
@@ -76,23 +91,39 @@ export function Review({
    * move is real, it's just behind the horizon. Reporting that as "no single
    * losing move" would be telling you that you played fine when we don't know.
    */
-  const proven = mine.filter((p) => p.grade !== "unknown");
   const decidedBeforeHorizon = lost && review.skipped > 0 && proven.length > 0;
 
   return (
     <div className="review">
+      <EvalCurve
+        curve={review.curve}
+        humanPlayer={humanPlayer}
+        marked={selected}
+        onSelect={(ply) => onSelect(selected === ply ? null : ply)}
+      />
+
       <div className="review__headline">
         {review.turningPoint ? (
           <>
             <h2>Move {Math.floor(review.turningPoint.ply / 2) + 1} lost it.</h2>
             <p>{describe(review.turningPoint)}</p>
           </>
+        ) : review.biggestSwing && proven.length === 0 ? (
+          <>
+            <h2>Move {Math.floor(review.biggestSwing.ply / 2) + 1} is where it slipped.</h2>
+            <p>
+              Nothing here could be proved — the game ended before the solver could read it — so
+              this is the engine&rsquo;s read rather than a result. That move gave up more ground
+              than any other you played, and it prefers column{" "}
+              {review.biggestSwing.bestCols.map(colName).join(" or ")}.
+            </p>
+          </>
         ) : proven.length === 0 ? (
           <>
             <h2>Nothing provable here.</h2>
             <p>
-              The game ended too early for the solver to reach it. Reviews get sharper the longer
-              a game runs.
+              The game ended too early for the solver to reach it, and the engine didn&rsquo;t see
+              a moment where much changed either. Reviews get sharper the longer a game runs.
             </p>
           </>
         ) : decidedBeforeHorizon ? (
@@ -100,8 +131,12 @@ export function Review({
             <h2>It was lost before the solver could see.</h2>
             <p>
               Every move it could prove kept the result you already had — so the game was decided
-              in the opening, past the point exact analysis reaches. The loose moves below are the
-              best lead available.
+              in the opening, past the point exact analysis reaches.
+              {review.biggestSwing
+                ? ` The curve above is the engine's read of that stretch, and move ${
+                    Math.floor(review.biggestSwing.ply / 2) + 1
+                  } is where it thinks the ground went.`
+                : " The loose moves below are the best lead available."}
             </p>
           </>
         ) : (
@@ -126,7 +161,15 @@ export function Review({
             >
               <span className="ply__num">{Math.floor(rec.ply / 2) + 1}</span>
               <span className="ply__col">col {colName(rec.col)}</span>
-              <span className={`ply__grade ply__grade--${rec.grade}`}>{GRADE_LABEL[rec.grade]}</span>
+              <span
+                className={`ply__grade ply__grade--${rec.grade}${
+                  rec.source === "estimated" ? " ply__grade--estimated" : ""
+                }`}
+                title={rec.source === "estimated" ? "estimated, not proven" : "proven exactly"}
+              >
+                {GRADE_LABEL[rec.grade]}
+                {rec.source === "estimated" && <span className="ply__hedge">?</span>}
+              </span>
             </button>
             {selected === rec.ply && <p className="ply__detail">{describe(rec)}</p>}
           </li>
@@ -141,8 +184,9 @@ export function Review({
 
       {review.skipped > 0 && (
         <p className="review__footnote">
-          {review.skipped} early {review.skipped === 1 ? "move" : "moves"} couldn&rsquo;t be solved
-          exactly. {variant.name}&rsquo;s opening is out of reach without a precomputed book
+          {review.skipped} early {review.skipped === 1 ? "move is" : "moves are"} marked{" "}
+          <span className="ply__hedge">?</span> — the engine&rsquo;s read rather than a proof.{" "}
+          {variant.name}&rsquo;s opening is out of exact reach without a precomputed book
           {variant.run > 4
             ? `, and a ${variant.width}×${variant.height} board puts far more of the game behind that horizon than Connect 4 does`
             : ""}

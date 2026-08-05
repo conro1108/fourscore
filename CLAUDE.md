@@ -109,15 +109,38 @@ Resizing a canvas resets its 2D context, so `imageSmoothingEnabled` has to be
 turned off again after a variant switch.
 
 Unit tests can't catch any of this; check a screenshot. `apps/web/scene-preview.html`
-renders every variant side by side against the dev server for exactly that.
+renders every variant side by side against the dev server for exactly that, and
+`apps/web/review-preview.html` does the same for the review screen and its eval
+curve — both found real bugs that typechecked and passed tests.
+
+The eval curve is SVG, not the pixel buffer. A chart wants display resolution and
+smooth diagonals, which is the exact opposite of the sprite rule; keeping it out
+of the canvas is what lets both be right.
 
 Shared outline ink is `#402e3a`, the same as cozy_sprites and battle_clicker.
 
 ## Say what the solver actually knows
 
 Anywhere the UI reports analysis it must distinguish proven from unproven rather
-than presenting a guess as a result — see the `unknown` grade in `match.ts` and
-the review headline that says a game was decided before the solver could see it.
+than presenting a guess as a result. **Distinguish, not withhold** — those are
+different rules and the first version of this got it wrong.
+
+The review used to emit nothing for plies the solver couldn't reach, which
+looked like honesty and was really just silence: the engine had an opinion about
+those positions and wasn't being asked. Now every ply carries a `source`:
+
+- `proven` — the exact solver. A fact about the game.
+- `estimated` — `searchHeuristic`. This engine's read, and a better engine could
+  disagree.
+
+Both are shown; they are never blended. Estimated plies are hedged in copy
+("looks like", "prefers"), marked `?` in the list, and drawn dashed on the
+curve. Two rules hold the line: an estimated ply may **never** set
+`turningPoint` (that claim requires proof), and the advantage scale keeps proven
+results in a band above anything an estimate can reach.
+
+If you add analysis, the question isn't "can we prove this" — it's "can we say
+what we think and be clear about which kind of claim it is".
 
 `exactFrom` is per-variant and **measured, not chosen**:
 `packages/engine/tools/measure-solve.ts live <variant>` times the bot's first

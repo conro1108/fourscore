@@ -61,8 +61,10 @@ export {
   Match,
   gradeMove,
   reviewMatch,
+  type CurvePoint,
   type Grade,
   type MatchResult,
   type PlyRecord,
   type Review,
+  type ScoreSource,
 } from "./match.js";

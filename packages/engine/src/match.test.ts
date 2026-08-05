@@ -195,13 +195,64 @@ describe("reviewMatch", () => {
     expect(review.turningPoint!.ply).toBeLessThanOrEqual(planted!.ply);
   });
 
-  it("admits when it could not prove a position", () => {
-    // The opening is out of reach; the review says so rather than inventing a
-    // grade for it.
+  it("marks what it could not prove as an estimate rather than a fact", () => {
+    // The opening is out of exact reach. The review still has an opinion about
+    // it — that's the point — but it must be labelled as an estimate, and it
+    // must never claim an estimated move changed the result.
     const m = randomGame(8);
     const review = reviewMatch(m.history, { nodeLimit: 50_000 });
     const early = review.plies.filter((p) => p.ply < 6);
-    expect(early.some((p) => p.grade === "unknown")).toBe(true);
+
+    expect(early.some((p) => p.source === "estimated")).toBe(true);
     expect(review.skipped).toBeGreaterThan(0);
+
+    for (const p of review.plies) {
+      if (p.source !== "estimated") continue;
+      // An estimate is still a number, not silence.
+      expect(p.bestScore).not.toBeNull();
+      expect(p.playedScore).not.toBeNull();
+      expect(p.bestCols.length).toBeGreaterThan(0);
+      // But it is never allowed to be presented as the move that lost the game.
+      expect(p.turningPoint).toBe(false);
+    }
+  });
+
+  it("produces a curve over the whole game, on one scale", () => {
+    const m = randomGame(12);
+    const review = reviewMatch(m.history, { forPlayer: "red", nodeLimit: 200_000 });
+
+    // One point per ply plus the empty board, regardless of whose moves were
+    // graded — half a curve isn't a shape.
+    expect(review.curve).toHaveLength(m.history.length + 1);
+    expect(review.curve[0]).toEqual({ ply: 0, advantage: 0, source: "estimated" });
+    expect(review.curve.map((c) => c.ply)).toEqual(
+      m.history.map((_, i) => i + 1).reduce<number[]>((acc, p) => [...acc, p], [0]),
+    );
+
+    for (const point of review.curve) {
+      expect(point.advantage).toBeGreaterThanOrEqual(-1);
+      expect(point.advantage).toBeLessThanOrEqual(1);
+      expect(Number.isFinite(point.advantage)).toBe(true);
+    }
+  });
+
+  it("offers the biggest estimated swing as a lead, not a verdict", () => {
+    // A budget of one node, so nothing beyond the trivially-decided endgame gets
+    // proven. (`analyze` short-circuits immediate wins and draws without
+    // spending nodes, so a handful of late plies come back proven anyway.)
+    const m = randomGame(20);
+    const review = reviewMatch(m.history, { forPlayer: "red", nodeLimit: 1 });
+
+    const opening = review.plies.filter((p) => p.ply < 10);
+    expect(opening.length).toBeGreaterThan(0);
+    expect(opening.every((p) => p.source === "estimated")).toBe(true);
+
+    if (review.biggestSwing) {
+      // A lead is only ever drawn from the reviewed player's own estimated
+      // moves — never from a proven one, which would have its own headline.
+      expect(review.biggestSwing.player).toBe("red");
+      expect(review.biggestSwing.source).toBe("estimated");
+      expect(review.biggestSwing.drop).toBeGreaterThan(0.25);
+    }
   });
 });

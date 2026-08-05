@@ -212,6 +212,102 @@ body {
   font-weight: 600;
 }
 
+/* -- eval curve ---------------------------------------------------------- */
+
+.eval-curve {
+  margin: 0 0 12px;
+}
+
+.eval-curve__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: #1b1622;
+}
+
+.eval-curve__half {
+  opacity: 0.5;
+}
+
+.eval-curve__half--you {
+  fill: #23301f;
+}
+
+.eval-curve__half--them {
+  fill: #2e1f26;
+}
+
+.eval-curve__axis {
+  stroke: #4a4258;
+  stroke-width: 1;
+}
+
+.eval-curve__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Solid is the solver: this actually is the value of the position. */
+.eval-curve__line--proven {
+  stroke: #6fbf73;
+}
+
+/* Dashed and dimmer is the evaluator guessing, and it should look like it. */
+.eval-curve__line--estimated {
+  stroke: #8e86a8;
+  stroke-dasharray: 3 3;
+}
+
+.eval-curve__marker {
+  stroke: #e0a33c;
+  stroke-width: 1;
+}
+
+.eval-curve__hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.eval-curve__key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.eval-curve__swatch {
+  display: inline-block;
+  width: 12px;
+  height: 0;
+  border-top-width: 2px;
+  margin-left: 6px;
+}
+
+.eval-curve__swatch--proven {
+  border-top: 2px solid #6fbf73;
+  margin-left: 0;
+}
+
+.eval-curve__swatch--estimated {
+  border-top: 2px dashed #8e86a8;
+}
+
+.ply__grade--estimated {
+  opacity: 0.75;
+}
+
+.ply__hedge {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  vertical-align: super;
+  margin-left: 1px;
+}
+
 .match-bar__variant {
   font-size: 12px;
   font-weight: 400;

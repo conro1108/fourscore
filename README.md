@@ -104,17 +104,35 @@ it is on Connect 4.
 
 ## Post-game review
 
-Ask "where did it go wrong?" and every ply gets scored against what was
-available instead, with the single move that turned a won or drawn game into a
-lost one called out by name.
+Ask "where did it go wrong?" and you get a curve of the whole game plus every
+ply scored against what was available instead, with the single move that turned
+a won or drawn game into a lost one called out by name.
 
-The review walks backwards from the final position. That warms the transposition
-table for the earlier plies and gives a natural place to stop: positions get
-monotonically harder toward the opening, so the first one that blows its node
-budget is the last one worth attempting. Plies it can't prove are labelled
-**unproven** rather than guessed at, and if you lost with the opening unproven
-it says the game was decided before the solver could see rather than claiming
-you played fine.
+The review has two tiers, and keeping them apart is the entire design:
+
+- **Proven.** The exact solver, walking backwards from the final position — that
+  warms the transposition table for earlier plies and gives a natural place to
+  stop, since positions get monotonically harder toward the opening. Drawn solid
+  on the curve. These are facts about the game.
+- **Estimated.** Everywhere the solver can't reach, the heuristic evaluator says
+  what it thinks anyway. Drawn dashed, marked `?`, and hedged in the copy.
+
+That split is a correction to how this worked at first. The review used to print
+nothing at all for unprovable plies, on the principle that a guess presented as a
+result is worse than silence. True — but silence was the lazy fix. The engine
+*had* a view on the opening; it just wasn't being asked. Now it's asked and the
+answer is labelled, which is how reviewing a game with a chess engine has always
+worked: the tablebase is exact, everything before it is the engine talking.
+
+Two invariants keep it honest. An estimated ply can never be named as the move
+that lost the game — that claim requires proof. And the advantage axis reserves a
+band at the top and bottom that only proven results reach, so no hunch can ever
+draw itself as certain.
+
+This is also what makes Connect 5 the more interesting board to review rather
+than the worse one. About 60% of a Connect 5 game sits past the solver's horizon,
+which used to mean 60% of the review was blank and now means most of it is the
+engine reasoning out loud.
 
 ## Layout
 
