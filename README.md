@@ -104,7 +104,7 @@ it is on Connect 4.
 
 ## Post-game review
 
-Ask "where did it go wrong?" and you get a curve of the whole game plus every
+Ask for the game review and you get a curve of the whole game plus every
 ply scored against what was available instead, with the single move that turned
 a won or drawn game into a lost one called out by name.
 

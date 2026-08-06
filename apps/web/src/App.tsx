@@ -350,7 +350,7 @@ export function App() {
             </button>
           </div>
           <button className="link-button" onClick={runReview} disabled={reviewing}>
-            {reviewing ? "solving…" : "Where did it go wrong?"}
+            {reviewing ? "solving…" : "Game review"}
           </button>
           {reviewing && (
             <p className="review__footnote">
