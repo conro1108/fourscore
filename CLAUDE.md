@@ -167,6 +167,30 @@ it: `exactnessNote` in `bots.ts` generates the claim from the number so a bot
 can't go on advertising Connect 4's crossover on a Connect 5 board. If you add a
 variant, generate the claim, don't write one.
 
+## Multiplayer is client-authoritative on purpose
+
+`db/schema.sql` is Fourscore's slice of the shared toybox Supabase project (see
+the Shared Supabase section of `~/projects/CLAUDE.md`). It is a full rebuild, not
+a migration — pushing drops the schema and every in-progress match with it.
+
+There is no server that validates a move. Both clients own the engine and fold
+`moves` into a `Position` themselves, so an illegal move surfaces as a replay
+mismatch on the opponent's machine, not as a rejected write. That's the right
+trade for a game you play with friends, and it's why the engine still has to
+stay I/O-free: the day it isn't, the honest server becomes impossible.
+
+What the database *does* enforce is what breaks by accident — turn order, from
+`(ply + host_seat) % 2`, and one contiguous ply at a time. Both live in
+`db/schema.sql` and both are covered by `npm run db:verify`, which is not part of
+`npm test` because it needs the live database. Run it after any schema change:
+RLS bugs typecheck fine and unit tests can't see them. A policy on `moves` that
+subqueries `moves` is infinite recursion, and Postgres only says so on the first
+insert — that one shipped and was caught by `db:verify`, not by review.
+
+Move state is a list of column indices, same as `Match.history`. Never put a
+packed bitboard in Postgres; `board.ts` stays the only thing that knows the
+packing.
+
 ## Git
 
 This project merges straight to `main` — no feature branches or PRs.
