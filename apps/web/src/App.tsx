@@ -370,7 +370,6 @@ export function App() {
           onSelect={setReviewPly}
           onBack={() => setScreen("select")}
           onRematch={() => startMatch(bot, humanFirst, variant)}
-          variant={variant}
         />
       )}
     </div>

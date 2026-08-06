@@ -119,28 +119,39 @@ of the canvas is what lets both be right.
 
 Shared outline ink is `#402e3a`, the same as cozy_sprites and battle_clicker.
 
-## Say what the solver actually knows
+## Say what the solver actually knows — without saying "solver"
 
-Anywhere the UI reports analysis it must distinguish proven from unproven rather
-than presenting a guess as a result. **Distinguish, not withhold** — those are
-different rules and the first version of this got it wrong.
-
-The review used to emit nothing for plies the solver couldn't reach, which
-looked like honesty and was really just silence: the engine had an opinion about
-those positions and wasn't being asked. Now every ply carries a `source`:
+Every ply carries a `source`:
 
 - `proven` — the exact solver. A fact about the game.
 - `estimated` — `searchHeuristic`. This engine's read, and a better engine could
   disagree.
 
-Both are shown; they are never blended. Estimated plies are hedged in copy
-("looks like", "prefers"), marked `?` in the list, and drawn dashed on the
-curve. Two rules hold the line: an estimated ply may **never** set
-`turningPoint` (that claim requires proof), and the advantage scale keeps proven
-results in a band above anything an estimate can reach.
+The engine must keep these apart. **The UI must not put the distinction in front
+of the player.** "Proven vs estimated" is a fact about how a number was obtained,
+not about the game, and a player reading a score-over-time chart shouldn't have
+to hold it. So: one solid line on the curve, no legend, no `?` badges, no
+footnote about the solver's horizon.
 
-If you add analysis, the question isn't "can we prove this" — it's "can we say
-what we think and be clear about which kind of claim it is".
+What survives is what the distinction is actually for — the review is not
+allowed to overclaim:
+
+- An estimated ply may **never** set `turningPoint`. "This move lost the game"
+  requires proof.
+- The advantage scale keeps proven results in a band above anything an estimate
+  can reach, so the two never fight over the same y-value. (One line means a
+  visible step where the solver kicks in; that reads as the game going decisive,
+  which it did.)
+- Copy for an estimated ply stays hedged — "looks like", "looks stronger" —
+  while proven copy is flat and declarative. The hedge carries the uncertainty
+  without naming the machinery.
+
+If you add analysis, the question isn't "can we prove this" and it isn't "can we
+label which kind of claim this is" — it's "does the confidence of the sentence
+match the confidence of the number".
+
+The Oracle's own bot copy (`exactnessNote`) is the exception and stays: "plays
+the end exactly" is that bot's selling point, not a caveat on a chart.
 
 `exactFrom` is per-variant and **measured, not chosen**:
 `packages/engine/tools/measure-solve.ts live <variant>` times the bot's first
