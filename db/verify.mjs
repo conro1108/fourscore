@@ -12,6 +12,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
 const env = {};
 for (const line of readFileSync(join(homedir(), "projects", ".supabase.env"), "utf8").split("\n")) {
@@ -117,6 +118,49 @@ await check("guest cannot skip ahead to ply 2", await move(guest, 2, 4), 400);
 await check("guest plays ply 1", await move(guest, 1, 4), 201);
 // Caught by the contiguity trigger, which fires before the primary key does.
 await check("neither player can replay ply 1", await move(guest, 1, 5), 400);
+
+// Realtime is the piece with no fallback: if it stops delivering, the game just
+// silently stops updating for one player and looks like a hang. It is also the
+// piece most likely to break invisibly, since a table has to be in the
+// supabase_realtime publication and the schema has to be granted — miss either
+// and subscribe() still reports SUBSCRIBED.
+console.log("\nrealtime");
+{
+  // Watches as the host. Realtime applies the same RLS as a plain select, so a
+  // spectator would correctly see nothing and the test would pass or fail for
+  // entirely the wrong reason.
+  const rt = createClient(URL_, KEY, { db: { schema: "fourscore" }, auth: { persistSession: false } });
+  await rt.realtime.setAuth(host.token);
+
+  const watcher = await rest(host, "matches", {
+    method: "POST",
+    body: JSON.stringify({ host: host.id, join_code: "RTST", host_seat: 1 }),
+  }).then((r) => r.json());
+  const id = watcher[0].id;
+
+  const seen = [];
+  const channel = rt
+    .channel(`verify:${id}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "fourscore", table: "moves", filter: `match_id=eq.${id}` },
+      (p) => seen.push(p.new.col),
+    )
+    .subscribe();
+  await new Promise((r) => setTimeout(r, 1500));
+
+  await rest(guest, "rpc/join_match", { method: "POST", body: JSON.stringify({ p_code: "RTST" }) });
+  await rest(host, "moves", {
+    method: "POST",
+    body: JSON.stringify({ match_id: id, ply: 0, col: 5, player: host.id }),
+  });
+  await new Promise((r) => setTimeout(r, 2500));
+
+  const ok = seen.includes(5);
+  if (!ok) failures++;
+  console.log(`  ${ok ? "ok  " : "FAIL"} an inserted move arrives over the wire${ok ? "" : ` — got ${JSON.stringify(seen)}`}`);
+  await rt.removeChannel(channel);
+}
 
 for (const id of users) {
   await fetch(`${URL_}/auth/v1/admin/users/${id}`, {

@@ -16,6 +16,7 @@ interface Props {
   record: Record<string, { wins: number; losses: number; draws: number }>;
   variant: Variant;
   onVariant: (v: Variant) => void;
+  onPlayPerson: () => void;
 }
 
 function portrait(bot: BotProfile): string {
@@ -68,7 +69,7 @@ function BotCard({
   );
 }
 
-export function BotSelect({ onPick, record, variant, onVariant }: Props) {
+export function BotSelect({ onPick, record, variant, onVariant, onPlayPerson }: Props) {
   const ladder = ROSTER.filter((b) => !b.perfect);
   const perfect = ROSTER.filter((b) => b.perfect);
 
@@ -94,6 +95,13 @@ export function BotSelect({ onPick, record, variant, onVariant }: Props) {
           </button>
         ))}
       </div>
+
+      <button className="person-card" onClick={onPlayPerson}>
+        <span className="person-card__name">Play a person</span>
+        <span className="person-card__blurb">
+          Send a link and play whoever opens it. No account, no waiting room.
+        </span>
+      </button>
 
       <div className="bot-list">
         {ladder.map((bot) => (

@@ -473,3 +473,87 @@ body {
   font-size: 14px;
   color: var(--text-dim);
 }
+
+/* --- online --------------------------------------------------------------- */
+
+/*
+ * The entry point to online play sits above the ladder rather than inside it,
+ * because a person isn't a rung — beating your wife at Connect 4 says nothing
+ * about whether you can beat Cinder.
+ */
+.person-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 14px;
+  background: linear-gradient(180deg, var(--panel-lit), var(--panel));
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms, background 120ms;
+}
+
+.person-card:hover {
+  transform: translateY(-1px);
+  background: var(--panel-lit);
+}
+
+.person-card__name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.person-card__blurb {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.join-row {
+  display: flex;
+  gap: 8px;
+}
+
+.join-row__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 2px solid #3d3550;
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 20px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.join-row__input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Meant to be read out loud across a room, so it's as big as it can be. */
+.join-code {
+  padding: 18px 12px;
+  background: var(--panel);
+  border: 2px solid #3d3550;
+  border-radius: 12px;
+  color: var(--accent);
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.online-error {
+  margin: 12px 0 0;
+  color: var(--bad);
+  font-size: 14px;
+  text-align: center;
+}

@@ -191,6 +191,14 @@ Move state is a list of column indices, same as `Match.history`. Never put a
 packed bitboard in Postgres; `board.ts` stays the only thing that knows the
 packing.
 
+The client lives in `src/online/` and `src/ui/Online.tsx`, and reuses
+`BoardScene` untouched — your opponent gets a roster creature chosen by hashing
+their user id, so a person looks like an opponent instead of a bare grid. Discs
+animate off the *move list*, not off the click, so a move arriving over the wire
+drops exactly like one you made; that's why `rendered` lags `moves` by one
+animation. It's also the only place a desync can surface, and it says so on
+screen rather than rendering nonsense.
+
 ## Git
 
 This project merges straight to `main` — no feature branches or PRs.

@@ -24,9 +24,11 @@ import {
   type Variant,
 } from "@fourscore/engine";
 import { engineClient } from "./engine/client.js";
+import { useOnlineMatch } from "./online/useOnlineMatch.js";
 import { BoardScene, type ColumnMark, type SceneModel } from "./render/boardScene.js";
 import { Board } from "./ui/Board.js";
 import { BotSelect } from "./ui/BotSelect.js";
+import { Online } from "./ui/Online.js";
 import { Review } from "./ui/Review.js";
 
 /** Even an instant bot pauses, or its move reads as a glitch rather than a move. */
@@ -44,7 +46,7 @@ const MOOD_LINE: Record<Mood, string> = {
   resigned: "well. that's that.",
 };
 
-type Screen = "select" | "match";
+type Screen = "select" | "match" | "online";
 
 interface Record_ {
   wins: number;
@@ -91,6 +93,22 @@ export function App() {
   const [reviewPly, setReviewPly] = useState<number | null>(null);
 
   const [record, setRecord] = useState<Record<string, Record_>>(loadRecord);
+
+  const online = useOnlineMatch();
+
+  // An invite link drops you straight into the game it points at. The code is
+  // stripped from the URL afterwards so a refresh doesn't try to join twice —
+  // by then it's been consumed and the second attempt would only show an error.
+  const autoJoined = useRef(false);
+  useEffect(() => {
+    if (autoJoined.current || !online.me) return;
+    const code = new URLSearchParams(window.location.search).get("join");
+    if (!code) return;
+    autoJoined.current = true;
+    setScreen("online");
+    void online.join(code);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [online]);
 
   const sceneRef = useRef<BoardScene | null>(null);
   const historyRef = useRef<number[]>([]);
@@ -287,6 +305,18 @@ export function App() {
 
   // -- render ---------------------------------------------------------------
 
+  if (screen === "online") {
+    return (
+      <Online
+        online={online}
+        onExit={() => {
+          online.leave();
+          setScreen("select");
+        }}
+      />
+    );
+  }
+
   if (screen === "select" || !bot) {
     return (
       <BotSelect
@@ -294,6 +324,7 @@ export function App() {
         variant={variant}
         onVariant={setVariant}
         onPick={(b) => startMatch(b, true, variant)}
+        onPlayPerson={() => setScreen("online")}
       />
     );
   }
