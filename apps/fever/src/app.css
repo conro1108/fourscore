@@ -23,6 +23,9 @@ body,
 #root {
   margin: 0;
   height: 100%;
+  /* Mobile browser chrome makes 100% shorter than the visible viewport, which
+     crops the board behind the URL bar. `dvh` tracks the chrome as it hides. */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -46,6 +49,11 @@ body {
 
 .stage canvas {
   display: block;
+  /* A tap on a column is a move, never a scroll or a double-tap zoom. Without
+     this the browser holds the tap for ~300ms deciding, which reads as the
+     board ignoring you. The full mobile pass is phase 9; this is the one line
+     that makes live playtesting on a phone work at all. */
+  touch-action: none;
 }
 
 /* -- HUD ------------------------------------------------------------------ */
@@ -86,7 +94,26 @@ body {
 
 .hud-controls {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
+}
+
+/* Portrait phones: the top row doesn't fit on one line, and it failed by
+   pushing NEW GAME off the right edge rather than by looking cramped — the
+   button was simply unreachable on the device. Layout only; phase 6 owns what
+   this chrome actually looks like and phase 9 owns the real mobile pass. */
+@media (max-width: 560px) {
+  .hud-top {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .wordmark {
+    font-size: 22px;
+  }
 }
 
 /* -- period bevel buttons -------------------------------------------------- */
