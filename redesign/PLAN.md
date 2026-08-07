@@ -29,38 +29,45 @@ Two tiers of model run this plan, deployed by what each is for:
 
 - **Fable** does the work where *precedent gets set*: the scaffold whose
   architecture everything inherits, the first instance of each subsystem's
-  look, the creative direction documents, and the taste gates. Fable's
-  deliverable is usually small and vertical — one exemplar built to final
-  quality that defines the bar.
+  look and voice, and the final judgment against a real artifact. Fable's
+  deliverable is small and vertical — an exemplar built to final quality that
+  defines the bar.
 - **Opus** does the work where *precedent gets extended*: breadth, mechanics,
   ports, and every additional instance of a thing that already has an
   exemplar. This is most of the codebase by volume.
 
 The boundary in one sentence: **Opus has full agency within established
 precedent and the freedoms VISION.md grants; anything that would set new
-precedent for the whole game — a new palette family, the first prop, a
+precedent for the whole game — a new palette family, a new class of prop, a
 subsystem's founding structure — waits for a Fable step.** An Opus session
 that finds itself about to set precedent should log it as an Open Question
 and route around it, not improvise it.
 
-Phases marked ⚑ are taste-critical and end with a **taste gate**: a short
-Fable session reviews the phase's harness-state screenshots against
-VISION.md's fixed list (the two budgets and the timing rule especially) and
-either signs off in the completion log or leaves a punch list. The ledger
-line doesn't flip to `done` until the gate passes.
+**There are exactly two Fable steps left, and each is a whole phase**, not a
+sub-step inside one: **phase 2, The Thesis** (which sets every sensory
+precedent in one sitting) and **phase 9, The Polish Lap** (which judges the
+finished thing). Phase 0 was the third. Everything between them is Opus.
+
+That has a consequence worth stating plainly: **the phase-2 artifacts are the
+taste gate.** There is no separate reviewer session. Phases 3–8 each end by
+putting their own output next to the thesis frame, the exemplar gag, the
+signature sound and the voice sample, and asking whether it belongs to the
+same world — in the completion log, with screenshots. If the honest answer is
+"not really, and I don't know how to fix it", that is an Open Question for
+phase 9, not a reason to keep polishing blind.
 
 ### Phase ledger
 
 - [x] 0 — Stage *(Fable)*
 - [x] 1 — The Director *(Opus)*
-- [ ] 2 — The void and the board look ⚑ *(Fable step → Opus step)*
-- [ ] 3 — Props and spikes ⚑ *(Fable step → Opus step)*
-- [ ] 4 — Audio ⚑ *(Fable step → Opus step)*
-- [ ] 5 — Bots as characters ⚑ *(Fable direction → Opus build)*
-- [ ] 6 — Chrome ⚑ *(Opus, Fable copy pass)*
+- [ ] 2 — **The Thesis** ⚑ *(Fable)*
+- [ ] 3 — Props and spikes *(Opus)*
+- [ ] 4 — Audio *(Opus)*
+- [ ] 5 — Bots as characters *(Opus)*
+- [ ] 6 — Chrome *(Opus)*
 - [ ] 7 — Review, reimagined *(Opus)*
 - [ ] 8 — Online *(Opus)*
-- [ ] 9 — The polish lap *(Fable, with Connor)*
+- [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)*
 
 ## What survives, what dies
 
@@ -193,7 +200,7 @@ Unit tests can't see any of this, so the harness is visual:
 ## Phases
 
 Each phase is independently shippable and leaves the app playable. Sizes are
-roughly one focused agent-session each; 3 and 5 may be two.
+roughly one focused agent-session each; 2, 3 and 5 may be two.
 
 **0 — Stage.** *(Fable — every later session inherits this architecture, so
 its shape is the highest-leverage code in the project.)* Scaffold `apps/fever`
@@ -207,54 +214,77 @@ Moss on both variants at 60fps; harness screenshots.
 custom property on the DOM root. *Accept:* slider and a real game both
 visibly move the void; tests cover curve shape and event debouncing.
 
-**2 — The void and the board look ⚑.** Gradient/iridescence shaders, bloom
-and post stack, board material, fever-driven escalation of all of it. This is
-the "genuinely beautiful" pillar. *Fable step:* establish the look — the void
-shader, the iridescence ramp, the post stack — on one harness state at
-mid-fever, built to final quality. That frame is the game's visual thesis.
-*Opus step:* extend it across the fever range, the board material, and both
-variants, holding the thesis frame invariant. *Accept:* harness states
-idle/mid/full fever look like three moods of one world; 60fps held; gate
-passed.
+**2 — The Thesis ⚑.** *(Fable. The one session where the game's senses get
+their precedent, all at once. Bigger than a normal phase and worth it: the
+five phases after it are extension work, and they can only be extension work
+if there is something to extend.)* One harness state at mid-fever, built to
+final quality, containing:
 
-**3 — Props and spikes ⚑.** Prop system (budgeted geometry, stepped
-animation, spawn/despawn choreography) + the event gags: move quality
-reactions, threat alarms, the win detonation. Proven-only gags gated per
-Product Truths. *Fable step:* the prop system's founding structure plus **one
-exemplar gag end-to-end** — say, the monster truck lap — nailing the taste
-law: budgeted geometry, stepped timing, choreographed entrance and exit. This
-is the reference every other gag is judged against. *Opus step:* the rest of
-the gag roster, each one held to the exemplar. *Accept:* each
-`SpectacleEvent` kind has ≥1 gag; win moment is the biggest thing in the
-game; budgets audited (tri counts logged in the harness); gate passed.
+- **The look.** Void gradient/iridescence shader, the post stack, the board
+  material, bloom. The "genuinely beautiful" pillar. This frame is the game's
+  visual thesis and phases 3–8 hold it invariant.
+- **One prop gag, end to end.** The prop system's founding structure plus a
+  single exemplar — say the monster truck lap — nailing the taste law:
+  ≤300 tris, 64px nearest, stepped timing, choreographed entrance *and* exit,
+  sharing the frame with the beautiful half without apologizing. Both budgets
+  visible in one screenshot is the point.
+- **The signature sound.** The WebAudio bus and mangling-graph architecture,
+  the ambient bed's fever escalation, and the one spike that goes with the
+  exemplar gag — tuned by ear until they're right.
+- **The voice.** ~15 player-facing strings written as the model — a title, a
+  couple of buttons, a system dialog that says something a system dialog
+  shouldn't, one review sentence hedged and one flat — plus **one bot persona
+  written in full** (who they are here, their void variation, their signature
+  gag, their voice) as the template for the other seven. Appended to
+  `VISION.md`, since it's north star and not plan.
 
-**4 — Audio ⚑.** WebAudio bus, manifest + placeholder synth samples,
-mangling graph, fever-driven ambient bed + event one-shots, mute/volume in
-settings. Produce the sample shopping list. *Fable step:* the bus and
-mangling-graph architecture, plus the game's **signature sound** — the
-ambient bed's fever escalation and one spike, tuned by ear until they're
-right. *Opus step:* the full manifest, remaining one-shots, settings wiring,
-and the shopping list. *Accept:* full game with sound feels escalating and
-spike-y; hard mute works; no autoplay-policy violations; gate passed.
+*Accept:* the state renders at 60fps with the post stack on; the four
+deliverables above exist and are pointed at by name from the completion log,
+because later phases will be told to copy them; tri/texture budgets logged.
+Deliberately *not* in scope: the fever range, the second variant, other gags,
+other bots, chrome breadth. Depth over breadth — extension is phases 3–6.
 
-**5 — Bots as characters ⚑.** The eight rungs (Acorn → The Oracle)
-reinvented in the new aesthetic — same names, same gameplay souls, new visual
-identities and stage presence (each bot gets a variation of the void + a
-signature prop or gag). Bot select UI as possessed chrome. `exactnessNote`
-surfaced per Product Truths. *Fable step:* a **persona bible** appended to
-`VISION.md` — a few sentences per bot: who they are in this world, their void
-variation, their signature gag, their voice — reviewed by Connor before any
-code. Plus one bot built end-to-end as the exemplar. *Opus step:* the other
-seven, to the bible and the exemplar. *Accept:* harness state per bot; a
-stranger could tell rungs apart with the eval hidden; gate passed.
+**3 — Spectacle, extended.** *(Opus. May be two sessions — gags, then the
+look.)* Two extensions of the thesis, in this order:
 
-**6 — Chrome ⚑.** Menus, HUD, dialogs, settings in the possessed-90s-software
-style; app shell, routing, variant switch. Opus builds it; the gate here is a
-**Fable copy pass** — possessed-software humor lives or dies in the writing,
-so every player-facing string gets read and punched up in one sitting, for
-tone-boundary compliance and for being actually funny. *Accept:* no unstyled
-surface left; copy pass done; every dialog in the game passes the tone
-boundary.
+*The gag roster.* Extend the exemplar into the full gag
+roster: move-quality reactions, threat alarms, the win detonation. Proven-only
+gags gated per Product Truths. Every gag is built by holding it next to the
+phase-2 exemplar; a gag that needs a new *class* of prop behavior the exemplar
+doesn't cover is an Open Question, not an improvisation. *Accept:* each
+`SpectacleEvent` kind has ≥1 gag; win moment is the biggest thing in the game;
+budgets audited (tri counts logged in the harness); roster screenshotted
+against the exemplar.
+
+*The look.* Carry the thesis frame across the whole fever range and both
+variants: idle/mid/full read as three moods of one world, Connect 5 framing
+included. The thesis frame is invariant — if extending it breaks it, the frame
+wins and the extension changes. *Accept:* the idle/mid/full row holds at
+60fps on both boards.
+
+**4 — Audio.** *(Opus.)* Extend the phase-2 bus: the full manifest,
+placeholder synth for every entry, the remaining one-shots (one per gag), the
+mute/volume settings wiring, and the ~30-sample shopping list for Connor to
+source. Every new sound is voiced through the phase-2 mangling graph and
+judged against the signature spike. *Accept:* full game with sound feels
+escalating and spike-y; hard mute works; no autoplay-policy violations.
+
+**5 — Bots as characters.** *(Opus.)* The eight rungs (Acorn → The Oracle)
+reinvented — same names, same gameplay souls, new visual identities and stage
+presence (a variation of the void + a signature prop or gag each). Write the
+remaining seven personas to the template phase 2 established, **and get them
+in front of Connor before building them** — that review is the taste gate here
+and it costs him five minutes. Bot select UI as possessed chrome.
+`exactnessNote` surfaced per Product Truths. *Accept:* harness state per bot; a
+stranger could tell rungs apart with the eval hidden.
+
+**6 — Chrome.** *(Opus.)* Menus, HUD, dialogs, settings in the
+possessed-90s-software style; app shell, routing, variant switch. Copy is
+written against the phase-2 voice sample — same register, same tone boundary,
+and it has to be actually funny, which mostly means short. Every string in the
+game gets read again in phase 9, so leave anything you're unsure about in the
+completion log rather than agonizing. *Accept:* no unstyled surface left;
+every dialog passes the tone boundary.
 
 **7 — Review, reimagined.** The score-over-time curve and ply-by-ply copy in
 the new world. All confidence rules apply exactly as in the old client — port
@@ -266,11 +296,16 @@ gets a persona by hashing their user id (as today, but from the new roster
 identities); desync message styled but honest. *Accept:* two browsers play a
 full game; `npm run db:verify` green; wire moves land identically to local.
 
-**9 — The polish lap.** *(Fable, with Connor playing.)* Play ten full games.
-Fix what's flat, cut what's annoying, tune the fever curve against real play,
-mobile/touch pass, perf audit. This phase is pure taste judgment against a
-real artifact, which is exactly what shouldn't be delegated. *Accept:* Connor
-grins.
+**9 — The Polish Lap ⚑.** *(Fable, with Connor playing. The second and last
+Fable step: the only session that judges the whole thing at once, which is
+also the only way most of these problems become visible.)* Play ten full
+games. Fix what's flat, cut what's annoying, tune the fever curve (`TUNING`,
+not the code) against real play, mobile/touch pass, perf audit. Then the
+**copy pass**: read every player-facing string in the game in one sitting and
+punch it up — possessed-software humor lives or dies in the writing, and by
+now there's enough of it in one place to hear whether it's one voice or six.
+Work the Open Questions phases 3–8 left behind; they were saved for exactly
+this session. *Accept:* Connor grins.
 
 ## Working agreements for implementing agents
 
@@ -288,7 +323,8 @@ grins.
 
 One entry per finished phase or step, appended by the session that did it:
 what shipped, deviations from this plan, and what the next phase needs to
-know. Taste gates sign off here too.
+know. Phases 3–8 also record here how their output held up next to the phase-2
+thesis artifacts, and what they couldn't fix.
 
 - **Phase 0 — Stage** *(Fable, 2026-08-07)*. Shipped `apps/fever`: R3F + zustand
   + ported worker protocol (verbatim from `apps/web/src/engine/`, review method
