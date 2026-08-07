@@ -1,0 +1,250 @@
+/*
+ * Phase-0 chrome styles. Period system face for everything functional, one
+ * shouting gradient wordmark, beveled buttons. Never a tasteful modern
+ * geometric sans (VISION.md type law). Phase 6 replaces all of this.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: #07040e;
+  color: #e5dcf2;
+  font-family: Tahoma, Verdana, "MS Sans Serif", sans-serif;
+  font-size: 13px;
+  user-select: none;
+}
+
+.shell {
+  position: relative;
+  height: 100%;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.stage canvas {
+  display: block;
+}
+
+/* -- HUD ------------------------------------------------------------------ */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud button,
+.hud input {
+  pointer-events: auto;
+}
+
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 18px;
+}
+
+.wordmark {
+  font-size: 30px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  transform: skew(-6deg);
+  background: linear-gradient(105deg, #d633a8 0%, #40c9c0 52%, #e8c33a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 #402e3a) drop-shadow(0 0 14px rgba(214, 51, 168, 0.35));
+}
+
+.hud-controls {
+  display: flex;
+  gap: 6px;
+}
+
+/* -- period bevel buttons -------------------------------------------------- */
+
+.btn {
+  font-family: inherit;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #e5dcf2;
+  background: #2e2440;
+  border: 2px solid;
+  border-color: #7a6899 #150d22 #150d22 #7a6899;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.btn:active,
+.btn--on {
+  border-color: #150d22 #7a6899 #7a6899 #150d22;
+  background: #241b33;
+}
+
+.btn--on {
+  color: #b7f04d;
+}
+
+/* -- status --------------------------------------------------------------- */
+
+.status {
+  position: absolute;
+  bottom: 26px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  color: #cbb8e8;
+  text-shadow: 0 0 10px rgba(122, 43, 208, 0.7);
+}
+
+/* -- the dialog ------------------------------------------------------------ */
+/* Real period software, left running too long over a void. */
+
+.dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 300px;
+  background: #d4d0c8;
+  color: #1a1a1a;
+  border: 2px solid;
+  border-color: #ffffff #4d4d4d #4d4d4d #ffffff;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.dialog-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  background: linear-gradient(90deg, #2a0a4a, #7a2bd0);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.dialog-x {
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 3px;
+  background: #d4d0c8;
+  color: #1a1a1a;
+  border: 1px solid;
+  border-color: #ffffff #4d4d4d #4d4d4d #ffffff;
+}
+
+.dialog-body {
+  padding: 16px 18px 14px;
+  text-align: center;
+}
+
+.dialog-body p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn--dialog {
+  color: #1a1a1a;
+  background: #d4d0c8;
+  border-color: #ffffff #4d4d4d #4d4d4d #ffffff;
+  text-transform: none;
+}
+
+.btn--dialog:active {
+  border-color: #4d4d4d #ffffff #ffffff #4d4d4d;
+}
+
+/* -- debug panel ----------------------------------------------------------- */
+
+.debug,
+.debug-tab {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+}
+
+.debug {
+  width: 230px;
+  background: rgba(10, 6, 18, 0.85);
+  border: 1px solid #3a2b55;
+  color: #a99bc4;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debug-tab {
+  background: rgba(10, 6, 18, 0.85);
+  border: 1px solid #3a2b55;
+  color: #a99bc4;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.debug-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.debug-head {
+  justify-content: space-between;
+  color: #d3c6ec;
+}
+
+.debug-head button {
+  background: none;
+  border: 1px solid #3a2b55;
+  color: #a99bc4;
+  cursor: pointer;
+  padding: 0 6px;
+}
+
+.debug-row input[type="range"] {
+  flex: 1;
+}
+
+.debug-events {
+  flex-wrap: wrap;
+}
+
+.debug-events button {
+  background: #1d1329;
+  border: 1px solid #3a2b55;
+  color: #a99bc4;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 5px;
+  cursor: pointer;
+}

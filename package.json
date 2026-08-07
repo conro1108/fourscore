@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @fourscore/web",
+    "dev:fever": "npm run dev -w @fourscore/fever",
     "build": "npm run build -w @fourscore/web",
     "preview": "npm run preview -w @fourscore/web",
     "db:push": "node db/push.mjs db/schema.sql",
@@ -16,7 +17,7 @@
     "measure:solve": "vite-node packages/engine/tools/measure-solve.ts --",
     "measure:ladder": "vite-node packages/engine/tools/ladder.ts --",
     "measure:bench": "vite-node packages/engine/tools/bench-solve.ts",
-    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/web --noEmit",
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/web --noEmit && tsc -p apps/fever --noEmit",
     "db:verify": "node db/verify.mjs"
   },
   "devDependencies": {

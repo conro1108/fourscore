@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "paths": {
+      "@fourscore/engine": ["../../packages/engine/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

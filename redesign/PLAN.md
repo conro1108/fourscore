@@ -51,7 +51,7 @@ line doesn't flip to `done` until the gate passes.
 
 ### Phase ledger
 
-- [ ] 0 — Stage *(Fable)*
+- [x] 0 — Stage *(Fable)*
 - [ ] 1 — The Director *(Opus)*
 - [ ] 2 — The void and the board look ⚑ *(Fable step → Opus step)*
 - [ ] 3 — Props and spikes ⚑ *(Fable step → Opus step)*
@@ -290,8 +290,47 @@ One entry per finished phase or step, appended by the session that did it:
 what shipped, deviations from this plan, and what the next phase needs to
 know. Taste gates sign off here too.
 
-- (sessions append here)
+- **Phase 0 — Stage** *(Fable, 2026-08-07)*. Shipped `apps/fever`: R3F + zustand
+  + ported worker protocol (verbatim from `apps/web/src/engine/`, review method
+  included for phase 7). Full games vs Moss verified on both variants through a
+  scripted browser (`npm run acceptance`), canvas raycast click included; 120fps
+  sampled mid-game headless. The architecture later phases inherit:
+  `director/types.ts` is the DirectorFrame contract and `useDirectorStore` the
+  read surface every subsystem subscribes to (the debug slider is its only
+  writer until phase 1 replaces it); `match/store.ts` owns `moves` (game truth)
+  and `landed` (theater progress, lags by one drop) — discs animate off the move
+  list, never the click; the turn loop is a plain module (`match/controller.ts`),
+  not a React effect, so the preview harness mounts scenes with no bot;
+  `stage/layout.ts` is the only source of world geometry (variant → positions,
+  camera fit; fuzzed over odd variants like the engine); `StageView` is pure
+  props. Drop physics + hard-step squash are pure and unit-tested
+  (`match/timing.ts`). Preview harness: `preview.html`, states in
+  `src/preview/states.ts`, `?state=id` fullscreen for screenshots;
+  `tools/shots.mjs` + `tools/acceptance.mjs` drive system Chrome via
+  playwright-core (`npm run shots` / `npm run acceptance` against a running
+  dev server). Deviation: a minimal toggleable Bloom is already in (stack-proof
+  placeholder; phase 2's Fable step owns the real post stack). What phase 1
+  needs: `VoidBackdrop` has a `uDrift` uniform waiting for fever; `--fever` on
+  the DOM root is still yours to add; dev hook `window.__fever` exposes both
+  stores for scripting. Trap for shader writers: the post chain converts output
+  linear→sRGB, so author colors at intended screen values and end with
+  `col = pow(col, vec3(2.2))` — first harness run caught the void rendering
+  daylight-purple because of exactly this.
 
 ## Open Questions / Decisions log
 
-- (agents append here)
+- **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
+  (`#a3164e`) and tarnished gold (`#c8991f`) — both from the iridescence
+  family — so the arterial-red/hazard-orange heat family stays reserved for
+  fever escalation per the palette law. Phase 2/5 may restyle within that
+  constraint.
+- **Decision (phase 0):** the board floats in the void (no legs, no floor);
+  board + discs levitate as one group so discs stay registered to the holes.
+- **Decision (phase 0):** win feedback is a hard square-wave blink (0.35s on /
+  0.35s off) of the winning line with everything else dimmed to mud — the
+  timing-law reading of "alarm". Phase 3's win detonation builds on top, not
+  instead.
+- **Open (phase 0):** the 60fps budget is only measured on this M-series
+  machine (120fps headless). The stated budget is an *integrated-GPU* laptop —
+  someone needs to run `npm run acceptance` on one before the post stack gets
+  heavy (phase 2 is the natural moment).

@@ -1,0 +1,49 @@
+/**
+ * Named scene states for the preview harness. Every phase adds its states
+ * here; every visual change ships with a screenshot of the relevant ones,
+ * actually looked at. `fever` is carried per state so later phases can pin a
+ * state at mid- or full-fever.
+ */
+
+import { CONNECT4, CONNECT5, type Player, type Variant } from "@fourscore/engine";
+
+export interface PreviewCase {
+  id: string;
+  caption: string;
+  variant: Variant;
+  moves: number[];
+  hoverCol?: number;
+  ghostPlayer?: Player;
+  fever?: number;
+}
+
+export const PREVIEW_STATES: PreviewCase[] = [
+  { id: "idle-c4", caption: "idle board — Connect 4", variant: CONNECT4, moves: [] },
+  { id: "idle-c5", caption: "idle board — Connect 5", variant: CONNECT5, moves: [] },
+  {
+    id: "mid-c4",
+    caption: "mid-game with hover ghost — Connect 4",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    hoverCol: 2,
+    ghostPlayer: "red",
+  },
+  {
+    id: "mid-c5",
+    caption: "mid-game — Connect 5",
+    variant: CONNECT5,
+    moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2],
+  },
+  {
+    id: "win-c4",
+    caption: "win moment — Connect 4 (red, vertical)",
+    variant: CONNECT4,
+    moves: [3, 0, 3, 1, 3, 2, 3],
+  },
+  {
+    id: "win-c5",
+    caption: "win moment — Connect 5 (red, vertical)",
+    variant: CONNECT5,
+    moves: [4, 0, 4, 1, 4, 2, 4, 3, 4],
+  },
+];
