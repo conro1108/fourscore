@@ -12,7 +12,18 @@
  * headroom. The UI resets a brain when its match ends.
  */
 
-import { BotBrain, Position, byId, reviewMatch, variantById } from "@fourscore/engine";
+import {
+  BALANCED_WEIGHTS,
+  BotBrain,
+  Match,
+  Position,
+  advantageOf,
+  byId,
+  estimateDepth,
+  reviewMatch,
+  searchHeuristic,
+  variantById,
+} from "@fourscore/engine";
 import type { Request, Response } from "./protocol.js";
 
 /**
@@ -36,6 +47,44 @@ function brainFor(botId: string, variantId: string): BotBrain {
 
 const post = (msg: Response): void => self.postMessage(msg);
 
+/**
+ * Node ceiling for the live eval feed.
+ *
+ * Well under the bots' budget on purpose: this fires once per ply for the
+ * Director's benefit, and fever arriving a beat late is better than a search
+ * that competes with the bot for a core. A clipped search here degrades to a
+ * static evaluation, which for a tension number is a shrug, not a wrong move.
+ */
+const EVAL_NODES = 150_000;
+
+/**
+ * Score the position after `history` on `advantageOf`'s axis, red's point of view.
+ *
+ * A finished game is not searched at all: the result is a fact, and running a
+ * heuristic over a terminal position returns garbage (no legal moves means no
+ * best score). That's also the only `proven` the live feed ever produces —
+ * everything mid-game is this engine's read, which is what gates spectacle from
+ * making claims it can't back (see PLAN.md's product truths).
+ */
+function evaluatePosition(
+  history: readonly number[],
+  variantId: string,
+): { advantage: number; source: "proven" | "estimated" } {
+  const variant = variantById(variantId);
+  const match = Match.fromMoves(history, variant);
+  if (match.status === "won") {
+    return { advantage: match.winner === "red" ? 1 : -1, source: "proven" };
+  }
+  if (match.status === "draw") return { advantage: 0, source: "proven" };
+
+  const p = Position.fromMoves(history, variant);
+  const r = searchHeuristic(p, estimateDepth(history.length), BALANCED_WEIGHTS, EVAL_NODES);
+  return {
+    advantage: advantageOf(r.best, p.turn === "red", "estimated", variant),
+    source: "estimated",
+  };
+}
+
 self.onmessage = (event: MessageEvent<Request>) => {
   const req = event.data;
   try {
@@ -55,6 +104,17 @@ self.onmessage = (event: MessageEvent<Request>) => {
           variant: variantById(req.variantId),
         });
         post({ type: "reviewed", id: req.id, review });
+        break;
+      }
+      case "evaluate": {
+        const { advantage, source } = evaluatePosition(req.history, req.variantId);
+        post({
+          type: "evaluated",
+          id: req.id,
+          ply: req.history.length,
+          advantage,
+          source,
+        });
         break;
       }
       case "reset": {

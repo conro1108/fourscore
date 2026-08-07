@@ -8,6 +8,16 @@
   box-sizing: border-box;
 }
 
+/*
+ * The Director writes `--fever` (0..1) onto the root every tick, so the DOM
+ * escalates on the same signal the scene does. Declared here with a fallback so
+ * a stylesheet can lean on it before the runtime starts — and so the preview
+ * harness, which never starts the runtime, still renders.
+ */
+:root {
+  --fever: 0;
+}
+
 html,
 body,
 #root {
@@ -68,7 +78,10 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 2px 0 #402e3a) drop-shadow(0 0 14px rgba(214, 51, 168, 0.35));
+  /* The wordmark heats up with the game. Phase 6 owns the chrome; this is here
+     to prove the pipe reaches the DOM at all. */
+  filter: drop-shadow(0 2px 0 #402e3a)
+    drop-shadow(0 0 calc(10px + 26px * var(--fever)) rgba(214, 51, 168, calc(0.3 + 0.5 * var(--fever))));
 }
 
 .hud-controls {
@@ -110,9 +123,9 @@ body {
   right: 0;
   text-align: center;
   font-size: 13px;
-  letter-spacing: 0.22em;
+  letter-spacing: calc(0.22em + 0.06em * var(--fever));
   color: #cbb8e8;
-  text-shadow: 0 0 10px rgba(122, 43, 208, 0.7);
+  text-shadow: 0 0 calc(8px + 14px * var(--fever)) rgba(122, 43, 208, calc(0.6 + 0.4 * var(--fever)));
 }
 
 /* -- the dialog ------------------------------------------------------------ */
@@ -233,6 +246,20 @@ body {
 
 .debug-row input[type="range"] {
   flex: 1;
+}
+
+.debug-on {
+  color: #b7f04d;
+}
+
+.debug-mini {
+  background: #1d1329;
+  border: 1px solid #3a2b55;
+  color: #a99bc4;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 1px 6px;
+  cursor: pointer;
 }
 
 .debug-events {

@@ -9,12 +9,17 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Match } from "@fourscore/engine";
-import { useDirectorStore } from "../director/store.js";
 import { StageView, type StageModel } from "../stage/Stage.js";
 import { PREVIEW_STATES, type PreviewCase } from "./states.js";
 import "../app.css";
 
-function modelFor(c: PreviewCase): StageModel {
+/**
+ * Fever is pinned per scene, not globally: the grid shows the same board at
+ * several temperatures at once, and one global would render three copies of
+ * one of them. A state with no fever of its own sits at 0 here — the harness
+ * never starts the Director, so there's nothing live to follow.
+ */
+function modelFor(c: PreviewCase, override: number | null): StageModel {
   const match = Match.fromMoves(c.moves, c.variant);
   return {
     variant: c.variant,
@@ -23,24 +28,22 @@ function modelFor(c: PreviewCase): StageModel {
     winningCells: match.winningCells,
     hoverCol: c.hoverCol ?? null,
     ghostPlayer: c.ghostPlayer ?? null,
+    fever: override ?? c.fever ?? 0,
   };
 }
 
 function PreviewApp() {
   const params = new URLSearchParams(window.location.search);
   const only = params.get("state");
-  const fever = params.get("fever");
-  if (fever !== null) useDirectorStore.getState().setFever(Number(fever));
+  const feverParam = params.get("fever");
+  const override = feverParam === null ? null : Number(feverParam);
 
   if (only) {
     const c = PREVIEW_STATES.find((s) => s.id === only);
     if (!c) return <pre style={{ color: "#e5dcf2" }}>unknown state: {only}</pre>;
-    if (c.fever !== undefined && fever === null) {
-      useDirectorStore.getState().setFever(c.fever);
-    }
     return (
       <div style={{ position: "fixed", inset: 0 }}>
-        <StageView model={modelFor(c)} />
+        <StageView model={modelFor(c, override)} />
       </div>
     );
   }
@@ -50,7 +53,7 @@ function PreviewApp() {
       {PREVIEW_STATES.map((c) => (
         <figure key={c.id} style={{ margin: 0 }}>
           <div style={{ width: 470, height: 380, border: "1px solid #3a2b55" }}>
-            <StageView model={modelFor(c)} />
+            <StageView model={modelFor(c, override)} />
           </div>
           <figcaption
             style={{ fontFamily: "monospace", fontSize: 12, color: "#a99bc4", paddingTop: 6 }}

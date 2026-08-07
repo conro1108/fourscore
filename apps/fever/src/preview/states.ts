@@ -34,6 +34,31 @@ export const PREVIEW_STATES: PreviewCase[] = [
     variant: CONNECT5,
     moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2],
   },
+  // The fever ladder: one position, three temperatures. Read these three side
+  // by side — they have to look like three moods of one world, not three
+  // different games (that's phase 2's accept criterion, and this is the row it
+  // gets judged on).
+  {
+    id: "fever-0",
+    caption: "same board, fever 0.0 — uncanny idle",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0,
+  },
+  {
+    id: "fever-mid",
+    caption: "same board, fever 0.5",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.5,
+  },
+  {
+    id: "fever-full",
+    caption: "same board, fever 1.0 — full fever",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 1,
+  },
   {
     id: "win-c4",
     caption: "win moment — Connect 4 (red, vertical)",

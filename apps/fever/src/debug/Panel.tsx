@@ -1,15 +1,35 @@
 /**
- * Dev-only panel. The fever slider is phase 0's whole obligation to the
- * Director: it writes a real value into the real store that real subsystems
- * will subscribe to — it just drives nothing yet. The event buttons only log;
- * phase 1 makes them fire actual `SpectacleEvent`s so every gag can be
- * reviewed against the panel before a live game ever drives it.
+ * Dev-only panel, and the reason every subsystem after this phase can be built
+ * before the game is capable of producing the moment it reacts to. The slider
+ * pins fever; the buttons fire real `SpectacleEvent`s down the real bus. A gag
+ * that only looks right when a live game happens to produce a blunder is a gag
+ * nobody will ever review.
+ *
+ * `live` is shown next to the override so it's obvious when the panel is lying
+ * to the rest of the app — a pinned slider left on by accident otherwise reads
+ * as a Director that stopped working.
  */
 
 import { useEffect, useState } from "react";
 import { useDirectorStore } from "../director/store.js";
-import { EVENT_KINDS } from "../director/types.js";
+import type { SpectacleEvent } from "../director/types.js";
 import { useDebugStore } from "./store.js";
+
+/**
+ * One representative payload per event kind. Fixed, not random: the taste law
+ * says randomness picks which gag fires, never how it looks, and a review pass
+ * needs the same spike twice in a row to judge it.
+ */
+const SAMPLES: { label: string; event: SpectacleEvent }[] = [
+  { label: "brilliant", event: { kind: "move", player: "red", col: 3, quality: "brilliant" } },
+  { label: "blunder", event: { kind: "move", player: "red", col: 3, quality: "blunder" } },
+  { label: "threat", event: { kind: "threat", player: "yellow" } },
+  { label: "rising", event: { kind: "tension-shift", direction: "rising" } },
+  { label: "collapsing", event: { kind: "tension-shift", direction: "collapsing" } },
+  { label: "win", event: { kind: "win", player: "red", line: [] } },
+  { label: "draw", event: { kind: "draw" } },
+  { label: "idle", event: { kind: "idle-beat" } },
+];
 
 function useFps(): number {
   const [fps, setFps] = useState(0);
@@ -34,8 +54,13 @@ function useFps(): number {
 }
 
 export function DebugPanel() {
-  const fever = useDirectorStore((s) => s.frame.fever);
+  // Quantized on purpose: the readout is for a human, and subscribing a DOM
+  // component to the raw value re-renders this panel sixty times a second.
+  const fever = useDirectorStore((s) => Math.round(s.frame.fever * 100) / 100);
+  const live = useDirectorStore((s) => Math.round(s.live * 100) / 100);
+  const override = useDirectorStore((s) => s.override);
   const setFever = useDirectorStore((s) => s.setFever);
+  const fire = useDirectorStore((s) => s.fire);
   const postEnabled = useDebugStore((s) => s.postEnabled);
   const setPostEnabled = useDebugStore((s) => s.setPostEnabled);
   const [open, setOpen] = useState(true);
@@ -67,6 +92,16 @@ export function DebugPanel() {
           onChange={(e) => setFever(Number(e.target.value))}
         />
       </label>
+      <div className="debug-row">
+        <span className={override === null ? "debug-on" : undefined}>
+          {override === null ? "live" : `pinned — live ${live.toFixed(2)}`}
+        </span>
+        {override !== null && (
+          <button className="debug-mini" onClick={() => setFever(null)}>
+            release
+          </button>
+        )}
+      </div>
       <label className="debug-row">
         <input
           type="checkbox"
@@ -76,9 +111,9 @@ export function DebugPanel() {
         post stack
       </label>
       <div className="debug-row debug-events">
-        {EVENT_KINDS.map((kind) => (
-          <button key={kind} onClick={() => console.log(`[debug] fire event: ${kind}`)}>
-            {kind}
+        {SAMPLES.map((s) => (
+          <button key={s.label} onClick={() => fire(s.event)}>
+            {s.label}
           </button>
         ))}
       </div>

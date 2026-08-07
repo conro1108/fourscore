@@ -59,9 +59,12 @@ export {
 
 export {
   Match,
+  advantageOf,
+  estimateDepth,
   gradeMove,
   reviewMatch,
   type CurvePoint,
+  type MatchStatus,
   type Grade,
   type MatchResult,
   type PlyRecord,

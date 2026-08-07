@@ -14,6 +14,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import type { Player, Variant } from "@fourscore/engine";
 import { useDebugStore } from "../debug/store.js";
+import { FeverProvider } from "../director/scope.js";
 import { BoardRig } from "./BoardRig.js";
 import { ColumnInput, GhostDisc } from "./ColumnInput.js";
 import { Discs } from "./Discs.js";
@@ -34,6 +35,12 @@ export interface StageModel {
   onColumn?: (col: number) => void;
   onHover?: (col: number | null) => void;
   onDiscLanded?: () => void;
+  /**
+   * Pin this scene's fever. Harness-only: the app leaves it undefined so the
+   * scene follows the Director. It's here, at the top of the scene, rather than
+   * threaded through every subsystem — see `director/scope.tsx`.
+   */
+  fever?: number;
 }
 
 const FOV = 38;
@@ -92,29 +99,31 @@ export function StageView({ model }: { model: StageModel }) {
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: FOV, near: 0.1, far: 80, position: [0, 0.4, 14] }}
     >
-      <CameraRig layout={layout} />
-      <Lights />
-      <VoidBackdrop />
-      <Levitate>
-        <BoardRig layout={layout} />
-        <Discs
-          layout={layout}
-          moves={model.moves}
-          landed={model.landed}
-          winningCells={model.winningCells}
-          onDiscLanded={model.onDiscLanded}
-        />
-        {model.ghostPlayer !== null && model.hoverCol !== null && (
-          <GhostDisc layout={layout} col={model.hoverCol} player={model.ghostPlayer} />
+      <FeverProvider fever={model.fever}>
+        <CameraRig layout={layout} />
+        <Lights />
+        <VoidBackdrop />
+        <Levitate>
+          <BoardRig layout={layout} />
+          <Discs
+            layout={layout}
+            moves={model.moves}
+            landed={model.landed}
+            winningCells={model.winningCells}
+            onDiscLanded={model.onDiscLanded}
+          />
+          {model.ghostPlayer !== null && model.hoverCol !== null && (
+            <GhostDisc layout={layout} col={model.hoverCol} player={model.ghostPlayer} />
+          )}
+        </Levitate>
+        {interactive && (
+          <ColumnInput
+            layout={layout}
+            onColumn={model.onColumn!}
+            onHover={model.onHover ?? (() => {})}
+          />
         )}
-      </Levitate>
-      {interactive && (
-        <ColumnInput
-          layout={layout}
-          onColumn={model.onColumn!}
-          onHover={model.onHover ?? (() => {})}
-        />
-      )}
+      </FeverProvider>
       {postEnabled && (
         // Placeholder post stack: phase 2's Fable step owns the real one. It
         // exists now so the pipeline (and its perf cost) is real from day one.

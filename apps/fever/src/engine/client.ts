@@ -7,8 +7,14 @@
  * match can't be mistaken for the current one.
  */
 
-import type { BotDecision, Player, Review } from "@fourscore/engine";
-import type { DecideResponse, Request, Response, ReviewResponse } from "./protocol.js";
+import type { BotDecision, Player, Review, ScoreSource } from "@fourscore/engine";
+import type {
+  DecideResponse,
+  EvaluateResponse,
+  Request,
+  Response,
+  ReviewResponse,
+} from "./protocol.js";
 
 type Pending = {
   resolve: (value: never) => void;
@@ -86,6 +92,18 @@ export class EngineClient {
     return res.review;
   }
 
+  async evaluate(
+    variantId: string,
+    history: readonly number[],
+  ): Promise<{ ply: number; advantage: number; source: ScoreSource }> {
+    const res = await this.send<EvaluateResponse>({
+      type: "evaluate",
+      variantId,
+      history: [...history],
+    });
+    return { ply: res.ply, advantage: res.advantage, source: res.source };
+  }
+
   async reset(botId: string, variantId: string): Promise<void> {
     await this.send({ type: "reset", botId, variantId });
   }
@@ -97,9 +115,10 @@ export class EngineClient {
 }
 
 let shared: EngineClient | null = null;
+let analysis: EngineClient | null = null;
 
 /**
- * The app's one search worker.
+ * The app's gameplay search worker — bot moves, and nothing that can wait.
  *
  * Deliberately a module singleton rather than something a component owns.
  * Holding it in a `useMemo` and terminating it from an effect cleanup looks
@@ -112,4 +131,20 @@ let shared: EngineClient | null = null;
 export function engineClient(): EngineClient {
   if (!shared) shared = new EngineClient();
   return shared;
+}
+
+/**
+ * A second worker, for anything watching the game rather than playing it —
+ * the Director's eval feed today, the post-game review later.
+ *
+ * One worker would be simpler and wrong. A message queue is FIFO, so an eval
+ * posted while the Oracle is mid-solve waits out the whole exact search: fever
+ * would freeze for seconds at precisely the moment tension is supposed to be
+ * building, and the freeze would get worse the higher the rung. Analysis is
+ * also pure — no brain, no table to share — so there's nothing to coordinate
+ * between the two.
+ */
+export function analysisClient(): EngineClient {
+  if (!analysis) analysis = new EngineClient();
+  return analysis;
 }

@@ -29,6 +29,26 @@ await page.waitForFunction(() => window.__fever !== undefined);
 await page.waitForSelector("canvas");
 await page.waitForTimeout(600);
 
+/**
+ * Watch the Director for the whole run. Phase 1's accept criterion is that a
+ * real game moves fever, which no unit test can see: the Director is pure, so
+ * its tests prove the curve's shape and prove nothing about it being plugged in.
+ */
+await page.evaluate(() => {
+  const seen = { events: [], min: 1, max: 0, property: [] };
+  window.__directorWatch = seen;
+  window.__fever.subscribeEvents((e) => seen.events.push(e.kind));
+  const sample = () => {
+    const f = window.__fever.directorStore.getState().frame.fever;
+    seen.min = Math.min(seen.min, f);
+    seen.max = Math.max(seen.max, f);
+    const css = getComputedStyle(document.documentElement).getPropertyValue("--fever");
+    seen.property.push(Number(css));
+    requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+});
+
 const state = () =>
   page.evaluate(() => {
     const s = window.__fever.matchStore.getState();
@@ -126,6 +146,32 @@ await page.waitForTimeout(600);
 const g2 = await playGame("connect5", { clickFirst: true });
 if (g2.s.variantId !== "connect5") throw new Error("expected connect5");
 await page.waitForTimeout(1400); await page.screenshot({ path: `${outDir}/game-c5-end.png` });
+
+// The Director: did two full games actually move it, and did the DOM see it?
+const watch = await page.evaluate(() => {
+  const w = window.__directorWatch;
+  const kinds = {};
+  for (const k of w.events) kinds[k] = (kinds[k] ?? 0) + 1;
+  return {
+    min: w.min,
+    max: w.max,
+    kinds,
+    propertyMax: Math.max(...w.property),
+    points: window.__fever.evalFeed.getState().points.filter(Boolean).length,
+  };
+});
+console.log(
+  `[director] fever ranged ${watch.min.toFixed(2)}–${watch.max.toFixed(2)}; ` +
+    `--fever peaked at ${watch.propertyMax}; ${watch.points} positions scored`,
+);
+console.log(`[director] events: ${JSON.stringify(watch.kinds)}`);
+if (watch.max - watch.min < 0.1) {
+  throw new Error(`fever barely moved over two games: ${watch.min}–${watch.max}`);
+}
+if (!(watch.propertyMax > 0)) throw new Error("--fever never reached the DOM root");
+if (!watch.kinds.move) throw new Error("no move events reached the spectacle bus");
+if (!watch.kinds.win && !watch.kinds.draw) throw new Error("no game-ending event fired");
+if (watch.points < 8) throw new Error(`eval feed scored only ${watch.points} positions`);
 
 // Rematch from the dialog.
 await page.click('button:has-text("Rematch")');

@@ -52,7 +52,7 @@ line doesn't flip to `done` until the gate passes.
 ### Phase ledger
 
 - [x] 0 — Stage *(Fable)*
-- [ ] 1 — The Director *(Opus)*
+- [x] 1 — The Director *(Opus)*
 - [ ] 2 — The void and the board look ⚑ *(Fable step → Opus step)*
 - [ ] 3 — Props and spikes ⚑ *(Fable step → Opus step)*
 - [ ] 4 — Audio ⚑ *(Fable step → Opus step)*
@@ -317,6 +317,37 @@ know. Taste gates sign off here too.
   `col = pow(col, vec3(2.2))` — first harness run caught the void rendering
   daylight-purple because of exactly this.
 
+- **Phase 1 — The Director** *(Opus, 2026-08-07)*. The pipe is live end to end:
+  `director/director.ts` is pure (game truth + `dt` in, `DirectorFrame` out, 19
+  unit tests on curve shape and debouncing), `director/runtime.ts` is the only
+  impure part and holds the clock, the stores and the DOM. Fever = |advantage| +
+  volatility, raised by a disc-count floor derived from `variant.cells`; it
+  smooths with a fast rise and a slow fall and snaps only on a win. Every
+  constant is in one exported `TUNING` object — phase 9 tunes there, not in the
+  code. **What later phases build on:** subscribe via `subscribeEvents()` for
+  spikes (a stream — polling `frame.events` will double-fire), `useFeverSource()`
+  inside the scene, `useFeverStep()` for DOM chrome (raw `useFever` re-renders
+  60×/s and is a trap), `directorFrame()` in a render loop. `--fever` is on the
+  root and already drives the wordmark and status glow. The debug panel now pins
+  fever for real (with a live readout and a release button, so a forgotten
+  slider can't look like a broken Director) and its buttons fire real events
+  down the real bus — build your gags against those before a live game.
+  **Deviations:** two additive engine exports, `advantageOf` and
+  `estimateDepth`, so live fever rides the exact axis the review draws rather
+  than a second implementation of it; a second search worker (`analysisClient()`)
+  because the eval feed queued behind the Oracle would freeze fever for seconds
+  at peak tension; `SpectacleEvent.win.line` is now specified as cells
+  (`row * width + col`), which the contract left open. **Traps found:** a comment
+  containing backticks inside a template-literal shader ends the string (the
+  error surfaces as a Babel syntax error pointing at GLSL); and driving drift as
+  `elapsed * speed` teleports the void whenever fever changes — speed is a rate,
+  so `runtime.ts` and `VoidBackdrop` both integrate it. Verified with
+  `npm run shots` (new `fever-0` / `fever-mid` / `fever-full` states — one board,
+  three temperatures, which is the row phase 2's gate should be judged on) and
+  `npm run acceptance`, which now asserts the Director moved: two full games gave
+  fever 0.00–1.00, 34 move events, threats, tension shifts, wins, 25 positions
+  scored, `--fever` peaking at 1, at 117–120fps.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -330,6 +361,30 @@ know. Taste gates sign off here too.
   0.35s off) of the winning line with everything else dimmed to mud — the
   timing-law reading of "alarm". Phase 3's win detonation builds on top, not
   instead.
+- **Decision (phase 1):** the live feed is `estimated` only — one cheap
+  heuristic search per ply, never the solver, because an exact answer costs
+  seconds and fever has to keep moving. So of everything on the bus, **only
+  `win` and `draw` are facts** (they come from the board being finished, not
+  from a search). That's the phase-3 gate for PLAN.md's product truth 1: a gag
+  on `win` may be flatly declarative, a gag on `move.quality` / `threat` /
+  `tension-shift` may be as loud as it likes but must not assert a result. The
+  rule is written into `director/types.ts` where gag authors will actually read
+  it. No `source` field was added to the events, because in live play it would
+  be the constant `"estimated"` and would invite dead proven-only branches.
+- **Decision (phase 1):** fever escalates the void by amplitude, blotchiness
+  and a tightening well — not by hue. Introducing the heat family (arterial
+  red / hazard orange) into the void is a palette decision and sets precedent,
+  so it waits for phase 2's Fable step. The escalation curve is `pow(fever, 0.65)`
+  because a linear ramp piled the whole visible change into the top third and
+  fever 0.5 was indistinguishable from 0 in a still — worth re-checking when the
+  real shader lands.
+- **Open (phase 1):** `StageModel.fever` pins a scene's fever for the harness
+  (the grid renders one board at three temperatures, so a single global would
+  show three copies of one of them). It's one prop at the top of the scene, read
+  through `FeverProvider` / `useFeverSource`, deliberately not drilled. If phase
+  2 or 3 needs to pin *more* than fever per harness state — a frozen clock, a
+  forced event — that's a scene-scope object, not another prop, and it should be
+  designed once rather than grown.
 - **Open (phase 0):** the 60fps budget is only measured on this M-series
   machine (120fps headless). The stated budget is an *integrated-GPU* laptop —
   someone needs to run `npm run acceptance` on one before the post stack gets

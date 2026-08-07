@@ -149,9 +149,13 @@ export type ScoreSource = "proven" | "estimated";
  * artifact of the evaluator, not the game. Searching to a constant *absolute*
  * ply parity puts every leaf on the same side to move and the tempo bias becomes
  * a constant offset instead of an oscillation.
+ *
+ * Exported for the same reason `advantageOf` is: a client estimating positions
+ * live has to search to the same absolute parity as the review, or its numbers
+ * zigzag against a curve that doesn't.
  */
 const REVIEW_DEPTH = 6;
-const reviewDepth = (ply: number): number => REVIEW_DEPTH + (ply % 2);
+export const estimateDepth = (ply: number): number => REVIEW_DEPTH + (ply % 2);
 
 /**
  * Advantage from red's point of view, in -1..1.
@@ -161,8 +165,18 @@ const reviewDepth = (ply: number): number => REVIEW_DEPTH + (ply % 2);
  * through tanh the way bot conviction already is. They don't mean the same
  * thing — one is a distance to a proven result, the other a positional hunch —
  * which is exactly why the curve has to render them differently.
+ *
+ * Exported because a live client wants the same axis mid-game that the review
+ * draws afterwards. Two implementations of "how good is this position, in -1..1"
+ * would drift apart, and the proven-band separation is a product rule, not a
+ * chart detail.
  */
-function advantage(scoreForMover: number, moverIsRed: boolean, source: ScoreSource, v: Variant): number {
+export function advantageOf(
+  scoreForMover: number,
+  moverIsRed: boolean,
+  source: ScoreSource,
+  v: Variant = CONNECT4,
+): number {
   let a: number;
   if (source === "proven") {
     // Outcome first, distance second. A proven win is a win, so it belongs at
@@ -286,7 +300,7 @@ export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}
   for (let ply = 0; ply < history.length; ply++) {
     const before = Position.fromMoves(history.slice(0, ply), variant);
     const col = history[ply]!;
-    const r = searchHeuristic(before, reviewDepth(ply), BALANCED_WEIGHTS);
+    const r = searchHeuristic(before, estimateDepth(ply), BALANCED_WEIGHTS);
     const played = r.moves.find((m) => m.col === col)?.score ?? 0;
 
     byPly.set(ply, {
@@ -358,7 +372,7 @@ export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}
   for (const p of all) {
     curve.push({
       ply: p.ply + 1,
-      advantage: advantage(p.playedScore ?? 0, p.player === "red", p.source, variant),
+      advantage: advantageOf(p.playedScore ?? 0, p.player === "red", p.source, variant),
       source: p.source,
     });
   }
@@ -386,8 +400,8 @@ function dropOf(
   source: ScoreSource,
   v: Variant,
 ): number {
-  const a = advantage(best, moverIsRed, source, v);
-  const b = advantage(played, moverIsRed, source, v);
+  const a = advantageOf(best, moverIsRed, source, v);
+  const b = advantageOf(played, moverIsRed, source, v);
   return Math.abs(a - b);
 }
 
