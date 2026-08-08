@@ -23,9 +23,14 @@ genuinely beautiful. The gradients are lush, the bloom is real.
 **2. Shitty rockets, tanks, and monster trucks.** The *anti-beauty* half.
 Low-poly, wrong-scale, over-eager props with the energy of a 1999 toy
 commercial and a county fair. A monster truck does a lap for no reason. A
-rocket celebrates a good move by taking off badly. SUNDAY SUNDAY SUNDAY. These
-things are enthusiastic and cheap on purpose, and they share the frame with
-pillar 1 without apologizing.
+rocket celebrates a good move by taking off badly. A tow plane drags a banner
+reading AS SCHEDULED across a game nobody scheduled. These things are
+enthusiastic and cheap on purpose, and they share the frame with pillar 1
+without apologizing.
+
+The energy is the county fair, not a reference to one. An in-joke the player
+has to place — the rally-ad cadence this pillar used to lean on — is a joke
+that lands for the person who wrote it and nobody else.
 
 **3. Possessed late-90s software.** The chrome around the game — menus, HUD,
 dialogs — is WordArt titles, beveled buttons, marquees, cursor trails, system
@@ -114,7 +119,7 @@ every string: estimated claims hedge, proven claims are flat.
 
 The sample:
 
-1. Tagline (under the wordmark): `EVERY SUNDAY IS TONIGHT.`
+1. Tagline (under the wordmark): `ADMISSION WAS ALWAYS FREE.`
 2. Start button, first launch: `Resume`
 3. New game button: `AGAIN.`
 4. Variant switch: `CONNECT 4` / `CONNECT 5 (more)`

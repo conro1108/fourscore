@@ -71,11 +71,14 @@ export const TUNING: DirectorTuning = {
   volatilityWeight: 0.4,
   volatilityWindow: 4,
   volatilityRef: 0.25,
-  floorMax: 0.45,
-  // Sub-linear on purpose: at 1.6 the floor was negligible until the last
-  // third and the game read as "nothing happens, then the finale" (Connor's
-  // note, phase 2). At 0.85 a ten-disc Connect 4 game already sits near 0.13.
-  floorCurve: 0.85,
+  floorMax: 0.75,
+  // Linear, and high: the disc count alone should walk the world from cold to
+  // nearly-boiling over the length of a game, so that late moves feel late even
+  // in a position nothing has happened in. It started at 1.6 (nothing happens,
+  // then the finale), then 0.85/0.45 — still a game that only escalated if the
+  // eval agreed. At 1.0/0.75 progress is a ramp you can feel by itself and the
+  // position's sharpness rides on top of it.
+  floorCurve: 1,
   riseTau: 320,
   fallTau: 1600,
   baselineTau: 4000,
@@ -175,9 +178,10 @@ export function feverTarget(input: DirectorInput, t: DirectorTuning = TUNING): n
   const volatility =
     window.length > 1 ? clamp01(swing / (window.length - 1) / t.volatilityRef) : 0;
 
-  // The floor is what makes a long, level game escalate anyway. It raises the
-  // base rather than adding on top, so a full board can't push past 1 and the
-  // drive keeps its whole range at every stage of the game.
+  // The floor is what makes a long, level game escalate anyway: a straight ramp
+  // in disc count, so every game heats up roughly linearly whatever the eval
+  // says. It raises the base rather than adding on top, so a full board can't
+  // push past 1 and the drive keeps its whole range at every stage of the game.
   const progress = input.cells > 0 ? clamp01(input.moves.length / input.cells) : 0;
   const floor = t.floorMax * Math.pow(progress, t.floorCurve);
 

@@ -10,9 +10,9 @@
  * being finished, not from a search (`director/types.ts`), so the banner is
  * flat and declarative where every other string in the roster hedges or shuts
  * up. It says `GAME OVER`, which is the flattest declaration there is. It used
- * to say `SUNDAY IS OVER` — a callback to the menu tagline — and the callback
- * didn't land: on the one prop that gets half a second at the lens, a line you
- * have to work out is a line you can't read.
+ * to be a callback to the menu tagline, and the callback didn't land: on the
+ * one prop that gets half a second at the lens, a line you have to work out is
+ * a line you can't read.
  *
  * Budget, audited (box = 12, quad = 2):
  *   5 pyro jets x 12 + 24 debris x 2 + banner 2 = 110 triangles.

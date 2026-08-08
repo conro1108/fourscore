@@ -414,9 +414,11 @@ thesis artifacts, and what they couldn't fix.
   **The voice** is VISION.md's new "The voice" section (16 strings + the
   rules) and the full **Moss** persona as the template; the outcome dialog,
   status line and title bar in `Hud.tsx` already speak it.
-  **Deviations:** `TUNING.floorCurve` 1.6 → 0.85 (Connor's live note: the
-  escalation was "nothing until the end"; the shader work alone didn't fix it
-  because fever itself sat near 0 most of a game). `StageModel.fever` became
+  **Deviations:** `TUNING.floorCurve` 1.6 → 0.85, and later 1.0 with
+  `floorMax` 0.45 → 0.75 (Connor's live notes: the escalation was "nothing
+  until the end", and then still not the roughly linear climb he wanted; the
+  shader work alone didn't fix it because fever itself sat near 0 most of a
+  game). `StageModel.fever` became
   `StageModel.pin` (`ScenePin` in `director/scope.tsx`) — the scene-scope
   object phase 1's open question asked for; it pins fever and/or a prop act
   phase. `postprocessing` added as a direct dep (the deploy builds
@@ -438,7 +440,7 @@ thesis artifacts, and what they couldn't fix.
   says HMM. and waggles), `beacon-drop` (threat — a hazard beacon lowers in and
   strobes on the step clock), `banner-rising` / `banner-collapsing` /
   `banner-draw` (a tow plane, one 64px word tile repeated along the banner, so
-  SUNDAY SUNDAY SUNDAY costs one texture), `sprinkler` (idle-beat — Moss's
+  saying it three times costs one texture), `sprinkler` (idle-beat — Moss's
   signature, built to the VISION.md persona), and `win-detonation` (pyro rack +
   debris + a chrome WordArt banner that slams at the lens, holds a beat too
   long, and is thrown back into the void). Audited tri counts live in

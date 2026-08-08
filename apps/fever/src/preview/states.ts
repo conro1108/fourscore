@@ -32,7 +32,7 @@ const ROSTER: { act: string; phase: number; caption: string }[] = [
   { act: "rocket-fizzle", phase: 0.56, caption: "blunder — the rocket, out of ideas" },
   { act: "sign-hmm", phase: 0.4, caption: "dubious — HMM." },
   { act: "beacon-drop", phase: 0.5, caption: "threat — the hazard beacon, strobing" },
-  { act: "banner-rising", phase: 0.5, caption: "tension rising — SUNDAY SUNDAY SUNDAY" },
+  { act: "banner-rising", phase: 0.5, caption: "tension rising — AS SCHEDULED" },
   { act: "banner-collapsing", phase: 0.5, caption: "tension collapsing — NEVERMIND" },
   { act: "banner-draw", phase: 0.5, caption: "draw — A DRAW A DRAW" },
   { act: "sprinkler", phase: 0.32, caption: "idle beat — Moss waters nothing" },

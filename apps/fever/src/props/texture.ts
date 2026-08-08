@@ -45,7 +45,8 @@ function propCanvas(
 
 /**
  * The truck's livery: black panel, chrome top stripe, acid-green flames along
- * the rocker, and the sponsor nobody paid for. Box-mapped — the whole decal
+ * the rocker, and the sponsor nobody paid for — which the decal says out loud.
+ * Box-mapped — the whole decal
  * lands on every face, which is exactly the wrong-scale toy-commercial energy
  * the prop budget wants.
  */
@@ -88,7 +89,7 @@ export function truckLivery(): THREE.CanvasTexture {
     g.fillText("4SCORE", 12, 24);
     g.fillStyle = "#7fe018";
     g.font = "bold 7px monospace";
-    g.fillText("SUNDAY", 14, 33);
+    g.fillText("UNPAID", 14, 33);
   });
 }
 
@@ -146,9 +147,9 @@ export function signFace(text: string): THREE.CanvasTexture {
 }
 
 /**
- * Tow-banner cloth. Drawn as one word on one tile so the component can set
- * `repeat.x` and get SUNDAY SUNDAY SUNDAY for the price of one texture —
- * which is also, exactly, how a real banner says it.
+ * Tow-banner cloth. Drawn as one phrase on one tile so the component can set
+ * `repeat.x` and say it as many times as it likes for the price of one
+ * texture — which is also, exactly, how a real banner says it.
  */
 export function bannerCloth(text: string): THREE.CanvasTexture {
   const tex = propCanvas((g) => {

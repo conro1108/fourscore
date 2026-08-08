@@ -60,7 +60,13 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // Director's estimate and may not assert a result. Their PA barks step up or
   // down in pitch and never say a word, which is the same rule in sound: an
   // announcement with no content can't overclaim.
-  "banner-rising": act("banner-rising", BANNER_MS, 60, makeBanner("SUNDAY", 3), "spike-banner-rising"),
+  "banner-rising": act(
+    "banner-rising",
+    BANNER_MS,
+    60,
+    makeBanner("AS SCHEDULED", 1),
+    "spike-banner-rising",
+  ),
   "banner-collapsing": act(
     "banner-collapsing",
     BANNER_MS,

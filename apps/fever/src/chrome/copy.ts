@@ -39,7 +39,7 @@ const DEFEAT: Record<string, string> = {
 
 export const COPY = {
   title: "FOURSCORE",
-  tagline: "EVERY SUNDAY IS TONIGHT.",
+  tagline: "ADMISSION WAS ALWAYS FREE.",
 
   // The menu. Sentence case: this is software that thinks it's ordinary.
   //

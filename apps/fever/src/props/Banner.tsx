@@ -6,8 +6,8 @@
  * it enters and still going when it exits, which is the joke — the rally has
  * been happening this whole time and you are only now looking up.
  *
- * The banner reads its word off a single 64px tile repeated along its length,
- * so `SUNDAY` becomes SUNDAY SUNDAY SUNDAY for the price of one texture. The
+ * The banner reads its words off a single 64px tile repeated along its length,
+ * so a short word can be said three times for the price of one texture. The
  * tile is drawn condensed and displayed stretched: the letters un-squeeze on
  * a wide quad, which is how a 64px texture stays legible without breaking the
  * budget law.

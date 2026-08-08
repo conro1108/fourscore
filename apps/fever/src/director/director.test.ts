@@ -99,6 +99,16 @@ describe("fever curve", () => {
     expect(late).toBeLessThan(TUNING.floorMax + 0.01);
   });
 
+  it("creeps up in a straight line, not in a late rush", () => {
+    // Equal quarters of a level game should each add about the same fever. The
+    // curve has been sub-linear before and read as "nothing, then the finale";
+    // this is the assertion that noticed.
+    const at = (n: number) => feverTarget(input(levelGame(n)));
+    const steps = [at(10) - at(0), at(20) - at(10), at(30) - at(20), at(40) - at(30)];
+    for (const step of steps) expect(step).toBeCloseTo(steps[0]!, 6);
+    expect(steps[0]!).toBeGreaterThan(0.1);
+  });
+
   it("derives the floor from the variant's cell count, not from 42", () => {
     const c4 = feverTarget(input({ ...levelGame(21), cells: 42 }));
     const c5 = feverTarget(input({ ...levelGame(21), cells: 72 }));

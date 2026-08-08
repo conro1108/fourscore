@@ -176,7 +176,8 @@ function strike(
  * against: an airhorn that has been left in the rain. Three detuned saws
  * beating against each other, a fifth-down pitch fall at the tail,
  * soft-clipped hard and slapped through a shed-sized convolver. It should read
- * as SUNDAY SUNDAY SUNDAY from inside a fever.
+ * as an announcement from inside a fever — a horn that means something is
+ * starting, without saying what.
  */
 function truckHorn(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
   const bus = out(ctx, { drive: 26, space: [0.18, 3.5], wet: 0.45 });
@@ -370,7 +371,7 @@ function beaconDrop(ctx: OfflineAudioContext, source: AudioBuffer | null): void 
 
 /**
  * The tow plane. One engine, one flyby, and three PA barks along the banner —
- * the barks are what makes SUNDAY SUNDAY SUNDAY a rhythm rather than a word.
+ * the barks are what makes the banner a rhythm rather than a word.
  *
  * `steps` pitches the barks; rising steps up, collapsing steps down, and the
  * draw gets exactly one and no bend at all. Same construction all three times,
