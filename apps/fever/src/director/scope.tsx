@@ -21,6 +21,7 @@
  */
 
 import { createContext, useContext, useMemo } from "react";
+import { identityFor, type BotIdentity } from "../bots/identity.js";
 import { directorFrame } from "./store.js";
 
 /** A named act, frozen at a phase of its choreography (0..1). */
@@ -42,6 +43,13 @@ export interface ScenePin {
    * screenshots can't show.
    */
   prop?: PinnedAct | PinnedAct[];
+  /**
+   * Pin the opponent whose void this scene is composed in. Undefined means
+   * "follow the Director", which in the harness — where the Director never
+   * runs — is nobody, and nobody is the thesis frame exactly. That is what
+   * keeps phase 2's state invariant while every other state gets a world.
+   */
+  bot?: string;
 }
 
 const Scope = createContext<ScenePin>({});
@@ -68,4 +76,17 @@ export function usePinnedProp(): ScenePin["prop"] {
   return useContext(Scope).prop;
 }
 
+/**
+ * The one way scene subsystems should ask whose stage this is.
+ *
+ * A getter for the same reason fever is one: the void shader reads it inside a
+ * `useFrame`, and the opponent changing is a new-game event rather than
+ * something worth a re-render path of its own.
+ */
+export function useBotSource(): () => BotIdentity | null {
+  const { bot } = useContext(Scope);
+  return useMemo(() => (bot === undefined ? liveBot : () => identityFor(bot)), [bot]);
+}
+
 const liveFever = (): number => directorFrame().fever;
+const liveBot = (): BotIdentity | null => identityFor(directorFrame().bot);

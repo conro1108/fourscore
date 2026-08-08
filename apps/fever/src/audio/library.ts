@@ -47,6 +47,14 @@ export type SoundName =
   | "spike-mascot-cheer"
   | "spike-mascot-flop"
   | "spike-callout"
+  // -- the signatures: one per opponent (bots/identity.ts) --
+  | "spike-bumpers"
+  | "spike-slab"
+  | "spike-pins"
+  | "spike-shells"
+  | "spike-score"
+  | "spike-solve"
+  | "spike-pinsetter"
   // -- the board --
   | "disc-drop"
   | "disc-land"
@@ -610,6 +618,337 @@ function sprinkler(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
 }
 
 // ---------------------------------------------------------------------------
+// The signatures (phase 5) — one per opponent.
+//
+// These are the opponent's *presence*, not a reaction, so they are written
+// against each other rather than against the airhorn: read down the roster and
+// the sounds should get slower, lower and less certain, the same arc the void
+// variations walk. Acorn is bright, small and eager; the Oracle is one machine
+// noise that does not resolve and does not stop where you expect.
+//
+// All seven go through the phase-2 mangling graph, and all seven are cheap
+// General MIDI where they are pitched at all — the lane screen has a sound
+// card, not a horn.
+// ---------------------------------------------------------------------------
+
+/**
+ * Acorn's bumpers. A small eager motor, a foam clunk, and two rising notes
+ * that are pleased with themselves for no reason. The most major-key thing in
+ * the game and the least earned.
+ */
+function bumpersUp(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 6, space: [0.35, 3], wet: 0.25 });
+
+  // The motor, running for exactly as long as the bumpers take to seat.
+  const motor = env(ctx, [
+    [0, 0],
+    [0.04, 0.2],
+    [0.24, 0.18],
+    [0.3, 0],
+  ]);
+  const muffle = filter(ctx, "lowpass", 1100);
+  motor.connect(muffle);
+  muffle.connect(bus);
+  if (source) sampleVoice(ctx, source).connect(motor);
+  else {
+    const whine = osc(ctx, "sawtooth", 190, 0, 0.3);
+    whine.frequency.linearRampToValueAtTime(320, 0.28);
+    whine.connect(motor);
+  }
+
+  // The clunk: soft, because it is foam, and doubled because there are two.
+  strike(ctx, bus, 0.3, [128, 190], 0.14, 0.42);
+  strike(ctx, bus, 0.35, [120, 178], 0.13, 0.3);
+
+  // Two notes. It thinks something has been accomplished.
+  for (const [i, freq] of [523.25, 783.99].entries()) {
+    const at = 0.46 + i * 0.17;
+    const level = env(ctx, [
+      [at, 0],
+      [at + 0.008, 0.24],
+      [at + 0.3, 0.16],
+      [at + 0.45, 0],
+    ]);
+    level.connect(bus);
+    osc(ctx, "triangle", freq, at, at + 0.46).connect(level);
+    osc(ctx, "square", freq * 2, at, at + 0.46).connect(gain(ctx, 0.12)).connect(level);
+  }
+}
+
+/**
+ * Pebble's slab. A winch paying out, a concrete landing with all the weight
+ * the game has, and the winch taking it away again. No pitch, no tune, nothing
+ * that could be mistaken for an opinion.
+ */
+function slabDrop(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 10, space: [0.55, 2.4], wet: 0.35 });
+
+  // Paying out: a ratchet on the step clock, speeding up as it falls.
+  let t = 0;
+  for (let i = 0; i < 9; i++) {
+    strike(ctx, bus, t, [180, 244], 0.03, 0.1);
+    t += 0.055 - i * 0.004;
+  }
+
+  // The landing. Body under a burst, and a room that is briefly bigger than
+  // the game.
+  const impactAt = 0.48;
+  const body = env(ctx, [
+    [impactAt, 0],
+    [impactAt + 0.004, 0.85],
+    [impactAt + 0.3, 0.1],
+    [impactAt + 0.75, 0],
+  ]);
+  const floor = filter(ctx, "lowpass", 900);
+  floor.frequency.exponentialRampToValueAtTime(70, impactAt + 0.4);
+  body.connect(floor);
+  floor.connect(bus);
+  if (source) sampleVoice(ctx, source).connect(body);
+  else {
+    noise(ctx, 0.8, 0x3ba09, impactAt).connect(body);
+    const thud = osc(ctx, "sine", 96, impactAt, impactAt + 0.4);
+    thud.frequency.exponentialRampToValueAtTime(44, impactAt + 0.35);
+    thud.connect(gain(ctx, 0.6)).connect(body);
+  }
+  // The grit that comes off it, a fraction late.
+  strike(ctx, bus, impactAt + 0.06, [820, 1240], 0.12, 0.14);
+
+  // And it is taken away. Slower going up; it always is.
+  let u = 1.5;
+  for (let i = 0; i < 7; i++) {
+    strike(ctx, bus, u, [172, 232], 0.03, 0.09);
+    u += 0.07;
+  }
+}
+
+/**
+ * Bramble's rack. One crash, and then the one that didn't fall, ticking
+ * against itself for the rest of the sound. The tick never resolves and the
+ * recipe ends before it does, which is the joke the prop is telling too.
+ */
+function pinScatter(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 16, space: [0.7, 2.6], wet: 0.4 });
+
+  // The rack coming up: three flat clacks, evenly spaced, no rush.
+  for (const at of [0.02, 0.14, 0.26]) strike(ctx, bus, at, [300, 452], 0.05, 0.16);
+
+  // The hit. A burst of air, then four wooden bodies going over at
+  // deliberately uneven times — a scatter that lands on the beat isn't one.
+  const hitAt = 0.62;
+  const air = env(ctx, [
+    [hitAt, 0],
+    [hitAt + 0.006, 0.6],
+    [hitAt + 0.18, 0],
+  ]);
+  const crack = filter(ctx, "bandpass", 1800, 0.7);
+  air.connect(crack);
+  crack.connect(bus);
+  if (source) play(ctx, source, air, hitAt);
+  else noise(ctx, 0.25, 0x7c02b, hitAt).connect(air);
+  for (const [i, at] of [0.0, 0.055, 0.09, 0.17].entries()) {
+    strike(ctx, bus, hitAt + at, [260 - i * 24, 396 - i * 30, 610], 0.19, 0.42 - i * 0.06);
+  }
+
+  // The survivor. Slowing, quieter, and still going when the sound stops.
+  let t = 1.05;
+  let gap = 0.115;
+  for (let i = 0; i < 9; i++) {
+    strike(ctx, bus, t, [340, 512], 0.045, 0.2 - i * 0.014);
+    t += gap;
+    gap *= 1.08;
+  }
+}
+
+/**
+ * Cinder's cups. Three wooden slides on the swap beats, two lifts, and a
+ * two-note figure that asks a question and is not answered. Politeness, in a
+ * patch nobody paid for.
+ */
+function shellGame(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 5, space: [0.45, 3.2], wet: 0.3 });
+
+  // Sliding in.
+  const slide = env(ctx, [
+    [0, 0],
+    [0.08, 0.16],
+    [0.4, 0.1],
+    [0.52, 0],
+  ]);
+  const woody = filter(ctx, "bandpass", 900, 1.1);
+  slide.connect(woody);
+  woody.connect(bus);
+  if (source) sampleVoice(ctx, source).connect(slide);
+  else noise(ctx, 0.55, 0x1cd44).connect(slide);
+
+  // The three swaps. Each is a cut on screen, so each is a single tap here —
+  // no scrape, no travel, nothing that implies a path.
+  for (const at of [0.91, 1.22, 1.52]) strike(ctx, bus, at, [430, 648], 0.06, 0.34);
+
+  // The first lift, and the two-note figure under it. Minor second up, and it
+  // stops there.
+  for (const [i, freq] of [392, 415.3].entries()) {
+    const at = 1.92 + i * 0.16;
+    const level = env(ctx, [
+      [at, 0],
+      [at + 0.01, 0.2],
+      [at + 0.34, 0.12],
+      [at + 0.5, 0],
+    ]);
+    level.connect(bus);
+    osc(ctx, "triangle", freq, at, at + 0.52).connect(level);
+  }
+
+  // All three lift, together, and there is nothing under any of them: three
+  // taps and one soft empty thump where a reveal would be.
+  for (const at of [2.66, 2.7, 2.76]) strike(ctx, bus, at, [455, 690], 0.05, 0.26);
+  const hollow = env(ctx, [
+    [2.82, 0],
+    [2.85, 0.22],
+    [3.3, 0],
+  ]);
+  hollow.connect(filter(ctx, "lowpass", 420)).connect(bus);
+  noise(ctx, 0.5, 0x66aa1, 2.82).connect(hollow);
+}
+
+/**
+ * Vane's scoreboard. Relays, a mains hum while it hangs there, and one very
+ * small beep on the frame the mark changes. The beep is the entire lie and it
+ * is quieter than everything around it, because a lie that announces itself
+ * isn't one.
+ */
+function scoreLie(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 4, space: [0.4, 3.4], wet: 0.28 });
+
+  // Four relay clacks as it comes down, one per stepped position.
+  for (const [i, at] of [0.0, 0.12, 0.24, 0.36].entries()) {
+    strike(ctx, bus, at, [520 + i * 20, 790], 0.04, 0.3);
+  }
+
+  // The hum it makes while it is on. Mains, plus the line whine of a tube
+  // that has been running since before any of this.
+  const hum = env(ctx, [
+    [0.42, 0],
+    [0.6, 0.12],
+    [2.3, 0.1],
+    [2.5, 0],
+  ]);
+  hum.connect(bus);
+  if (source) sampleVoice(ctx, source).connect(hum);
+  else {
+    osc(ctx, "sine", 60, 0.42, 2.5).connect(gain(ctx, 0.5)).connect(hum);
+    osc(ctx, "square", 15720, 0.42, 2.5).connect(gain(ctx, 0.035)).connect(hum);
+  }
+
+  // The lie. One pip, at the moment the mark changes, at a level you could
+  // talk over.
+  const pip = env(ctx, [
+    [1.65, 0],
+    [1.653, 0.14],
+    [1.72, 0.1],
+    [1.75, 0],
+  ]);
+  pip.connect(bus);
+  osc(ctx, "square", 1320, 1.65, 1.76).connect(pip);
+
+  // Relays again, taking it back up.
+  for (const [i, at] of [2.55, 2.66, 2.77].entries()) {
+    strike(ctx, bus, at, [500 - i * 16, 760], 0.04, 0.22);
+  }
+}
+
+/**
+ * Quill's overlay. Twelve blips climbing a scale as the line draws itself, a
+ * two-tone lock when the reticle snaps on, and the same twelve on the way back
+ * down. Computer music with no music in it — the notes are a readout of
+ * progress, which is exactly what Quill is doing to you.
+ */
+function laneSolve(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 4, space: [0.3, 3.6], wet: 0.22 });
+  const DASHES = 12;
+
+  const blip = (at: number, freq: number, level: number) => {
+    const g = env(ctx, [
+      [at, 0],
+      [at + 0.002, level],
+      [at + 0.035, level * 0.6],
+      [at + 0.05, 0],
+    ]);
+    g.connect(bus);
+    if (source) play(ctx, source, g, at, freq / 880);
+    else {
+      osc(ctx, "square", freq, at, at + 0.06).connect(gain(ctx, 0.6)).connect(g);
+      osc(ctx, "sine", freq * 2, at, at + 0.06).connect(gain(ctx, 0.25)).connect(g);
+    }
+  };
+
+  // Drawing. A whole-tone climb, so it never lands anywhere.
+  for (let i = 0; i < DASHES; i++) blip(0.03 + i * 0.076, 620 * Math.pow(2, i / 12), 0.2);
+
+  // The lock: two tones a fifth apart, together, held flat.
+  const lock = env(ctx, [
+    [1.05, 0],
+    [1.06, 0.24],
+    [1.4, 0.2],
+    [1.55, 0],
+  ]);
+  lock.connect(bus);
+  for (const freq of [880, 1318.5]) osc(ctx, "square", freq, 1.05, 1.56).connect(gain(ctx, 0.5)).connect(lock);
+
+  // Un-drawing, the same ladder in reverse and quieter.
+  for (let i = 0; i < DASHES; i++) blip(2.12 + i * 0.04, 620 * Math.pow(2, (DASHES - 1 - i) / 12), 0.12);
+}
+
+/**
+ * The Oracle's pinsetter. Two hydraulic steps down, a long low hum with a
+ * beating second voice a couple of hertz off, two steps back up. Nothing in it
+ * is a note and nothing in it resolves, and the hum is still there under the
+ * last relay — the machine does not finish, it leaves.
+ */
+function pinsetter(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 8, space: [1.2, 2.2], wet: 0.45 });
+
+  const stepDown = (at: number) => {
+    const g = env(ctx, [
+      [at, 0],
+      [at + 0.03, 0.34],
+      [at + 0.26, 0.1],
+      [at + 0.4, 0],
+    ]);
+    const air = filter(ctx, "lowpass", 700);
+    g.connect(air);
+    air.connect(bus);
+    if (source) play(ctx, source, g, at);
+    else {
+      noise(ctx, 0.45, 0x2fa10 + Math.round(at * 100), at).connect(g);
+      const ram = osc(ctx, "sawtooth", 130, at, at + 0.42);
+      ram.frequency.linearRampToValueAtTime(58, at + 0.38);
+      ram.connect(gain(ctx, 0.5)).connect(g);
+    }
+    strike(ctx, bus, at + 0.4, [92, 143], 0.3, 0.34);
+  };
+
+  stepDown(0.02);
+  stepDown(0.62);
+
+  // The hover. Two low voices two hertz apart, so the hum beats slowly against
+  // itself — the sound of something waiting that is not waiting for you.
+  const hover = env(ctx, [
+    [1.1, 0],
+    [1.4, 0.2],
+    [2.9, 0.18],
+    [3.35, 0],
+  ]);
+  hover.connect(filter(ctx, "lowpass", 340)).connect(bus);
+  for (const freq of [55, 57]) osc(ctx, "sine", freq, 1.1, 3.4).connect(gain(ctx, 0.55)).connect(hover);
+  for (const freq of [110, 165]) osc(ctx, "triangle", freq, 1.1, 3.4).connect(gain(ctx, 0.09)).connect(hover);
+
+  // Going back up, and the second one is cut off by the end of the recipe
+  // rather than finishing.
+  strike(ctx, bus, 2.95, [98, 152], 0.28, 0.3);
+  strike(ctx, bus, 3.4, [104, 160], 0.24, 0.24);
+}
+
+// ---------------------------------------------------------------------------
 // The board. These fire on nearly every move, so they are small, dry and
 // quiet: a sound you hear twenty times a game is furniture, not a spike.
 // ---------------------------------------------------------------------------
@@ -946,6 +1285,42 @@ export const RECIPES: Record<SoundName, Recipe> = {
     want: "orchestra hit / MIDI stab, one shot, dry, <1s",
     seconds: 1.3,
     build: calloutHit,
+  },
+
+  "spike-bumpers": {
+    want: "small electric motor, short run, dry, <0.5s",
+    seconds: 1.4,
+    build: bumpersUp,
+  },
+  "spike-slab": {
+    want: "heavy concrete or stone block landing, dry, <1s",
+    seconds: 2.3,
+    build: slabDrop,
+  },
+  "spike-pins": {
+    want: "bowling pins struck, full crash, dry, ~1s",
+    seconds: 2.5,
+    build: pinScatter,
+  },
+  "spike-shells": {
+    want: "wooden cup or bowl set down on wood, dry, <0.5s",
+    seconds: 3.5,
+    build: shellGame,
+  },
+  "spike-score": {
+    want: "electromechanical relay clack, dry, <0.2s",
+    seconds: 2.95,
+    build: scoreLie,
+  },
+  "spike-solve": {
+    want: "single square-wave computer blip, dry, <0.1s",
+    seconds: 2.65,
+    build: laneSolve,
+  },
+  "spike-pinsetter": {
+    want: "hydraulic ram or pneumatic machine step, dry, ~1s",
+    seconds: 3.9,
+    build: pinsetter,
   },
 
   "disc-drop": { want: "short air whoosh / cloth swipe, dry, <0.5s", seconds: 0.32, build: discDrop },

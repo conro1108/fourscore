@@ -30,7 +30,7 @@ function modelFor(c: PreviewCase, override: number | null): StageModel {
     winningCells: match.winningCells,
     hoverCol: c.hoverCol ?? null,
     ghostPlayer: c.ghostPlayer ?? null,
-    pin: { fever: override ?? c.fever ?? 0, prop: c.prop },
+    pin: { fever: override ?? c.fever ?? 0, prop: c.prop, bot: c.bot },
   };
 }
 

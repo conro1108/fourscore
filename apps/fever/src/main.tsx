@@ -6,6 +6,8 @@ import { useMatchStore } from "./match/store.js";
 import { startEvalFeed, useEvalFeed } from "./director/feed.js";
 import { startDirector } from "./director/runtime.js";
 import { subscribeEvents, useDirectorStore } from "./director/store.js";
+import { useShellStore } from "./chrome/store.js";
+import { stageFx } from "./stage/fx.js";
 import { bedLoops, installAudio, masterLevel, playSpike, rigState } from "./audio/index.js";
 import { startAudioCues } from "./audio/cues.js";
 import { SOUND_NAMES, soundBuffer } from "./audio/library.js";
@@ -31,6 +33,11 @@ if (import.meta.env.DEV) {
     directorStore: useDirectorStore,
     evalFeed: useEvalFeed,
     subscribeEvents,
+    shellStore: useShellStore,
+    // Which gag the prop stage actually drew. `tools/live-bots.mjs` asks after
+    // firing an opponent's own event, because whether the signature reaches
+    // the stage depends on the live Director and nothing else can see that.
+    stageFx,
     // Audio can't be screenshotted, so `tools/audio-check.mjs` renders every
     // recipe through here instead and writes the results out as wavs.
     audio: { names: SOUND_NAMES, soundBuffer, playSpike, rigState, masterLevel, bedLoops },

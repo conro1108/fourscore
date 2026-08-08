@@ -302,6 +302,249 @@ export function calloutPose(phase: number): CalloutPose {
   return { z: -t * t * 1.8, yaw: 0 };
 }
 
+/* ------------------------------------------------------------------------ *
+ * The signatures (phase 5). One clip per opponent, wired in `bots/identity.ts`
+ * and described in VISION.md. Every one of them is the same shape as the acts
+ * above — enter from off-stage, do one legible thing, hold it a beat too long,
+ * leave — and every one is a clip the alley's screen would actually have: the
+ * bumpers going up, the ball return, a rack getting hit, a shell game, a
+ * scoreboard, a targeting overlay, the pinsetter.
+ *
+ * These lean harder on the step clock than the phase-3 roster does, several of
+ * them moving *only* in whole stepped jumps with no interpolation at all. That
+ * is the reference taken at its word: canned animation on a machine with a
+ * frame budget, not physics with the frame rate turned down.
+ * ------------------------------------------------------------------------ */
+
+/** Acorn's bumpers: up in three hard steps, up for the whole act, down. */
+export interface BumperPose {
+  /** 0 = below the frame, 1 = raised. */
+  rise: number;
+  /** True on the beat they seat. The clunk hangs here. */
+  seated: boolean;
+}
+
+export function bumperPose(phase: number): BumperPose {
+  const p = clamp01(phase);
+  const IN = 0.12;
+  const OUT = 0.86;
+  // Three steps rather than a ramp: a bumper is a machine with two positions
+  // and a motor that is not very good.
+  if (p < IN) return { rise: Math.ceil((p / IN) * 3) / 3, seated: false };
+  if (p < OUT) return { rise: 1, seated: p < IN + 0.03 };
+  return { rise: 1 - (p - OUT) / (1 - OUT), seated: false };
+}
+
+/** Pebble's slab: falls, lands, bounces exactly one frame, is winched away. */
+export interface SlabPose {
+  /** Height above rest, in frame-heights. 1 is above the top of the frame. */
+  height: number;
+  /** True on the beat it hits. */
+  impact: boolean;
+}
+
+export function slabPose(phase: number): SlabPose {
+  const p = clamp01(phase);
+  const FALL = 0.2;
+  const BOUNCE = 0.26;
+  const UP = 0.76;
+  if (p < FALL) {
+    // Accelerating, no ease out: it stops because the floor is there.
+    const t = p / FALL;
+    return { height: 1 - t * t, impact: false };
+  }
+  // One frame up off the landing and then nothing — a bounce with no second
+  // bounce, which is what makes it read as weight rather than as rubber.
+  if (p < BOUNCE) return { height: 0.09, impact: p < FALL + 0.02 };
+  if (p < UP) return { height: 0, impact: false };
+  return { height: (p - UP) / (1 - UP), impact: false };
+}
+
+/**
+ * Bramble's rack. Five pins rise, something off-screen hits them, four go
+ * over, and the fifth is left rocking. It never falls, and the clip leaves
+ * before anyone finds out — which is Bramble's whole gameplay soul in three
+ * seconds.
+ */
+export interface PinPose {
+  /** Offset from the pin's rack position, in world-ish units. */
+  x: number;
+  y: number;
+  /** Tumble in radians, for the four that were hit. */
+  spin: number;
+  /** Rock in radians, for the one that wasn't. */
+  lean: number;
+  standing: boolean;
+}
+
+/** The pin that survives, every time. Wrongness repeats. */
+export const PIN_SURVIVOR = 2;
+
+export function pinPose(phase: number, index: number, step: number): PinPose {
+  const p = clamp01(phase);
+  const IN = 0.14;
+  const HIT = 0.34;
+  const OUT = 0.82;
+  const rest = { x: 0, y: 0, spin: 0, lean: 0, standing: true };
+
+  // The rack rises into place, all five together, in three steps.
+  if (p < IN) return { ...rest, y: -(1 - Math.ceil((p / IN) * 3) / 3) * 2.6 };
+  if (p < HIT) return rest;
+
+  if (index === PIN_SURVIVOR) {
+    // Rocking on the two-frame clock, and swept out from under itself at the
+    // end rather than settling. Nobody ever sees it stop.
+    const lean = step % 2 === 0 ? 0.14 : -0.11;
+    if (p < OUT) return { ...rest, lean };
+    return { ...rest, lean, y: -((p - OUT) / (1 - OUT)) * 2.6 };
+  }
+
+  // The four that went over. Velocities are a function of the index, not of a
+  // random number: the same pin goes the same way every single time. Tuned
+  // high enough that they are visibly *launched* — the first pass sent them
+  // sideways along the floor, which reads as a row of fallen pins rather than
+  // as something having happened.
+  const t = (p - HIT) * 3;
+  const vx = (index - PIN_SURVIVOR) * 3.1 + (index % 2 === 0 ? -0.7 : 0.9);
+  const vy = 5 + (index % 3) * 0.7;
+  return {
+    x: vx * t,
+    y: vy * t - 7 * t * t,
+    spin: Math.sign(vx) * t * 7,
+    lean: 0,
+    standing: false,
+  };
+}
+
+/**
+ * Cinder's shell game. Three cups, three swaps, and the swaps are *cuts* —
+ * a cup is at one slot on one frame and the other on the next, with nothing
+ * in between. Then one lifts, then all three lift, and there was never
+ * anything under any of them.
+ */
+export interface ShellPose {
+  /** Which slot this cup is at, 0..2. Always a whole number. */
+  slot: number;
+  /** Lift above the table, 0..1. */
+  lift: number;
+  /** How far off-stage the row is: -1 is off left, 0 on stage, 1 off right. */
+  offstage: number;
+}
+
+/** Which two slots trade on each swap. Fixed, in order, forever. */
+const SHELL_SWAPS: [number, number][] = [
+  [0, 1],
+  [1, 2],
+  [0, 2],
+];
+const SHELL_AT = [0.24, 0.32, 0.4];
+
+/** Where cup `index` sits after `done` swaps. */
+export function shellSlot(index: number, done: number): number {
+  const place = [0, 1, 2];
+  for (let i = 0; i < Math.min(done, SHELL_SWAPS.length); i++) {
+    const [a, b] = SHELL_SWAPS[i]!;
+    const ca = place.indexOf(a!);
+    const cb = place.indexOf(b!);
+    place[ca] = b!;
+    place[cb] = a!;
+  }
+  return place[index]!;
+}
+
+export function shellPose(phase: number, index: number): ShellPose {
+  const p = clamp01(phase);
+  const IN = 0.14;
+  const LIFT_ONE = 0.5;
+  const LIFT_ONE_END = 0.62;
+  const LIFT_ALL = 0.7;
+  const LIFT_ALL_END = 0.86;
+  const OUT = 0.9;
+
+  const done = SHELL_AT.filter((at) => p >= at).length;
+  const slot = shellSlot(index, done);
+
+  // In from the left in three steps, out to the right in three: it arrives and
+  // leaves the way a prop should, and it does both on the step clock.
+  const offstage =
+    p < IN
+      ? -(1 - Math.ceil((p / IN) * 3) / 3)
+      : p < OUT
+        ? 0
+        : Math.ceil(((p - OUT) / (1 - OUT)) * 3) / 3;
+
+  let lift = 0;
+  // The middle cup is the one offered, because the middle is where you look.
+  if (p >= LIFT_ONE && p < LIFT_ONE_END && slot === 1) lift = 1;
+  if (p >= LIFT_ALL && p < LIFT_ALL_END) lift = 1;
+
+  return { slot, lift, offstage };
+}
+
+/**
+ * Vane's scoreboard. It comes down, it says something, and then on one frame
+ * in the middle of the hold it says something else. Nothing announces the
+ * change and nothing acknowledges it.
+ */
+export interface ScorePose {
+  /** How far it has come down, 0..1. */
+  drop: number;
+  /** Which of the two marks is on the glass. */
+  mark: 0 | 1;
+}
+
+export function scorePose(phase: number): ScorePose {
+  const p = clamp01(phase);
+  const IN = 0.16;
+  const OUT = 0.84;
+  // The lie is at 0.55: late enough that you have read the first mark, early
+  // enough that you get to sit with the second one.
+  const mark: 0 | 1 = p < 0.55 ? 0 : 1;
+  if (p < IN) return { drop: Math.ceil((p / IN) * 4) / 4, mark };
+  if (p < OUT) return { drop: 1, mark };
+  return { drop: 1 - Math.ceil(((p - OUT) / (1 - OUT)) * 4) / 4, mark };
+}
+
+/**
+ * Quill's targeting overlay. A dotted line draws itself one dash per stepped
+ * frame, a reticle snaps on at the end of it, the whole thing holds a beat too
+ * long, and then it un-draws itself dash by dash.
+ *
+ * The un-draw is this act's exit, and it is not a fade: every dash is on or
+ * off, the reticle is present or absent, and the last frame of the act has
+ * none of them. An overlay leaves the way an overlay leaves.
+ */
+export interface SolvePose {
+  /** How many dashes are lit, from the start of the line. */
+  lit: number;
+  /** The reticle is on. It snaps; it never grows. */
+  reticle: boolean;
+}
+
+export function solvePose(phase: number, dashes: number): SolvePose {
+  const p = clamp01(phase);
+  const DRAWN = 0.42;
+  const ERASE = 0.78;
+  if (p < DRAWN) return { lit: Math.floor((p / DRAWN) * dashes), reticle: false };
+  if (p < ERASE) return { lit: dashes, reticle: true };
+  const t = (p - ERASE) / (1 - ERASE);
+  return { lit: Math.max(0, dashes - Math.ceil(t * dashes)), reticle: false };
+}
+
+/**
+ * The Oracle's pinsetter. Down on two beats, a long hover over a board it has
+ * no business with, up on two beats. There is no interpolation anywhere in
+ * this function, which is the point: it is at a height or it is at another one.
+ */
+export function pinsetterHeight(phase: number): number {
+  const p = clamp01(phase);
+  if (p < 0.1) return 1;
+  if (p < 0.26) return 0.55;
+  if (p < 0.7) return 0.12;
+  if (p < 0.86) return 0.55;
+  return 1;
+}
+
 /**
  * The win detonation — the biggest thing in the game, and the only act allowed
  * to be flatly declarative about the result (see `director/types.ts`: `win` is

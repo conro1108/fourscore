@@ -15,12 +15,27 @@
  * with fever: embers blooming low in the frame, like a furnace under the
  * nothing. This is the palette decision phase 1 deferred — heat means fever,
  * everywhere in the game, so escalation stays legible.
+ *
+ * ## The opponent's weather (phase 5)
+ *
+ * Four uniforms bend layers 2 and 3 into the void that opponent stands in
+ * (`bots/identity.ts`): a tint mixed into the weather, its grain, its drift
+ * rate and the oil slick's strength. Eight worlds, one shader — which is the
+ * only way eight opponents can have their own look without the look coming
+ * apart.
+ *
+ * Two things are deliberately *not* on the list. The heat layer is untouched by
+ * every one of them, because heat means fever and an opponent who tinted it
+ * would make escalation unreadable. And the neutral value of all four is the
+ * phase-2 frame exactly, so a scene with no opponent — the thesis state, the
+ * whole preview harness — renders what phase 2 shipped, to the bit.
  */
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useFeverSource } from "../director/scope.js";
+import { voidOf } from "../bots/identity.js";
+import { useBotSource, useFeverSource } from "../director/scope.js";
 import { CAMERA_TARGET } from "./layout.js";
 
 const vertex = /* glsl */ `
@@ -36,6 +51,12 @@ const fragment = /* glsl */ `
   /* Drift distance, not wall clock — see the note in useFrame below. */
   uniform float uTime;
   uniform float uFever;
+  /* The opponent's weather. Neutral is (0,0,0) / 0.0 / 1.0 / 1.0. */
+  uniform vec3 uTint;
+  uniform float uTintAmount;
+  uniform float uGrain;
+  /* Signed: magnitude is the slick's strength, sign is which way it crawls. */
+  uniform float uSlick;
 
   // Cheap value noise; the void wants soft weather, not detail.
   float hash(vec2 p) {
@@ -78,20 +99,25 @@ const fragment = /* glsl */ `
     // — so the frame is never the same twice even at fever 0. Cheap, and it's
     // what stops the idle void reading as a still image.
     float breath = 0.5 + 0.5 * sin(t * 0.09);
-    vec3 center = vec3(0.086, 0.047, 0.149);
+    // The opponent reaches the well faintly — half the weather's dose — so the
+    // frame's darkest region stays the void's own near-black rather than
+    // becoming a coloured room.
+    vec3 center = mix(vec3(0.086, 0.047, 0.149), uTint * 0.55, uTintAmount * 0.5);
     vec3 edge   = vec3(0.027, 0.016, 0.055);
     vec3 col = mix(center, edge, smoothstep(0.11 + 0.07 * breath, 0.88 + 0.14 * breath, r));
 
     // Weather, drifting in two directions at two scales. The two fields move at
     // deliberately unrelated speeds and angles: matched motion reads as one
-    // sliding texture, mismatched motion reads as depth.
-    float n1 = noise(p * 2.6 + vec2(t * 0.19, t * 0.075));
-    float n2 = noise(p * 5.2 + vec2(-t * 0.13, t * 0.21) + 17.0);
+    // sliding texture, mismatched motion reads as depth. uGrain scales both
+    // together — one opponent's weather is spores and another's is smoke, and
+    // that difference is the field's size, not a second noise function.
+    float n1 = noise(p * 2.6 * uGrain + vec2(t * 0.19, t * 0.075));
+    float n2 = noise(p * 5.2 * uGrain + vec2(-t * 0.13, t * 0.21) + 17.0);
 
     // Soft bruises at rest, defined blotches at full fever.
     float sharpen = mix(2.0, 1.15, f);
-    vec3 bruise = vec3(0.141, 0.063, 0.200);
-    vec3 tealNight = vec3(0.031, 0.110, 0.129);
+    vec3 bruise = mix(vec3(0.141, 0.063, 0.200), uTint, uTintAmount);
+    vec3 tealNight = mix(vec3(0.031, 0.110, 0.129), uTint * 0.5, uTintAmount * 0.7);
     // The two constants below are pivoted around mid-fever on purpose: the
     // idle end got livelier (a void that only wakes up when the game does has
     // nothing to escalate from) while the value at the thesis frame's 0.55 is
@@ -107,10 +133,12 @@ const fragment = /* glsl */ `
     float slick = noise(p * 1.5 + vec2(t * 0.09, -t * 0.05) + 40.0);
     // The film thickness cycles on its own clock, faster than the field it
     // sits in — that difference is why the colors crawl *through* the slick
-    // instead of travelling with it.
-    float film = abs(fract(slick * 1.35 + t * 0.055) * 2.0 - 1.0);
+    // instead of travelling with it. A negative uSlick runs that clock
+    // backwards, which is one opponent's entire tell: the colors crawl against
+    // the weather, and nothing else about their void is wrong at all.
+    float film = abs(fract(slick * 1.35 + t * 0.055 * sign(uSlick)) * 2.0 - 1.0);
     float sheenMask = pow(n1, 1.6) * smoothstep(0.10, 0.55, r);
-    col += slickRamp(film) * sheenMask * (0.16 + 0.26 * f);
+    col += slickRamp(film) * sheenMask * (0.16 + 0.26 * f) * abs(uSlick);
 
     // The heat family, entering with fever and only with fever: embers low in
     // the frame, arterial red banking into hazard orange where they burn
@@ -155,16 +183,43 @@ const BEHIND = 16;
 
 const target = new THREE.Vector3(...CAMERA_TARGET);
 const axis = new THREE.Vector3();
+const TINT = new THREE.Vector3();
+
+/**
+ * A hex string as the screen values the shader is authored in.
+ *
+ * Deliberately not `THREE.Color`, which colour-manages a hex into the linear
+ * working space — correct for a material, wrong here. Everything in this
+ * fragment is written as what should reach the screen and the whole thing is
+ * gamma-corrected once at the end, so a tint has to arrive in the same space
+ * the constants next to it are in.
+ */
+const srgb = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+};
 
 export function VoidBackdrop() {
   const material = useRef<THREE.ShaderMaterial>(null);
   const mesh = useRef<THREE.Mesh>(null);
   const drift = useRef(0);
+  /**
+   * False until the weather uniforms hold a real value. Frame one adopts the
+   * opponent outright instead of ramping to them: a harness state pins a bot
+   * and is screenshotted, and a half-second fade in is a half-second of the
+   * wrong void in every shot.
+   */
+  const settled = useRef(false);
   const feverOf = useFeverSource();
+  const botOf = useBotSource();
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
       uFever: { value: 0 },
+      uTint: { value: new THREE.Vector3(0, 0, 0) },
+      uTintAmount: { value: 0 },
+      uGrain: { value: 1 },
+      uSlick: { value: 1 },
     }),
     [],
   );
@@ -172,6 +227,9 @@ export function VoidBackdrop() {
   useFrame(({ camera }, dt) => {
     if (!material.current || !mesh.current) return;
     const fever = feverOf();
+    // Read every frame rather than on a change: the opponent switches on the
+    // menu while this is running, and there is no cheaper place to notice.
+    const weather = voidOf(botOf());
 
     // The void has no edge, so the camera must never get to see one. Rather
     // than sit at a fixed z, the plane rides the view axis 16 units behind the
@@ -187,10 +245,26 @@ export function VoidBackdrop() {
     // is the obvious form and it teleports: change the speed at t=40s and the
     // pattern jumps forty seconds' worth of distance in one frame. Speed is a
     // rate, so it has to be added up.
-    drift.current += Math.min(dt, 0.1) * (CALM_DRIFT + (FEVERED_DRIFT - CALM_DRIFT) * fever);
+    const step = Math.min(dt, 0.1);
+    drift.current +=
+      step * (CALM_DRIFT + (FEVERED_DRIFT - CALM_DRIFT) * fever) * weather.drift;
 
-    material.current.uniforms.uTime!.value = drift.current;
-    material.current.uniforms.uFever!.value = fever;
+    const u = material.current.uniforms;
+    u.uTime!.value = drift.current;
+    u.uFever!.value = fever;
+
+    // The weather changes over about half a second rather than cutting. The
+    // taste law's hard-edged timing is a rule about *props*; this is the
+    // expensive half of the frame, and a palette that snaps on the void reads
+    // as a rendering fault rather than as a choice. Changing opponent on the
+    // menu should look like weather coming in.
+    const k = settled.current ? 1 - Math.exp(-step / 0.18) : 1;
+    settled.current = true;
+    const [tr, tg, tb] = srgb(weather.tint);
+    (u.uTint!.value as THREE.Vector3).lerp(TINT.set(tr, tg, tb), k);
+    u.uTintAmount!.value += (weather.tintAmount - u.uTintAmount!.value) * k;
+    u.uGrain!.value += (weather.grain - u.uGrain!.value) * k;
+    u.uSlick!.value += (weather.slick - u.uSlick!.value) * k;
   });
 
   return (

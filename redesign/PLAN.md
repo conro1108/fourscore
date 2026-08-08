@@ -63,8 +63,8 @@ phase 9, not a reason to keep polishing blind.
 - [x] 2 — **The Thesis** ⚑ *(Fable)*
 - [x] 3 — Props and spikes *(Opus)*
 - [x] 4 — Audio *(Opus)*
-- [ ] 5 — Bots as characters *(Opus)* — **skipped for now**, at Connor's call;
-      phase 6 took its "bot select UI as possessed chrome" bullet
+- [x] 5 — Bots as characters *(Opus)* — skipped at Connor's call and then done
+      after 6, so phase 6 kept its "bot select UI as possessed chrome" bullet
 - [x] 6 — Chrome *(Opus)*
 - [ ] 6½ — **The Lane Screen Audit** ⚑ *(Opus, with Connor's eye on the
       roster)* — runs before 7, because it changes what everything after it is
@@ -692,6 +692,63 @@ thesis artifacts, and what they couldn't fix.
   airhorn and the rest of the county-fair layer are all still there, on purpose
   — retiring them is that phase's job, with a replacement per event slot.
 
+- **Phase 5 — Bots as characters** *(Opus, 2026-08-08)*. Taken out of order, after
+  6 and before 6½, so the seven new personas were written against the
+  lane-screen reference from the start rather than re-aimed later.
+  **The personas** are VISION.md's new "The rest of the roster" section: seven
+  written to the Moss template, plus the three rules that make them one cast
+  (everyone works at the alley; the void variation is a weather report, not a
+  repaint; the signature gag is a lane-screen clip).
+  **The client-side half of a bot is `bots/identity.ts`** — the engine keeps
+  the soul (weights, depth, slip, crossover, blurb) and this holds the two
+  things the engine has no business knowing: a void variation and a signature.
+  **The void variation is four numbers on one shader**, not a shader per bot:
+  a weather tint, its grain, its drift rate and the oil slick's strength.
+  `NEUTRAL` is the phase-2 frame exactly, so every state that pins no
+  opponent — `thesis` included — renders what phase 2 shipped. The heat layer
+  is untouched by all four, because heat means fever and a fever-coloured
+  opponent would make escalation unreadable; `identity.test.ts` asserts no
+  tint reaches the heat family, which is the check Cinder and Bramble
+  specifically needed.
+  **Seven new acts**, one per opponent (Moss keeps the sprinkler):
+  `bumpers-up` (24 tris), `slab-drop` (24), `pin-scatter` (120), `shell-game`
+  (84), `score-lie` (26), `lane-solve` (32), `pinsetter` (72) — with seven new
+  spikes, manifest entries and a preview state each.
+  **What later phases build on:** `useBotSource()` in `director/scope.tsx` is
+  how a scene subsystem asks whose stage it is, and `DirectorFrame.bot` is how
+  it gets there — subsystems still read the Director and nothing else.
+  `pickGag(event, rng, { bot })` *adds* the signature to the pool at weight 5
+  (3 in the idle pool, so a clean game still shows it) rather than replacing
+  the library, so an opponent is a bias on the clip list and not a different
+  screen. `npm run bots` (new) walks the roster through the app's own list box
+  and asserts each opponent reaches the Director's frame and their clip
+  reaches the stage.
+  **The two phase-6 open questions this closes.** `THINKING`/`DEFEAT` in
+  `chrome/copy.ts` are filled for all eight; the plain fallback stays and is
+  now tested against a synthetic bot instead of a real one. And the roster
+  screen got *no* new UI: selecting an opponent already puts you in their void
+  with their clip playing behind the window, which is a better answer than a
+  portrait box and cost nothing. See the open question below for where that
+  falls down.
+  **Deviation from the plan, and it is the one worth reading.** Phase 5 says to
+  get the personas in front of Connor *before* building them. Connor was asleep
+  and asked for best judgement, so they were written and built in one pass. The
+  personas were committed first and separately so that disliking one costs only
+  that one's rebuild — but the taste gate this phase was supposed to have has
+  not happened, and it should before 6½ treats any of this as settled.
+  **Verified:** `npm test` 107 green in `apps/fever` (24 new), typecheck clean,
+  `npm run audio` renders all 32 recipes — the seven new spikes at rms
+  0.15–0.34, comfortably under the signature airhorn's 0.65, which is right for
+  presence rather than spike — `npm run acceptance` played both variants at
+  120fps, `npm run bots` passed 8/8, and every `bot-*` state was screenshotted
+  and looked at. The `thesis` frame was re-shot last and is unchanged.
+  **Against the phase-2 artifacts:** the first pass of tints was a repaint, not
+  a variation — the harness showed Acorn's void washed pink with the well gone
+  and the board's holes no longer dark — and halving every `tintAmount` and
+  darkening every tint to near the bruise's own luminance is what brought it
+  back inside the thesis frame. That was only visible in a screenshot; the
+  numbers looked reasonable in the file.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -865,3 +922,39 @@ thesis artifacts, and what they couldn't fix.
   confidence rules never named the reference. Only the props, the spikes and
   the shouting strings did — which is exactly the surface phase 6½ audits. A
   vision that costs one phase to re-aim is a vision that was factored right.
+- **Open (phase 5):** the roster screen is meant to preview an opponent's world,
+  and at fever 0 it barely does. Selecting a bot really does change the void and
+  the attract loop behind the window — `npm run bots` proves the wiring — but a
+  live menu sits at fever exactly 0 (no moves, no advantage, so `feverTarget` is
+  0), and at 0 the void is near-black with a beige window over most of it. The
+  variations read strongly from about 0.35 up, which is why the `attract-*`
+  preview states pin 0.35 rather than 0. The fix is a fever floor on the menu,
+  which is a `TUNING` change and therefore phase 9's, not an extension phase's.
+- **Decision (phase 5):** the signature is a weight, not a rule. An opponent's
+  clip joins the pool for its event at 5 against a pool that sums to 4–8, so it
+  is the likely answer and never the only one. Making it exclusive was tried on
+  paper and rejected for the same reason `gags.ts` exists at all: one fixed act
+  per event turns a reaction into a status light, and doing that per opponent
+  would simply move the problem one level down.
+- **Decision (phase 5):** every signature also sits in the idle pool at weight 3.
+  Four of the eight hang off a move grade or a tension shift, and a clean quiet
+  game can go a long time without either — an opponent you can't tell apart
+  because the game went smoothly is the accept criterion failing on the games
+  most likely to be someone's first.
+- **Open (phase 5):** Acorn's and Bramble's voids are the closest pair on the
+  ladder — both warm, and in a still the difference is mostly luminance. What
+  separates them properly is motion (Bramble drifts at 1.7, Acorn at 1.15) and
+  the slick, neither of which a screenshot can show. Worth a look in phase 9
+  during real play; if they still read as one world, Bramble is the one to move,
+  because its brief is "going somewhere" and it can afford to lose the warmth.
+- **Open (phase 5):** the sprinkler is still the weakest act in the game and it
+  is now also Moss's signature, so it fires more than it used to. Phase 3 flagged
+  it (eight water quads that read as dashes in a still) and this phase did not
+  touch it, because re-choreographing a phase-2-era act to suit an extension is
+  the drift the plan warns about. It is the first thing to look at in 6½ or 9.
+- **Decision (phase 5):** `stageFx.lastAct` exists only so a scripted browser
+  can ask the running app which gag it drew. Nothing in the game reads it. It is
+  there because the signature draw happens against the live Director, which is
+  the one part of this phase no unit test can see — and the first version of
+  that check reported two random failures a run until it cleared the field
+  before each fire rather than accumulating.

@@ -29,10 +29,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { usePinnedProp } from "../director/scope.js";
+import { useBotSource, usePinnedProp } from "../director/scope.js";
 import { directorFrame, subscribeEvents } from "../director/store.js";
 import type { SpectacleEvent } from "../director/types.js";
 import { playSpike } from "../audio/index.js";
+import { stageFx } from "../stage/fx.js";
 import type { StageLayout } from "../stage/layout.js";
 import { pickGag } from "./gags.js";
 import { PROP_ACTS, type PropAct } from "./registry.js";
@@ -67,6 +68,7 @@ interface Running {
 
 export function PropStage({ layout }: { layout: StageLayout }) {
   const pinned = usePinnedProp();
+  const botOf = useBotSource();
   const [running, setRunning] = useState<readonly Running[]>([]);
   /**
    * The same list as a ref, and the only thing the event handler reads.
@@ -100,15 +102,20 @@ export function PropStage({ layout }: { layout: StageLayout }) {
       const name = pickGag(event, Math.random, {
         avoid: previous.current,
         eligible: (act) => forced || !busy.has(act.berth),
+        // Read at draw time, not at subscribe time: the opponent changes on
+        // the menu while this subscription is alive, and the very next attract
+        // beat should already be theirs.
+        bot: botOf(),
       });
       const act = name ? PROP_ACTS[name] : undefined;
       if (!act) return;
 
       previous.current = act.name;
+      stageFx.lastAct = act.name;
       playSpike(act.spike);
       commit(forced ? [{ act, startedAt: now }] : [...current, { act, startedAt: now }]);
     });
-  }, [pinned]);
+  }, [pinned, botOf]);
 
   // Retire acts after their exit; polled here because this is the component
   // that owns act lifetime, and it's already inside the render loop.

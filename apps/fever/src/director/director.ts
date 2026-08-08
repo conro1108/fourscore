@@ -121,6 +121,8 @@ export interface DirectorInput {
   cells: number;
   /** Menu or match; only the idle rate reads it. See `StageMode`. */
   mode: StageMode;
+  /** The opponent's id, passed through to the frame. Nothing here reads it. */
+  bot: string | null;
 }
 
 interface PendingMove {
@@ -215,7 +217,10 @@ export function advance(
   if (state.generation !== input.generation) {
     const fresh = initialDirectorState(input.generation);
     fresh.threats = { ...input.immediateThreats };
-    return { state: fresh, frame: { fever: fresh.fever, events: [], mode: input.mode } };
+    return {
+      state: fresh,
+      frame: { fever: fresh.fever, events: [], mode: input.mode, bot: input.bot },
+    };
   }
 
   const s: DirectorState = {
@@ -306,7 +311,7 @@ export function advance(
     events.push({ kind: "idle-beat" });
   }
 
-  return { state: s, frame: { fever: s.fever, events, mode: input.mode } };
+  return { state: s, frame: { fever: s.fever, events, mode: input.mode, bot: input.bot } };
 }
 
 /**

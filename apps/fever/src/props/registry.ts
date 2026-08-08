@@ -24,11 +24,18 @@ import type { SoundName } from "../audio/library.js";
 import type { StageLayout } from "../stage/layout.js";
 import { makeBanner, BANNER_MS } from "./Banner.js";
 import { Beacon, BEACON_MS } from "./Beacon.js";
+import { Bumpers, BUMPERS_MS } from "./Bumpers.js";
 import { makeCallout, CALLOUT_MS } from "./Callout.js";
 import { Detonation, DETONATION_MS } from "./Detonation.js";
+import { LaneSolve, SOLVE_MS } from "./LaneSolve.js";
 import { makeMascot, MASCOT_MS } from "./Mascot.js";
+import { Pins, PINS_MS } from "./Pins.js";
+import { Pinsetter, PINSETTER_MS } from "./Pinsetter.js";
 import { Rocket, ROCKET_MS } from "./Rocket.js";
+import { Scoreboard, SCORE_MS } from "./Scoreboard.js";
+import { Shells, SHELLS_MS } from "./Shells.js";
 import { makeSign, SIGN_MS } from "./Sign.js";
+import { Slab, SLAB_MS } from "./Slab.js";
 import { Sprinkler, SPRINKLER_MS } from "./Sprinkler.js";
 import { Truck, TRUCK_LAP_MS } from "./Truck.js";
 
@@ -149,4 +156,18 @@ export const PROP_ACTS: Record<string, PropAct> = {
     makeCallout("STILL HERE"),
     "spike-callout",
   ),
+
+  // -- the signatures (phase 5) ----------------------------------------------
+  // One clip per opponent, wired to them in `bots/identity.ts` and written out
+  // in VISION.md. Berths are spread deliberately: an opponent's clip has to be
+  // able to share the menu with a general one, and two acts in one corner is
+  // the only thing the berth rule exists to stop. None of them declares —
+  // a signature answers a threat or a grade, and both are estimates.
+  "bumpers-up": act("bumpers-up", BUMPERS_MS, 24, "floor", Bumpers, "spike-bumpers"),
+  "slab-drop": act("slab-drop", SLAB_MS, 24, "sky", Slab, "spike-slab"),
+  "pin-scatter": act("pin-scatter", PINS_MS, 120, "floor", Pins, "spike-pins"),
+  "shell-game": act("shell-game", SHELLS_MS, 84, "right", Shells, "spike-shells"),
+  "score-lie": act("score-lie", SCORE_MS, 26, "left", Scoreboard, "spike-score"),
+  "lane-solve": act("lane-solve", SOLVE_MS, 32, "lens", LaneSolve, "spike-solve"),
+  "pinsetter": act("pinsetter", PINSETTER_MS, 72, "sky", Pinsetter, "spike-pinsetter"),
 };

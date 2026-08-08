@@ -12,6 +12,14 @@
   "spike-mascot-flop": { "want": "sad trombone, one fall, ~1.5s (same patch as the fanfare)" },
   "spike-callout": { "want": "orchestra hit / MIDI stab, one shot, dry, <1s" },
 
+  "spike-bumpers": { "want": "small electric motor, short run, dry, <0.5s" },
+  "spike-slab": { "want": "heavy concrete or stone block landing, dry, <1s" },
+  "spike-pins": { "want": "bowling pins struck, full crash, dry, ~1s" },
+  "spike-shells": { "want": "wooden cup or bowl set down on wood, dry, <0.5s" },
+  "spike-score": { "want": "electromechanical relay clack, dry, <0.2s" },
+  "spike-solve": { "want": "single square-wave computer blip, dry, <0.1s" },
+  "spike-pinsetter": { "want": "hydraulic ram or pneumatic machine step, dry, ~1s" },
+
   "disc-drop": { "want": "short air whoosh / cloth swipe, dry, <0.5s" },
   "disc-land": { "want": "coin or poker chip on hard lacquer, dry, <1s" },
   "column-hover": { "want": "tiny UI tick, dry, <0.1s" },

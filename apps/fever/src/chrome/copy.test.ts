@@ -11,16 +11,33 @@ import { COPY } from "./copy.js";
 describe("copy", () => {
   it("gives every bot a thinking line and a defeat line", () => {
     for (const bot of ROSTER) {
-      expect(COPY.thinking(bot)).toMatch(/^[A-Z][A-Z .]+\.$/);
+      // Shouting surface: all caps, ending in a stop of some kind. Acorn is
+      // the reason the punctuation class isn't just a full stop.
+      expect(COPY.thinking(bot)).toMatch(/^[A-Z][A-Z .]+[.!]+$/);
       expect(COPY.lost(bot)).toContain(bot.name.toUpperCase());
     }
   });
 
-  it("uses the written persona line where there is one", () => {
-    // Moss is VISION.md's template; the other seven are phase 5's.
+  it("speaks in every opponent's own voice, not a template", () => {
+    // Phase 5 filled both tables from VISION.md's personas, so all eight rungs
+    // now say something only they would say. Sampled across the ladder rather
+    // than asserted in full — the table is the copy, and phase 9 reads it.
     expect(COPY.thinking(byId("moss"))).toBe("MOSS IS THINKING ABOUT DIRT.");
-    expect(COPY.thinking(byId("vane"))).toBe("VANE IS THINKING.");
-    expect(COPY.lost(byId("oracle"))).toBe("THE ORACLE WINS.");
+    expect(COPY.thinking(byId("vane"))).toBe("VANE IS THINKING ABOUT SOMETHING ELSE.");
+    expect(COPY.lost(byId("oracle"))).toBe("THE ORACLE WINS. IT DOES NOT SAY WHEN IT KNEW.");
+    // Nobody is left on the generic line.
+    for (const bot of ROSTER) {
+      expect(COPY.thinking(bot), bot.id).not.toBe(`${bot.name.toUpperCase()} IS THINKING.`);
+      expect(COPY.lost(bot), bot.id).not.toBe(`${bot.name.toUpperCase()} WINS.`);
+    }
+  });
+
+  it("still degrades to a plain line for an opponent it has never heard of", () => {
+    // The fallback is what stops a new rung reading `undefined is thinking.`
+    // before anyone has written it a voice.
+    const stranger = { ...byId("moss"), id: "nobody", name: "Nobody" };
+    expect(COPY.thinking(stranger)).toBe("NOBODY IS THINKING.");
+    expect(COPY.lost(stranger)).toBe("NOBODY WINS.");
   });
 
   it("names the variants the way the voice sample does", () => {

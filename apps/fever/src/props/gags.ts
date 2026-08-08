@@ -20,6 +20,7 @@
  * same one every time. A game does not end with a draw from a hat.
  */
 
+import { signatureMatches, type BotIdentity } from "../bots/identity.js";
 import type { SpectacleEvent } from "../director/types.js";
 import { PROP_ACTS, type PropAct } from "./registry.js";
 
@@ -83,11 +84,66 @@ export function candidatesFor(event: SpectacleEvent): readonly Candidate[] {
   }
 }
 
+/**
+ * How heavily an opponent's signature outweighs the general library.
+ *
+ * A pool sums to 4-8, so at 5 the signature is the likely answer without being
+ * the only one — which is the balance the whole file is about. Make it
+ * exclusive and the opponent's clip becomes a status light again; leave it at
+ * parity and nobody can tell whose stage they are standing on, which is this
+ * phase's accept criterion.
+ *
+ * `IDLE_WEIGHT` is smaller and separate: every signature also joins the idle
+ * pool, because an opponent whose gag only answers blunders is invisible in a
+ * clean game, and the whole point is that you can tell them apart.
+ */
+const SIGNATURE_WEIGHT = 5;
+const SIGNATURE_IDLE_WEIGHT = 3;
+
 export interface PickOptions {
   /** The act that just played. Skipped when the pool has anything else. */
   avoid?: string;
   /** Veto — the stage uses it to keep two acts out of one berth. */
   eligible?: (act: PropAct) => boolean;
+  /** Whose stage this is. Their signature joins the pool; see below. */
+  bot?: BotIdentity | null;
+}
+
+/**
+ * The pool for this event on this opponent's stage.
+ *
+ * The signature is *added*, never substituted: the general library still
+ * answers everything it answered before, so an opponent is a bias on the
+ * screen's clip list rather than a different screen. And it is added subject
+ * to the claims law — an act that declares a result can never be pulled in
+ * this way, because a signature hangs off a grade or a threat and both of
+ * those are the Director's estimate (`director/types.ts`). No identity in the
+ * roster names a declaring act; this makes that a property of the code rather
+ * than of the roster staying careful.
+ */
+function poolFor(event: SpectacleEvent, bot: BotIdentity | null | undefined): Candidate[] {
+  // Copy the entries, not just the array: the pools above are module constants
+  // and the signature raises a weight in place further down.
+  const pool = candidatesFor(event).map((c) => ({ ...c }));
+  if (!bot) return pool;
+
+  const { act, on } = bot.signature;
+  // An act that doesn't exist and an act that declares a result are refused
+  // the same way: silently, leaving the general library to answer.
+  const entry = PROP_ACTS[act];
+  if (!entry || entry.declares) return pool;
+
+  const own = signatureMatches(on, event);
+  if (!own && event.kind !== "idle-beat") return pool;
+
+  const weight = own ? SIGNATURE_WEIGHT : SIGNATURE_IDLE_WEIGHT;
+  // Its own entry may already be in the idle pool (Moss's sprinkler is, and
+  // was there before any of this): raise that rather than listing it twice,
+  // which would quietly double its odds.
+  const existing = pool.find((c) => c.name === act);
+  if (existing) existing.weight = Math.max(existing.weight, weight);
+  else pool.push(w(act, weight));
+  return pool;
 }
 
 /**
@@ -108,7 +164,7 @@ export function pickGag(
   rng: () => number,
   options: PickOptions = {},
 ): string | null {
-  const pool = candidatesFor(event).filter((c) => {
+  const pool = poolFor(event, options.bot).filter((c) => {
     const act = PROP_ACTS[c.name];
     return act !== undefined && (options.eligible?.(act) ?? true);
   });

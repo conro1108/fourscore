@@ -62,6 +62,9 @@ function readWorld(): DirectorInput {
     // Anywhere that isn't the match screen is the attract loop, roster
     // included: the board is scenery there and the props are the show.
     mode: useShellStore.getState().screen === "match" ? "match" : "attract",
+    // Whoever is selected, whether or not a game is being played against them:
+    // browsing the roster should already be standing in that opponent's void.
+    bot: s.botId,
     generation: s.generation,
     moves: s.moves,
     points: evalPoints(),

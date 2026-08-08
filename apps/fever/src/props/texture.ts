@@ -213,6 +213,134 @@ export function bannerCloth(text: string): THREE.CanvasTexture {
   return tex;
 }
 
+/* -------------------------------------------------------------------------- *
+ * The signatures (phase 5). One skin per opponent's clip. Same 64px, same
+ * nearest filter, same rule about curves: there aren't any.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Acorn's bumper: foam, in chevrons, in a colour nobody would choose.
+ *
+ * Tiled along the rail's length. A box's faces each get the whole 0..1 tile,
+ * so on a rail fifteen units long and half a unit thick the chevrons came out
+ * as four smeared streaks — the wrong kind of cheap, because it reads as a
+ * stretched texture rather than as painted foam.
+ */
+export function bumperSkin(): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    g.fillStyle = "#c9a227";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#e8e4f0";
+    for (let i = -64; i < 64; i += 20) {
+      g.beginPath();
+      g.moveTo(i, 64);
+      g.lineTo(i + 9, 64);
+      g.lineTo(i + 73, 0);
+      g.lineTo(i + 64, 0);
+      g.closePath();
+      g.fill();
+    }
+    // The seam where two lengths of foam were pushed together and left.
+    g.fillStyle = "#8f6f14";
+    g.fillRect(0, 30, 64, 3);
+  });
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.set(9, 1);
+  return tex;
+}
+
+/**
+ * Pebble's slab: poured concrete with a word stencilled on it by whoever
+ * stencils these. It says OK, which is the same small calm lie the About box
+ * tells — a reaction with no content, which is the only thing a `threat` gag
+ * is allowed to have.
+ */
+export function slabSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#6f747c";
+    g.fillRect(0, 0, 64, 64);
+    // Aggregate: a fixed scatter, because wrongness repeats.
+    g.fillStyle = "#5b6068";
+    for (let i = 0; i < 40; i++) {
+      const x = (i * 37) % 64;
+      const y = (i * 23) % 64;
+      g.fillRect(x, y, 2, 2);
+    }
+    g.fillStyle = "#3c4148";
+    g.fillRect(0, 0, 64, 4);
+    g.fillRect(0, 60, 64, 4);
+    shout(g, "OK", "#c8ccd4", 42, 30);
+  });
+}
+
+/** Bramble's pins. White, two bands, and a neck the machine got wrong. */
+export function pinSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#a3164e";
+    g.fillRect(0, 16, 64, 6);
+    g.fillRect(0, 26, 64, 6);
+    g.fillStyle = "#c8ccd4";
+    g.fillRect(0, 52, 64, 12);
+  });
+}
+
+/** Cinder's cups. Fairground stripes on something that holds nothing. */
+export function cupSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#a3164e";
+    for (let i = 0; i < 64; i += 16) g.fillRect(i, 0, 8, 64);
+    g.fillStyle = "#2c2733";
+    g.fillRect(0, 0, 64, 5);
+  });
+}
+
+/**
+ * Vane's scoreboard glass — two marks, stacked, on one tile.
+ *
+ * 64x32 with a mark in each half, so the component swaps what is displayed by
+ * moving `offset.y` by a half rather than by owning two textures and two
+ * materials. The lie costs one number.
+ */
+export function scoreGlass(): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    for (const [i, mark] of ["X", "F"].entries()) {
+      const top = i * 16;
+      g.fillStyle = "#0d0f0b";
+      g.fillRect(0, top, 64, 16);
+      g.fillStyle = "#1c2418";
+      g.fillRect(2, top + 2, 60, 12);
+      shout(g, mark, "#7fe018", top + 13, 13);
+    }
+  }, 32);
+  // Two marks stacked in one tile: show half of it at a time.
+  tex.repeat.set(1, 0.5);
+  return tex;
+}
+
+/** The Oracle's machine: a bone panel, a grille, and one lamp that is on. */
+export function machineSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#d8d2c4";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#9d9483";
+    g.fillRect(0, 0, 64, 3);
+    g.fillRect(0, 61, 64, 3);
+    // Grille.
+    g.fillStyle = "#3a3730";
+    for (let y = 20; y < 46; y += 5) g.fillRect(8, y, 48, 3);
+    // The lamp. It has been on for a long time. Acid green rather than hazard
+    // orange: the heat family means fever and nothing else, and a machine that
+    // idles in it would read as the game heating up whenever the Oracle
+    // wandered past.
+    g.fillStyle = "#7fe018";
+    g.fillRect(54, 8, 5, 5);
+  });
+}
+
 /**
  * The win banner: chrome WordArt, the display face of the possessed software,
  * on the one prop that gets to state a fact.

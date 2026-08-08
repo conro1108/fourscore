@@ -32,6 +32,7 @@ function input(over: Partial<DirectorInput> = {}): DirectorInput {
     immediateThreats: { red: 0, yellow: 0 },
     cells: 42,
     mode: "match",
+    bot: "moss",
     ...over,
   };
 }

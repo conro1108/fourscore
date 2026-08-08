@@ -22,19 +22,46 @@ import type { BotProfile } from "@fourscore/engine";
 const shout = (bot: BotProfile): string => bot.name.toUpperCase();
 
 /**
- * Lines a specific opponent gets instead of the generic one.
+ * Lines a specific opponent gets instead of the generic one — the chrome half
+ * of "bots as characters", written from the eight personas in VISION.md.
  *
- * Moss is written out in VISION.md as the persona template; the other seven are
- * phase 5's job, and until then they take the plain line rather than an
- * improvised voice. Filling this table in is most of what "bots as characters"
- * means on the chrome side.
+ * Two lines each, and that is on purpose. These are the only two places in the
+ * game where an opponent speaks in their own voice, so each one has to carry
+ * the whole persona: the thinking line is who they are while nothing is
+ * happening, and the defeat line is who they are when they have won. Everything
+ * else about them is the void they stand in and the clip their screen plays.
+ *
+ * The confidence law reaches here too, and it bites hardest on the top two
+ * rungs. A defeat line describes a finished board, which is a fact, so it may
+ * be flat — but it may not claim *proof*, and "it knew from the start" would be
+ * exactly that. Quill's line is about the end of a game that has ended; the
+ * Oracle's declines to say when it knew, which on Connect 5 is usually "never"
+ * (`exactnessNote` is the one thing allowed to talk about the crossover, and
+ * the engine generates it from the measurement).
+ *
+ * The fallback below is still live and still deliberately plain: an opponent
+ * with no entry gets `${NAME} IS THINKING.` rather than an improvised voice.
  */
 const THINKING: Record<string, string> = {
+  acorn: "ACORN IS THINKING!!",
+  pebble: "PEBBLE IS CONSIDERING TWO THINGS.",
   moss: "MOSS IS THINKING ABOUT DIRT.",
+  bramble: "BRAMBLE IS ALREADY MOVING.",
+  cinder: "CINDER IS THINKING ABOUT WHAT YOU WILL DO.",
+  vane: "VANE IS THINKING ABOUT SOMETHING ELSE.",
+  quill: "QUILL IS READING AHEAD.",
+  oracle: "THE ORACLE IS NOT THINKING.",
 };
 
 const DEFEAT: Record<string, string> = {
+  acorn: "ACORN WINS. ACORN IS AMAZED.",
+  pebble: "PEBBLE WINS. PEBBLE BLOCKED IT.",
   moss: "MOSS WINS. MOSS DOES NOT CELEBRATE.",
+  bramble: "BRAMBLE WINS. BRAMBLE IS NOT SURE HOW.",
+  cinder: "CINDER WINS. YOU PICKED ONE.",
+  vane: "VANE WINS. VANE SAYS IT WAS CLOSE.",
+  quill: "QUILL WINS. QUILL SAW THE END OF IT.",
+  oracle: "THE ORACLE WINS. IT DOES NOT SAY WHEN IT KNEW.",
 };
 
 export const COPY = {

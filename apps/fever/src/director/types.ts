@@ -63,6 +63,17 @@ export interface DirectorFrame {
   events: SpectacleEvent[];
   /** Passed straight through from the input, for subsystems that pace by it. */
   mode: StageMode;
+  /**
+   * Whose stage this is — the opponent's id, or null for nobody's.
+   *
+   * Also passed straight through. It's here rather than read from the match
+   * store because the rule at the top of this file has no exceptions: the void
+   * shader and the prop stage consume `DirectorFrame` and nothing else, and
+   * "which bot is it" is game truth like any other. It is set on the menu too,
+   * where the opponent you have highlighted is already dressing the stage
+   * behind the roster window.
+   */
+  bot: string | null;
 }
 
 export const EVENT_KINDS = [

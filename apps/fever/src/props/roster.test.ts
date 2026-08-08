@@ -14,11 +14,20 @@ import { PROP_ACTS } from "./registry.js";
 import {
   beaconPose,
   bannerPose,
+  bumperPose,
   calloutPose,
   detonationPose,
   mascotPose,
+  pinPose,
+  pinsetterHeight,
+  PIN_SURVIVOR,
   rocketPose,
+  scorePose,
+  shellPose,
+  shellSlot,
   signPose,
+  slabPose,
+  solvePose,
   sprinklerPose,
 } from "./steps.js";
 
@@ -129,6 +138,111 @@ describe("the lane screen", () => {
     // Spinning on the way in, and past the camera on the way out.
     expect(Math.abs(calloutPose(0.05).yaw)).toBeGreaterThan(1);
     expect(calloutPose(1).z).toBeLessThan(-1);
+  });
+});
+
+/**
+ * The signatures (phase 5). Same two questions as every act above — does it
+ * start and end off-stage, and does it do exactly one legible thing — plus the
+ * one each of them is individually about.
+ */
+describe("the signatures", () => {
+  it("starts and ends every one of them off-stage", () => {
+    expect(bumperPose(0).rise).toBe(0);
+    expect(bumperPose(1).rise).toBeCloseTo(0);
+    // The slab arrives from above and is taken back up there.
+    expect(slabPose(0).height).toBe(1);
+    expect(slabPose(1).height).toBeCloseTo(1);
+    expect(scorePose(0).drop).toBe(0);
+    expect(scorePose(1).drop).toBeCloseTo(0);
+    expect(pinsetterHeight(0)).toBe(1);
+    expect(pinsetterHeight(1)).toBe(1);
+    // The overlay's exit is an un-draw: nothing lit, no reticle, in the last
+    // frame. It is binary the whole way, which is what makes it not a fade.
+    expect(solvePose(0, 12)).toEqual({ lit: 0, reticle: false });
+    expect(solvePose(1, 12)).toEqual({ lit: 0, reticle: false });
+    // The cups leave to the right, having entered from the left.
+    expect(shellPose(0, 0).offstage).toBe(-1);
+    expect(shellPose(1, 0).offstage).toBeCloseTo(1);
+  });
+
+  it("seats the bumpers and lands the slab on exactly one beat each", () => {
+    expect(sample(bumperPose).filter((p) => p.seated).length).toBeGreaterThan(0);
+    expect(runs(sample(bumperPose).map((p) => p.seated))).toBe(1);
+    expect(runs(sample(slabPose).map((p) => p.impact))).toBe(1);
+    // One bounce, and only one: the slab is above rest exactly once after it
+    // has landed and before it is winched away.
+    const after = sample(slabPose).slice(45, 150);
+    expect(runs(after.map((p) => p.height > 0 && p.height < 0.5))).toBe(1);
+  });
+
+  it("leaves one pin standing, and never lets it settle", () => {
+    const late = [0.5, 0.6, 0.7, 0.8];
+    for (const p of late) {
+      for (let i = 0; i < 5; i++) {
+        expect(pinPose(p, i, 0).standing, `${i}@${p}`).toBe(i === PIN_SURVIVOR);
+      }
+      // The four that went over are away from the rack and still moving.
+      expect(Math.abs(pinPose(p, 0, 0).x)).toBeGreaterThan(0.5);
+      expect(pinPose(p, 0, 0).spin).not.toBe(0);
+    }
+    // They arc — up first, then down and off the bottom of the frame. A pin
+    // that only travels sideways reads as a row falling over rather than as
+    // something having been hit.
+    expect(pinPose(0.42, 0, 0).y).toBeGreaterThan(0.4);
+    expect(pinPose(1, 0, 0).y).toBeLessThan(-8);
+    // The survivor rocks on the two-frame clock and is swept out from under
+    // itself rather than coming to rest.
+    expect(new Set([0, 1, 2, 3].map((s) => pinPose(0.6, PIN_SURVIVOR, s).lean)).size).toBe(2);
+    expect(pinPose(1, PIN_SURVIVOR, 0).y).toBeLessThan(-2);
+  });
+
+  it("shuffles the cups by permutation, and shows nothing under any of them", () => {
+    // Every swap is a bijection — a cup never lands on another cup.
+    for (let done = 0; done <= 3; done++) {
+      expect(new Set([0, 1, 2].map((i) => shellSlot(i, done))).size, `${done}`).toBe(3);
+    }
+    // And the shuffle actually moves them: the end is not the start.
+    expect([0, 1, 2].map((i) => shellSlot(i, 3))).not.toEqual([0, 1, 2]);
+
+    // One cup lifts, then all three do — two separate lifts, and the second
+    // one is unanimous.
+    const lifted = (p: number) => [0, 1, 2].filter((i) => shellPose(p, i).lift > 0).length;
+    const counts = Array.from({ length: 201 }, (_, i) => lifted(i / 200));
+    expect(new Set(counts)).toEqual(new Set([0, 1, 3]));
+    expect(runs(counts.map((c) => c > 0))).toBe(2);
+  });
+
+  it("changes the scoreboard's mark once, silently, mid-hold", () => {
+    const marks = sample(scorePose).map((p) => p.mark);
+    expect(runs(marks.map((m) => m === 1))).toBe(1);
+    // The change happens while it is fully down, not on the way in or out.
+    const changeAt = marks.findIndex((m) => m === 1) / 200;
+    expect(scorePose(changeAt).drop).toBe(1);
+  });
+
+  it("draws the overlay dash by dash and un-draws it the same way", () => {
+    const lit = sample((p) => solvePose(p, 12).lit);
+    expect(Math.max(...lit)).toBe(12);
+    // Monotone up, then monotone down: one drawing and one erasing, never a
+    // flicker between them.
+    const peak = lit.indexOf(12);
+    expect(lit.slice(0, peak).every((v, i, a) => i === 0 || v >= a[i - 1]!)).toBe(true);
+    expect(lit.slice(peak).every((v, i, a) => i === 0 || v <= a[i - 1]!)).toBe(true);
+    // The reticle exists only while the line is whole.
+    expect(runs(sample((p) => solvePose(p, 12).reticle))).toBe(1);
+    expect(solvePose(0.5, 12).lit).toBe(12);
+  });
+
+  it("moves the pinsetter in whole steps and nothing else", () => {
+    // The one act in the game with no curve under it at all: five heights,
+    // and no sample anywhere lands between them.
+    const heights = new Set(sample(pinsetterHeight));
+    expect(heights).toEqual(new Set([1, 0.55, 0.12]));
+    // Down on two beats, hold, up on two.
+    expect(pinsetterHeight(0.2)).toBe(0.55);
+    expect(pinsetterHeight(0.5)).toBe(0.12);
+    expect(pinsetterHeight(0.8)).toBe(0.55);
   });
 });
 

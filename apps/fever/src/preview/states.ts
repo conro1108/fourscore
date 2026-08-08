@@ -19,6 +19,12 @@ export interface PreviewCase {
   fever?: number;
   /** Freeze one act, or several at once, at a phase each (see ScenePin). */
   prop?: PinnedAct | PinnedAct[];
+  /**
+   * Whose void this scene stands in (`bots/identity.ts`). Undefined is nobody,
+   * which is the phase-2 thesis frame exactly — so every state written before
+   * phase 5 renders what it always did.
+   */
+  bot?: string;
   /** Lay a chrome surface over the scene (see `preview/chrome.tsx`). */
   chrome?: { state: ChromeState; botId?: string; status?: string };
 }
@@ -42,6 +48,24 @@ const ROSTER: { act: string; phase: number; caption: string }[] = [
   { act: "banner-draw", phase: 0.5, caption: "draw — A DRAW A DRAW" },
   { act: "sprinkler", phase: 0.32, caption: "idle beat — Moss waters nothing" },
   { act: "win-detonation", phase: 0.42, caption: "WIN — the detonation, banner at the lens" },
+];
+
+/**
+ * The eight opponents, in ladder order, each with the frame their signature
+ * clip should be photographed in. Same picking rule as the gag roster above:
+ * by eye, at the pose that says what the act is — the slab sitting rather than
+ * falling, the cups all lifted rather than mid-swap, the pins in the air with
+ * the survivor still up.
+ */
+const BOTS: { id: string; name: string; act: string; phase: number }[] = [
+  { id: "acorn", name: "Acorn", act: "bumpers-up", phase: 0.5 },
+  { id: "pebble", name: "Pebble", act: "slab-drop", phase: 0.5 },
+  { id: "moss", name: "Moss", act: "sprinkler", phase: 0.32 },
+  { id: "bramble", name: "Bramble", act: "pin-scatter", phase: 0.42 },
+  { id: "cinder", name: "Cinder", act: "shell-game", phase: 0.76 },
+  { id: "vane", name: "Vane", act: "score-lie", phase: 0.6 },
+  { id: "quill", name: "Quill", act: "lane-solve", phase: 0.55 },
+  { id: "oracle", name: "The Oracle", act: "pinsetter", phase: 0.5 },
 ];
 
 export const PREVIEW_STATES: PreviewCase[] = [
@@ -167,6 +191,41 @@ export const PREVIEW_STATES: PreviewCase[] = [
   // fever it would actually be seen at. Read the two outcome states side by
   // side: same window, one at rest and one sweating, which is the whole of
   // "the UI starts to sweat" in two frames.
+  // THE ROSTER AS CHARACTERS (phase 5). One state per opponent: their void
+  // variation and their signature clip, on one board at one fever, in ladder
+  // order. This row is the phase's accept criterion and it only works read
+  // left to right — a stranger should be able to tell the rungs apart with
+  // everything else about the game hidden, and the thing that makes that true
+  // is the *difference between neighbours*, which no single frame can show.
+  ...BOTS.map((b) => ({
+    id: `bot-${b.id}`,
+    caption: `${b.name} — ${b.act}`,
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    bot: b.id,
+    prop: { name: b.act, phase: b.phase },
+  })),
+  // The same opponent's void at rest and at full fever. The variations bend
+  // the weather and never the heat, so escalation has to read identically on
+  // every stage in the game — this is the pair that proves it on the one whose
+  // idle is furthest from the thesis frame.
+  {
+    id: "bot-oracle-cold",
+    caption: "the Oracle's void at fever 0 — still, and the calmest in the game",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0,
+    bot: "oracle",
+  },
+  {
+    id: "bot-oracle-hot",
+    caption: "the Oracle's void at fever 1 — same weather, all the heat",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 1,
+    bot: "oracle",
+  },
   {
     id: "chrome-menu",
     caption: "the menu — wordmark, marquee, live void behind",
