@@ -80,7 +80,7 @@ await host.click('button:has-text("Play a person")');
 await host.waitForFunction(() => window.__fever.onlineStore.getState().me !== null, undefined, {
   timeout: 20000,
 });
-await host.click('button:has-text("Host a game")');
+await host.click('.groove button:has-text("Host")');
 await host.waitForFunction(() => window.__fever.onlineStore.getState().row !== null, undefined, {
   timeout: 20000,
 });
@@ -207,6 +207,129 @@ await host.waitForFunction(
   { timeout: 15000, polling: 1000 },
 );
 console.log("[db] the match row was closed out");
+
+// -- the rematch, joined by typing the code in -------------------------------
+//
+// The other half of the lobby: the outcome window's own AGAIN button hosts a
+// fresh row, and the guest goes back to the lobby and types the code rather
+// than following a link. Both paths through `join_match` matter — a link is
+// what you send a friend, a code is what you read out to the person next to
+// you.
+
+await host.click('button:has-text("AGAIN.")');
+await host.waitForFunction(
+  () => window.__fever.onlineStore.getState().row?.join_code != null,
+  undefined,
+  { timeout: 20000 },
+);
+const code2 = await host.evaluate(() => window.__fever.onlineStore.getState().row.join_code);
+console.log(`[host] rematch hosted, code ${code2}`);
+
+await guest.click('button:has-text("Lobby")');
+await guest.waitForFunction(() => window.__fever.shellStore.getState().screen === "online");
+await guest.fill(".field", code2);
+await guest.click('.groove button:has-text("Join")');
+
+for (const [label, page] of [
+  ["host", host],
+  ["guest", guest],
+]) {
+  await page.waitForFunction(
+    () => {
+      const s = window.__fever.matchStore.getState();
+      return s.mode === "online" && s.live && s.moves.length === 0;
+    },
+    undefined,
+    { timeout: 25000 },
+  );
+  console.log(`[${label}] rematch is live on a fresh board`);
+}
+
+// One move each way, to prove the second row is wired and not just dealt.
+await myTurn(host);
+await host.evaluate(() => window.__fever.matchStore.getState().playColumn(0));
+await guest.waitForFunction(() => window.__fever.matchStore.getState().moves.length === 1, undefined, {
+  timeout: 20000,
+});
+await myTurn(guest);
+await guest.evaluate(() => window.__fever.matchStore.getState().playColumn(6));
+await host.waitForFunction(() => window.__fever.matchStore.getState().moves.length === 2, undefined, {
+  timeout: 20000,
+});
+console.log("[rematch] moves cross both ways");
+
+// Leaving puts the bot board back, and nothing online is left running.
+// A game in progress asks first, so this is two clicks: the toolbar, then the
+// dialog that wants to know if you meant it.
+await host.click('.hud-tools button:has-text("Leave")');
+await host.click('.win-buttons button:has-text("Leave")');
+await host.waitForFunction(() => {
+  const s = window.__fever.matchStore.getState();
+  return s.mode === "bot" && !s.live && window.__fever.shellStore.getState().screen === "menu";
+}, undefined, { timeout: 10000 });
+console.log("[host] leaving a wire match puts the bot board back");
+
+// ...and the other one is told, rather than left in front of a board waiting
+// for a move that is never coming.
+await guest.waitForFunction(
+  () => window.__fever.shellStore.getState().dialog?.kind === "error",
+  undefined,
+  { timeout: 15000 },
+);
+const told = await guest.evaluate(() => window.__fever.shellStore.getState().dialog.detail);
+if (!/left the game/.test(told)) throw new Error(`unexpected report: ${told}`);
+if (await guest.evaluate(() => window.__fever.matchStore.getState().live))
+  throw new Error("the guest's board is still taking input after the opponent left");
+await guest.screenshot({ path: `${outDir}/online-opponent-left.png` });
+console.log(`[guest] told what happened: ${told}`);
+
+// -- the other board ---------------------------------------------------------
+//
+// Geometry is a value, and the wire carries it as one column of the row. Both
+// clients build their own board from `variant`, so a host on Connect 5 and a
+// guest who never touched the switch is the case that would break it.
+
+await guest.click('.win-buttons button:has-text("Leave")');
+await guest.waitForFunction(() => window.__fever.shellStore.getState().screen === "menu");
+
+await host.click('button:has-text("Play a person")');
+await host.click('button:has-text("CONNECT 5")');
+await host.click('.groove button:has-text("Host")');
+await host.waitForFunction(
+  () => window.__fever.onlineStore.getState().row?.join_code != null,
+  undefined,
+  { timeout: 20000 },
+);
+const code3 = await host.evaluate(() => window.__fever.onlineStore.getState().row.join_code);
+
+await guest.click('button:has-text("Play a person")');
+await guest.fill(".field", code3);
+await guest.click('.groove button:has-text("Join")');
+
+for (const [label, page] of [
+  ["host", host],
+  ["guest", guest],
+]) {
+  await page.waitForFunction(
+    () => {
+      const s = window.__fever.matchStore.getState();
+      return s.mode === "online" && s.live && s.variant.id === "connect5";
+    },
+    undefined,
+    { timeout: 25000 },
+  );
+  console.log(`[${label}] on the Connect 5 board`);
+}
+await myTurn(host);
+await host.evaluate(() => window.__fever.matchStore.getState().playColumn(8));
+await guest.waitForFunction(
+  () => window.__fever.matchStore.getState().moves.at(-1) === 8,
+  undefined,
+  { timeout: 20000 },
+);
+console.log("[c5] a move in column 8 crossed — a column Connect 4 doesn't have");
+await guest.waitForTimeout(1200);
+await guest.screenshot({ path: `${outDir}/online-c5.png` });
 
 await browser.close();
 console.log("online run complete");

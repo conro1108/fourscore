@@ -170,6 +170,7 @@ export function ChromeFixture({
   // over isn't the state the player sees. The two full-screen states replace
   // the HUD rather than covering it.
   const inMatch = !(["menu", "roster", "online", "online-waiting"] as ChromeState[]).includes(state);
+  const wire = state === "desync" || state === "online-outcome";
   const veiled = state !== "menu" && state !== "hud";
 
   return (
@@ -180,8 +181,11 @@ export function ChromeFixture({
       {inMatch && (
         <Hud
           bot={bot}
+          // The online states are online in the strip too, or the desync report
+          // renders over a game against Moss and reads as nonsense.
+          opponentName={wire ? COPY.stranger : undefined}
           variant={variant}
-          status={status ?? COPY.thinking(bot)}
+          status={status ?? (wire ? COPY.theirTurn : COPY.thinking(bot))}
           heat={fever}
           onLeave={noop}
           onSettings={noop}

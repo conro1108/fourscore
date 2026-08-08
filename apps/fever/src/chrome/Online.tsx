@@ -64,9 +64,7 @@ export function Online({
       >
         <p>{COPY.waitingBody}</p>
         <div className="join-code">{code}</div>
-        <p className="online-note">
-          {variant.name} · {COPY.you}
-        </p>
+        <p className="online-note">{COPY.waitingNote(variant)}</p>
       </Window>
     );
   }
@@ -91,7 +89,7 @@ export function Online({
           ))}
           <div className="spacer" />
           <Btn disabled={!ready} onClick={onHost}>
-            {me ? COPY.onlineHost : COPY.connecting}
+            {me ? COPY.onlineHostGo : COPY.connecting}
           </Btn>
         </div>
       </div>

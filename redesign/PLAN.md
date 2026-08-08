@@ -66,11 +66,12 @@ phase 9, not a reason to keep polishing blind.
 - [x] 5 — Bots as characters *(Opus)* — skipped at Connor's call and then done
       after 6, so phase 6 kept its "bot select UI as possessed chrome" bullet
 - [x] 6 — Chrome *(Opus)*
-- [ ] 6½ — **The Lane Screen Audit** ⚑ *(Opus, with Connor's eye on the
+- [x] 6½ — **The Lane Screen Audit** ⚑ *(Opus, with Connor's eye on the
       roster)* — runs before 7, because it changes what everything after it is
       written against
 - [ ] 7 — Review, reimagined *(Opus)*
-- [ ] 8 — Online *(Opus)*
+- [x] 8 — Online *(Opus)* — taken before 7 at Connor's call ("i need
+      multiplayer back")
 - [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)*
 
 ## What survives, what dies
@@ -820,6 +821,68 @@ thesis artifacts, and what they couldn't fix.
   is untouched — it is Connor's call by the brief's own wording, and it is the
   one item here that can't be judged from a still.
 
+- **Phase 8 — Online** *(Opus, 2026-08-08, taken before 7 at Connor's call)*.
+  The port is much smaller than the old client's because phase 0 had already
+  built the shape: **the move list is game truth**, so a wire match fills the
+  same `match/store.ts` a bot game does and the stage, the Director, the props,
+  the void variation and the HUD cannot tell the difference. Multiplayer's
+  entire cost in the game flow is three lines — `mode: "bot" | "online"`, a
+  `sendMove` seam on the store, and one early return in `match/controller.ts`
+  so nothing searches when the other seat is a person.
+  **The split is `online/session.ts` (pure, tested) and `online/runtime.ts`
+  (the socket).** The pure half holds seats, codes, the invite link, `foldMoves`
+  and `wireAction` — everything a decision rather than an effect. The runtime is
+  a fifth non-React loop, for the same reason as the other four: an effect that
+  owns a realtime channel reconnects whenever something above it re-renders.
+  **Realtime is not a guaranteed log, and that is the one thing this phase
+  learned the hard way.** Two scripted runs dropped a `matches` UPDATE — once a
+  guest joining, once an opponent leaving — and a client that only listens sits
+  in front of a board waiting for something that already happened. So there is
+  now a 4s poll alongside the channel (`startPolling`): realtime for latency,
+  polling for truth. It re-reads the row and the move list, retires itself when
+  the row reaches an end state, and `refetchMoves(id, "newer")` is what stops it
+  yanking an optimistic disc back out of the board while the insert is still in
+  flight. **Don't remove it because the happy path works.**
+  **Two honest reports, both in the error window** (product truth 4): a desync,
+  which is what client-authoritative play surfaces instead of a rejected write,
+  and *they left the game* — leaving an unfinished match now writes
+  `abandoned` on the row, so the other player is told rather than abandoned in
+  the older sense. Neither offers "Try again", because neither un-happens;
+  `ErrorBox.onRetry` is optional for that.
+  **Your opponent gets a roster creature by hashing their user id** (as the old
+  client did), which now means their void variation and their signature clip —
+  the phase-5 machinery works for a stranger with no changes. What they don't
+  get is a **persona**: `THINKING`/`DEFEAT` are for written characters, and the
+  status line says `THEY ARE THINKING.` A real person is the one opponent the
+  possessed software isn't allowed to write lines for. Online results are also
+  kept out of the ladder record for the same reason.
+  **New surface:** `chrome/Online.tsx` is the lobby (host / join / waiting, one
+  window, two states), `screen: "online"` on the shell, `OnlineOutcome` in
+  `Dialogs.tsx`, `.field` and `.join-code` in `app.css`, and `?join=CODE` is
+  handled at boot in `main.tsx` — opening an invite *is* the request to join, so
+  it goes straight through and the code comes out of the URL.
+  **Verified:** `npm run online` (new) is the accept criterion and it does the
+  whole loop — hosts in one browser *context* (a context is its own
+  localStorage and therefore its own anonymous user; one context would have both
+  players signed in as the same person and the database would rightly refuse),
+  joins from another through the invite link, plays a full game with one move
+  through a real canvas click, asserts both clients agree on the move list, the
+  outcome and the closed-out row, then does a rematch joined by *typing* the
+  code, quits mid-game to prove the report, and hosts a Connect 5 game to prove
+  the variant crosses the wire (a move in column 8, which Connect 4 hasn't got).
+  Three consecutive clean runs. Also: `npm test` 126 green (14 new),
+  typecheck and `npm run build` clean, `npm run acceptance` and `npm run bots`
+  unaffected at 120fps, and `npm run db:verify` green — **the realtime
+  publication had been dropped from the database and a `db:push` put it back**,
+  which is worth knowing because nothing else notices until online play silently
+  stops updating.
+  **Against the phase-2 artifacts:** the lobby is the same beige window as
+  everything else and the code sits in the roster's own sunken box, so there is
+  no new furniture; the only new CSS is a text field, which the game had never
+  needed. Screenshots: `chrome-online`, `chrome-online-waiting`, `chrome-desync`,
+  `chrome-online-loss`, and from the live run `online-waiting`,
+  `online-host-end`, `online-guest-end`, `online-opponent-left`, `online-c5`.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -1029,3 +1092,30 @@ thesis artifacts, and what they couldn't fix.
   the one part of this phase no unit test can see — and the first version of
   that check reported two random failures a run until it cleared the field
   before each fire rather than accumulating.
+- **Decision (phase 8):** the online opponent gets a creature but no voice. They
+  arrive with a void variation and a signature clip (hashed from their user id,
+  as the old client did), because a bare grid isn't an opponent — but the
+  `THINKING`/`DEFEAT` tables are not consulted and the status line says
+  `THEY ARE THINKING.` Personas are written characters; putting words in a real
+  person's mouth is the one impersonation the possessed software doesn't get to
+  do. Same reasoning keeps online results out of the ladder record.
+- **Decision (phase 8):** realtime is treated as an optimisation, not as the
+  transport. A 4s poll re-reads the row and the move list for as long as a match
+  is unfinished, because two scripted runs dropped a `matches` UPDATE and the
+  failure mode is a client waiting forever on something that already happened.
+  The poll never shortens the local move list (`refetchMoves(id, "newer")`),
+  which is what keeps it from undoing an optimistic disc.
+- **Open (phase 8):** rejoining a match you reloaded out of works — the board is
+  rebuilt from the database — but nothing *offers* it. The lobby has no "you are
+  in a game" state, so the way back in is the invite link or nothing. A list of
+  your open matches is one select; it was left out because it is lobby surface
+  and phase 9 is about to read every string in the game.
+- **Open (phase 8):** two people can watch the same finished board disagree about
+  who reports it, and both write the row. That's fine (the update is identical)
+  but it means `winner` is written by whoever noticed first, and neither client
+  reads it back — the finished board is what either of them renders. If online
+  ever grows a history screen, that column is the only record and it has never
+  been read.
+- **Open (phase 8):** the app now creates an anonymous auth user the first time
+  anyone opens the lobby, and nothing ever deletes them. Cheap and invisible at
+  this scale; worth a sweep if the toybox database ever grows a bill.

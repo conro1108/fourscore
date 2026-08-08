@@ -41,6 +41,7 @@ import { useOnlineStore } from "./store.js";
 import { ensureSignedIn, supabase } from "./supabase.js";
 
 let channel: RealtimeChannel | null = null;
+let poll = 0;
 /** What the board looked like before you went online, so leaving puts it back. */
 let before: { botId: string; humanFirst: boolean } | null = null;
 /** The result of this row has been written once. Cleared with the row. */
@@ -98,14 +99,23 @@ export async function joinMatch(code: string): Promise<void> {
 /** Put the lobby, the board and the shell back the way they were. */
 export function leaveOnline(): void {
   const r = row();
-  // A game nobody joined yet is withdrawn rather than abandoned quietly: the
-  // code stops working, so the person you sent it to gets "no game is waiting
-  // on that code" instead of a lobby that never starts.
-  if (r && r.status === "waiting" && r.host === me()) {
+  // Walking away is written down, both before the game and during it. A row
+  // nobody joined stops working, so the person you sent the code to gets "no
+  // game is waiting on that code" rather than a lobby that never starts — and a
+  // game you quit halfway tells the other player, because the alternative is
+  // them sitting in front of a board waiting for a move that is never coming.
+  // A game that ended on the board is not abandoned, whatever the row still
+  // says — `reportResult`'s update may simply not have come back yet.
+  const played = useMatchStore.getState();
+  const decided = played.mode === "online" && played.match.status !== "playing";
+  if (r && !decided && (r.status === "waiting" || r.status === "active")) {
     void supabase
       .from("matches")
       .update({ status: "abandoned", join_code: null, updated_at: new Date().toISOString() })
-      .eq("id", r.id);
+      .eq("id", r.id)
+      .then(({ error }) => {
+        if (error) console.error("could not withdraw the match:", error.message);
+      });
   }
   closeChannel();
   reported = null;
@@ -124,6 +134,7 @@ function adoptRow(next: MatchRow): void {
   if (previous?.id !== next.id) {
     reported = null;
     openChannel(next.id);
+    startPolling(next.id);
     void fetchOpponentName();
   }
   // Waiting is still the lobby: there is nobody to play and the board behind
@@ -131,6 +142,7 @@ function adoptRow(next: MatchRow): void {
   // in, which is either the row we just joined or a realtime event on the row
   // we're hosting.
   if (next.status === "active") startGame(next);
+  else if (next.status === "abandoned") opponentGone();
 }
 
 /**
@@ -206,6 +218,47 @@ function openChannel(matchId: string): void {
 function closeChannel(): void {
   if (channel) void supabase.removeChannel(channel);
   channel = null;
+  clearInterval(poll);
+  poll = 0;
+}
+
+/**
+ * The slow lane, and the reason none of this hangs.
+ *
+ * Realtime is what makes a move feel instant, but it is not a guaranteed log:
+ * across a few dozen scripted games this dropped a `matches` UPDATE twice —
+ * once a guest joining, once an opponent leaving — and a client that only
+ * listens sits in front of a board waiting for something that already
+ * happened. So every few seconds we simply ask. `foldMoves` returns "same"
+ * on almost every tick, which is what makes it cheap enough to be boring.
+ */
+const POLL_MS = 4000;
+
+function startPolling(matchId: string): void {
+  clearInterval(poll);
+  poll = setInterval(() => {
+    const current = row();
+    if (current?.id !== matchId) return;
+    // Once the row has reached an end state there is nothing left to hear
+    // about, so the poll retires itself rather than running for as long as the
+    // tab is open.
+    if (current.status === "finished" || current.status === "abandoned") {
+      clearInterval(poll);
+      poll = 0;
+      return;
+    }
+    void supabase
+      .from("matches")
+      .select("*")
+      .eq("id", matchId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data || row()?.id !== matchId) return;
+        const r = data as MatchRow;
+        if (r.status !== row()?.status || r.guest !== row()?.guest) adoptRow(r);
+      });
+    if (useMatchStore.getState().mode === "online") void refetchMoves(matchId, "newer");
+  }, POLL_MS) as unknown as number;
 }
 
 /**
@@ -222,6 +275,18 @@ function receiveMove(col: number): void {
   s.commitMove(col);
 }
 
+/**
+ * They quit. Said plainly, in the same window a desync gets: the game is over
+ * and it didn't end on the board, which is a fact the player is owed rather
+ * than a board that goes on waiting for a move.
+ */
+function opponentGone(): void {
+  const s = useMatchStore.getState();
+  if (s.mode !== "online" || !s.live) return;
+  s.setLive(false);
+  shellError(COPY.opponentLeft);
+}
+
 function desync(): void {
   // Stop taking input first: the board is no longer a board either of you can
   // trust, and a click that lands on it would make it worse.
@@ -229,10 +294,20 @@ function desync(): void {
   shellError(COPY.desync);
 }
 
-async function refetchMoves(matchId: string): Promise<void> {
+/**
+ * Ask the database what the move list is.
+ *
+ * `trust` is the one wrinkle. When we know we're behind — a rejected insert, a
+ * ply that skipped one — the database wins outright. When we're only checking
+ * (the poll), a *shorter* answer is not a correction: it's our own optimistic
+ * move still in flight, and taking it would pull the disc back out of the
+ * board a frame after it landed.
+ */
+async function refetchMoves(matchId: string, trust: "database" | "newer" = "database"): Promise<void> {
   const { data } = await supabase.from("moves").select("ply,col").eq("match_id", matchId).order("ply");
   if (!data || row()?.id !== matchId) return;
   const s = useMatchStore.getState();
+  if (trust === "newer" && data.length < s.moves.length) return;
   const fold = foldMoves(s.moves, data.map((m) => m.col as number));
   if (fold.kind === "same") return;
   // Extending drops the new discs one at a time, same as a move off the wire.

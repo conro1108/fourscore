@@ -283,6 +283,10 @@ function statusLine(
   const human = humanPlayer(s);
   const wire = s.mode === "online";
   const settled = s.landed === s.moves.length;
+  // A board that isn't being played says nothing. Online this is the moment
+  // after the other person walks out: the game is unfinished, but "THEY ARE
+  // THINKING." under a window that says they left is the software lying.
+  if (!s.live) return "";
   if (s.match.status !== "playing") {
     if (!dismissed || !settled) return "";
     return s.match.status === "draw"

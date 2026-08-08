@@ -122,11 +122,15 @@ export const COPY = {
   onlineTitle: "Two players",
   onlineBody: "One of you hosts. The other one types the code in.",
   onlineHost: "Host a game",
+  /** The button under that label. Short, because the groove already said it. */
+  onlineHostGo: "Host",
   onlineJoin: "Join",
   onlineCode: "Code",
   connecting: "Connecting…",
   waitingTitle: "Waiting for them",
   waitingBody: "Send them the code. The game starts the moment they're in.",
+  /** Under the code: which board, and the one thing hosting decides. */
+  waitingNote: (v: { name: string }): string => `${v.name} · you move first.`,
   copyLink: "Copy link",
   copied: "Copied",
   cancel: "Cancel",
@@ -167,4 +171,6 @@ export const COPY = {
    * is playing — possessed styling, honest facts (PLAN.md product truth 4).
    */
   desync: "Their game is out of step with this one. The move it sent can't be played here.",
+  /** The other honest online report: the game ended, and not on the board. */
+  opponentLeft: "They left the game.",
 } as const;
