@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Player } from "@fourscore/engine";
+import { playSpike } from "../audio/index.js";
 import { placements, type DiscPlacement } from "../match/store.js";
 import { planDrop, squashAt } from "../match/timing.js";
 import { coinGeometry } from "./coin.js";
@@ -105,7 +106,13 @@ function FallingDisc({
   useFrame(() => {
     if (!group.current || done.current) return;
     const now = performance.now();
-    if (startedAt.current === null) startedAt.current = now;
+    if (startedAt.current === null) {
+      startedAt.current = now;
+      // Both disc sounds fire off the drop animation, which runs off the move
+      // list — so a move arriving over the wire in phase 8 will sound exactly
+      // like one you made, for the same reason it looks like one.
+      playSpike("disc-drop", 0.55);
+    }
     const t = now - startedAt.current;
 
     group.current.position.y = plan.yAt(t);
@@ -115,6 +122,7 @@ function FallingDisc({
     if (t >= plan.impactMs && !impacted.current) {
       impacted.current = true;
       stageFx.lastLandAt = now;
+      playSpike("disc-land", 0.85);
     }
     if (t >= plan.durationMs) {
       done.current = true;

@@ -5,9 +5,56 @@
  * here is precedent beyond "the chrome is DOM, layered over the canvas".
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CONNECT4, CONNECT5 } from "@fourscore/engine";
+import { playSpike } from "../audio/index.js";
 import { botPlayer, humanPlayer, useMatchStore } from "../match/store.js";
+import { useSettingsStore } from "../settings/store.js";
+
+/**
+ * The audio control, in the two states VISION.md's voice sample names. It
+ * shows what the game currently *is* — NOISE while it's making some — rather
+ * than what the button does, which is how a period toggle behaved and is also
+ * funnier.
+ *
+ * Turning it off gets a switch clunk and then a fast fade rather than a hard
+ * cut; turning it on gets the same switch. The volume slider ticks as it
+ * moves, because a volume control you can't hear is a guess.
+ */
+function AudioControl() {
+  const muted = useSettingsStore((s) => s.muted);
+  const volume = useSettingsStore((s) => s.volume);
+  const setMuted = useSettingsStore((s) => s.setMuted);
+  const setVolume = useSettingsStore((s) => s.setVolume);
+
+  return (
+    <>
+      <button
+        className={`btn ${muted ? "" : "btn--on"}`}
+        onClick={() => {
+          playSpike(muted ? "toggle-on" : "toggle-off");
+          setMuted(!muted);
+        }}
+      >
+        {muted ? "SILENCE" : "NOISE"}
+      </button>
+      <input
+        className="vol"
+        type="range"
+        min={0}
+        max={1}
+        step={0.02}
+        value={volume}
+        aria-label="volume"
+        disabled={muted}
+        onChange={(e) => {
+          setVolume(Number(e.target.value));
+          playSpike("column-hover", 0.7);
+        }}
+      />
+    </>
+  );
+}
 
 const outcomeFor = (draw: boolean, won: boolean) =>
   draw
@@ -33,6 +80,14 @@ export function Hud() {
 
   const outcome = outcomeFor(s.match.status === "draw", s.match.winner === human);
 
+  // The dialog announces itself. Losing opens with the system error sound
+  // instead of the window sound — this software considers your defeat a fault
+  // condition, and says so without saying anything.
+  const lost = over && s.match.status !== "draw" && s.match.winner !== human;
+  useEffect(() => {
+    if (showOutcome) playSpike(lost ? "error-ding" : "dialog-open", 0.8);
+  }, [showOutcome, lost]);
+
   // Strings from the phase-2 voice sample (VISION.md, "The voice"). Phase 6
   // owns the full chrome pass; these are here so the register ships.
   const status = over
@@ -50,16 +105,26 @@ export function Hud() {
       <header className="hud-top">
         <div className="wordmark">FOURSCORE</div>
         <div className="hud-controls">
+          <AudioControl />
           {[CONNECT4, CONNECT5].map((v) => (
             <button
               key={v.id}
               className={`btn ${s.variant.id === v.id ? "btn--on" : ""}`}
-              onClick={() => s.newGame({ variant: v })}
+              onClick={() => {
+                playSpike("ui-click");
+                s.newGame({ variant: v });
+              }}
             >
               {v.name}
             </button>
           ))}
-          <button className="btn" onClick={() => s.newGame()}>
+          <button
+            className="btn"
+            onClick={() => {
+              playSpike("ui-click");
+              s.newGame();
+            }}
+          >
             New game
           </button>
         </div>
@@ -75,7 +140,10 @@ export function Hud() {
               type="button"
               className="dialog-x"
               aria-label="Close"
-              onClick={() => setDismissedGen(s.generation)}
+              onClick={() => {
+                playSpike("dialog-close", 0.8);
+                setDismissedGen(s.generation);
+              }}
             >
               ×
             </button>
@@ -83,12 +151,21 @@ export function Hud() {
           <div className="dialog-body">
             <p>{outcome}</p>
             <div className="dialog-buttons">
-              <button className="btn btn--dialog" onClick={() => s.newGame()}>
+              <button
+                className="btn btn--dialog"
+                onClick={() => {
+                  playSpike("ui-click");
+                  s.newGame();
+                }}
+              >
                 AGAIN.
               </button>
               <button
                 className="btn btn--dialog"
-                onClick={() => s.newGame({ humanFirst: !s.humanFirst })}
+                onClick={() => {
+                  playSpike("ui-click");
+                  s.newGame({ humanFirst: !s.humanFirst });
+                }}
               >
                 Rematch, {botPlayer(s) === "yellow" ? "Moss starts" : "you start"}
               </button>

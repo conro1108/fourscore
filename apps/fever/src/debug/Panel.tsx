@@ -11,7 +11,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { isMuted, setMuted } from "../audio/index.js";
+import { playSpike } from "../audio/index.js";
+import { SOUND_NAMES, type SoundName } from "../audio/library.js";
+import { useSettingsStore } from "../settings/store.js";
 import { useDirectorStore } from "../director/store.js";
 import type { SpectacleEvent } from "../director/types.js";
 import { useDebugStore } from "./store.js";
@@ -65,7 +67,9 @@ export function DebugPanel() {
   const postEnabled = useDebugStore((s) => s.postEnabled);
   const setPostEnabled = useDebugStore((s) => s.setPostEnabled);
   const [open, setOpen] = useState(true);
-  const [muted, setMutedState] = useState(isMuted);
+  const muted = useSettingsStore((s) => s.muted);
+  const setMuted = useSettingsStore((s) => s.setMuted);
+  const [sound, setSound] = useState<SoundName>(SOUND_NAMES[0]!);
   const fps = useFps();
 
   if (!open) {
@@ -113,16 +117,23 @@ export function DebugPanel() {
         post stack
       </label>
       <label className="debug-row">
-        <input
-          type="checkbox"
-          checked={muted}
-          onChange={(e) => {
-            setMuted(e.target.checked);
-            setMutedState(e.target.checked);
-          }}
-        />
+        <input type="checkbox" checked={muted} onChange={(e) => setMuted(e.target.checked)} />
         mute
       </label>
+      {/* Audition any sound on demand. Judging one against the signature spike
+          means hearing them back to back, which no game will ever arrange. */}
+      <div className="debug-row">
+        <select value={sound} onChange={(e) => setSound(e.target.value as SoundName)}>
+          {SOUND_NAMES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <button className="debug-mini" onClick={() => playSpike(sound)}>
+          play
+        </button>
+      </div>
       <div className="debug-row debug-events">
         {SAMPLES.map((s) => (
           <button key={s.label} onClick={() => fire(s.event)}>

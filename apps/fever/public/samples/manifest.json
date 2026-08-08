@@ -1,0 +1,28 @@
+{
+  "spike-truck": { "want": "airhorn, dry, single sustained blast, <1s" },
+  "spike-win": { "want": "stadium pyro mortar or close firework thud, dry, <2s" },
+  "spike-rocket": { "want": "small solid rocket motor or two-stroke engine, dry, ~1s" },
+  "spike-sign": { "want": "human 'hmm', close-mic, dry, <1s" },
+  "spike-beacon": { "want": "warning klaxon / reversing beacon, one cycle, dry, <0.5s" },
+  "spike-banner-rising": { "want": "small propeller plane, steady pass, dry, ~3s" },
+  "spike-banner-collapsing": { "want": "small propeller plane, laboring or missing, dry, ~3s" },
+  "spike-banner-draw": { "want": "PA announcer, one flat syllable, dry, <1s" },
+  "spike-sprinkler": { "want": "impact sprinkler ticking, dry, ~3s" },
+
+  "disc-drop": { "want": "short air whoosh / cloth swipe, dry, <0.5s" },
+  "disc-land": { "want": "coin or poker chip on hard lacquer, dry, <1s" },
+  "column-hover": { "want": "tiny UI tick, dry, <0.1s" },
+
+  "match-start": { "want": "distant crowd swell / fairground PA sting, ~2s" },
+  "turn-yours": { "want": "PA chime, two pips, dry, <0.5s" },
+
+  "ui-click": { "want": "beige plastic button click, dry, <0.1s" },
+  "toggle-on": { "want": "rocker switch, mechanical, dry, <0.2s" },
+  "toggle-off": { "want": "rocker switch, mechanical, dry, <0.2s (same switch as toggle-on)" },
+  "dialog-open": { "want": "90s OS window chirp, dry, <0.3s" },
+  "dialog-close": { "want": "90s OS window chirp, dry, <0.3s (same chirp as dialog-open)" },
+  "error-ding": { "want": "small struck bell or system ding, dry, <1s" },
+
+  "ambient-crowd": { "want": "distant crowd murmur, no distinct voices, loopable, 4s+" },
+  "ambient-tape": { "want": "tape hiss with mains hum, loopable, 4s+" }
+}

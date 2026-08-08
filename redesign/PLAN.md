@@ -62,7 +62,7 @@ phase 9, not a reason to keep polishing blind.
 - [x] 1 — The Director *(Opus)*
 - [x] 2 — **The Thesis** ⚑ *(Fable)*
 - [x] 3 — Props and spikes *(Opus)*
-- [ ] 4 — Audio *(Opus)*
+- [x] 4 — Audio *(Opus)*
 - [ ] 5 — Bots as characters *(Opus)*
 - [ ] 6 — Chrome *(Opus)*
 - [ ] 7 — Review, reimagined *(Opus)*
@@ -487,6 +487,59 @@ thesis artifacts, and what they couldn't fix.
   post stack on, and each gag was fired down the real bus in the real app and
   screenshotted (`shots/live-*.png`).
 
+- **Phase 4 — Audio** *(Opus, 2026-08-07)*. The bus phase 2 founded now carries
+  **22 named sounds**, every one of them rendered through the phase-2 mangling
+  graph. `audio/library.ts` is the whole roster as recipes (`want` + `seconds` +
+  `build`), `audio/synth.ts` is the new placeholder workshop (noise, envelopes,
+  gates, `sampleVoice`, `loopify`) kept separate from `mangle.ts` on purpose:
+  mangling is the sound design and survives real samples, synthesis is
+  scaffolding that a recording replaces. **The manifest is live**:
+  `public/samples/manifest.json` is the shopping list *and* the loader's input —
+  drop a CC0 file in `public/samples/`, name it in the entry, reload, done. No
+  rebuild, no code change, no caller learns a filename. Until then every entry
+  plays its placeholder, and a recipe uses a sourced sample as the *voice* while
+  keeping its own choreography, so the horn still falls a fifth and the plane
+  still dopplers. Verified both directions with a real file (swap heard, missing
+  file falls back silently).
+  **What phase 5/6 build on:** `playSpike(name, level)` — level is per-callsite,
+  because the quiet furniture is quiet at the moment, not in the recipe;
+  `PropAct.spike` is now required, so a bot act with no sound won't typecheck;
+  `settings/store.ts` is the persisted source of truth for mute/volume and the
+  audio bus subscribes to it (nothing sets gain directly — the HUD's
+  `NOISE`/`SILENCE` toggle and the debug panel are two views of one setting);
+  `audio/cues.ts` is the fourth non-React loop, for sounds that belong to the
+  flow of a match rather than to a click.
+  **Fever reaches audio in four places:** the drone/choir from phase 2, plus a
+  new crowd loop that walks closer, a tape loop whose wow deepens (a real
+  detune on the loop — the one place the game audibly stops running at the right
+  speed), and the spike bus, where everything plays up to 5% sharp and sits in a
+  bigger room at full fever. Recipes themselves never read fever: a gag has to
+  sound the same every time it fires, and the evening running hot is a property
+  of the evening.
+  **Deviations:** 22 sounds, not the plan's ~30 — the roster is one per gag, the
+  board, the match and the chrome, and padding it would have meant entries
+  nothing fires. A per-sound *peak limiter* was added after the check found
+  half the gags rendering to 1.2–1.5 full scale (real clipping, the wrong kind
+  of broken); it scales down and never up, so the sprinkler stays 30dB under
+  the airhorn. `toggle-off` fires *before* mute applies and the mute fade
+  runs at 0.08s instead of a cut, so the switch is audible on the way out.
+  **Verification:** `npm run audio` (new) renders every recipe in real Chrome,
+  writes `shots/audio/*.wav` plus an `all.wav` montage in one order, prints
+  length/peak/rms/onset, and fails on silence, a late onset (>0.12s) or a page
+  error. It also checks the three things nobody can see: no AudioContext exists
+  before the first gesture and it runs after one; both bed loops actually
+  started (they're wired into `source.detune` inside an unawaited promise —
+  failure there is silent); and the real `NOISE` button takes the master
+  0.72 → 0.000 → 0.72. `npm test` 150 green, typecheck clean, `npm run
+  acceptance` played both variants at 120fps with audio in the loop.
+  **Against the phase-2 artifacts:** the signature spike is still the loudest,
+  densest thing under 3 seconds (rms 0.65; nothing else clears 0.6 except the
+  win and the error ding, both of which are meant to), and every gag was built
+  by writing its shape against the truck's. Honest limit: **an agent cannot
+  hear any of this.** The numbers are a proxy for presence, not for taste, so
+  the montage is the deliverable Connor has to sit through — that judgment is
+  genuinely outstanding, not deferred to phase 9 out of politeness.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -567,6 +620,34 @@ thesis artifacts, and what they couldn't fix.
   while the truck (brilliant) stays rare. Whether that ratio is funny over ten
   games is a phase-9 feel call; `STAGE_QUIET_MS` and the grading thresholds in
   `TUNING` are the two knobs, in that order.
+- **Decision (phase 4):** a gag's whole choreography lives in *one* buffer.
+  `spike-rocket` contains the ignition, the climb, the sputter, the beat of
+  silence and the off-stage landing at 1.98s, because an act is a fixed-length
+  piece of theater and its sound is allowed to know that. So `PropAct.spike`
+  stayed a single name rather than growing a cue schedule, and the sound-side
+  law is instead "a spike may never outlast its act" — asserted in
+  `library.test.ts`.
+- **Decision (phase 4):** the banner barks are pitched blats with no words —
+  rising steps up, collapsing steps down, the draw gets one and no bend. That's
+  product truth 1 in sound: `tension-shift` rides the Director's estimate, and
+  an announcement with no content cannot overclaim a result. The only
+  declarative sounds in the game hang off `win` and `draw`, which are facts.
+- **Decision (phase 4):** losing opens the outcome dialog with `error-ding`
+  instead of `dialog-open` — the software treats your defeat as a fault
+  condition and says so without saying anything. The ding itself is a bell
+  rendered and played backwards, which is the reversal tool from phase 2
+  earning its place; it reads uncanny rather than horror, but it is the closest
+  thing in the game to the tone boundary and worth a second opinion in phase 9.
+- **Open (phase 4):** `turn-yours` fires every time control comes back to you —
+  roughly twenty times a game. It is quiet (played at 0.7) and it solves a real
+  thing (you look away while the bot thinks), but a sound that frequent is the
+  first candidate for "annoying" in the phase-9 ten-game pass. The callsite is
+  one line in `audio/cues.ts`.
+- **Open (phase 4):** the sample manifest ships empty — every sound is its
+  placeholder. The placeholders are honest but they are all synthesis, and the
+  gap between "a saw pretending to be an airhorn" and an airhorn is the biggest
+  single quality jump available to this project. The list is 22 short CC0
+  recordings; nothing else in the plan depends on them.
 - **Decision (out of band, Connor's ask):** the stage orbits. Dragging anywhere
   on the canvas turns the board (`stage/orbit.ts`), clamped to ±54° of yaw and
   −23°/+40° of pitch, with a throw on release. The player moves the camera

@@ -151,6 +151,19 @@ body {
   color: #b7f04d;
 }
 
+/* The volume slider, kept the same height as the buttons beside it so the top
+   row reads as one strip of controls. Phase 6 owns what this looks like. */
+.vol {
+  width: 74px;
+  accent-color: #b7f04d;
+  cursor: pointer;
+}
+
+.vol:disabled {
+  accent-color: #4a3d63;
+  cursor: default;
+}
+
 /* -- status --------------------------------------------------------------- */
 
 .status {

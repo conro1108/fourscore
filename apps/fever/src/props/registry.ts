@@ -32,8 +32,14 @@ export interface PropAct {
   durationMs: number;
   /** Audited triangle count. The law is <= 300. */
   tris: number;
-  /** The one-shot fired when the act starts, if it has one yet (phase 4). */
-  spike?: SoundName;
+  /**
+   * The one-shot fired when the act starts. Every act has one: an act is a
+   * fixed-length piece of choreography, so its sound is written against that
+   * length and carries the act's whole shape in one buffer — the rocket's
+   * sputter and the beat of silence before it lands off-stage are inside
+   * `spike-rocket`, not scheduled here. One trigger, one sound.
+   */
+  spike: SoundName;
   Component: React.ComponentType<{ layout: StageLayout; phase: () => number }>;
 }
 
@@ -42,20 +48,28 @@ const act = (
   durationMs: number,
   tris: number,
   Component: PropAct["Component"],
-  spike?: SoundName,
-): PropAct => ({ name, durationMs, tris, Component, ...(spike ? { spike } : {}) });
+  spike: SoundName,
+): PropAct => ({ name, durationMs, tris, Component, spike });
 
 export const PROP_ACTS: Record<string, PropAct> = {
   "truck-lap": act("truck-lap", TRUCK_LAP_MS, 180, Truck, "spike-truck"),
-  "rocket-fizzle": act("rocket-fizzle", ROCKET_MS, 84, Rocket),
-  "sign-hmm": act("sign-hmm", SIGN_MS, 24, makeSign("HMM.")),
-  "beacon-drop": act("beacon-drop", BEACON_MS, 68, Beacon),
+  "rocket-fizzle": act("rocket-fizzle", ROCKET_MS, 84, Rocket, "spike-rocket"),
+  "sign-hmm": act("sign-hmm", SIGN_MS, 24, makeSign("HMM."), "spike-sign"),
+  "beacon-drop": act("beacon-drop", BEACON_MS, 68, Beacon, "spike-beacon"),
   // The tension banners are weather, not verdicts — `tension-shift` rides the
-  // Director's estimate and may not assert a result.
-  "banner-rising": act("banner-rising", BANNER_MS, 60, makeBanner("SUNDAY", 3)),
-  "banner-collapsing": act("banner-collapsing", BANNER_MS, 60, makeBanner("NEVERMIND", 1)),
-  // A draw is a fact, so this one gets to be flat.
-  "banner-draw": act("banner-draw", BANNER_MS, 60, makeBanner("A DRAW", 2)),
-  "sprinkler": act("sprinkler", SPRINKLER_MS, 64, Sprinkler),
+  // Director's estimate and may not assert a result. Their PA barks step up or
+  // down in pitch and never say a word, which is the same rule in sound: an
+  // announcement with no content can't overclaim.
+  "banner-rising": act("banner-rising", BANNER_MS, 60, makeBanner("SUNDAY", 3), "spike-banner-rising"),
+  "banner-collapsing": act(
+    "banner-collapsing",
+    BANNER_MS,
+    60,
+    makeBanner("NEVERMIND", 1),
+    "spike-banner-collapsing",
+  ),
+  // A draw is a fact, so this one gets to be flat. One bark, no bend.
+  "banner-draw": act("banner-draw", BANNER_MS, 60, makeBanner("A DRAW", 2), "spike-banner-draw"),
+  "sprinkler": act("sprinkler", SPRINKLER_MS, 64, Sprinkler, "spike-sprinkler"),
   "win-detonation": act("win-detonation", DETONATION_MS, 110, Detonation, "spike-win"),
 };

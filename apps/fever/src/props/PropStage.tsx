@@ -92,7 +92,7 @@ export function PropStage({ layout }: { layout: StageLayout }) {
       if (now < freeAt.current && !preempts(event)) return;
       setRunning((current) => {
         if (current && !preempts(event)) return current;
-        if (act.spike) playSpike(act.spike);
+        playSpike(act.spike);
         return { act, startedAt: now };
       });
     });
