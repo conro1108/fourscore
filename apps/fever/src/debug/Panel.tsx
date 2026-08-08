@@ -16,7 +16,6 @@ import { SOUND_NAMES, type SoundName } from "../audio/library.js";
 import { useSettingsStore } from "../settings/store.js";
 import { useDirectorStore } from "../director/store.js";
 import type { SpectacleEvent } from "../director/types.js";
-import { useDebugStore } from "./store.js";
 
 /**
  * One representative payload per event kind. Fixed, not random: the taste law
@@ -64,8 +63,9 @@ export function DebugPanel() {
   const override = useDirectorStore((s) => s.override);
   const setFever = useDirectorStore((s) => s.setFever);
   const fire = useDirectorStore((s) => s.fire);
-  const postEnabled = useDebugStore((s) => s.postEnabled);
-  const setPostEnabled = useDebugStore((s) => s.setPostEnabled);
+  // The player-facing setting, not a debug copy of it — see settings/store.ts.
+  const postEnabled = useSettingsStore((s) => s.effects);
+  const setPostEnabled = useSettingsStore((s) => s.setEffects);
   const [open, setOpen] = useState(true);
   const muted = useSettingsStore((s) => s.muted);
   const setMuted = useSettingsStore((s) => s.setMuted);

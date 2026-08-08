@@ -13,6 +13,7 @@
  * mid-air theater.
  */
 
+import { shellError } from "../chrome/store.js";
 import { engineClient } from "../engine/client.js";
 import { botPlayer, useMatchStore } from "./store.js";
 
@@ -58,9 +59,10 @@ async function botTurn(): Promise<void> {
   const s = store.getState();
   const gen = s.generation;
   const at = s.moves.length;
+  // Still the same game, still being played, still waiting on this move.
   const fresh = () => {
     const t = store.getState();
-    return t.generation === gen && t.moves.length === at;
+    return t.live && t.generation === gen && t.moves.length === at;
   };
 
   s.setThinking(true);
@@ -77,16 +79,22 @@ async function botTurn(): Promise<void> {
     store.getState().setThinking(false);
     store.getState().commitMove(decision.col);
   } catch (e) {
-    // A dead worker means no move is coming; unlock the HUD rather than
-    // spinning forever. The console is the right audience until phase 6 gives
-    // errors a possessed dialog to live in.
+    // A dead worker means no move is coming, and the position it died on stays
+    // claimed — so without a way out the game is over and says nothing. Unlock
+    // the HUD and put the failure in front of the player in a dialog that can
+    // start a new one. The console still gets the real error; the dialog gets
+    // the sentence a person can act on.
     console.error("bot turn failed:", e);
-    if (fresh()) store.getState().setThinking(false);
+    if (fresh()) {
+      store.getState().setThinking(false);
+      shellError("The opponent stopped answering.");
+    }
   }
 }
 
 function maybeBotTurn(): void {
   const s = useMatchStore.getState();
+  if (!s.live) return;
   if (s.match.status !== "playing") return;
   if (s.match.turn !== botPlayer(s)) return;
   // One attempt per position, ever. The key never repeats — `generation` only
@@ -97,6 +105,18 @@ function maybeBotTurn(): void {
   if (inFlight === key) return;
   inFlight = key;
   void botTurn();
+}
+
+/**
+ * Have another go at the position the bot died on.
+ *
+ * One attempt per position is what stops a dead worker being hammered, so the
+ * only way back is to un-claim it deliberately — which is exactly what the
+ * error dialog's "Try again" means and the only thing that means it.
+ */
+export function retryBotTurn(): void {
+  inFlight = null;
+  maybeBotTurn();
 }
 
 /** Call once from the app entry. The preview harness never calls it. */

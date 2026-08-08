@@ -63,8 +63,9 @@ phase 9, not a reason to keep polishing blind.
 - [x] 2 — **The Thesis** ⚑ *(Fable)*
 - [x] 3 — Props and spikes *(Opus)*
 - [x] 4 — Audio *(Opus)*
-- [ ] 5 — Bots as characters *(Opus)*
-- [ ] 6 — Chrome *(Opus)*
+- [ ] 5 — Bots as characters *(Opus)* — **skipped for now**, at Connor's call;
+      phase 6 took its "bot select UI as possessed chrome" bullet
+- [x] 6 — Chrome *(Opus)*
 - [ ] 7 — Review, reimagined *(Opus)*
 - [ ] 8 — Online *(Opus)*
 - [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)*
@@ -540,6 +541,61 @@ thesis artifacts, and what they couldn't fix.
   the montage is the deliverable Connor has to sit through — that judgment is
   genuinely outstanding, not deferred to phase 9 out of politeness.
 
+- **Phase 6 — Chrome** *(Opus, 2026-08-07)*. Taken **out of order at Connor's
+  call**: phase 5 is skipped for now, so this session also took its "bot select
+  UI as possessed chrome" bullet — an app shell whose only opponent is Moss has
+  nowhere to route. What phase 5 still owns is untouched: the seven personas,
+  the per-bot void variations and signature gags. The two places their copy
+  will land are marked — the `THINKING` / `DEFEAT` tables in `chrome/copy.ts`,
+  which fall back to `${NAME} IS THINKING.` today and hold Moss's written lines.
+  **The look is the icon.** Connor's steer mid-session: the ending rematch
+  window already had the right vibe, and the menu did not. So the chrome is now
+  the home-screen icon at full size — `tools/icon-art.js`'s fire is ported into
+  `chrome/fire.ts` (same six-stop palette, same nested-tongue construction) and
+  animated at a stepped 12fps behind a banded-chrome wordmark in a sunken
+  picture box, inside a real Win95 dialog. **There is exactly one button style
+  now**, a beige tile, including the ones floating on the void; `btn--void` is
+  gone. The two files' fire has to stay in step by hand.
+  **What shipped:** `chrome/store.ts` routes (screen + dialog, no URLs — one
+  canvas, never unmounted); `chrome/Window.tsx` is the window everything is made
+  of (draggable title bar, working close box) plus `Btn`; `Menu`, `Roster` (a
+  period list box + details pane straight off the engine's `blurb` and
+  `exactnessNote`, with the ladder as a level meter), `Settings` (sound, volume
+  and the post stack, which is now a *player* setting — `debug/store.ts` is
+  deleted and the debug panel writes the same switch), `Dialogs` (about, quit,
+  error, outcome), `Hud` (a floating beige toolbar, and the status line is a
+  sunken status bar because glowing purple text over fire cannot be read), and
+  `Trail` (a 12fps cursor trail that only exists above 0.66 fever).
+  **Fever reaches the chrome in four places:** the wordmark's heat glow, the
+  title-bar gradient (`color-mix` toward the icon's `#ed5705`), the title text's
+  four-step sweat above 0.66, and the floor catching fire from 0.25 up.
+  **New surface for later phases:** `chrome/copy.ts` is every player-facing
+  string in one file — phase 9's copy pass is meant to be a single read of it,
+  so new strings go there even when they'd be shorter inline. Preview states
+  `chrome-*` render each surface over a real board (`preview/chrome.tsx`
+  fixtures; fever is a local custom property because the harness never starts
+  the Director).
+  **Deviations / inventions:** a `live` flag on the match store, because the
+  menu keeps the board as scenery and the turn loop would otherwise go on
+  playing it behind the menu — it's part of `newGame` rather than a separate
+  setter, since for the instant between two sets a game the human doesn't lead
+  is the bot's turn. `retryBotTurn()` un-claims the position a dead worker died
+  on, which is the only thing "Try again" can mean. Local win/loss records were
+  ported from the old client (same `fourscore.record.v2` key, so an existing
+  record survives). `match-start` now only fires when a game is live — the menu
+  rebuilds the board on every variant or opponent change.
+  **Verified:** `npm test` 155 green (5 new, on the copy table's fallbacks),
+  typecheck clean, every `chrome-*` state screenshotted and looked at, and
+  `npm run acceptance` — which now enters through the menu's own buttons and
+  asserts the bot leaves the board alone while it's scenery — played both
+  variants at 120fps. The cursor trail was checked in the live app with a
+  scripted pointer (`shots/live-trail.png`).
+  **Against the phase-2 artifacts:** the beige-on-void window was already the
+  thesis's chrome idea; this session made everything else agree with it. What
+  the thesis frame doesn't cover is the fire, which is new to the chrome — it
+  comes from the icon rather than from `thesis`, and it is the one thing in this
+  phase worth a second opinion.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -663,3 +719,33 @@ thesis artifacts, and what they couldn't fix.
   hairline down the board's seam. Phase 9 owns whether this survives a phone:
   the drag shares its gesture with the tap that drops a disc, separated by a
   5px slop and nothing else.
+- **Decision (phase 6):** one button style, everywhere — a beige Win95 tile,
+  including on the void. Connor's steer: the chrome is the home-screen icon,
+  not a second style that merely rhymes with it. The purple-on-void button is
+  deleted rather than kept for "chrome that floats", because two furniture
+  styles is how a possessed application starts looking like a themed one.
+- **Decision (phase 6):** the fire is drawn at 4x, not 3x. The chunk of the
+  pixel is half the style — at 3x the same licks came out as a fine orange
+  fringe along the bottom of the box rather than as fire. Any future flame
+  surface uses `FLAME_SCALE` and an integer upscale; a fractional one softens
+  every edge in it, which is the one thing the cheap budget can't survive.
+- **Open (phase 6):** the floor fire starts at 0.25 fever and is full by 1.0
+  (`FIRE_FROM` in `chrome/Hud.tsx`). That curve was chosen against pinned
+  states, not against real play, and fever spends most of a match in the low
+  middle — if ten games feel like the screen is always burning, this constant is
+  the knob, before the flame geometry.
+- **Open (phase 6):** the chrome's fire comes from the icon, not from the phase-2
+  thesis frame, which has no warm pixel art in it at all. It reads as the same
+  world to me and it is what Connor asked for, but it is the one place this
+  phase extended the look rather than the look extending itself. Worth a look in
+  phase 9 next to `thesis`.
+- **Open (phase 6):** `THINKING` and `DEFEAT` in `chrome/copy.ts` hold one bot's
+  lines (Moss, from VISION.md) and fall back to `${NAME} IS THINKING.` for the
+  other seven. That fallback is deliberately plain rather than improvised —
+  writing seven voices is phase 5's deliverable and setting personas here would
+  be an Opus session setting precedent. Filling the two tables in is most of
+  what "bots as characters" means on the chrome side.
+- **Open (phase 6):** the roster shows a win/loss record and the ladder as a
+  level meter, but nothing about a bot's *appearance* — no creature, no void
+  variation. That's phase 5's, and the screen is built so those can land in the
+  detail pane without moving anything else.

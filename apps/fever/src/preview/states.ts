@@ -6,6 +6,7 @@
  */
 
 import { CONNECT4, CONNECT5, type Player, type Variant } from "@fourscore/engine";
+import type { ChromeState } from "./chrome.js";
 
 export interface PreviewCase {
   id: string;
@@ -17,6 +18,8 @@ export interface PreviewCase {
   fever?: number;
   /** Freeze a prop act at a phase of its choreography (see ScenePin). */
   prop?: { name: string; phase: number };
+  /** Lay a chrome surface over the scene (see `preview/chrome.tsx`). */
+  chrome?: { state: ChromeState; botId?: string; status?: string };
 }
 
 /**
@@ -154,5 +157,88 @@ export const PREVIEW_STATES: PreviewCase[] = [
     caption: "win moment — Connect 5 (red, vertical)",
     variant: CONNECT5,
     moves: [4, 0, 4, 1, 4, 2, 4, 3, 4],
+  },
+  // THE CHROME (phase 6). Every player-facing surface over a real board, at the
+  // fever it would actually be seen at. Read the two outcome states side by
+  // side: same window, one at rest and one sweating, which is the whole of
+  // "the UI starts to sweat" in two frames.
+  {
+    id: "chrome-menu",
+    caption: "the menu — wordmark, marquee, live void behind",
+    variant: CONNECT4,
+    moves: [],
+    chrome: { state: "menu" },
+  },
+  {
+    id: "chrome-roster",
+    caption: "opponent select — the Oracle on Connect 5 (late crossover note)",
+    variant: CONNECT5,
+    moves: [],
+    chrome: { state: "roster", botId: "oracle" },
+  },
+  {
+    id: "chrome-hud",
+    caption: "in match — HUD only, bot thinking",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    chrome: { state: "hud" },
+  },
+  {
+    id: "chrome-hud-c5",
+    caption: "in match — Connect 5, your move, full fever",
+    variant: CONNECT5,
+    moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2],
+    fever: 1,
+    chrome: { state: "hud", botId: "vane", status: "YOUR MOVE." },
+  },
+  {
+    id: "chrome-settings",
+    caption: "settings — the two grooves",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    chrome: { state: "settings" },
+  },
+  {
+    id: "chrome-about",
+    caption: "about — the exemplar system dialog, OK and OK",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    chrome: { state: "about" },
+  },
+  {
+    id: "chrome-quit",
+    caption: "leaving a game in progress",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    chrome: { state: "quit" },
+  },
+  {
+    id: "chrome-error",
+    caption: "the dead-worker dialog — joke in the title bar, facts in the body",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    chrome: { state: "error" },
+  },
+  {
+    id: "chrome-win",
+    caption: "you win — over the lit winning line",
+    variant: CONNECT4,
+    moves: [3, 0, 3, 1, 3, 2, 3],
+    fever: 1,
+    // No status line: with the outcome window up, the real HUD has nothing to
+    // say until you dismiss it.
+    chrome: { state: "outcome-win", status: "" },
+  },
+  {
+    id: "chrome-loss",
+    caption: "you lose — full fever, title bar hot and sweating",
+    variant: CONNECT4,
+    moves: [3, 0, 3, 1, 3, 2, 3],
+    fever: 1,
+    chrome: { state: "outcome-loss", status: "" },
   },
 ];

@@ -1,0 +1,81 @@
+/**
+ * The title screen: the home-screen icon, at full size, with buttons in it.
+ *
+ * The icon is the game's visual thesis for the chrome — a Win95 dialog with
+ * hot-rod flames pouring out of its client area and a chrome sticker slapped
+ * over the top — so the menu is that same dialog rather than something in its
+ * spirit. Picture box, marquee status strip, a column of beveled buttons, and
+ * the void showing round the edges.
+ *
+ * Pure props, like `StageView`: the preview harness renders this with fixtures
+ * and no stores at all.
+ */
+
+import type { BotProfile, Variant } from "@fourscore/engine";
+import { CONNECT4, CONNECT5 } from "@fourscore/engine";
+import { Flames } from "./Flames.js";
+import { Btn, Window } from "./Window.js";
+import { COPY } from "./copy.js";
+
+export interface MenuProps {
+  variant: Variant;
+  bot: BotProfile;
+  onVariant: (v: Variant) => void;
+  onStart: () => void;
+  onRoster: () => void;
+  onSettings: () => void;
+  onAbout: () => void;
+}
+
+export function Menu({
+  variant,
+  bot,
+  onVariant,
+  onStart,
+  onRoster,
+  onSettings,
+  onAbout,
+}: MenuProps) {
+  return (
+    <div className="menu">
+      <Window title={COPY.windowTitle} label="fourscore" className="win--menu">
+        {/* The picture box: night, on fire, with the wordmark stuck over it. */}
+        <div className="pictbox">
+          <Flames />
+          <div className="wordmark" data-text={COPY.title}>
+            {COPY.title}
+          </div>
+        </div>
+
+        {/* Repeated so the strip is always full — see the marquee rule in
+            app.css. Four copies is enough that half of them overfill the
+            widest the strip ever gets. */}
+        <div className="marquee">
+          <span>{`${COPY.tagline} · `.repeat(4)}</span>
+        </div>
+
+        <div className="menu-buttons">
+          <Btn wide onClick={onStart}>
+            {COPY.start}
+          </Btn>
+          <Btn wide onClick={onRoster}>
+            {COPY.opponent}: {bot.name}
+          </Btn>
+          {/* The variant switch, both states visible at once: a period toggle
+              showed you the choice, not the consequence of pressing it. */}
+          <div className="menu-pair">
+            {[CONNECT4, CONNECT5].map((v) => (
+              <Btn key={v.id} on={variant.id === v.id} onClick={() => onVariant(v)}>
+                {COPY.variant(v.id)}
+              </Btn>
+            ))}
+          </div>
+          <div className="menu-pair">
+            <Btn onClick={onSettings}>{COPY.settings}</Btn>
+            <Btn onClick={onAbout}>{COPY.about}</Btn>
+          </div>
+        </div>
+      </Window>
+    </div>
+  );
+}

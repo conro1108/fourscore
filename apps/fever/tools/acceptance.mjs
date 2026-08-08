@@ -1,8 +1,10 @@
 /**
  * Acceptance run: play a full game vs Moss on both variants through the real
- * app. First human move goes through an actual canvas click (raycast path);
- * the rest drive the store's playColumn (same entry the click handler uses).
- * Samples rAF frame rate mid-game.
+ * app, entered through the real chrome — the menu's own buttons start the
+ * match and switch the board, so a screen that stops routing fails here rather
+ * than in a screenshot nobody took. First human move goes through an actual
+ * canvas click (raycast path); the rest drive the store's playColumn (same
+ * entry the click handler uses). Samples rAF frame rate mid-game.
  *
  * Usage:  npm run dev  (in apps/fever), then  npm run acceptance
  * Env:    BASE, CHROME — same as tools/shots.mjs.
@@ -131,16 +133,43 @@ async function playGame(label, { clickFirst }) {
   throw new Error("game did not finish in 200 turns");
 }
 
+/**
+ * The live gate: on the menu the board is scenery, and the turn loop must
+ * leave it alone even when the position is the bot's to move. Set up a game
+ * the bot leads without starting it, and check nothing happens — this is the
+ * one bug in the shell that would look like a haunting rather than a fault.
+ */
+await page.evaluate(() =>
+  window.__fever.matchStore.getState().newGame({ humanFirst: false, live: false }),
+);
+await page.waitForTimeout(3000);
+const idle = await page.evaluate(() => window.__fever.matchStore.getState().moves.length);
+if (idle !== 0) throw new Error(`the bot played ${idle} move(s) on the menu`);
+console.log("[menu] the bot leaves the board alone while it's scenery");
+await page.evaluate(() =>
+  window.__fever.matchStore.getState().newGame({ humanFirst: true, live: false }),
+);
+
+// Into the game through the menu's own button.
+await page.click('button:has-text("Resume")');
+await page.waitForFunction(() => window.__fever.matchStore.getState().live === true);
+console.log("[menu] Resume starts a match");
+
 // Game 1: Connect 4.
 const g1 = await playGame("connect4", { clickFirst: true });
 if (g1.s.variantId !== "connect4") throw new Error("expected connect4");
 await page.waitForTimeout(1400); await page.screenshot({ path: `${outDir}/game-c4-end.png` });
 
-// Switch variant through the real chrome button.
+// Back out to the menu through the real chrome and switch the board there.
+await page.click('button[aria-label="Close"]');
+await page.click('button:has-text("Leave")');
+await page.waitForFunction(() => window.__fever.matchStore.getState().live === false);
 await page.click('button:has-text("Connect 5")');
 await page.waitForFunction(
   () => window.__fever.matchStore.getState().variant.id === "connect5",
 );
+await page.click('button:has-text("Resume")');
+await page.waitForFunction(() => window.__fever.matchStore.getState().live === true);
 // Let React re-render the scene for the new geometry before raycasting into it.
 await page.waitForTimeout(600);
 const g2 = await playGame("connect5", { clickFirst: true });
@@ -173,8 +202,8 @@ if (!watch.kinds.move) throw new Error("no move events reached the spectacle bus
 if (!watch.kinds.win && !watch.kinds.draw) throw new Error("no game-ending event fired");
 if (watch.points < 8) throw new Error(`eval feed scored only ${watch.points} positions`);
 
-// Rematch from the dialog.
-await page.click('button:has-text("Rematch")');
+// Rematch from the outcome window.
+await page.click('button:has-text("Again")');
 await page.waitForFunction(
   () => window.__fever.matchStore.getState().moves.length === 0,
 );

@@ -21,7 +21,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { Player, Variant } from "@fourscore/engine";
-import { useDebugStore } from "../debug/store.js";
+import { useSettingsStore } from "../settings/store.js";
 import { ScenePinProvider, type ScenePin } from "../director/scope.js";
 import { PropStage } from "../props/PropStage.js";
 import { BoardRig } from "./BoardRig.js";
@@ -175,7 +175,10 @@ function Levitate({ children }: { children: React.ReactNode }) {
 
 export function StageView({ model }: { model: StageModel }) {
   const layout = useMemo(() => layoutFor(model.variant), [model.variant]);
-  const postEnabled = useDebugStore((s) => s.postEnabled);
+  // One switch, two views: the settings window and the debug panel both write
+  // this, so "turn the post stack off" means the same thing to a player
+  // debugging a slow laptop and to an agent debugging a shader.
+  const postEnabled = useSettingsStore((s) => s.effects);
   const interactive = model.onColumn !== undefined;
   // One orbit per stage, not a module singleton: the preview harness mounts
   // several of these at once and dragging one tile must not turn the others.

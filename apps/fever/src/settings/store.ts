@@ -1,11 +1,12 @@
 /**
- * Player settings. Audio only for now — phase 6 owns the settings chrome and
- * will have more to put here.
+ * Player settings: everything the settings window can change.
  *
  * Persisted, because the one setting a player changes in anger is the volume
  * and having it come back loud is the sort of thing that gets a tab closed.
  * The store is the source of truth and the audio bus subscribes to it; nothing
- * calls into the bus to set volume directly.
+ * calls into the bus to set volume directly. Same for the post stack — the
+ * settings window and the debug panel are two views of one switch rather than
+ * two switches, which is the difference between a control and a bug report.
  */
 
 import { create } from "zustand";
@@ -16,9 +17,11 @@ interface Saved {
   muted: boolean;
   /** 0..1, master. */
   volume: number;
+  /** The post stack: bloom, aberration, grain. Off is the debug view. */
+  effects: boolean;
 }
 
-const DEFAULTS: Saved = { muted: false, volume: 0.8 };
+const DEFAULTS: Saved = { muted: false, volume: 0.8, effects: true };
 
 function load(): Saved {
   try {
@@ -31,6 +34,7 @@ function load(): Saved {
         typeof parsed.volume === "number" && parsed.volume >= 0 && parsed.volume <= 1
           ? parsed.volume
           : DEFAULTS.volume,
+      effects: typeof parsed.effects === "boolean" ? parsed.effects : DEFAULTS.effects,
     };
   } catch {
     // Private browsing, a corrupt value, a browser with storage switched off:
@@ -42,17 +46,22 @@ function load(): Saved {
 export interface SettingsStore extends Saved {
   setMuted(muted: boolean): void;
   setVolume(volume: number): void;
+  setEffects(effects: boolean): void;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
   ...load(),
   setMuted: (muted) => set({ muted }),
   setVolume: (volume) => set({ volume: Math.max(0, Math.min(1, volume)) }),
+  setEffects: (effects) => set({ effects }),
 }));
 
 useSettingsStore.subscribe((s) => {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ muted: s.muted, volume: s.volume }));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ muted: s.muted, volume: s.volume, effects: s.effects }),
+    );
   } catch {
     /* see load() */
   }

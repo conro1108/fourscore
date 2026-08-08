@@ -2,13 +2,18 @@
  * App shell: the 3D stage underneath, DOM chrome floating above. All game
  * logic lives in the match store and controller; this file only wires state
  * to the StageView's model.
+ *
+ * There is one canvas and it never unmounts — the menu, the roster and every
+ * dialog float over the same live void, and changing screens is a state change
+ * rather than a page. Rebuilding a WebGL context to show a menu would be the
+ * most expensive thing the app does.
  */
 
 import { useState } from "react";
 import { playSpike } from "./audio/index.js";
 import { canHumanPlay, humanPlayer, useMatchStore } from "./match/store.js";
 import { StageView, type StageModel } from "./stage/Stage.js";
-import { Hud } from "./chrome/Hud.js";
+import { Chrome } from "./chrome/Chrome.js";
 import { DebugPanel } from "./debug/Panel.js";
 
 export function App() {
@@ -46,7 +51,7 @@ export function App() {
             whole WebGL context per rematch. */}
         <StageView model={model} />
       </div>
-      <Hud />
+      <Chrome />
       {import.meta.env.DEV && <DebugPanel />}
     </div>
   );

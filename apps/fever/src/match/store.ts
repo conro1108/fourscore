@@ -30,8 +30,28 @@ export interface MatchStore {
   match: Match;
   /** True from "bot's turn began" to "bot's move committed". */
   thinking: boolean;
+  /**
+   * Is this game actually being played right now?
+   *
+   * False on the menu, where the board is scenery. Without it the finished (or
+   * half-finished) position is still a position whose turn belongs to the bot,
+   * and the turn loop would go on playing it behind the menu — a disc quietly
+   * dropping into the backdrop while you read the roster.
+   */
+  live: boolean;
 
-  newGame(opts?: Partial<{ variant: Variant; humanFirst: boolean; botId: string }>): void;
+  /**
+   * Start over. `live: false` sets the board up without handing it to the
+   * players — that's how the menu changes variant or opponent, and it has to be
+   * part of this one atomic update rather than a `setLive` afterwards: for the
+   * instant between two sets, a game the human doesn't lead is the bot's turn,
+   * and the turn loop is subscribed.
+   */
+  newGame(
+    opts?: Partial<{ variant: Variant; humanFirst: boolean; botId: string; live: boolean }>,
+  ): void;
+  /** Hand the current board to the players, or take it back as scenery. */
+  setLive(live: boolean): void;
   /** Human input. Validates; a click during a drop or off-turn is ignored. */
   playColumn(col: number): void;
   /** Commit a move to game truth. Both the human path and the bot path end here. */
@@ -48,6 +68,7 @@ export const botPlayer = (s: Pick<MatchStore, "humanFirst">): Player =>
 
 /** All theater has settled and it's the human's turn to add to the move list. */
 export const canHumanPlay = (s: MatchStore): boolean =>
+  s.live &&
   s.match.status === "playing" &&
   s.match.turn === humanPlayer(s) &&
   s.landed === s.moves.length &&
@@ -62,6 +83,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   landed: 0,
   match: new Match(CONNECT4),
   thinking: false,
+  live: false,
 
   newGame: (opts = {}) => {
     const s = get();
@@ -80,8 +102,11 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       landed: 0,
       match: new Match(variant),
       thinking: false,
+      live: opts.live ?? true,
     });
   },
+
+  setLive: (live) => set({ live }),
 
   playColumn: (col) => {
     const s = get();

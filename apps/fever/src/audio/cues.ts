@@ -18,7 +18,10 @@ export function startAudioCues(): void {
     if (s.generation !== generation) {
       generation = s.generation;
       couldPlay = false;
-      playSpike("match-start");
+      // Only a game somebody is playing gets announced. The menu rebuilds the
+      // board every time you change the variant or the opponent, and a rally
+      // sting for each of those turns the announcement into a click sound.
+      if (s.live) playSpike("match-start");
       return;
     }
     const canPlay = canHumanPlay(s);

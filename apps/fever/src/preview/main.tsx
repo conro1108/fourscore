@@ -11,6 +11,7 @@ import { createRoot } from "react-dom/client";
 import { Match } from "@fourscore/engine";
 import { PROP_ACTS } from "../props/registry.js";
 import { StageView, type StageModel } from "../stage/Stage.js";
+import { ChromeFixture } from "./chrome.js";
 import { PREVIEW_STATES, type PreviewCase } from "./states.js";
 import "../app.css";
 
@@ -33,6 +34,27 @@ function modelFor(c: PreviewCase, override: number | null): StageModel {
   };
 }
 
+/**
+ * A state, scene and chrome together. The chrome is a sibling of the canvas
+ * exactly as it is in the app — same stacking, same pointer rules — so what the
+ * harness shows is the composite the player sees rather than a component on a
+ * swatch.
+ */
+function Scene({ c, override }: { c: PreviewCase; override: number | null }) {
+  return (
+    <>
+      <StageView model={modelFor(c, override)} />
+      {c.chrome && (
+        <ChromeFixture
+          {...c.chrome}
+          variant={c.variant}
+          fever={override ?? c.fever ?? 0}
+        />
+      )}
+    </>
+  );
+}
+
 function PreviewApp() {
   const params = new URLSearchParams(window.location.search);
   const only = params.get("state");
@@ -44,7 +66,7 @@ function PreviewApp() {
     if (!c) return <pre style={{ color: "#e5dcf2" }}>unknown state: {only}</pre>;
     return (
       <div style={{ position: "fixed", inset: 0 }}>
-        <StageView model={modelFor(c, override)} />
+        <Scene c={c} override={override} />
       </div>
     );
   }
@@ -85,8 +107,11 @@ function Tile({ c, override }: { c: PreviewCase; override: number | null }) {
 
   return (
     <figure style={{ margin: 0 }}>
-      <div ref={box} style={{ width: 470, height: 380, border: "1px solid #3a2b55" }}>
-        {visible && <StageView model={modelFor(c, override)} />}
+      <div
+        ref={box}
+        style={{ position: "relative", width: 470, height: 380, border: "1px solid #3a2b55" }}
+      >
+        {visible && <Scene c={c} override={override} />}
       </div>
       <figcaption
         style={{ fontFamily: "monospace", fontSize: 12, color: "#a99bc4", paddingTop: 6 }}
