@@ -151,9 +151,9 @@ await page.evaluate(() =>
 );
 
 // Into the game through the menu's own button.
-await page.click('button:has-text("Resume")');
+await page.click('button:has-text("Start"), button:has-text("Resume")');
 await page.waitForFunction(() => window.__fever.matchStore.getState().live === true);
-console.log("[menu] Resume starts a match");
+console.log("[menu] the start button starts a match");
 
 // Game 1: Connect 4.
 const g1 = await playGame("connect4", { clickFirst: true });
@@ -168,7 +168,7 @@ await page.click('button:has-text("Connect 5")');
 await page.waitForFunction(
   () => window.__fever.matchStore.getState().variant.id === "connect5",
 );
-await page.click('button:has-text("Resume")');
+await page.click('button:has-text("Start"), button:has-text("Resume")');
 await page.waitForFunction(() => window.__fever.matchStore.getState().live === true);
 // Let React re-render the scene for the new geometry before raycasting into it.
 await page.waitForTimeout(600);

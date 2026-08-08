@@ -78,7 +78,19 @@ export function Chrome() {
     record(recordKey(s.botId, s.variant.id), result, `${s.botId}@${s.variant.id}:${s.moves.join()}`);
   }, [screen, over, settled, result, record, s.botId, s.variant.id, s.moves]);
 
+  // A board left half-played on the menu is still that game: picking it back up
+  // hands it to the players rather than throwing it away. Anything else — a
+  // finished game, an empty board, a pick from the roster — deals a new one.
+  const canResume = s.moves.length > 0 && s.match.status === "playing";
+
   const start = () => {
+    if (canResume) s.setLive(true);
+    else s.newGame();
+    go("match");
+  };
+
+  /** The roster's Play always means a new game, whatever is on the board. */
+  const startFresh = () => {
     s.newGame();
     go("match");
   };
@@ -113,6 +125,7 @@ export function Chrome() {
         <Menu
           variant={s.variant}
           bot={bot}
+          canResume={canResume}
           onVariant={(v) => configure({ variant: v })}
           onStart={start}
           onRoster={() => go("roster")}
@@ -131,7 +144,7 @@ export function Chrome() {
           records={records}
           onSelect={(botId) => configure({ botId })}
           onFirst={(humanFirst) => configure({ humanFirst })}
-          onPlay={start}
+          onPlay={startFresh}
           onClose={() => go("menu")}
         />
       )}

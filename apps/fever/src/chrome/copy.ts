@@ -42,9 +42,14 @@ export const COPY = {
   tagline: "EVERY SUNDAY IS TONIGHT.",
 
   // The menu. Sentence case: this is software that thinks it's ordinary.
-  // "Resume" on a game you have never played is the joke, and it is the joke
-  // every time, so it never becomes "Start".
-  start: "Resume",
+  //
+  // VISION.md's voice sample has this button saying "Resume" on first launch,
+  // as a small calm lie. It isn't one here, because the menu keeps a half-played
+  // board as scenery and this button really does resume it — so a "Resume" with
+  // nothing to resume reads as a bug rather than as a joke, and it lied about
+  // what pressing it did.
+  start: "Start",
+  resume: "Resume",
   opponent: "Opponent",
   settings: "Settings",
   about: "About",

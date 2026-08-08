@@ -58,6 +58,7 @@ function Surface({
         <Menu
           variant={variant}
           bot={bot}
+          canResume={false}
           onVariant={noop}
           onStart={noop}
           onRoster={noop}

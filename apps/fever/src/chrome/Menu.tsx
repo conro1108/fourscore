@@ -20,6 +20,8 @@ import { COPY } from "./copy.js";
 export interface MenuProps {
   variant: Variant;
   bot: BotProfile;
+  /** There's a half-played board waiting, so the top button resumes it. */
+  canResume: boolean;
   onVariant: (v: Variant) => void;
   onStart: () => void;
   onRoster: () => void;
@@ -30,6 +32,7 @@ export interface MenuProps {
 export function Menu({
   variant,
   bot,
+  canResume,
   onVariant,
   onStart,
   onRoster,
@@ -56,7 +59,7 @@ export function Menu({
 
         <div className="menu-buttons">
           <Btn wide onClick={onStart}>
-            {COPY.start}
+            {canResume ? COPY.resume : COPY.start}
           </Btn>
           <Btn wide onClick={onRoster}>
             {COPY.opponent}: {bot.name}
