@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build && node tools/report-output.mjs",
     "preview": "vite preview",
     "shots": "node tools/shots.mjs",
+    "icon": "node tools/make-icon.mjs",
     "acceptance": "node tools/acceptance.mjs"
   },
   "dependencies": {

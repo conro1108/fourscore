@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Fourscore icon</title>
+    <style>
+      body { background: #1b1520; color: #ece7f2; font: 13px system-ui; margin: 20px; }
+      canvas { image-rendering: pixelated; }
+      .row { display: flex; gap: 24px; align-items: flex-end; margin-bottom: 20px; }
+      .ios { border-radius: 22.5%; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <canvas id="big" width="64" height="64" style="width: 384px; height: 384px"></canvas>
+      <canvas id="ios" class="ios" width="64" height="64" style="width: 180px; height: 180px"></canvas>
+      <canvas width="64" height="64" id="sm" style="width: 60px; height: 60px"></canvas>
+    </div>
+    <script type="module">
+      import { drawIcon, S } from './icon-art.js';
+      Object.assign(window, { drawIcon, S }); // make-icon.mjs renders through these
+      for (const id of ['big', 'ios', 'sm']) {
+        drawIcon(document.getElementById(id).getContext('2d'));
+      }
+    </script>
+  </body>
+</html>
