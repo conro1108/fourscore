@@ -38,6 +38,14 @@ export interface PropMaterialOptions {
   emissive?: THREE.ColorRepresentation;
   transparent?: boolean;
   opacity?: number;
+  /**
+   * Cut the prop out of its own texture's alpha: anything below this is not
+   * drawn at all. Not `transparent`, deliberately — alpha blending would sort
+   * this quad against the board and the bloom behind it, and a WordArt word
+   * that half-dissolves into the scene is the wrong artifact entirely. The
+   * cutout is hard, the same way a nearest filter is hard.
+   */
+  alphaTest?: number;
   side?: THREE.Side;
 }
 
@@ -49,6 +57,7 @@ export function usePropMaterial(options: PropMaterialOptions): THREE.MeshLambert
     emissive = map ? "#ffffff" : color,
     transparent,
     opacity,
+    alphaTest,
     side,
   } = options;
 
@@ -62,10 +71,11 @@ export function usePropMaterial(options: PropMaterialOptions): THREE.MeshLambert
     }
     if (transparent !== undefined) mat.transparent = transparent;
     if (opacity !== undefined) mat.opacity = opacity;
+    if (alphaTest !== undefined) mat.alphaTest = alphaTest;
     if (side !== undefined) mat.side = side;
     return mat;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [color, map, glow, emissive, transparent, opacity, side]);
+  }, [color, map, glow, emissive, transparent, opacity, alphaTest, side]);
 
   useEffect(() => () => material.dispose(), [material]);
   return material;

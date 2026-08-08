@@ -341,9 +341,101 @@ export function machineSkin(): THREE.CanvasTexture {
   });
 }
 
+/* -------------------------------------------------------------------------- *
+ * WordArt — the thing the wordmark is, on a prop.
+ *
+ * The stage's words used to be three offset passes of grey on a black tile,
+ * which is a bevel, not WordArt: the slab read as a title-safe box with a
+ * caption in it, and the caption was the same shape every time. What the icon
+ * and the wordmark actually do (`app.css`, `.wordmark`) is four things at once,
+ * and all four port to a 64px tile:
+ *
+ *   - a skew, because WordArt's whole gesture is the lean;
+ *   - a *banded* ramp down the letterform — sky, steel, a horizon flash, then
+ *     ground. Banded, not blended: a smooth chrome gradient is an airbrush and
+ *     a banded one is a 1997 title screen;
+ *   - a hard ink outline thick enough to survive being magnified two metres
+ *     wide, which is what lets the word sit on the void with no box behind it;
+ *   - a one-texel drop shadow, so it reads as a sticker laid on the scene.
+ *
+ * And a gallery, because one preset is a house style and WordArt was never a
+ * house style — it was thirty of them in a grid and you picked the loudest.
+ * Which preset a word gets is fixed per act in `registry.ts`, so this is
+ * variety, not randomness: the taste law lets chance pick which gag fires and
+ * never how it looks.
+ * -------------------------------------------------------------------------- */
+
+/** The presets, in the family of the wordmark's ramp without being it twice. */
+export type WordArtStyle = "chrome" | "heat" | "acid" | "void";
+
 /**
- * The win banner: chrome WordArt, the display face of the possessed software,
- * on the one prop that gets to state a fact.
+ * A ramp is `[endOfBand, colour]` down the letterform, 0 at the cap line and 1
+ * at the baseline. Every band is emitted as two gradient stops at the same
+ * offset, which is what makes the step hard.
+ *
+ * Four bands, not the wordmark's eight. Eight is right at 62px and is noise at
+ * twelve: the cap height here is about eight texels, so eight bands is a band
+ * per texel and the letterform came back looking like interference rather than
+ * like metal. Four gives every band two texels — sky, a flash, the horizon,
+ * then ground, which is the same read at a size that can hold it.
+ *
+ * The order of those four is the whole trick, and getting it wrong is subtle:
+ * a wide dark band through the middle of a long squeezed word doesn't read as
+ * a horizon, it reads as *two words stacked*, because the eye takes the light
+ * half and the light half below it as separate objects. What fixes it is the
+ * flash — one texel of near-white immediately above one texel of near-black.
+ * A hard specular line reads as metal catching light; the same two colours in
+ * wider bands read as a sandwich.
+ */
+const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> = {
+  // The wordmark's ramp, thinned to four. The one the software uses to say its
+  // own name, so the act that states a fact gets to borrow it.
+  chrome: {
+    ramp: [
+      [0.36, "#e8e4f0"],
+      [0.48, "#ffffff"],
+      [0.58, "#2a1d40"],
+      [1, "#9d8ec2"],
+    ],
+    ink: "#150d22",
+  },
+  // Sunset, which is the other 1997 preset everybody used. The horizon sits
+  // where chrome's does, so the two read as one object in two finishes.
+  heat: {
+    ramp: [
+      [0.36, "#ffc23d"],
+      [0.48, "#fff6d8"],
+      [0.58, "#a3164e"],
+      [1, "#ed5705"],
+    ],
+    ink: "#2a0710",
+  },
+  acid: {
+    ramp: [
+      [0.36, "#b7f04d"],
+      [0.48, "#f2ffd6"],
+      [0.58, "#1f4a08"],
+      [1, "#6fc714"],
+    ],
+    ink: "#0d1a05",
+  },
+  // Purple, and further from chrome than it first was: both are the void's own
+  // colours and the first pass made them near enough that `HUH.` and
+  // `STILL HERE` read as one preset in two words, which is the opposite of a
+  // gallery. This one is saturated where chrome is silver.
+  void: {
+    ramp: [
+      [0.36, "#a884e0"],
+      [0.48, "#e4d2ff"],
+      [0.58, "#1a0f2e"],
+      [1, "#6b48ad"],
+    ],
+    ink: "#0a0612",
+  },
+};
+
+/**
+ * A word in WordArt, cut out of its tile — no slab, no box, just the letters.
  *
  * 64x16 rather than 64x64, and that's the whole reason it's legible. The banner
  * quad is 5.2 by 1.4 — nearly 4:1 — so a square tile spent three quarters of its
@@ -351,18 +443,92 @@ export function machineSkin(): THREE.CanvasTexture {
  * pixels of actual letter across two metres of screen. Matching the tile's
  * aspect to the quad's puts every pixel in the budget into the letters. Still
  * ≤64px, still nearest, still no mipmaps: the law is the size, not the shape.
+ *
+ * The transparent background is the reason `usePropMaterial` grew `alphaTest`:
+ * with no slab, the tile is mostly nothing, and nothing has to be *cut*, not
+ * blended (see `material.ts`).
  */
-export function wordArt(text: string): THREE.CanvasTexture {
+export function wordArt(text: string, style: WordArtStyle = "chrome"): THREE.CanvasTexture {
+  const { ramp, ink } = WORD_ART[style];
+  const SIZE = 12;
+  /**
+   * Baseline and cap line for Arial Black at this size. The word sits high in
+   * the tile on purpose: the outline paints outside the glyph and the shadow
+   * falls a texel below it, and both have to stay on the tile.
+   */
+  const BASE = 12;
+  const CAP = 3.5;
+  /**
+   * The lean, which is most of what makes this read as WordArt.
+   *
+   * tan(17°), not the wordmark's tan(8°). Matching the angle was the obvious
+   * thing and it came back looking upright: the wordmark leans 8° across 45px
+   * of cap height and gets six pixels of shift out of it, while this tile has
+   * eight pixels of cap height and got one. The lean has to be legible in whole
+   * texels or it isn't there, so the prop leans about twice as hard as the
+   * chrome does and arrives at the same place.
+   */
+  const SKEW = 0.3;
+
   return propCanvas((g) => {
-    g.fillStyle = "#0a0612";
-    g.fillRect(0, 0, 64, 16);
-    // Chrome bevel: three passes, offset by a pixel each, dark to light.
-    shout(g, text, "#3a2f42", 14, 12);
-    shout(g, text, "#7d8390", 13, 12);
-    shout(g, text, "#e8e4f0", 12, 12);
-    g.fillStyle = "#ed5705";
-    g.fillRect(0, 15, 64, 1);
-    g.fillStyle = "#c8991f";
-    g.fillRect(0, 0, 64, 1);
+    g.font = `bold ${SIZE}px "Arial Black", monospace`;
+    g.textAlign = "center";
+    g.lineJoin = "miter";
+    g.miterLimit = 2;
+
+    // Squeeze rather than shrink, same as `shout`: stretched letterforms are the
+    // period, and a legible word matters more than its proportions. The budget
+    // is tighter here because the outline paints outside the glyphs.
+    const width = g.measureText(text).width;
+    const USABLE = 54;
+    const squeeze = width > USABLE ? USABLE / width : 1;
+
+    // Skew about the middle of the word rather than about the baseline, so the
+    // lean doesn't also walk the word sideways out of the tile.
+    const mid = (CAP + BASE) / 2;
+    g.translate(32, 0);
+    g.transform(1, 0, -SKEW, 1, 0, 0);
+    g.translate(SKEW * mid, 0);
+    g.scale(squeeze, 1);
+
+    const draw = (fill: string | CanvasGradient, dx: number, dy: number, stroke: boolean) => {
+      if (stroke) {
+        g.strokeStyle = ink;
+        // Just under a texel outside the glyph. The wordmark's 7-on-62 scales
+        // to 2.6 here and that is emphatically too much: a ten-letter word is
+        // squeezed until its gaps are two texels wide, and an outline that
+        // wide closes every one of them — `STILL HERE` came back as a black
+        // bar with some light in it, which is the slab this rebuild exists to
+        // get rid of, reintroduced from the other side.
+        //
+        // Not divided by the squeeze either: the pen is inside the squeezed
+        // frame, so dividing would fix the sides and blow the top and bottom
+        // out. A squeezed word has thinner stems anyway.
+        g.lineWidth = 1.7;
+        g.strokeText(text, dx, BASE + dy);
+      }
+      g.fillStyle = fill;
+      g.fillText(text, dx, BASE + dy);
+    };
+
+    // The sticker shadow, and it is a *fill*, not a second outlined word.
+    // Stroking it too was the first version and it read as the word printed
+    // twice: the outline puts ink most of a texel outside the glyph in every
+    // direction, so a stroked shadow pokes out above the letters as well as
+    // below and stops being a shadow. Filled and offset down-right, all that
+    // escapes the real word's outline is the sliver that should.
+    draw(ink, 1, 2, false);
+
+    const grad = g.createLinearGradient(0, CAP, 0, BASE);
+    let from = 0;
+    for (const [to, color] of ramp) {
+      // Two stops per band at the same offsets it starts and ends: the ramp
+      // steps rather than blends, which is the difference between a 1997 title
+      // screen and an airbrush.
+      grad.addColorStop(from, color);
+      grad.addColorStop(to, color);
+      from = to;
+    }
+    draw(grad, 0, 0, true);
   }, 16);
 }

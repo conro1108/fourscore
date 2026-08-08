@@ -716,27 +716,6 @@ body {
   pointer-events: none;
 }
 
-/* -- the cursor trail ------------------------------------------------------ */
-/* Period as hell, and the one piece of chrome that only exists when the game is
-   hot: below the threshold nothing is rendered at all. Whole-pixel positions,
-   no fade — each dot is simply there or not. */
-
-.trail {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.trail i {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  margin: -2px 0 0 -2px;
-  background: var(--heat);
-  box-shadow: 0 0 6px rgba(255, 74, 43, 0.8);
-}
-
 /* -- the outcome ----------------------------------------------------------- */
 
 .outcome {

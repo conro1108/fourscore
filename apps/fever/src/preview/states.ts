@@ -38,8 +38,14 @@ export interface PreviewCase {
 const ROSTER: { act: string; phase: number; caption: string }[] = [
   { act: "mascot-cheer", phase: 0.46, caption: "brilliant — the mascot, mid-hop" },
   { act: "mascot-flop", phase: 0.5, caption: "blunder — the mascot, flat, holding it" },
-  { act: "callout-nice", phase: 0.4, caption: "brilliant — the callout, held at the lens" },
+  // All four WordArt presets, at the hold, because the gallery is the point —
+  // one shot of one callout can't show whether they read as one family. `oof`
+  // keeps its spin-in frame as well, which is the only look at the entrance.
+  { act: "callout-nice", phase: 0.4, caption: "brilliant — the callout, acid, at the lens" },
   { act: "callout-oof", phase: 0.14, caption: "blunder — the callout, still spinning in" },
+  { act: "callout-huh", phase: 0.4, caption: "dubious — the callout, void, at the lens" },
+  { act: "callout-heat", phase: 0.4, caption: "threat — the callout, heat, at the lens" },
+  { act: "callout-still-here", phase: 0.4, caption: "idle beat — the callout, chrome" },
   { act: "rocket-fizzle", phase: 0.56, caption: "blunder — the rocket, out of ideas" },
   { act: "sign-hmm", phase: 0.4, caption: "dubious — HMM." },
   { act: "beacon-drop", phase: 0.5, caption: "threat — the hazard beacon, strobing" },

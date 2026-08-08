@@ -135,25 +135,55 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // The callouts: reactions, never results. `NICE.` is a screen having an
   // opinion; anything that names an outcome would be a claim the Director's
   // estimate cannot back (director/types.ts).
-  "callout-nice": act("callout-nice", CALLOUT_MS, 2, "lens", makeCallout("NICE."), "spike-callout"),
-  "callout-oof": act("callout-oof", CALLOUT_MS, 2, "lens", makeCallout("OOF."), "spike-callout"),
-  "callout-huh": act("callout-huh", CALLOUT_MS, 2, "lens", makeCallout("HUH."), "spike-callout"),
+  //
+  // Each one picks a WordArt preset (`texture.ts`) and keeps it. A gallery is
+  // what WordArt *was* — you didn't have a house style, you had thirty and you
+  // picked the loudest — but the pick is fixed per word, because the taste law
+  // lets chance choose which gag fires and never how it looks. The presets are
+  // assigned by what the word means rather than by rotation: acid for good
+  // news, heat for bad, void for a shrug.
+  "callout-nice": act(
+    "callout-nice",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("NICE.", "acid"),
+    "spike-callout",
+  ),
+  "callout-oof": act(
+    "callout-oof",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("OOF.", "heat"),
+    "spike-callout",
+  ),
+  "callout-huh": act(
+    "callout-huh",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("HUH.", "void"),
+    "spike-callout",
+  ),
   "callout-heat": act(
     "callout-heat",
     CALLOUT_MS,
     2,
     "lens",
-    makeCallout("HEATING UP"),
+    makeCallout("HEATING UP", "heat"),
     "spike-callout",
   ),
   // The attract loop's one line. It is not about the game, which is the point:
-  // a screen with nothing to react to still has something to say.
+  // a screen with nothing to react to still has something to say. It gets the
+  // wordmark's own chrome, because on the menu it is the software talking about
+  // itself.
   "callout-still-here": act(
     "callout-still-here",
     CALLOUT_MS,
     2,
     "lens",
-    makeCallout("STILL HERE"),
+    makeCallout("STILL HERE", "chrome"),
     "spike-callout",
   ),
 

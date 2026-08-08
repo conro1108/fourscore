@@ -7,6 +7,12 @@
  * same move on its own, which is what a lane screen actually does most of the
  * time — the animation *is* the word.
  *
+ * Each word gets a WordArt preset from `texture.ts` and keeps it — acid for
+ * good news, heat for bad, void for a shrug, chrome for the software talking
+ * about itself. A gallery rather than a house style, because that is what
+ * WordArt was, and fixed per word rather than drawn, because the taste law
+ * lets chance pick which gag fires and never how one looks.
+ *
  * What it may say is the whole design constraint. A callout hangs off events
  * that are this engine's estimate (`director/types.ts`), so its words are
  * reactions and never results: `NICE.` and `OOF.` are a screen having an
@@ -24,7 +30,7 @@ import * as THREE from "three";
 import type { StageLayout } from "../stage/layout.js";
 import { usePropMaterial, usePropTexture } from "./material.js";
 import { calloutPose, stepped } from "./steps.js";
-import { wordArt } from "./texture.js";
+import { wordArt, type WordArtStyle } from "./texture.js";
 
 export const CALLOUT_MS = 2200;
 const STEP_FPS = 12;
@@ -40,15 +46,20 @@ const FAR = 0.6;
 const HELD = 5;
 const PAST = 18;
 
-export function makeCallout(text: string) {
+export function makeCallout(text: string, style: WordArtStyle = "chrome") {
   function Callout({ layout, phase }: { layout: StageLayout; phase: () => number }) {
     const group = useRef<THREE.Group>(null);
 
-    const face = usePropTexture(() => wordArt(text));
-    // Barely any glow. The texture is a three-pass chrome bevel and the top
-    // pass is nearly white; at 1.5 bloom ate the bevel and handed back a white
-    // slab, and at 0.55 it still lost the shading that makes it read as metal.
-    const mat = usePropMaterial({ map: face, glow: 0.2 });
+    const face = usePropTexture(() => wordArt(text, style));
+    // Barely any glow. The texture's top band is nearly white; at 1.5 bloom ate
+    // the ramp and handed back a white slab, and at 0.55 it still lost the
+    // banding that makes it read as metal.
+    //
+    // `alphaTest` is what makes this a word rather than a sign: the tile is
+    // transparent everywhere the letters aren't, and the quad is cut to them.
+    // Still one-sided — the spin-in showing the word's back for half a turn is
+    // how it has always read, and a mirrored word is not an improvement.
+    const mat = usePropMaterial({ map: face, glow: 0.2, alphaTest: 0.5 });
 
     // Chest height on the board, not dead centre: the word crosses the frame
     // where there is something to cross in front of.

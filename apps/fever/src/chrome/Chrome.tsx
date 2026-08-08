@@ -21,14 +21,13 @@ import { Hud } from "./Hud.js";
 import { Menu } from "./Menu.js";
 import { Roster } from "./Roster.js";
 import { Settings } from "./Settings.js";
-import { Trail } from "./Trail.js";
 import { COPY } from "./copy.js";
 import { useShellStore } from "./store.js";
 
 /**
- * Where the chrome starts sweating: the title bars vibrate and the cursor
- * grows a trail. High enough that most of a game doesn't have it, because an
- * escalation that's always on is a texture.
+ * Where the chrome starts sweating: the title bars vibrate. High enough that
+ * most of a game doesn't have it, because an escalation that's always on is a
+ * texture.
  */
 const HOT = 0.66;
 
@@ -184,8 +183,6 @@ export function Chrome() {
           onClose={() => setDismissedGen(s.generation)}
         />
       )}
-
-      <Trail active={screen === "match" && fever >= HOT} />
     </div>
   );
 }

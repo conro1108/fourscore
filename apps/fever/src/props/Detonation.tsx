@@ -4,7 +4,9 @@
  * Everything else in the roster is one object doing one thing. This is four
  * at once: a pyro rack erupts along the foot of the frame, debris launches out
  * of it, a chrome WordArt banner slams at the camera and freezes a beat too
- * long, and then the whole rally throws it back into the void.
+ * long, and then the whole rally throws it back into the void. The banner is
+ * cut out of its tile rather than printed on it, so what tumbles away is the
+ * words and not a board with words on them.
  *
  * It is also the only act licensed to state a fact. `win` comes from the board
  * being finished, not from a search (`director/types.ts`), so the banner is
@@ -41,7 +43,9 @@ export function Detonation({ layout, phase }: { layout: StageLayout; phase: () =
   const slammed = useRef(false);
 
   const hazard = usePropTexture(hazardSkin);
-  const sign = usePropTexture(() => wordArt("GAME OVER"));
+  // The chrome preset: the ramp the software uses to say its own name, on the
+  // one act licensed to say how the game went.
+  const sign = usePropTexture(() => wordArt("GAME OVER", "chrome"));
   // Glow values are deliberately modest: the bloom in the post stack is the
   // expensive half's, and a prop shoved into it at 2.5 doesn't read as bright,
   // it reads as white. The heat family has to still look like heat.
@@ -49,7 +53,20 @@ export function Detonation({ layout, phase }: { layout: StageLayout; phase: () =
   const rackMat = usePropMaterial({ map: hazard, glow: 0.3 });
   const goldMat = usePropMaterial({ color: "#c8991f", glow: 0.7 });
   const acidMat = usePropMaterial({ color: "#7fe018", glow: 0.7 });
-  const bannerMat = usePropMaterial({ map: sign, glow: 0.5, side: THREE.DoubleSide });
+  // Cut to the letters, so the banner is a word thrown at you rather than a
+  // board with a word on it — the quad still tumbles out, there is just nothing
+  // between the letters to see it happen on.
+  // 0.16, down from the 0.5 the black-slab version wore. The slab absorbed the
+  // bloom; a word cut out of its tile hands the pass nothing but the bright end
+  // of a chrome ramp, and at 0.5 the whole banner came back as one white shape
+  // with no letters in it — the exact failure the callout's own note warns
+  // about, on a prop five times the size.
+  const bannerMat = usePropMaterial({
+    map: sign,
+    glow: 0.16,
+    alphaTest: 0.5,
+    side: THREE.DoubleSide,
+  });
 
   const yFloor = -(layout.frameH / 2) - 0.5;
 
