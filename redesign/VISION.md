@@ -200,3 +200,143 @@ soul (weights, depth, slip) is fixed and predates the fever dream.
 - **Tone boundary check:** Moss is menacing the way a very patient
   gardener is menacing — which is to say barely, which is the point of
   rung 3.
+
+## The rest of the roster (phase 5)
+
+Seven more, written to the template above. Three rules held across all of
+them, and they are the reason the set reads as one cast:
+
+1. **Everyone works here.** Nobody is a wizard, a demon or a ghost. They are
+   the alley's staff and its equipment: the desk, the ball return, the
+   groundskeeper, the pinsetter. The void arrived; nobody clocked off. That is
+   the whole of the menace, and it is why none of them needs a backstory —
+   pillar 2's cast is unexplained by law.
+2. **The void variation is a weather report, not a repaint.** Each opponent
+   bends four things — the weather's tint, its grain, its drift and the oil
+   slick's strength. Nobody gets a new palette family and **nobody gets the
+   heat family**, which means fever everywhere in the game and cannot also
+   mean "Cinder is here". Cinder in particular is smoke, never flame.
+3. **The signature gag is a lane-screen clip.** Cheap, canned, over-eager,
+   entrance and exit, the same every time. It is what that opponent's screen
+   plays; it is not a comment on the move.
+
+**Acorn** — *has just learned the rules.*
+
+- **Who they are here:** whoever the alley lets play on a Tuesday afternoon.
+  Thrilled to be here. Has been told about winning and not about losing.
+- **Void variation:** the weather warms to a dull gold and goes fine and
+  bright, and the oil slick sits stronger than anywhere else on the ladder —
+  the one void that hasn't got round to being ominous yet.
+- **Signature gag:** `bumpers-up`. Two foam lane bumpers rise into the bottom
+  of the frame, clunk into place on a single stepped frame, and stay up doing
+  nothing for the whole act before sinking. There is no gutter. Fires on
+  `idle-beat`.
+- **Voice:** exclamation marks it hasn't earned, present tense, no idea.
+  `ACORN IS THINKING!!` / `ACORN WINS. ACORN IS AMAZED.`
+- **Tone check:** the joy is real and nothing is behind it. Rung 1 should be
+  the least frightening thing in the game and it is.
+
+**Pebble** — *blocks you, and that's it.*
+
+- **Who they are here:** the ball return. One job, done on time, no second
+  thought ever recorded.
+- **Void variation:** drained to wet concrete — the weather goes heavy and
+  slow, the slick nearly matte. The dullest world on the ladder, on purpose.
+- **Signature gag:** `slab-drop`. A grey slab falls from the top of the frame,
+  lands square in front of the board with exactly one frame of bounce, sits,
+  and is winched back up. Nothing was going to hit you. Fires on `threat`.
+- **Voice:** flat, one clause, no adjectives. `PEBBLE IS CONSIDERING TWO
+  THINGS.` / `PEBBLE WINS. PEBBLE BLOCKED IT.`
+- **Tone check:** deadpan, which the voice rules say beats spooky. Pebble is
+  never trying to be anything.
+
+**Bramble** — *all offence, no follow-through.*
+
+- **Void variation:** brick and thorn, deliberately desaturated so it can
+  never be mistaken for the heat family, and the weather drifts fast and in
+  one direction — the only void on the ladder that looks like it is going
+  somewhere.
+- **Who they are here:** the one who rolls again before the pins have
+  finished falling. Enormous backswing. Does not watch the result.
+- **Signature gag:** `pin-scatter`. Five pins stand in the frame; something
+  off-screen hits them, four go over, and the fifth is left rocking on the
+  step clock. It never falls and the clip never waits to find out. Fires on
+  `threat`.
+- **Voice:** all momentum, no object. `BRAMBLE IS ALREADY MOVING.` /
+  `BRAMBLE WINS. BRAMBLE IS NOT SURE HOW.`
+- **Tone check:** cartoon violence with no consequence, which pillar 2 puts
+  explicitly in bounds. Nothing bleeds; a pin wobbles.
+
+**Cinder** — *sets two traps, offers you one.*
+
+- **Who they are here:** the attendant who has already tidied the lane you
+  are about to need. Helpful in a way you will resent later.
+- **Void variation:** smoke. The weather goes coarse and hangs instead of
+  drifting, the well dims as though something in front of it is burning out
+  of frame, and the slick thins to almost nothing. **The fire is never
+  shown** — heat means fever, and Cinder's name is not a licence.
+- **Signature gag:** `shell-game`. Three cups slide in, swap three times on
+  hard steps, and one lifts. Nothing under it. Then all three lift. Nothing
+  under any of them. They slide off. Fires on a `dubious` move.
+- **Voice:** second person, courteous, always about what *you* are going to
+  do. `CINDER IS THINKING ABOUT WHAT YOU WILL DO.` / `CINDER WINS. YOU PICKED
+  ONE.`
+- **Tone check:** comic-sinister at its exact centre — polite, patient, and
+  the cups were always empty.
+
+**Vane** — *plays the quiet game, and lies.*
+
+- **Who they are here:** the scoring desk. It knows what the score is. It is
+  not going to tell you.
+- **Void variation:** the closest to the thesis frame's own — violet, lush,
+  entirely correct — and that is the tell. The one opponent whose world looks
+  like nothing is wrong. Its only wrongness is that the slick crawls against
+  the weather instead of with it, which you will not notice and will not
+  forget.
+- **Signature gag:** `score-lie`. A scoring monitor lowers on a bracket,
+  displays a mark, holds, and on one stepped frame the mark silently becomes a
+  different one. Then it retracts. It is not your score. It is not anyone's
+  score. Fires on `tension-shift`.
+- **Voice:** confiding, and slightly too much information. `VANE IS THINKING
+  ABOUT SOMETHING ELSE.` / `VANE WINS. VANE SAYS IT WAS CLOSE.`
+- **Tone check:** the bluff already exists in the engine (`bluffs: true`);
+  this is that mechanic given a face. Menace from deadpan wrongness, never
+  from threat.
+
+**Quill** — *solves the endgame outright.*
+
+- **Who they are here:** the targeting overlay — the diagram that appears over
+  the replay with a dotted line showing where the ball should have gone. It is
+  not playing you. It is annotating you.
+- **Void variation:** cold and measured. The weather resolves to a fine even
+  grain that reads as a grid ghosting through the noise, teal-night rather
+  than violet, drifting slowly and exactly.
+- **Signature gag:** `lane-solve`. A dotted trajectory draws itself across the
+  frame, one dash per stepped frame, to a reticle that snaps on in front of
+  the board, holds a beat too long, and wipes out the way it came. It shows
+  you the line. It does not say whose. Fires on `threat`.
+- **Voice:** present tense, technical, no reassurance. `QUILL IS READING
+  AHEAD.` / `QUILL WINS. QUILL SAW THE END OF IT.`
+- **Tone check:** the one line to be careful with is the defeat line — "saw
+  the end of it" is about a finished game, which is a fact. Nothing in Quill's
+  copy may claim proof mid-game; `exactnessNote` is the only thing allowed to
+  talk about the crossover, and the engine generates it.
+
+**The Oracle** — *perfect from the midgame on.*
+
+- **Who they are here:** the pinsetter. It comes down when it comes down. It
+  has never been reacting to you.
+- **Void variation:** the void goes still. Drift slows to a crawl, the grain
+  goes broad and soft, and the slick freezes into one held sheen. Not dead —
+  fever still moves it, and it moves it more than anywhere else, so the
+  Oracle's world is the calmest at 0 and the most alarming at 1.
+- **Signature gag:** `pinsetter`. A white machine with five prongs lowers from
+  the top of the frame on two stepped beats, hovers over the board doing
+  nothing, and rises back out. Nothing is set. Nothing is cleared. Fires on
+  `idle-beat`.
+- **Voice:** a readout, not a person. `THE ORACLE IS NOT THINKING.` /
+  `THE ORACLE WINS. IT DOES NOT SAY WHEN IT KNEW.`
+- **Tone check:** the defeat line declines to claim a moment of proof on
+  purpose. On Connect 5 the Oracle usually never solves at all, so a line like
+  "it knew from move ten" would be the software advertising something that
+  didn't happen — which is the one lie this game isn't allowed to tell.
