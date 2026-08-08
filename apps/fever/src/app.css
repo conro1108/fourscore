@@ -828,8 +828,14 @@ body {
 }
 
 .debug {
-  width: 230px;
-  background: rgba(10, 6, 18, 0.85);
+  width: 268px;
+  /* Tall enough to be worth reading, short enough to leave the stage visible —
+     the panel is for judging what the stage is doing, so it must not cover it.
+     Everything past that scrolls. */
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(10, 6, 18, 0.92);
   border: 1px solid #3a2b55;
   color: #a99bc4;
   padding: 8px 10px;
@@ -897,4 +903,109 @@ body {
   font-size: 10px;
   padding: 2px 5px;
   cursor: pointer;
+}
+
+.debug select {
+  flex: 1;
+  min-width: 0;
+  background: #1d1329;
+  border: 1px solid #3a2b55;
+  color: #a99bc4;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+/* Tabs. Three questions, three panes — see debug/Panel.tsx. */
+.debug-tabs {
+  gap: 0;
+  border-bottom: 1px solid #3a2b55;
+}
+
+.debug-tabbtn {
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: #6f6390;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+
+.debug-tabbtn--on {
+  border-color: #3a2b55;
+  background: #1d1329;
+  color: var(--acid);
+}
+
+/* The read-only sweep. Two columns so the values line up and a changing one is
+   visible out of the corner of an eye. */
+.debug-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.debug-read {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  line-height: 1.3;
+}
+
+.debug-read__k {
+  flex: 0 0 108px;
+  color: #6f6390;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.debug-read__v {
+  flex: 1;
+  color: #d3c6ec;
+  overflow-wrap: anywhere;
+}
+
+.debug-note {
+  margin: 2px 0 0;
+  color: #6f6390;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.debug-note code {
+  color: #a99bc4;
+}
+
+/* The act gallery. One row per act, because the name is the thing you're
+   looking for and a wrapped grid of buttons buries it. */
+.debug-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.debug-act {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  background: #1d1329;
+  border: 1px solid #2b2040;
+  color: #a99bc4;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 3px 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.debug-act:hover {
+  border-color: #3a2b55;
+  color: #d3c6ec;
+}
+
+.debug-act__meta {
+  color: #6f6390;
+  white-space: nowrap;
 }

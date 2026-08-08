@@ -35,6 +35,7 @@ import type { SpectacleEvent } from "../director/types.js";
 import { playSpike } from "../audio/index.js";
 import { stageFx } from "../stage/fx.js";
 import type { StageLayout } from "../stage/layout.js";
+import { subscribeActRequests } from "./bench.js";
 import { pickGag } from "./gags.js";
 import { PROP_ACTS, type PropAct } from "./registry.js";
 
@@ -120,6 +121,23 @@ export function PropStage({ layout }: { layout: StageLayout }) {
       commit(forced ? [{ act, startedAt: now }] : [...current, { act, startedAt: now }]);
     });
   }, [pinned, botOf]);
+
+  // The dev panel's bench (`bench.ts`), which names an act instead of drawing
+  // one. It clears the stage rather than joining it: you asked to look at this
+  // act, so it should not have to share a frame with whatever was already
+  // running.
+  useEffect(() => {
+    if (pinned) return;
+    return subscribeActRequests((name) => {
+      const act = PROP_ACTS[name];
+      if (!act) return;
+      previous.current = act.name;
+      stageFx.lastAct = act.name;
+      playSpike(act.spike);
+      freeAt.current = 0;
+      commit([{ act, startedAt: performance.now() }]);
+    });
+  }, [pinned]);
 
   // Retire acts after their exit; polled here because this is the component
   // that owns act lifetime, and it's already inside the render loop.
