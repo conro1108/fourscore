@@ -61,7 +61,7 @@ phase 9, not a reason to keep polishing blind.
 - [x] 0 — Stage *(Fable)*
 - [x] 1 — The Director *(Opus)*
 - [x] 2 — **The Thesis** ⚑ *(Fable)*
-- [ ] 3 — Props and spikes *(Opus)*
+- [x] 3 — Props and spikes *(Opus)*
 - [ ] 4 — Audio *(Opus)*
 - [ ] 5 — Bots as characters *(Opus)*
 - [ ] 6 — Chrome *(Opus)*
@@ -430,6 +430,63 @@ thesis artifacts, and what they couldn't fix.
   (drei's `Environment` children portal also never fed `scene.environment`
   reliably — `VoidSky` builds the PMREM by hand).
 
+- **Phase 3 — Spectacle, extended** *(Opus, 2026-08-07)*. Both halves in one
+  session. **The gag roster** is `props/`, one act per `SpectacleEvent` kind,
+  each built by holding it next to the truck: `rocket-fizzle` (blunder — climbs
+  beautifully, engine dies, hangs, tips over), `sign-hmm` (dubious — a sign
+  says HMM. and waggles), `beacon-drop` (threat — a hazard beacon lowers in and
+  strobes on the step clock), `banner-rising` / `banner-collapsing` /
+  `banner-draw` (a tow plane, one 64px word tile repeated along the banner, so
+  SUNDAY SUNDAY SUNDAY costs one texture), `sprinkler` (idle-beat — Moss's
+  signature, built to the VISION.md persona), and `win-detonation` (pyro rack +
+  debris + a chrome WordArt banner that slams at the lens, holds a beat too
+  long, and is thrown back into the void). Audited tri counts live in
+  `registry.ts` and print in the harness caption: 24–180 per act, law is 300.
+  **What phase 4/5 build on:** `gagFor(event)` in `PropStage.tsx` is the whole
+  event→act table and is unit-tested for coverage; `PropAct.spike` is the seam
+  for phase 4's one-shots (only `spike-truck` and the new `spike-win` exist —
+  every other act is deliberately silent, and that is the shopping list);
+  `props/material.ts` (`usePropMaterial` / `usePropTexture`) makes the cheap
+  budget structural — Lambert, flat, no env map, disposal handled — and is where
+  a new prop should start. Acts that need a text prop are component factories
+  (`makeSign`, `makeBanner`), which is how one component becomes three registry
+  entries.
+  **Deviations / inventions:** a `STAGE_QUIET_MS` gap between acts (1.6s). "One
+  act at a time, drop if busy" alone was not enough rate limiting — a real game
+  fires a `move` event every couple of seconds and the stage was never empty,
+  which turns spikes into scenery. `win`/`draw` preempt a running act; nothing
+  else does. **The look** carried across without changes to the thesis frame:
+  the fever ladder now exists on Connect 5 too (`fever-0-c5` / `fever-mid-c5` /
+  `fever-full-c5`) and reads as the same three moods; every gag has a harness
+  state (`gag-*`) pinned at the thesis frame's own fever so the row can be read
+  against `thesis` directly. Against the phase-2 artifacts: the roster sits in
+  the same world — cheap objects, hard steps, heat only where fever means heat.
+  The one that argues with the beautiful half least convincingly is the
+  sprinkler, whose eight water quads read as dashes in a still; it works in
+  motion and it is the quietest act by design, but it's the first thing to look
+  at in phase 9.
+  **Connor's live notes, applied:** bot think time is 0.9–1.9s jittered (380ms
+  fixed read as a glitch, and a *constant* pause reads as a timer, not as
+  thinking); the void drifts ~2.5x faster, breathes at idle, and its low-fever
+  amplitude is up — the two constants are pivoted so the value at the thesis
+  frame's 0.55 is unchanged; discs are struck coins now (`stage/coin.ts`, a
+  lathed profile with a raised rim and a 20-groove reeded edge, one geometry
+  shared by every disc on the board).
+  **Traps found:** props staged at z > 0 have to be framed against the frustum
+  *at that z*, not against the board — the banner sat a comfortable 1.5 units
+  above the frame and flew clean over the top of the screen. `emissive`
+  defaulting to white bleaches every glowing prop the moment bloom touches it
+  (a gold confetti shower came back looking like office paper); it now defaults
+  to the prop's own color. And the preview grid outgrew the browser's ~16 WebGL
+  contexts, which surfaces as `Cannot read properties of null (reading
+  'alpha')` and blank cards — tiles now mount on visibility, the grid page
+  scrolls (it never could), and `npm run shots` captures it a screenful at a
+  time and takes state ids as arguments.
+  **Verified:** `npm test` 54 green in `apps/fever`, typecheck clean,
+  `npm run acceptance` played full games on both variants at 120fps with the
+  post stack on, and each gag was fired down the real bus in the real app and
+  screenshotted (`shots/live-*.png`).
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -486,3 +543,27 @@ thesis artifacts, and what they couldn't fix.
   so in real games the truck is rare. If playtesting wants more traffic
   before phase 3 lands the full gag roster, the debug panel's "brilliant"
   button is the intended preview path, not a looser trigger.
+- **Decision (phase 3):** `win` and `draw` preempt a running act; nothing else
+  does. A sprinkler quietly finishing its watering while the game is over is
+  worse than an interrupted gag, and the detonation is the one act the plan
+  calls the biggest thing in the game.
+- **Decision (phase 3):** the roster's props are staged in front of the board
+  (z 1.6–3.4) rather than around it. The board floats in the void with nothing
+  behind it, so an act passing *behind* has no depth cue to read against and
+  just looks small; in front it occludes, which is what makes the cheap budget
+  collide with the expensive one instead of sitting next to it.
+- **Open (phase 3):** at fever 1 the void's central brightening washes the
+  board's empty holes to lavender — the dark backdrop the lacquer is composed
+  against is largely gone at the top of the range. It reads as the world going
+  hot and the discs still separate, so it was left alone: re-tuning the thesis
+  frame's own shader by eye in an extension phase is exactly the drift the plan
+  warns about. Worth a look in phase 9 next to real play.
+- **Open (phase 3):** seven of the nine acts are silent. Phase 4 owns one-shot
+  per gag and `PropAct.spike` is where they land — the acts that most want one,
+  in order: `beacon-drop` (an alarm with no sound is a lamp), `rocket-fizzle`
+  (the fizzle is a sound gag), `sign-hmm`.
+- **Open (phase 3):** move-quality gags fire off the Director's grading, and in
+  a real game that means the sign and the rocket carry most of the traffic
+  while the truck (brilliant) stays rare. Whether that ratio is funny over ten
+  games is a phase-9 feel call; `STAGE_QUIET_MS` and the grading thresholds in
+  `TUNING` are the two knobs, in that order.
