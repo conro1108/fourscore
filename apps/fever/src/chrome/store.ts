@@ -32,14 +32,25 @@ export type Dialog =
 interface ShellStore {
   screen: Screen;
   dialog: Dialog;
+  /**
+   * The Director panel, in builds that don't have it for free.
+   *
+   * Long-pressing the wordmark toggles it. It's a deliberate back door rather
+   * than a secret: playtesting on a phone means a real build on a real device,
+   * and every tool for judging the fever curve lives in that panel.
+   */
+  debug: boolean;
   go(screen: Screen): void;
   open(dialog: NonNullable<Dialog>): void;
   close(): void;
+  toggleDebug(): void;
 }
 
 export const useShellStore = create<ShellStore>((set) => ({
   screen: "menu",
   dialog: null,
+  debug: false,
+  toggleDebug: () => set((s) => ({ debug: !s.debug })),
   // Changing screens closes whatever was floating over the old one. A settings
   // window that survives the trip to the menu is the kind of thing that reads
   // as possessed but is actually just a bug.

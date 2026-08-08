@@ -13,6 +13,7 @@
 
 import type { BotProfile, Variant } from "@fourscore/engine";
 import { Flames } from "./Flames.js";
+import { Wordmark } from "./Wordmark.js";
 import { Btn } from "./Window.js";
 import { SoundToggle } from "./Settings.js";
 import { COPY } from "./copy.js";
@@ -54,9 +55,7 @@ export function Hud({ bot, variant, status, heat = 0, onLeave, onSettings }: Hud
 
       <header className="hud-top">
         <div className="hud-left">
-          <div className="wordmark wordmark--small" data-text={COPY.title}>
-            {COPY.title}
-          </div>
+          <Wordmark small />
           <div className="hud-vs">
             vs <b>{bot.name}</b> · {variant.name}
           </div>

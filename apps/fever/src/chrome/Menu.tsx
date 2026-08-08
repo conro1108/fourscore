@@ -14,6 +14,7 @@
 import type { BotProfile, Variant } from "@fourscore/engine";
 import { CONNECT4, CONNECT5 } from "@fourscore/engine";
 import { Flames } from "./Flames.js";
+import { Wordmark } from "./Wordmark.js";
 import { Btn, Window } from "./Window.js";
 import { COPY } from "./copy.js";
 
@@ -45,9 +46,7 @@ export function Menu({
         {/* The picture box: night, on fire, with the wordmark stuck over it. */}
         <div className="pictbox">
           <Flames />
-          <div className="wordmark" data-text={COPY.title}>
-            {COPY.title}
-          </div>
+          <Wordmark />
         </div>
 
         {/* Repeated so the strip is always full — see the marquee rule in

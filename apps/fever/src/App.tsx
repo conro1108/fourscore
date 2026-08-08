@@ -14,10 +14,14 @@ import { playSpike } from "./audio/index.js";
 import { canHumanPlay, humanPlayer, useMatchStore } from "./match/store.js";
 import { StageView, type StageModel } from "./stage/Stage.js";
 import { Chrome } from "./chrome/Chrome.js";
+import { useShellStore } from "./chrome/store.js";
 import { DebugPanel } from "./debug/Panel.js";
 
 export function App() {
   const s = useMatchStore();
+  // Free on the dev server, and behind a long press on the wordmark everywhere
+  // else — playtesting the fever curve on a phone means a real build.
+  const debug = useShellStore((x) => x.debug);
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const myTurn = canHumanPlay(s);
 
@@ -52,7 +56,7 @@ export function App() {
         <StageView model={model} />
       </div>
       <Chrome />
-      {import.meta.env.DEV && <DebugPanel />}
+      {(import.meta.env.DEV || debug) && <DebugPanel />}
     </div>
   );
 }

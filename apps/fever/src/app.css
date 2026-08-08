@@ -145,6 +145,11 @@ body {
 .wordmark {
   position: relative;
   display: inline-block;
+  /* It takes a long press (see chrome/Wordmark.tsx), so it has to take events
+     — and it must not grow a selection loupe when you hold it. */
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-touch-callout: none;
   font-family: var(--face-shout);
   font-size: 62px;
   line-height: 0.92;
