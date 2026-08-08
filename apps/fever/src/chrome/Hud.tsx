@@ -5,30 +5,45 @@
  * here is precedent beyond "the chrome is DOM, layered over the canvas".
  */
 
+import { useState } from "react";
 import { CONNECT4, CONNECT5 } from "@fourscore/engine";
 import { botPlayer, humanPlayer, useMatchStore } from "../match/store.js";
+
+const outcomeFor = (draw: boolean, won: boolean) =>
+  draw
+    ? "A DRAW. NOBODY IS PLEASED."
+    : won
+      ? "YOU WIN. THE CROWD IS REAL."
+      : "MOSS WINS. MOSS DOES NOT CELEBRATE.";
 
 export function Hud() {
   const s = useMatchStore();
   const human = humanPlayer(s);
   const over = s.match.status !== "playing";
   const settled = s.landed === s.moves.length;
-  const showOutcome = over && settled;
+
+  // Closing the dialog leaves you on the finished board — the win still lit, the
+  // last disc where it landed — and nothing else happens until you start a game.
+  // That's the point of the X: look at the position without a box over it.
+  // Storing which game was dismissed rather than a bool means a new game brings
+  // the dialog back without anything having to remember to reset it.
+  const [dismissedGen, setDismissedGen] = useState(-1);
+  const dismissed = dismissedGen === s.generation;
+  const showOutcome = over && settled && !dismissed;
+
+  const outcome = outcomeFor(s.match.status === "draw", s.match.winner === human);
 
   // Strings from the phase-2 voice sample (VISION.md, "The voice"). Phase 6
   // owns the full chrome pass; these are here so the register ships.
   const status = over
-    ? ""
+    ? // Once the dialog is closed the outcome moves down here, so the board
+      // you're left sitting on still says how it ended.
+      dismissed && settled
+      ? outcome
+      : ""
     : s.match.turn === human && settled && !s.thinking
       ? "YOUR MOVE."
       : "MOSS IS THINKING ABOUT DIRT.";
-
-  const outcome =
-    s.match.status === "draw"
-      ? "A DRAW. NOBODY IS PLEASED."
-      : s.match.winner === human
-        ? "YOU WIN. THE CROWD IS REAL."
-        : "MOSS WINS. MOSS DOES NOT CELEBRATE.";
 
   return (
     <div className="hud">
@@ -56,7 +71,14 @@ export function Hud() {
         <div className="dialog" role="dialog" aria-label="game over">
           <div className="dialog-title">
             <span>FOURSCORE.EXE — not responding (it is)</span>
-            <span className="dialog-x">×</span>
+            <button
+              type="button"
+              className="dialog-x"
+              aria-label="Close"
+              onClick={() => setDismissedGen(s.generation)}
+            >
+              ×
+            </button>
           </div>
           <div className="dialog-body">
             <p>{outcome}</p>
