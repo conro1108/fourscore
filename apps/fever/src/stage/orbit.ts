@@ -48,17 +48,46 @@ const FRICTION = 12;
 /** Below this the spin is over — stops the camera creeping for ever. */
 const STILL = 0.02;
 
+/**
+ * How close the player may pull the board in, as a fraction of the authored fit
+ * distance. One is the framing the layout chose; there is no number above it,
+ * because pulling *back* would replace the authored composition rather than
+ * move around inside it — the same reason there's no pan.
+ *
+ * The near stop is where the board fills the frame, and it's arithmetic rather
+ * than taste: `fitDistance` pads the frame by 1.35 world units either side, so
+ * the visible half-width is (frameW/2 + 1.35)·zoom and the board's own half
+ * width is frameW/2. On Connect 4 those meet at 0.75. Closer than that and the
+ * outer columns are off screen, which the first attempt (0.5) did — it looked
+ * like a bug in the layout, not like a zoom.
+ */
+const ZOOM_MIN = 0.75;
+const ZOOM_MAX = 1;
+
 export interface Orbit {
   /** Camera angles relative to the authored front view, in radians. */
   yaw: number;
   pitch: number;
+  /** Multiplier on the authored fit distance. 1 is the framing as designed. */
+  zoom: number;
   /** Between press and release. */
   dragging: boolean;
   /** This gesture passed the slop: the click it ends is not a move. */
   dragged: boolean;
+  /** Two fingers are down; single-pointer orbiting is suspended. */
+  pinching: boolean;
   press(x: number, y: number): void;
   move(x: number, y: number): void;
   release(): void;
+  /**
+   * The distance between two fingers, in pixels. The first call of a gesture
+   * takes the reference; every one after it is measured against that, so the
+   * board tracks the fingers rather than accumulating drift.
+   */
+  pinch(span: number): void;
+  endPinch(): void;
+  /** Wheel and trackpad. Above 1 pulls back, below 1 pushes in. */
+  zoomBy(factor: number): void;
   /** Advance the throw. Called once per frame with the frame delta in seconds. */
   step(dt: number): void;
 }
@@ -75,6 +104,9 @@ export function createOrbit(limits: OrbitLimits = ORBIT_LIMITS): Orbit {
   let pendingPitch = 0;
   let velYaw = 0;
   let velPitch = 0;
+  // The finger span and the zoom the current pinch started from.
+  let pinchFrom = 0;
+  let zoomFrom = 1;
 
   const clampYaw = (v: number) => clamp(v, -limits.yaw, limits.yaw);
   const clampPitch = (v: number) => clamp(v, limits.pitchMin, limits.pitchMax);
@@ -82,8 +114,10 @@ export function createOrbit(limits: OrbitLimits = ORBIT_LIMITS): Orbit {
   const orbit: Orbit = {
     yaw: 0,
     pitch: 0,
+    zoom: 1,
     dragging: false,
     dragged: false,
+    pinching: false,
 
     press(x, y) {
       orbit.dragging = true;
@@ -96,7 +130,9 @@ export function createOrbit(limits: OrbitLimits = ORBIT_LIMITS): Orbit {
     },
 
     move(x, y) {
-      if (!orbit.dragging) return;
+      // A two-finger gesture is a pinch, not a drag: letting the first finger
+      // also turn the board makes the zoom feel like it's fighting you.
+      if (!orbit.dragging || orbit.pinching) return;
       const dx = x - lastX;
       const dy = y - lastY;
       lastX = x;
@@ -118,6 +154,32 @@ export function createOrbit(limits: OrbitLimits = ORBIT_LIMITS): Orbit {
 
     release() {
       orbit.dragging = false;
+    },
+
+    pinch(span) {
+      if (span <= 0) return;
+      if (!orbit.pinching) {
+        orbit.pinching = true;
+        // The gesture that ends this can't be allowed to drop a disc, and it
+        // never travelled far enough for the slop to notice.
+        orbit.dragged = true;
+        velYaw = velPitch = 0;
+        pendingYaw = pendingPitch = 0;
+        pinchFrom = span;
+        zoomFrom = orbit.zoom;
+        return;
+      }
+      // Fingers spreading means the board comes closer, which is a *smaller*
+      // camera distance.
+      orbit.zoom = clamp((zoomFrom * pinchFrom) / span, ZOOM_MIN, ZOOM_MAX);
+    },
+
+    endPinch() {
+      orbit.pinching = false;
+    },
+
+    zoomBy(factor) {
+      orbit.zoom = clamp(orbit.zoom * factor, ZOOM_MIN, ZOOM_MAX);
     },
 
     step(dt) {

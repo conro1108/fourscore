@@ -106,3 +106,38 @@ describe("orbit", () => {
     expect(orbit.yaw).toBe(caught);
   });
 });
+
+describe("pinch to zoom", () => {
+  it("tracks the fingers rather than accumulating", () => {
+    const orbit = createOrbit();
+    orbit.pinch(100); // reference
+    orbit.pinch(400);
+    expect(orbit.zoom).toBeCloseTo(0.75);
+    // Back to where the fingers started is back to the authored framing, even
+    // after wandering — this is what a reference-based pinch buys.
+    orbit.pinch(150);
+    orbit.pinch(100);
+    expect(orbit.zoom).toBeCloseTo(1);
+  });
+
+  it("clamps to the authored framing and no further out", () => {
+    const orbit = createOrbit();
+    orbit.zoomBy(4);
+    expect(orbit.zoom).toBe(1);
+    orbit.zoomBy(0.01);
+    expect(orbit.zoom).toBeCloseTo(0.75);
+  });
+
+  it("suspends the drag while two fingers are down, and won't drop a disc", () => {
+    const orbit = createOrbit();
+    orbit.press(0, 0);
+    orbit.pinch(100);
+    orbit.move(400, 0);
+    expect(orbit.yaw).toBe(0);
+    expect(orbit.dragged).toBe(true);
+    // The second finger leaving hands the board back to the one still down.
+    orbit.endPinch();
+    orbit.move(400, 0);
+    expect(orbit.yaw).toBeLessThan(0);
+  });
+});

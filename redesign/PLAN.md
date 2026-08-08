@@ -749,3 +749,15 @@ thesis artifacts, and what they couldn't fix.
   level meter, but nothing about a bot's *appearance* — no creature, no void
   variation. That's phase 5's, and the screen is built so those can land in the
   detail pane without moving anything else.
+- **Decision (out of band, Connor's ask):** pinch to zoom. `orbit.zoom` is a
+  multiplier on the authored fit distance, clamped to 0.75–1.0: one is the
+  framing the layout chose and there is nothing above it, because pulling back
+  would *replace* the composition rather than move around inside it — the same
+  reason there's still no pan. The near stop is arithmetic, not taste. It's
+  where the board fills the frame, given `fitDistance`'s 1.35-unit horizontal
+  pad; the first attempt (0.5) put the outer columns off screen and read as a
+  layout bug rather than as a zoom. Two fingers suspend the drag and mark the
+  gesture `dragged`, so a pinch never also turns the board or drops a disc, and
+  the pinch is measured against the span it started from rather than
+  accumulated. A trackpad pinch is a ctrl-wheel, so desktop and touch are the
+  same gesture; a plain wheel zooms at a gentler rate.

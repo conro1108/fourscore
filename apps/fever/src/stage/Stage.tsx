@@ -77,7 +77,7 @@ function CameraRig({ layout, orbit }: { layout: StageLayout; orbit: Orbit }) {
     // room than a flat one, and the fit is what keeps it in frame. Fit to the
     // orbit alone — the sway is a fraction of a degree, and feeding it back in
     // would make the distance breathe with it.
-    const dist = fitDistance(layout, FOV, aspect, orbit.yaw, orbit.pitch);
+    const dist = fitDistance(layout, FOV, aspect, orbit.yaw, orbit.pitch) * orbit.zoom;
     // Slow drift, so the frame is alive even when nothing happens.
     const yaw = orbit.yaw + (Math.sin(t * 0.11) * SWAY_X) / dist;
     const pitch = orbit.pitch + (BASE_Y + Math.sin(t * 0.07) * SWAY_Y) / dist;
@@ -184,14 +184,36 @@ export function StageView({ model }: { model: StageModel }) {
   // several of these at once and dragging one tile must not turn the others.
   const orbit = useMemo(() => createOrbit(), []);
 
+  /**
+   * Live pointers, so two fingers can be told from one. Only the ones that
+   * started on the canvas are in here — a finger that lands on a dialog isn't
+   * half of a pinch.
+   */
+  const pointers = useMemo(() => new Map<number, { x: number; y: number }>(), []);
+  const span = () => {
+    const [a, b] = [...pointers.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
+
   // The drag continues off the canvas and ends wherever it ends — window
   // listeners rather than pointer capture, which would retarget the events
   // R3F needs for hover and for the click that drops a disc.
   useEffect(() => {
-    // Primary pointer only: a second finger landing mid-drag would otherwise
-    // teleport the camera to wherever it touched down.
-    const move = (e: PointerEvent) => e.isPrimary && orbit.move(e.clientX, e.clientY);
-    const end = () => orbit.release();
+    const move = (e: PointerEvent) => {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size >= 2) return orbit.pinch(span());
+      // Primary pointer only: a second finger landing mid-drag would otherwise
+      // teleport the camera to wherever it touched down.
+      if (e.isPrimary) orbit.move(e.clientX, e.clientY);
+    };
+    const end = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      // One finger left is not a pinch — but it doesn't become a drag either,
+      // because its `press` is long gone and picking it up mid-gesture would
+      // snap the board to wherever that finger happens to be.
+      if (pointers.size < 2) orbit.endPinch();
+      if (pointers.size === 0) orbit.release();
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
@@ -200,14 +222,23 @@ export function StageView({ model }: { model: StageModel }) {
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
     };
-  }, [orbit]);
+  }, [orbit, pointers]);
 
   return (
     <Canvas
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: FOV, near: 0.1, far: 80, position: [0, 0.4, 14] }}
-      onPointerDown={(e) => e.isPrimary && orbit.press(e.clientX, e.clientY)}
+      onPointerDown={(e) => {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 1) orbit.press(e.clientX, e.clientY);
+        else orbit.pinch(span());
+      }}
+      /* A trackpad pinch arrives here as a ctrl-wheel, so the desktop gesture
+         and the touch one are the same gesture; a plain wheel zooms too, at a
+         gentler rate. `touch-action: none` on the canvas keeps the browser from
+         taking either of them for a page zoom. */
+      onWheel={(e) => orbit.zoomBy(Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)))}
     >
       <ScenePinProvider pin={model.pin}>
         <CameraRig layout={layout} orbit={orbit} />
