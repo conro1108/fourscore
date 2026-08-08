@@ -7,6 +7,11 @@
  * slowly because a perfectly still camera reads as a screenshot, and dips hard
  * for one beat when a disc lands — the whole stage flinches.
  *
+ * It also orbits: dragging anywhere on the canvas turns the board (`orbit.ts`).
+ * The fit distance, the sway and the flinch are unchanged by that — the player
+ * moves the camera around the authored framing, never replaces it, which is
+ * why there's no zoom, no pan and a hard clamp on both angles.
+ *
  * The environment is four Lightformers rendered once to a small cubemap: the
  * sky that isn't there. Chrome and lacquer in the scene reflect a magenta
  * horizon, a teal underlight and a gold slash that no visible object emits.
@@ -23,7 +28,8 @@ import { BoardRig } from "./BoardRig.js";
 import { ColumnInput, GhostDisc } from "./ColumnInput.js";
 import { Discs } from "./Discs.js";
 import { stageFx } from "./fx.js";
-import { fitDistance, layoutFor, type StageLayout } from "./layout.js";
+import { CAMERA_TARGET, fitDistance, layoutFor, type StageLayout } from "./layout.js";
+import { createOrbit, type Orbit } from "./orbit.js";
 import { PostStack } from "./Post.js";
 import { VoidBackdrop } from "./VoidBackdrop.js";
 
@@ -49,21 +55,42 @@ export interface StageModel {
 
 const FOV = 38;
 
-function CameraRig({ layout }: { layout: StageLayout }) {
+/**
+ * The sway, still in world units: how far across the board's face the camera
+ * drifts, and how far above the target it sits. Divided by the distance at
+ * render time, which turns it into the angles the orbit is expressed in — so
+ * it stays the same authored drift at any board size and at any orbit, rather
+ * than growing with the camera's distance.
+ */
+const SWAY_X = 0.22;
+const BASE_Y = 0.3;
+const SWAY_Y = 0.16;
+
+function CameraRig({ layout, orbit }: { layout: StageLayout; orbit: Orbit }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const aspect = useThree((s) => s.viewport.aspect);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
-    const dist = fitDistance(layout, FOV, aspect);
+    orbit.step(dt);
+    // Refit for the orbit, not just the variant: a turned board needs more
+    // room than a flat one, and the fit is what keeps it in frame. Fit to the
+    // orbit alone — the sway is a fraction of a degree, and feeding it back in
+    // would make the distance breathe with it.
+    const dist = fitDistance(layout, FOV, aspect, orbit.yaw, orbit.pitch);
     // Slow drift, so the frame is alive even when nothing happens.
-    const x = Math.sin(t * 0.11) * 0.22;
-    let y = 0.4 + Math.sin(t * 0.07) * 0.16;
-    // The land flinch: a hard dip, held one beat, released. No easing.
-    if (performance.now() - stageFx.lastLandAt < 70) y -= 0.09;
+    const yaw = orbit.yaw + (Math.sin(t * 0.11) * SWAY_X) / dist;
+    const pitch = orbit.pitch + (BASE_Y + Math.sin(t * 0.07) * SWAY_Y) / dist;
+    const flat = Math.cos(pitch) * dist;
     camera.fov = FOV;
-    camera.position.set(x, y, dist);
-    camera.lookAt(0, 0.1, 0);
+    camera.position.set(
+      CAMERA_TARGET[0] + Math.sin(yaw) * flat,
+      CAMERA_TARGET[1] + Math.sin(pitch) * dist,
+      CAMERA_TARGET[2] + Math.cos(yaw) * flat,
+    );
+    // The land flinch: a hard dip, held one beat, released. No easing.
+    if (performance.now() - stageFx.lastLandAt < 70) camera.position.y -= 0.09;
+    camera.lookAt(...CAMERA_TARGET);
     camera.updateProjectionMatrix();
   });
 
@@ -150,15 +177,37 @@ export function StageView({ model }: { model: StageModel }) {
   const layout = useMemo(() => layoutFor(model.variant), [model.variant]);
   const postEnabled = useDebugStore((s) => s.postEnabled);
   const interactive = model.onColumn !== undefined;
+  // One orbit per stage, not a module singleton: the preview harness mounts
+  // several of these at once and dragging one tile must not turn the others.
+  const orbit = useMemo(() => createOrbit(), []);
+
+  // The drag continues off the canvas and ends wherever it ends — window
+  // listeners rather than pointer capture, which would retarget the events
+  // R3F needs for hover and for the click that drops a disc.
+  useEffect(() => {
+    // Primary pointer only: a second finger landing mid-drag would otherwise
+    // teleport the camera to wherever it touched down.
+    const move = (e: PointerEvent) => e.isPrimary && orbit.move(e.clientX, e.clientY);
+    const end = () => orbit.release();
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, [orbit]);
 
   return (
     <Canvas
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: FOV, near: 0.1, far: 80, position: [0, 0.4, 14] }}
+      onPointerDown={(e) => e.isPrimary && orbit.press(e.clientX, e.clientY)}
     >
       <ScenePinProvider pin={model.pin}>
-        <CameraRig layout={layout} />
+        <CameraRig layout={layout} orbit={orbit} />
         <Lights />
         <VoidSky />
         <VoidBackdrop />
@@ -179,6 +228,7 @@ export function StageView({ model }: { model: StageModel }) {
         {interactive && (
           <ColumnInput
             layout={layout}
+            orbit={orbit}
             onColumn={model.onColumn!}
             onHover={model.onHover ?? (() => {})}
           />

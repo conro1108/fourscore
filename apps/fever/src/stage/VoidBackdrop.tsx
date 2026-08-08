@@ -21,6 +21,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFeverSource } from "../director/scope.js";
+import { CAMERA_TARGET } from "./layout.js";
 
 const vertex = /* glsl */ `
   varying vec2 vUv;
@@ -149,8 +150,15 @@ const fragment = /* glsl */ `
 const CALM_DRIFT = 1.5;
 const FEVERED_DRIFT = 6.5;
 
+/** How far behind the board the void hangs. */
+const BEHIND = 16;
+
+const target = new THREE.Vector3(...CAMERA_TARGET);
+const axis = new THREE.Vector3();
+
 export function VoidBackdrop() {
   const material = useRef<THREE.ShaderMaterial>(null);
+  const mesh = useRef<THREE.Mesh>(null);
   const drift = useRef(0);
   const feverOf = useFeverSource();
   const uniforms = useMemo(
@@ -161,9 +169,19 @@ export function VoidBackdrop() {
     [],
   );
 
-  useFrame((_, dt) => {
-    if (!material.current) return;
+  useFrame(({ camera }, dt) => {
+    if (!material.current || !mesh.current) return;
     const fever = feverOf();
+
+    // The void has no edge, so the camera must never get to see one. Rather
+    // than sit at a fixed z, the plane rides the view axis 16 units behind the
+    // board and faces the camera, which is the same frame it filled before the
+    // camera could orbit — the numbers below are still tuned against exactly
+    // this framing. Reads the camera *this* frame: CameraRig subscribes first
+    // (mount order, equal priority), so it has already moved.
+    axis.subVectors(camera.position, target).normalize();
+    mesh.current.position.copy(target).addScaledVector(axis, -BEHIND);
+    mesh.current.quaternion.copy(camera.quaternion);
 
     // Integrate the drift rather than scaling elapsed time. `elapsed * speed`
     // is the obvious form and it teleports: change the speed at t=40s and the
@@ -179,8 +197,9 @@ export function VoidBackdrop() {
     // Sized to the *visible* frustum (plus margin for wide aspects), not "big
     // enough to be safe": the shader composes in UV space, and on a 170x96
     // plane the camera only ever saw the middle fifth — the well, the edge
-    // falloff and the ember band all happened off-screen.
-    <mesh position={[0, 0, -16]} frustumCulled={false}>
+    // falloff and the ember band all happened off-screen. Placed every frame
+    // above; the initial position only has to survive frame one.
+    <mesh ref={mesh} position={[0, 0, -BEHIND]} frustumCulled={false}>
       <planeGeometry args={[64, 34]} />
       <shaderMaterial
         ref={material}

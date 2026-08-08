@@ -567,3 +567,18 @@ thesis artifacts, and what they couldn't fix.
   while the truck (brilliant) stays rare. Whether that ratio is funny over ten
   games is a phase-9 feel call; `STAGE_QUIET_MS` and the grading thresholds in
   `TUNING` are the two knobs, in that order.
+- **Decision (out of band, Connor's ask):** the stage orbits. Dragging anywhere
+  on the canvas turns the board (`stage/orbit.ts`), clamped to ±54° of yaw and
+  −23°/+40° of pitch, with a throw on release. The player moves the camera
+  *around* the authored framing and can't replace it — no zoom, no pan, and the
+  view holds where it's left rather than springing back. `fitDistance` now
+  refits for the orbit, so a turned board can't clip out of frame; head-on it
+  returns exactly what it did before, which is what keeps the thesis frame
+  invariant. Three things this broke, all of them invisible head-on and all
+  fixed: the per-column hit slabs handed the ray to the *neighbouring* column
+  at an angle (now one hit plane at the disc depth, `ColumnInput`); the void
+  was a fixed plane whose edge came into shot (now rides the view axis behind
+  the board); and the side rails spanned only the slot, leaving a lit dashed
+  hairline down the board's seam. Phase 9 owns whether this survives a phone:
+  the drag shares its gesture with the tap that drops a disc, separated by a
+  5px slop and nothing else.

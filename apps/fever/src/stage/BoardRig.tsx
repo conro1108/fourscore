@@ -80,7 +80,10 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
   );
 
   const { frameW, frameH, slotHalf, plateDepth } = layout;
-  const gap = slotHalf * 2;
+  // The whole sandwich, not just the slot: the plates' own thickness is part
+  // of the seam, and a rail that only spans the gap leaves a lit hairline down
+  // the board's edge. Invisible head-on, obvious the moment the camera orbits.
+  const gap = slotHalf * 2 + plateDepth * 2;
   const railT = 0.16;
 
   return (
