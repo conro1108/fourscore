@@ -72,7 +72,10 @@ export const TUNING: DirectorTuning = {
   volatilityWindow: 4,
   volatilityRef: 0.25,
   floorMax: 0.45,
-  floorCurve: 1.6,
+  // Sub-linear on purpose: at 1.6 the floor was negligible until the last
+  // third and the game read as "nothing happens, then the finale" (Connor's
+  // note, phase 2). At 0.85 a ten-disc Connect 4 game already sits near 0.13.
+  floorCurve: 0.85,
   riseTau: 320,
   fallTau: 1600,
   baselineTau: 4000,

@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { isMuted, setMuted } from "../audio/index.js";
 import { useDirectorStore } from "../director/store.js";
 import type { SpectacleEvent } from "../director/types.js";
 import { useDebugStore } from "./store.js";
@@ -64,6 +65,7 @@ export function DebugPanel() {
   const postEnabled = useDebugStore((s) => s.postEnabled);
   const setPostEnabled = useDebugStore((s) => s.setPostEnabled);
   const [open, setOpen] = useState(true);
+  const [muted, setMutedState] = useState(isMuted);
   const fps = useFps();
 
   if (!open) {
@@ -109,6 +111,17 @@ export function DebugPanel() {
           onChange={(e) => setPostEnabled(e.target.checked)}
         />
         post stack
+      </label>
+      <label className="debug-row">
+        <input
+          type="checkbox"
+          checked={muted}
+          onChange={(e) => {
+            setMuted(e.target.checked);
+            setMutedState(e.target.checked);
+          }}
+        />
+        mute
       </label>
       <div className="debug-row debug-events">
         {SAMPLES.map((s) => (

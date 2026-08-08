@@ -102,3 +102,64 @@ for Connor, not a vibe call mid-task.
 - Bot personas' new visual identities (keep their names and gameplay souls).
 - Any gag that makes you laugh and fits the tone boundary. If you're choosing
   between a safe reading of this doc and a funnier one, pick funnier.
+
+## The voice (phase-2 sample — the register every string is written against)
+
+Rules first, because they're what the sample demonstrates: **short beats
+clever.** Deadpan beats spooky. The software is sincere — it believes it is
+functioning normally, which is the joke. ALL CAPS is for shouting surfaces
+(status line, rally copy); sentence case is for chrome that thinks it's
+ordinary software. Never wink. And the confidence law from PLAN.md binds
+every string: estimated claims hedge, proven claims are flat.
+
+The sample:
+
+1. Tagline (under the wordmark): `EVERY SUNDAY IS TONIGHT.`
+2. Start button, first launch: `Resume`
+3. New game button: `AGAIN.`
+4. Variant switch: `CONNECT 4` / `CONNECT 5 (more)`
+5. Dialog title bar: `FOURSCORE.EXE — not responding (it is)`
+6. System dialog body: `This program is running normally.` — buttons
+   `OK` / `OK`
+7. You win: `YOU WIN. THE CROWD IS REAL.`
+8. You lose: `MOSS WINS. MOSS DOES NOT CELEBRATE.`
+9. Draw: `A DRAW. NOBODY IS PLEASED.`
+10. Status, your turn: `YOUR MOVE.`
+11. Status, bot thinking: `MOSS IS THINKING ABOUT DIRT.`
+12. Review, estimated ply (hedged): `That one looks expensive.`
+13. Review, proven ply (flat): `This loses in nine.`
+14. Quit confirm: `Leave? The rally continues without you.`
+15. Desync notice (styled possessed, factually honest): `THE BOARDS
+    DISAGREE. This game can't continue. Rematch?`
+16. Mute toggle, two states: `NOISE` / `SILENCE`
+
+What makes these the model: 7 and 8 are outcomes, so they're flat. 12 hedges
+because an estimate said so; 13 is declarative because only proof gets to
+say "loses". 5 and 6 are period chrome telling a small lie calmly. 15 jokes
+in the styling and never in the facts.
+
+## Bot persona: Moss (phase-2 template for the other seven)
+
+Written in full as the pattern. Each persona needs: who they are *here*,
+their void variation, their signature gag, and their voice — the gameplay
+soul (weights, depth, slip) is fixed and predates the fever dream.
+
+**Moss** — *occupies the middle and waits.*
+
+- **Who they are here:** the rally's groundskeeper. Was mowing something
+  before the void arrived and sees no reason to stop now. Not slow —
+  *unhurried*. The monster trucks drive around Moss.
+- **Void variation:** the bruises go green-black (Moss's `#6aa348` family
+  darkened into the void palette, never neon); the drifting weather reads as
+  spores rather than weather. Heat still means fever — the palette law is
+  not a personality.
+- **Signature gag:** a lawn sprinkler rises from below the frame, waters
+  nothing for exactly two stepped beats, and descends. Fires on `idle-beat`.
+  Budget: one 40-tri sprinkler, 64px texture, 12fps. It is never in a hurry
+  either.
+- **Voice:** lowercase, present tense, no exclamation marks, no urgency
+  anywhere. Sample status lines: `moss is thinking about dirt.` /
+  `your move. moss can wait.` / `moss took the middle. it lives there.`
+- **Tone boundary check:** Moss is menacing the way a very patient
+  gardener is menacing — which is to say barely, which is the point of
+  rung 3.

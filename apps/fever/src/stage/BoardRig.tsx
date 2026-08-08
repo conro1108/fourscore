@@ -49,21 +49,32 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
   const plate = useMemo(() => plateGeometry(layout), [layout]);
   useEffect(() => () => plate.dispose(), [plate]);
 
+  // Physical, not standard: the board is lacquered obsidian with a thin-film
+  // sheen, so the VoidSky's magenta/teal/gold shows up as an oil-slick crawl
+  // across the plates as the camera sways. The board lives on the expensive
+  // side of the budget law with the void — this is where "chrome that reflects
+  // a sky that isn't there" happens.
   const plum = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
-        color: "#1d1329",
-        roughness: 0.3,
-        metalness: 0.45,
+      new THREE.MeshPhysicalMaterial({
+        color: "#251733",
+        roughness: 0.26,
+        metalness: 0.4,
+        iridescence: 0.6,
+        iridescenceIOR: 1.6,
+        envMapIntensity: 1.7,
       }),
     [],
   );
   const railMat = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
-        color: "#140b1f",
-        roughness: 0.45,
-        metalness: 0.3,
+      new THREE.MeshPhysicalMaterial({
+        color: "#1a1026",
+        roughness: 0.35,
+        metalness: 0.4,
+        iridescence: 0.35,
+        iridescenceIOR: 1.6,
+        envMapIntensity: 1.3,
       }),
     [],
   );

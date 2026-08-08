@@ -1,25 +1,30 @@
 /**
- * The stage: canvas, camera, lights, void, board, discs, input. Pure view —
- * it renders a `StageModel` and reports gestures upward, which is what lets
- * the preview harness mount any scene state with no store and no bot.
+ * The stage: canvas, camera, lights, void, board, discs, props, input. Pure
+ * view — it renders a `StageModel` and reports gestures upward, which is what
+ * lets the preview harness mount any scene state with no store and no bot.
  *
  * The camera is fit from the variant every frame (geometry is a value), sways
  * slowly because a perfectly still camera reads as a screenshot, and dips hard
  * for one beat when a disc lands — the whole stage flinches.
+ *
+ * The environment is four Lightformers rendered once to a small cubemap: the
+ * sky that isn't there. Chrome and lacquer in the scene reflect a magenta
+ * horizon, a teal underlight and a gold slash that no visible object emits.
  */
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { Player, Variant } from "@fourscore/engine";
 import { useDebugStore } from "../debug/store.js";
-import { FeverProvider } from "../director/scope.js";
+import { ScenePinProvider, type ScenePin } from "../director/scope.js";
+import { PropStage } from "../props/PropStage.js";
 import { BoardRig } from "./BoardRig.js";
 import { ColumnInput, GhostDisc } from "./ColumnInput.js";
 import { Discs } from "./Discs.js";
 import { stageFx } from "./fx.js";
 import { fitDistance, layoutFor, type StageLayout } from "./layout.js";
+import { PostStack } from "./Post.js";
 import { VoidBackdrop } from "./VoidBackdrop.js";
 
 export interface StageModel {
@@ -36,11 +41,10 @@ export interface StageModel {
   onHover?: (col: number | null) => void;
   onDiscLanded?: () => void;
   /**
-   * Pin this scene's fever. Harness-only: the app leaves it undefined so the
-   * scene follows the Director. It's here, at the top of the scene, rather than
-   * threaded through every subsystem — see `director/scope.tsx`.
+   * Pin this scene's fever and/or a prop act. Harness-only: the app leaves it
+   * undefined so the scene follows the Director. See `director/scope.tsx`.
    */
-  fever?: number;
+  pin?: ScenePin;
 }
 
 const FOV = 38;
@@ -79,6 +83,60 @@ function Lights() {
   );
 }
 
+/**
+ * The sky that isn't there: a handful of over-bright panels rendered once
+ * through PMREM into `scene.environment`. Nothing here is ever visible
+ * directly — only as the oil-slick crawl on the board's lacquer and the
+ * discs. Built by hand rather than through drei's Environment because a
+ * five-quad scene doesn't need a portal, and this way what the chrome
+ * reflects is exactly what this function says.
+ */
+function VoidSky() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+
+  useEffect(() => {
+    const sky = new THREE.Scene();
+    sky.background = new THREE.Color("#07040e");
+    const panel = (
+      color: [number, number, number],
+      position: [number, number, number],
+      scale: [number, number],
+      lookAtOrigin = true,
+    ) => {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(scale[0], scale[1]),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(...color), side: THREE.DoubleSide }),
+      );
+      mesh.position.set(...position);
+      if (lookAtOrigin) mesh.lookAt(0, 0, 0);
+      sky.add(mesh);
+    };
+    // Magenta horizon behind, teal underlight, a gold slash high right, a
+    // violet pool below — the iridescence family, nothing else.
+    panel([2.6, 0.5, 1.9], [0, 3, -9], [16, 3]);
+    panel([0.2, 1.5, 1.4], [-5, -6, 5], [12, 4]);
+    panel([2.4, 1.7, 0.5], [7, 6, 3], [2, 9]);
+    panel([0.9, 0.3, 1.9], [0, -9, -3], [10, 6]);
+    // Behind the camera, wide and dim: this is what the board's flat front
+    // face actually reflects. Without it the lacquer reads as matte black —
+    // a face mirrored at the viewer samples the sky *behind* the viewer.
+    panel([0.55, 0.2, 0.8], [3, 2, 10], [18, 10]);
+    panel([0.25, 0.45, 0.5], [-6, -2, 9], [8, 8]);
+
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const env = pmrem.fromScene(sky, 0.06);
+    scene.environment = env.texture;
+    return () => {
+      scene.environment = null;
+      env.dispose();
+      pmrem.dispose();
+    };
+  }, [gl, scene]);
+
+  return null;
+}
+
 /** The whole act — board and discs together — levitates. Nothing to stand on. */
 function Levitate({ children }: { children: React.ReactNode }) {
   const group = useMemo(() => new THREE.Group(), []);
@@ -99,9 +157,10 @@ export function StageView({ model }: { model: StageModel }) {
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: FOV, near: 0.1, far: 80, position: [0, 0.4, 14] }}
     >
-      <FeverProvider fever={model.fever}>
+      <ScenePinProvider pin={model.pin}>
         <CameraRig layout={layout} />
         <Lights />
+        <VoidSky />
         <VoidBackdrop />
         <Levitate>
           <BoardRig layout={layout} />
@@ -116,6 +175,7 @@ export function StageView({ model }: { model: StageModel }) {
             <GhostDisc layout={layout} col={model.hoverCol} player={model.ghostPlayer} />
           )}
         </Levitate>
+        <PropStage layout={layout} />
         {interactive && (
           <ColumnInput
             layout={layout}
@@ -123,14 +183,8 @@ export function StageView({ model }: { model: StageModel }) {
             onHover={model.onHover ?? (() => {})}
           />
         )}
-      </FeverProvider>
-      {postEnabled && (
-        // Placeholder post stack: phase 2's Fable step owns the real one. It
-        // exists now so the pipeline (and its perf cost) is real from day one.
-        <EffectComposer multisampling={0}>
-          <Bloom mipmapBlur intensity={0.6} luminanceThreshold={0.6} luminanceSmoothing={0.15} />
-        </EffectComposer>
-      )}
+        {postEnabled && <PostStack />}
+      </ScenePinProvider>
     </Canvas>
   );
 }

@@ -15,18 +15,20 @@ export function Hud() {
   const settled = s.landed === s.moves.length;
   const showOutcome = over && settled;
 
+  // Strings from the phase-2 voice sample (VISION.md, "The voice"). Phase 6
+  // owns the full chrome pass; these are here so the register ships.
   const status = over
     ? ""
     : s.match.turn === human && settled && !s.thinking
       ? "YOUR MOVE."
-      : "MOSS IS THINKING.";
+      : "MOSS IS THINKING ABOUT DIRT.";
 
   const outcome =
     s.match.status === "draw"
       ? "A DRAW. NOBODY IS PLEASED."
       : s.match.winner === human
-        ? "YOU WIN."
-        : "MOSS WINS.";
+        ? "YOU WIN. THE CROWD IS REAL."
+        : "MOSS WINS. MOSS DOES NOT CELEBRATE.";
 
   return (
     <div className="hud">
@@ -53,14 +55,14 @@ export function Hud() {
       {showOutcome && (
         <div className="dialog" role="dialog" aria-label="game over">
           <div className="dialog-title">
-            <span>FOURSCORE.EXE</span>
+            <span>FOURSCORE.EXE — not responding (it is)</span>
             <span className="dialog-x">×</span>
           </div>
           <div className="dialog-body">
             <p>{outcome}</p>
             <div className="dialog-buttons">
               <button className="btn btn--dialog" onClick={() => s.newGame()}>
-                Rematch
+                AGAIN.
               </button>
               <button
                 className="btn btn--dialog"

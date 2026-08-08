@@ -60,7 +60,7 @@ phase 9, not a reason to keep polishing blind.
 
 - [x] 0 — Stage *(Fable)*
 - [x] 1 — The Director *(Opus)*
-- [ ] 2 — **The Thesis** ⚑ *(Fable)*
+- [x] 2 — **The Thesis** ⚑ *(Fable)*
 - [ ] 3 — Props and spikes *(Opus)*
 - [ ] 4 — Audio *(Opus)*
 - [ ] 5 — Bots as characters *(Opus)*
@@ -384,6 +384,52 @@ thesis artifacts, and what they couldn't fix.
   fever 0.00–1.00, 34 move events, threats, tension shifts, wins, 25 positions
   scored, `--fever` peaking at 1, at 117–120fps.
 
+- **Phase 2 — The Thesis** *(Fable, 2026-08-07)*. The four artifacts later
+  phases copy, by name:
+  **The look** is harness state **`thesis`** (`?state=thesis`, with
+  `thesis-entrance` as a second angle): final void shader in
+  `stage/VoidBackdrop.tsx` (oil-slick ramp riding the weather; the heat family
+  enters here, embers low in the frame, zero at fever 0), the real post stack
+  in `stage/Post.tsx` (fever-driven bloom / radial chromatic aberration /
+  grain, static vignette), and lacquered-obsidian board + disc materials
+  (MeshPhysical, iridescence) lit by `VoidSky` — a hand-built PMREM env of
+  five over-bright panels, the sky that isn't there.
+  **The prop system** is `props/`: `registry.ts` (named fixed-length acts),
+  `PropStage.tsx` (one act at a time, triggers dropped mid-act, never queued),
+  `steps.ts` (the 12fps `stepped` clock and the pure `truckPose`, both unit
+  tested). The exemplar is the truck lap: **180 audited tris**, one 64px
+  nearest canvas texture (`texture.ts`), Lambert flat shading, entrance
+  wheelie → launch → **freeze-frame at apex, a beat too long** → slam (fires
+  the same `stageFx` flinch a disc landing does) → exit. Live trigger:
+  `move`/`brilliant` (phase 3 owns the full mapping).
+  **The sound** is `audio/`: semantic names only (`playSpike("spike-truck")`),
+  `mangle.ts` (distortion, generated-impulse convolver, reverse, deterministic
+  granular chop), `library.ts` (offline-rendered synth placeholders — the
+  signature spike is a ruined airhorn), `ambient.ts` (live drone + detune +
+  filter that open with fever; a wrong choir above 0.45). Autoplay-safe:
+  nothing constructed before first pointerdown; `playSpike` is a no-op until
+  then, so the harness never needs audio. Hard mute on the debug panel;
+  settings chrome is phase 4/6.
+  **The voice** is VISION.md's new "The voice" section (16 strings + the
+  rules) and the full **Moss** persona as the template; the outcome dialog,
+  status line and title bar in `Hud.tsx` already speak it.
+  **Deviations:** `TUNING.floorCurve` 1.6 → 0.85 (Connor's live note: the
+  escalation was "nothing until the end"; the shader work alone didn't fix it
+  because fever itself sat near 0 most of a game). `StageModel.fever` became
+  `StageModel.pin` (`ScenePin` in `director/scope.tsx`) — the scene-scope
+  object phase 1's open question asked for; it pins fever and/or a prop act
+  phase. `postprocessing` added as a direct dep (the deploy builds
+  `apps/fever` standalone). Verified: 120fps in `npm run acceptance` with the
+  full stack on, both variants; `npm test` 120 green; screenshots of every
+  state looked at.
+  **Traps found:** the void plane was 170x96 but the frustum only ever saw
+  the middle fifth, so the shader's whole composition happened off-screen —
+  the plane is now sized to the visible frustum (64x34) and the shader
+  composes in screen-ish UV. And a flat front face mirrors what's *behind*
+  the camera: an env map with nothing there renders lacquer as matte black
+  (drei's `Environment` children portal also never fed `scene.environment`
+  reliably — `VoidSky` builds the PMREM by hand).
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -425,3 +471,18 @@ thesis artifacts, and what they couldn't fix.
   machine (120fps headless). The stated budget is an *integrated-GPU* laptop —
   someone needs to run `npm run acceptance` on one before the post stack gets
   heavy (phase 2 is the natural moment).
+- **Decision (phase 2):** the heat family lives in exactly two places — the
+  void's ember layer and (implicitly) the win blink, which now reads hot
+  pink-red through the env + bloom. That's treated as escalation being
+  legible, not a palette leak; if phase 3's win detonation brings real heat
+  props, re-check the blink against them.
+- **Decision (phase 2):** props never receive `scene.environment` (Lambert
+  materials by construction) — cheap things do not reflect the sky that
+  isn't there. This is the material-level enforcement of the two budgets.
+- **Open (phase 2):** the chromatic aberration ramp (`0.0004 + 0.0035·f²`,
+  radially modulated) was judged in stills; whether full-fever smear is
+  right *in motion* over minutes of play is a phase-9 feel call.
+- **Open (phase 2):** the exemplar's live trigger is only `move`/`brilliant`,
+  so in real games the truck is rare. If playtesting wants more traffic
+  before phase 3 lands the full gag roster, the debug panel's "brilliant"
+  button is the intended preview path, not a looser trigger.

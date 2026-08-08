@@ -15,6 +15,8 @@ export interface PreviewCase {
   hoverCol?: number;
   ghostPlayer?: Player;
   fever?: number;
+  /** Freeze a prop act at a phase of its choreography (see ScenePin). */
+  prop?: { name: string; phase: number };
 }
 
 export const PREVIEW_STATES: PreviewCase[] = [
@@ -58,6 +60,26 @@ export const PREVIEW_STATES: PreviewCase[] = [
     variant: CONNECT4,
     moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
     fever: 1,
+  },
+  // THE THESIS FRAME (phase 2). Mid-fever, both budgets in one shot: the
+  // expensive void and lacquered board sharing the frame with a 180-triangle
+  // monster truck frozen at the apex of its jump, held a beat too long.
+  // Phases 3-8 judge their output against this state by name.
+  {
+    id: "thesis",
+    caption: "THE THESIS — mid-fever, truck at apex; both budgets in one frame",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    prop: { name: "truck-lap", phase: 0.48 },
+  },
+  {
+    id: "thesis-entrance",
+    caption: "thesis gag — truck mid-wheelie on the way in",
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    prop: { name: "truck-lap", phase: 0.22 },
   },
   {
     id: "win-c4",

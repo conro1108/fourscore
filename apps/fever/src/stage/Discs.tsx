@@ -41,7 +41,7 @@ function SettledDisc({
   disc: DiscPlacement;
   win: WinKeys;
 }) {
-  const material = useRef<THREE.MeshStandardMaterial>(null);
+  const material = useRef<THREE.MeshPhysicalMaterial>(null);
   const style = DISC_STYLE[disc.player];
   const winning = win.has(keyOf(disc.col, disc.row));
   const dimmed = win.any && !winning;
@@ -62,13 +62,16 @@ function SettledDisc({
       rotation-x={Math.PI / 2}
     >
       <cylinderGeometry args={[layout.discRadius, layout.discRadius, layout.discThickness, 40]} />
-      <meshStandardMaterial
+      <meshPhysicalMaterial
         ref={material}
         color={dimmed ? "#3a2f42" : style.color}
         emissive={winning ? style.color : style.emissive}
         emissiveIntensity={winning ? 2.6 : 0.25}
-        roughness={0.25}
-        metalness={0.35}
+        roughness={0.18}
+        metalness={0.4}
+        iridescence={dimmed ? 0 : 0.7}
+        iridescenceIOR={1.4}
+        envMapIntensity={dimmed ? 0.2 : 1.0}
       />
     </mesh>
   );
@@ -120,12 +123,14 @@ function FallingDisc({
         <cylinderGeometry
           args={[layout.discRadius, layout.discRadius, layout.discThickness, 40]}
         />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           color={style.color}
           emissive={style.emissive}
           emissiveIntensity={0.25}
-          roughness={0.25}
-          metalness={0.35}
+          roughness={0.18}
+          metalness={0.4}
+          iridescence={0.7}
+          iridescenceIOR={1.4}
         />
       </mesh>
     </group>
