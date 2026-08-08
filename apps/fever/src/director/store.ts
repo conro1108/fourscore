@@ -43,7 +43,9 @@ const emit = (events: readonly SpectacleEvent[]): void => {
 };
 
 export const useDirectorStore = create<DirectorStore>((set, get) => ({
-  frame: { fever: 0, events: [] },
+  // `match` until the runtime says otherwise, so the preview harness — which
+  // never starts the Director — sees the stricter one-act-at-a-time stage.
+  frame: { fever: 0, events: [], mode: "match" },
   live: 0,
   override: null,
 

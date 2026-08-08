@@ -8,6 +8,9 @@
   "spike-banner-collapsing": { "want": "small propeller plane, laboring or missing, dry, ~3s" },
   "spike-banner-draw": { "want": "PA announcer, one flat syllable, dry, <1s" },
   "spike-sprinkler": { "want": "impact sprinkler ticking, dry, ~3s" },
+  "spike-mascot-cheer": { "want": "cheap MIDI brass fanfare, three rising notes, ~1.5s" },
+  "spike-mascot-flop": { "want": "sad trombone, one fall, ~1.5s (same patch as the fanfare)" },
+  "spike-callout": { "want": "orchestra hit / MIDI stab, one shot, dry, <1s" },
 
   "disc-drop": { "want": "short air whoosh / cloth swipe, dry, <0.5s" },
   "disc-land": { "want": "coin or poker chip on hard lacquer, dry, <1s" },

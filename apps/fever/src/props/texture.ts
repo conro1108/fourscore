@@ -112,6 +112,55 @@ export function rocketSkin(): THREE.CanvasTexture {
   });
 }
 
+/**
+ * The mascot's face: two dot eyes and a mouth, on a disc.
+ *
+ * Drawn at the same 64px as everything else and deliberately not centred well.
+ * A lane screen's cast is a company logo with eyes stuck on it — the face is
+ * an overlay somebody added, not a character somebody designed, and it should
+ * look like it.
+ */
+export function mascotFace(mood: "up" | "down"): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    g.fillStyle = "#c8991f";
+    g.beginPath();
+    g.arc(32, 32, 31, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#e2b743";
+    g.beginPath();
+    g.arc(32, 32, 24, 0, Math.PI * 2);
+    g.fill();
+
+    // Eyes: squares, because circles at 64px are four pixels of mush.
+    g.fillStyle = "#17111c";
+    g.fillRect(19, 22, 8, 10);
+    g.fillRect(38, 22, 8, 10);
+    // The one asymmetry, and it repeats: the right eye sits a pixel low.
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(21, 24, 3, 3);
+    g.fillRect(40, 25, 3, 3);
+
+    g.fillStyle = "#17111c";
+    if (mood === "up") {
+      // A smile as three stepped blocks. Nothing here is a curve.
+      g.fillRect(19, 40, 7, 4);
+      g.fillRect(26, 44, 12, 4);
+      g.fillRect(38, 40, 7, 4);
+    } else {
+      // Flat and a little open. Dismay, drawn by a machine that has heard of it.
+      g.fillRect(24, 45, 17, 4);
+      g.fillRect(28, 41, 9, 4);
+    }
+  });
+  // A cylinder cap's UVs are laid out in the cylinder's own XZ plane, so on a
+  // disc stood on its edge the face arrives a quarter turn over — eyes stacked,
+  // mouth off to one side. Turning the texture is the fix; turning the mesh
+  // would fight the roll animation for the same axis.
+  tex.center.set(0.5, 0.5);
+  tex.rotation = Math.PI / 2;
+  return tex;
+}
+
 /** Hazard stripes, for the threat beacon. The heat family means fever. */
 export function hazardSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {

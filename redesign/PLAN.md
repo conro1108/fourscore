@@ -66,6 +66,9 @@ phase 9, not a reason to keep polishing blind.
 - [ ] 5 — Bots as characters *(Opus)* — **skipped for now**, at Connor's call;
       phase 6 took its "bot select UI as possessed chrome" bullet
 - [x] 6 — Chrome *(Opus)*
+- [ ] 6½ — **The Lane Screen Audit** ⚑ *(Opus, with Connor's eye on the
+      roster)* — runs before 7, because it changes what everything after it is
+      written against
 - [ ] 7 — Review, reimagined *(Opus)*
 - [ ] 8 — Online *(Opus)*
 - [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)*
@@ -286,6 +289,60 @@ and it has to be actually funny, which mostly means short. Every string in the
 game gets read again in phase 9, so leave anything you're unsure about in the
 completion log rather than agonizing. *Accept:* no unstyled surface left;
 every dialog passes the tone boundary.
+
+**6½ — The Lane Screen Audit ⚑.** *(Opus, with Connor's eye on the roster.)*
+After phase 6, pillar 2 changed reference: the county fair / monster truck
+rally became **a bowling alley lane screen** (Connor's note — "less county
+fair, more weird bowling alley lane screen animations"). Nothing else moves.
+The taste law, the two budgets, the Director, the confidence rules and the
+product truths are all reference-independent and stay exactly as they are. What
+moves is what a prop, a spike and a shouting string are *for*.
+
+This phase re-aims what is already built rather than adding surface, and it
+runs before 7–9 so that review, online and the polish lap are written against
+one reference instead of two. Surface by surface:
+
+- **The props** (`src/props/`). Every act answers one question: *would this
+  clip play on a lane screen?* `truck-lap`, `rocket-fizzle`, `beacon-drop` and
+  `win-detonation` pass on sight — canned, cheap, over-eager, and the
+  detonation is already a callout with a chrome word slamming at the lens.
+  `banner-rising`/`-collapsing`/`-draw` is a tow plane over a fairground and is
+  the clearest miss; the callout form is what a lane screen does with the same
+  beat, and the detonation shows how. `sign-hmm` reads as a crowd rather than a
+  screen. Nothing is retired without a replacement in the same event slot — an
+  event kind with no gag is a regression, and `roster.test.ts` says so.
+- **The cast.** The roster is vehicles and objects; a lane screen has
+  *characters* that react and leave. At least one recurring mascot — no origin,
+  no stakes, ≤300 tris, shows up for good moves and bad ones with the same
+  enthusiasm — is most of what makes this the reference rather than "cheap 3D".
+  This is the one place the phase is allowed to add rather than re-aim.
+- **The attract loop.** A lane screen is never blank, so the menu is not a
+  still frame with one sprinkler in it: it's the cast wandering through with
+  nothing to react to. Shipped ahead of this phase (Connor's ask) as the
+  Director's menu mode plus a weighted random gag pool; the audit's job is to
+  judge whether what wanders through belongs to one screen's library.
+- **The copy** (`chrome/copy.ts`, and every string in `props/`). Nothing in the
+  game may call the world a rally — `THE CROWD IS REAL`, `the rally continues
+  without you`, `AS SCHEDULED` on a towed banner. Callout copy is short,
+  shouted and set in the display face; chrome copy stays sincere period
+  software, which is now bowling-centre scoring software — the same joke, and a
+  better one, because that software really does exist and really is beige.
+- **The sound** (`audio/library.ts`). The signature spike is a ruined
+  airhorn: right instinct, wrong venue. Lane screens are MIDI — fanfares, a
+  cheap orchestra hit, a rimshot, a synth choir with two voices too few. The
+  mangling graph does not change; what goes into it does. `spike-banner-*` is a
+  propeller plane and goes wherever the banner goes.
+- **The screen itself** (`stage/Post.tsx`). Open, and Connor's call: does the
+  frame gain a monitor quality — scanline, interlace shimmer, CRT bloom — or is
+  that one reference too many stacked on the void? Cheap to prototype in the
+  post stack, easy to overdo, and it fights the expensive-void law the moment
+  it goes crunchy. Prototype it, screenshot it next to `thesis`, and let the
+  frame decide.
+
+*Accept:* every act, every spike and every shouting string has been held
+against the reference and either kept **with a stated reason** or changed; the
+harness roster row reads as one screen's library rather than two venues;
+nothing in the game says "rally"; the `thesis` frame still holds; tests green.
 
 **7 — Review, reimagined.** The score-over-time curve and ply-by-ply copy in
 the new world. All confidence rules apply exactly as in the old client — port
@@ -598,6 +655,43 @@ thesis artifacts, and what they couldn't fix.
   comes from the icon rather than from `thesis`, and it is the one thing in this
   phase worth a second opinion.
 
+- **Out of band — the attract loop, and the first lane-screen acts** *(Opus,
+  2026-08-08, Connor's ask: "more home page chaos", "a mix of actions based on
+  events but also some random ones")*. Ahead of phase 6½ and in its direction.
+  **Which gag fires is now a weighted draw** (`props/gags.ts`, `pickGag(event,
+  rng, opts)`): every event kind has a pool, the last act is dropped from it so
+  nothing plays twice running, and a vetoed act costs the draw rather than the
+  reaction. `win`/`draw` keep exactly one act each and `PropAct.declares` plus a
+  test make the claims law mechanical — an estimate can no longer draw an act
+  that states a result. **The Director learned where it is** (`StageMode`:
+  `attract` on the menu and roster, `match` in a game). On the menu idle beats
+  come every 1.8s instead of 7s, the prop stage runs two acts at once instead of
+  one, and there is no quiet gap at all there — a gap on a fixed beat cadence
+  doesn't pace anything, it eats the next act and leaves the stage empty for two
+  more seconds. Acts declare a **berth** (`left`/`right`/`floor`/`sky`/`lens`)
+  and only one act may hold one, which is what keeps the pair apart. **Two new
+  acts**, the first written to the new reference: `mascot-cheer`/`mascot-flop`
+  (a disc with a face rolls in on its edge, hops twice or goes flat in one
+  frame, rolls out — 40 tris, face on the cylinder's caps so it needs no alpha)
+  and `callout-*` (a chrome word spins in, holds, and exits *through* the lens —
+  2 tris, the cheapest and loudest act in the game). Their spikes are MIDI on
+  purpose: a fanfare, a sad trombone, an orchestra hit, all lightly mangled,
+  because cheap General MIDI is already the wrong sound and burying it would
+  hide the joke.
+  **Also:** `TUNING.floorCurve`/`floorMax` → 1.0/0.75 (Connor: fever should
+  climb roughly linearly across a game), `ScenePin.prop` takes a list so the
+  harness can freeze two acts in one frame, and `tools/audio-check.mjs` was
+  fixed — it clicked a NOISE button phase 6 moved into the settings window and
+  had been timing out ever since.
+  **Verified:** `npm test` green, typecheck clean, `npm run acceptance` 120fps
+  on both variants, `npm run audio` renders all 25 recipes, and the menu was
+  watched live in a real browser (twenty frames, 600ms apart, every one of them
+  with something in the margins). Screenshots: `gag-mascot-*`, `gag-callout-*`,
+  `attract-menu`, `attract-menu-2`, `live-attract-*`.
+  **Left for 6½:** the banner plane, the sign, `THE CROWD IS REAL`, the ruined
+  airhorn and the rest of the county-fair layer are all still there, on purpose
+  — retiring them is that phase's job, with a replacement per event slot.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -763,3 +857,11 @@ thesis artifacts, and what they couldn't fix.
   the pinch is measured against the span it started from rather than
   accumulated. A trackpad pinch is a ctrl-wheel, so desktop and touch are the
   same gesture; a plain wheel zooms at a gentler rate.
+- **Decision (out of band, Connor's ask):** pillar 2's reference changed from
+  the county fair / monster truck rally to **a bowling alley lane screen**.
+  Recorded here as well as in VISION.md because it is the first time the north
+  star moved after code shipped against it, and the reason it was cheap to move
+  is worth keeping: the Director, the taste law, the two budgets and the
+  confidence rules never named the reference. Only the props, the spikes and
+  the shouting strings did — which is exactly the surface phase 6½ audits. A
+  vision that costs one phase to re-aim is a vision that was factored right.

@@ -23,15 +23,25 @@
 import { createContext, useContext, useMemo } from "react";
 import { directorFrame } from "./store.js";
 
+/** A named act, frozen at a phase of its choreography (0..1). */
+export interface PinnedAct {
+  name: string;
+  phase: number;
+}
+
 export interface ScenePin {
   /** Pin fever for this scene. Undefined means "follow the Director". */
   fever?: number;
   /**
-   * Freeze a named prop act at a phase of its choreography (0..1). Harness
-   * only: the app never sets it, so acts play out live. Undefined means props
-   * run on the event bus as usual.
+   * Freeze prop acts. Harness only: the app never sets it, so acts play out
+   * live. Undefined means props run on the event bus as usual.
+   *
+   * A list because the menu's attract loop runs two acts at once and the only
+   * way to judge that is to see both in one frame — the thing it has to get
+   * right is how they sit around the window, which a pair of separate
+   * screenshots can't show.
    */
-  prop?: { name: string; phase: number };
+  prop?: PinnedAct | PinnedAct[];
 }
 
 const Scope = createContext<ScenePin>({});

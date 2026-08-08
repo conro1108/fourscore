@@ -31,6 +31,7 @@ function input(over: Partial<DirectorInput> = {}): DirectorInput {
     winningLine: [],
     immediateThreats: { red: 0, yellow: 0 },
     cells: 42,
+    mode: "match",
     ...over,
   };
 }
@@ -311,6 +312,16 @@ describe("event debouncing", () => {
     const busy = advance(s, input({ immediateThreats: { red: 1, yellow: 0 } }), 16);
     const after = run(busy.state, input({ immediateThreats: { red: 1, yellow: 0 } }), 1000);
     expect(after.events.filter((e) => e.kind === "idle-beat")).toEqual([]);
+  });
+
+  it("beats far more often on the menu, where they are the whole show", () => {
+    const count = (mode: "attract" | "match") =>
+      run(initialDirectorState(1), input({ mode }), 30_000).events.filter(
+        (e) => e.kind === "idle-beat",
+      ).length;
+    expect(count("attract")).toBeGreaterThan(count("match") * 2);
+    // The quiet rule still holds in both: an idle beat waits for a gap.
+    expect(30_000 / count("attract")).toBeGreaterThanOrEqual(TUNING.attractIdlePeriod);
   });
 
   it("ends the game exactly once", () => {

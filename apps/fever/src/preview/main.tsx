@@ -103,7 +103,10 @@ function Tile({ c, override }: { c: PreviewCase; override: number | null }) {
     return () => io.disconnect();
   }, []);
 
-  const act = c.prop ? PROP_ACTS[c.prop.name] : undefined;
+  // Budgets in front of the thing they constrain — summed, because a state may
+  // pin two acts and the stage's cost is both of them.
+  const pinned = c.prop ? (Array.isArray(c.prop) ? c.prop : [c.prop]) : [];
+  const tris = pinned.reduce((sum, p) => sum + (PROP_ACTS[p.name]?.tris ?? 0), 0);
 
   return (
     <figure style={{ margin: 0 }}>
@@ -117,8 +120,7 @@ function Tile({ c, override }: { c: PreviewCase; override: number | null }) {
         style={{ fontFamily: "monospace", fontSize: 12, color: "#a99bc4", paddingTop: 6 }}
       >
         {c.id} — {c.caption}
-        {/* The budget, in front of the thing it constrains. */}
-        {act && ` · ${act.tris} tris`}
+        {tris > 0 && ` · ${tris} tris`}
       </figcaption>
     </figure>
   );

@@ -44,6 +44,9 @@ export type SoundName =
   | "spike-banner-collapsing"
   | "spike-banner-draw"
   | "spike-sprinkler"
+  | "spike-mascot-cheer"
+  | "spike-mascot-flop"
+  | "spike-callout"
   // -- the board --
   | "disc-drop"
   | "disc-land"
@@ -366,6 +369,127 @@ function beaconDrop(ctx: OfflineAudioContext, source: AudioBuffer | null): void 
   for (const freq of [700, 990]) {
     const o = osc(ctx, "square", freq, 0.78, 2.0);
     o.connect(alarm);
+  }
+}
+
+/**
+ * The mascot's two reactions, and the first sounds written to VISION.md's
+ * lane-screen reference. A bowling centre's monitor does not have an airhorn;
+ * it has a sound card. So both of these are unashamedly MIDI — a brass patch
+ * nobody licensed, played by a machine with no opinion about what just
+ * happened — and they get less mangling than the rally spikes precisely
+ * because cheap General MIDI is *already* the wrong sound, and burying it in
+ * distortion would hide the joke rather than sharpen it.
+ *
+ * `up` is the three-note fanfare with a cymbal on the last note. `down` is the
+ * fall: one slide, one rimshot, and it does not resolve.
+ */
+function mascotSting(ctx: OfflineAudioContext, source: AudioBuffer | null, up: boolean): void {
+  const bus = out(ctx, { drive: 6, space: [0.5, 2.6], wet: 0.3 });
+
+  if (up) {
+    // C–E–G, each a hard sixteenth, the last one held. The patch is two
+    // detuned saws and a square an octave down, which is what a 1998 sound
+    // font thought a trumpet section was.
+    const notes: [number, number, number][] = [
+      [523.25, 0.0, 0.16],
+      [659.25, 0.16, 0.16],
+      [783.99, 0.32, 0.75],
+    ];
+    for (const [freq, at, held] of notes) {
+      const level = env(ctx, [
+        [at, 0],
+        [at + 0.012, 0.3],
+        [at + held - 0.05, 0.26],
+        [at + held, 0],
+      ]);
+      level.connect(bus);
+      if (source) {
+        play(ctx, source, level, at, freq / 523.25);
+        continue;
+      }
+      for (const detune of [1, 1.006]) {
+        osc(ctx, "sawtooth", freq * detune, at, at + held).connect(level);
+      }
+      osc(ctx, "square", freq / 2, at, at + held).connect(gain(ctx, 0.25)).connect(level);
+    }
+    // The cymbal: noise through a highpass, cut off rather than decayed.
+    const crash = env(ctx, [
+      [0.32, 0],
+      [0.35, 0.16],
+      [0.95, 0],
+    ]);
+    crash.connect(filter(ctx, "highpass", 5200)).connect(bus);
+    noise(ctx, 0.7, 0x51fa, 0.32).connect(crash);
+    return;
+  }
+
+  // The fall. Three stepped notes down and then a slide off the bottom of the
+  // patch — the joke is that it keeps going after the tune has finished.
+  const level = env(ctx, [
+    [0, 0],
+    [0.02, 0.3],
+    [0.9, 0.26],
+    [1.15, 0],
+  ]);
+  const muffle = filter(ctx, "lowpass", 1800);
+  level.connect(muffle);
+  muffle.connect(bus);
+  if (source) {
+    sampleVoice(ctx, source, { at: 0.45, to: 0.5, over: 0.6 }).connect(level);
+  } else {
+    for (const detune of [1, 1.008]) {
+      const o = osc(ctx, "sawtooth", 392 * detune, 0, 1.15);
+      // Stepped down, then poured down: setValueAtTime for the tune, one ramp
+      // for the part that has given up.
+      o.frequency.setValueAtTime(392 * detune, 0.18);
+      o.frequency.setValueAtTime(349.23 * detune, 0.36);
+      o.frequency.setValueAtTime(311.13 * detune, 0.45);
+      o.frequency.linearRampToValueAtTime(98 * detune, 1.1);
+      o.connect(level);
+    }
+  }
+  strike(ctx, bus, 1.12, [220, 331, 512], 0.22, 0.4); // the rimshot, late
+}
+
+/**
+ * The callout: a word arriving at the lens. A rising whoosh under the spin,
+ * then the orchestra hit — the single most 1997 sound there is, and the right
+ * one, because the callout *is* the animation and the hit is what the
+ * animation is scored to.
+ */
+function calloutHit(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 14, space: [0.6, 2.2], wet: 0.4 });
+
+  // The spin-in: noise swept up, cut dead on the beat the word lands.
+  const air = env(ctx, [
+    [0, 0],
+    [0.3, 0.14],
+    [0.44, 0.2],
+    [0.46, 0],
+  ]);
+  const sweep = filter(ctx, "bandpass", 300, 1.4);
+  sweep.frequency.linearRampToValueAtTime(4200, 0.45);
+  air.connect(sweep);
+  sweep.connect(bus);
+  noise(ctx, 0.5, 0x77c3).connect(air);
+
+  // The hit: a stack of fifths and a noise transient, all of it over in a
+  // quarter second, with the room doing the rest.
+  const hit = env(ctx, [
+    [0.45, 0],
+    [0.465, 0.42],
+    [0.6, 0.2],
+    [0.78, 0],
+  ]);
+  hit.connect(bus);
+  if (source) {
+    play(ctx, source, hit, 0.45);
+  } else {
+    for (const freq of [116.5, 175, 233, 349.2, 466]) {
+      osc(ctx, "sawtooth", freq, 0.45, 0.8).connect(gain(ctx, 0.5)).connect(hit);
+    }
+    noise(ctx, 0.12, 0x2ad4, 0.45).connect(filter(ctx, "bandpass", 1400, 0.8)).connect(hit);
   }
 }
 
@@ -807,6 +931,21 @@ export const RECIPES: Record<SoundName, Recipe> = {
     want: "impact sprinkler ticking, dry, ~3s",
     seconds: 2.8,
     build: sprinkler,
+  },
+  "spike-mascot-cheer": {
+    want: "cheap MIDI brass fanfare, three rising notes, ~1.5s",
+    seconds: 1.5,
+    build: (ctx, source) => mascotSting(ctx, source, true),
+  },
+  "spike-mascot-flop": {
+    want: "sad trombone, one fall, ~1.5s (same patch as the fanfare)",
+    seconds: 1.6,
+    build: (ctx, source) => mascotSting(ctx, source, false),
+  },
+  "spike-callout": {
+    want: "orchestra hit / MIDI stab, one shot, dry, <1s",
+    seconds: 1.3,
+    build: calloutHit,
   },
 
   "disc-drop": { want: "short air whoosh / cloth swipe, dry, <0.5s", seconds: 0.32, build: discDrop },

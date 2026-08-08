@@ -6,6 +6,7 @@
  */
 
 import { CONNECT4, CONNECT5, type Player, type Variant } from "@fourscore/engine";
+import type { PinnedAct } from "../director/scope.js";
 import type { ChromeState } from "./chrome.js";
 
 export interface PreviewCase {
@@ -16,8 +17,8 @@ export interface PreviewCase {
   hoverCol?: number;
   ghostPlayer?: Player;
   fever?: number;
-  /** Freeze a prop act at a phase of its choreography (see ScenePin). */
-  prop?: { name: string; phase: number };
+  /** Freeze one act, or several at once, at a phase each (see ScenePin). */
+  prop?: PinnedAct | PinnedAct[];
   /** Lay a chrome surface over the scene (see `preview/chrome.tsx`). */
   chrome?: { state: ChromeState; botId?: string; status?: string };
 }
@@ -29,6 +30,10 @@ export interface PreviewCase {
  * pinned against the lens.
  */
 const ROSTER: { act: string; phase: number; caption: string }[] = [
+  { act: "mascot-cheer", phase: 0.46, caption: "brilliant — the mascot, mid-hop" },
+  { act: "mascot-flop", phase: 0.5, caption: "blunder — the mascot, flat, holding it" },
+  { act: "callout-nice", phase: 0.4, caption: "brilliant — the callout, held at the lens" },
+  { act: "callout-oof", phase: 0.14, caption: "blunder — the callout, still spinning in" },
   { act: "rocket-fizzle", phase: 0.56, caption: "blunder — the rocket, out of ideas" },
   { act: "sign-hmm", phase: 0.4, caption: "dubious — HMM." },
   { act: "beacon-drop", phase: 0.5, caption: "threat — the hazard beacon, strobing" },
@@ -167,6 +172,35 @@ export const PREVIEW_STATES: PreviewCase[] = [
     caption: "the menu — wordmark, marquee, live void behind",
     variant: CONNECT4,
     moves: [],
+    chrome: { state: "menu" },
+  },
+  // THE ATTRACT LOOP. The menu is a lane screen with nothing to react to, and
+  // per VISION.md it is never blank: two acts at once, in different berths, so
+  // they hang around the window rather than behind it. This is the state that
+  // judges the whole idea — one prop at a time and one screenshot each cannot
+  // show whether the composition works.
+  {
+    id: "attract-menu",
+    caption: "the attract loop — mascot and callout around the window",
+    variant: CONNECT4,
+    moves: [],
+    fever: 0.35,
+    prop: [
+      { name: "mascot-cheer", phase: 0.46 },
+      { name: "callout-still-here", phase: 0.4 },
+    ],
+    chrome: { state: "menu" },
+  },
+  {
+    id: "attract-menu-2",
+    caption: "the attract loop again — a different pair, same window",
+    variant: CONNECT4,
+    moves: [],
+    fever: 0.35,
+    prop: [
+      { name: "sprinkler", phase: 0.35 },
+      { name: "rocket-fizzle", phase: 0.56 },
+    ],
     chrome: { state: "menu" },
   },
   {

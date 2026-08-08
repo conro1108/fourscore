@@ -62,7 +62,12 @@ console.log("[bed] crowd and tape loops both running");
 // -- hard mute, through the real chrome ---------------------------------------
 // Driven by clicking the button a player clicks, not by calling the store: the
 // bug this catches is a toggle wired to a second copy of the setting.
+// The toggle lives in the settings window, so the window has to be open — this
+// step used to click a NOISE button that phase 6 moved, and timed out on a menu
+// that has no mute on it.
 const level = () => page.evaluate(() => window.__fever.audio.masterLevel());
+await page.click('button:has-text("Settings")');
+await page.waitForSelector('button:has-text("NOISE")');
 const loud = await level();
 await page.click('button:has-text("NOISE")');
 await page.waitForTimeout(600);
@@ -70,6 +75,7 @@ const quiet = await level();
 await page.click('button:has-text("SILENCE")');
 await page.waitForTimeout(400);
 const loudAgain = await level();
+await page.click('button:has-text("OK")');
 if (!(loud > 0.1 && quiet < 0.01 && loudAgain > 0.1)) {
   throw new Error(`mute did not work: ${loud} → ${quiet} → ${loudAgain}`);
 }

@@ -196,6 +196,112 @@ export function sprinklerPose(phase: number): SprinklerPose {
   return { rise, beat: beat as 0 | 1 | 2 };
 }
 
+/* ------------------------------------------------------------------------ *
+ * The lane screen (VISION.md pillar 2, after the reference change). Two forms
+ * a bowling centre's overhead monitor has that a county fair doesn't:
+ *
+ * - **the cast** — a character with no origin who shows up, does its one
+ *   canned reaction to what you did, and leaves. Same reaction next time.
+ * - **the callout** — a word in extruded chrome that spins at the lens, holds
+ *   a beat too long, and is thrown past you.
+ * ------------------------------------------------------------------------ */
+
+/** Which canned reaction the mascot has come to perform. */
+export type MascotMood = "cheer" | "flop";
+
+/**
+ * The mascot: a game disc with a face, rolling on its edge.
+ *
+ * One entrance and one exit shared by both moods, because that is exactly how
+ * a lane screen is built — one character, one clip per outcome, and the clip
+ * you get says nothing about how close the outcome was.
+ */
+export interface MascotPose {
+  /** 0..1 along its lane, off-frame to off-frame. */
+  u: number;
+  /** Rolling angle in radians. Negative: it rolls the way it travels. */
+  roll: number;
+  /** Hop height in world-ish units. 0 is on the ground. */
+  hop: number;
+  /** Vertical squash, 1 = round. Cartoon flat is 0.3, and it is instant. */
+  squash: number;
+}
+
+const MASCOT_IN = 0.3;
+const MASCOT_OUT = 0.72;
+/** Where along its lane it stops to do the bit. */
+const MASCOT_HOLD_U = 0.42;
+/**
+ * Turns across the whole lane. Set so the disc has made exactly one full turn
+ * when it arrives: a mascot that stops mid-roll does its reaction with its face
+ * at a tilt, and a face at a tilt reads as a rigging bug rather than as a joke.
+ */
+const MASCOT_TURNS = 1 / MASCOT_HOLD_U;
+
+export function mascotPose(phase: number, mood: MascotMood): MascotPose {
+  const p = clamp01(phase);
+  const IN = MASCOT_IN;
+  const OUT = MASCOT_OUT;
+  const HOLD_U = MASCOT_HOLD_U;
+  // A disc that slides instead of rolling reads as a bug, so the roll is tied
+  // to the distance travelled rather than to time.
+  const rollOf = (u: number) => -u * MASCOT_TURNS * Math.PI * 2;
+
+  if (p < IN) {
+    const u = (p / IN) * HOLD_U;
+    return { u, roll: rollOf(u), hop: 0, squash: 1 };
+  }
+  if (p < OUT) {
+    const t = (p - IN) / (OUT - IN);
+    const base = { u: HOLD_U, roll: rollOf(HOLD_U) };
+    if (mood === "cheer") {
+      // Two hops, triangular — up on a step, down on a step, no easing, and no
+      // spin: the face has to stay square long enough to be read.
+      const hop = t < 0.34 ? tri(t / 0.34) : t >= 0.42 && t < 0.8 ? tri((t - 0.42) / 0.38) : 0;
+      return { ...base, hop: hop * 1.15, squash: 1 };
+    }
+    // Flop: a moment of wobble, then flat in a single frame, held far too
+    // long, then round again just as abruptly. Nothing in between, ever.
+    const squash = t < 0.22 ? 1 : t < 0.86 ? 0.3 : 1;
+    return { ...base, hop: 0, squash };
+  }
+  const t = (p - OUT) / (1 - OUT);
+  const u = HOLD_U + t * (1 - HOLD_U);
+  return { u, roll: rollOf(u), hop: 0, squash: 1 };
+}
+
+/** A triangle wave over 0..1: up to 1 at the middle, back to 0. */
+const tri = (t: number): number => 1 - Math.abs(clamp01(t) * 2 - 1);
+
+/**
+ * The callout: one word, thrown at the camera.
+ *
+ * It arrives spinning, stops dead facing you, holds past the point of comfort,
+ * and then keeps coming — it exits *through* the lens rather than retreating,
+ * which is the one exit that can't be mistaken for a fade.
+ */
+export interface CalloutPose {
+  /** Distance from the camera. 1 = far off, 0 = at the lens, negative = past. */
+  z: number;
+  /** Yaw in radians. Ends at 0: it stops flat-on, mid-word, and stays there. */
+  yaw: number;
+}
+
+export function calloutPose(phase: number): CalloutPose {
+  const p = clamp01(phase);
+  const IN = 0.24;
+  const OUT = 0.62;
+  if (p < IN) {
+    const t = p / IN;
+    // Accelerating in, unwinding as it comes: three half-turns, and the last
+    // one lands square rather than easing out of the spin.
+    return { z: 1 - t * t, yaw: (1 - t) * Math.PI * 3 };
+  }
+  if (p < OUT) return { z: 0, yaw: 0 };
+  const t = (p - OUT) / (1 - OUT);
+  return { z: -t * t * 1.8, yaw: 0 };
+}
+
 /**
  * The win detonation — the biggest thing in the game, and the only act allowed
  * to be flatly declarative about the result (see `director/types.ts`: `win` is

@@ -22,7 +22,7 @@
 
 import type { MatchStatus, Player } from "@fourscore/engine";
 import type { EvalPoint } from "./feed.js";
-import type { DirectorFrame, SpectacleEvent } from "./types.js";
+import type { DirectorFrame, SpectacleEvent, StageMode } from "./types.js";
 
 export interface DirectorTuning {
   /**
@@ -63,6 +63,12 @@ export interface DirectorTuning {
   /** Idle beats: this often, but only after this long with nothing else happening. */
   idlePeriod: number;
   idleQuiet: number;
+  /**
+   * Idle period on the menu, where idle beats are the entire show. A lane
+   * screen with nothing to react to still isn't blank (VISION.md), and at the
+   * in-match rate the menu was one sprinkler every eight seconds.
+   */
+  attractIdlePeriod: number;
 }
 
 export const TUNING: DirectorTuning = {
@@ -92,6 +98,7 @@ export const TUNING: DirectorTuning = {
   threatCooldown: 3000,
   idlePeriod: 7000,
   idleQuiet: 3000,
+  attractIdlePeriod: 1800,
 };
 
 export interface DirectorInput {
@@ -112,6 +119,8 @@ export interface DirectorInput {
   immediateThreats: Record<Player, number>;
   /** `variant.cells`, so the disc-count floor is geometry-derived, not 42. */
   cells: number;
+  /** Menu or match; only the idle rate reads it. See `StageMode`. */
+  mode: StageMode;
 }
 
 interface PendingMove {
@@ -206,7 +215,7 @@ export function advance(
   if (state.generation !== input.generation) {
     const fresh = initialDirectorState(input.generation);
     fresh.threats = { ...input.immediateThreats };
-    return { state: fresh, frame: { fever: fresh.fever, events: [] } };
+    return { state: fresh, frame: { fever: fresh.fever, events: [], mode: input.mode } };
   }
 
   const s: DirectorState = {
@@ -287,16 +296,17 @@ export function advance(
   // Ambient gags get a hook, but only in the quiet — an idle beat landing on
   // top of a blunder reaction is two gags fighting over one moment.
   if (events.length > 0) s.lastEventAt = now;
+  const idlePeriod = input.mode === "attract" ? t.attractIdlePeriod : t.idlePeriod;
   if (
     events.length === 0 &&
-    now - s.lastIdleAt >= t.idlePeriod &&
+    now - s.lastIdleAt >= idlePeriod &&
     now - s.lastEventAt >= t.idleQuiet
   ) {
     s.lastIdleAt = now;
     events.push({ kind: "idle-beat" });
   }
 
-  return { state: s, frame: { fever: s.fever, events } };
+  return { state: s, frame: { fever: s.fever, events, mode: input.mode } };
 }
 
 /**

@@ -12,6 +12,7 @@
  */
 
 import { Position, popcount, type Player } from "@fourscore/engine";
+import { useShellStore } from "../chrome/store.js";
 import { useMatchStore } from "../match/store.js";
 import { advance, initialDirectorState, type DirectorInput } from "./director.js";
 import { evalPoints } from "./feed.js";
@@ -58,6 +59,9 @@ function immediateThreats(): Record<Player, number> {
 function readWorld(): DirectorInput {
   const s = useMatchStore.getState();
   return {
+    // Anywhere that isn't the match screen is the attract loop, roster
+    // included: the board is scenery there and the props are the show.
+    mode: useShellStore.getState().screen === "match" ? "match" : "attract",
     generation: s.generation,
     moves: s.moves,
     points: evalPoints(),

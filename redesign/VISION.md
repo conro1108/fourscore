@@ -8,8 +8,9 @@ feel like. When the two conflict, this wins.
 ## The one-line brief
 
 Connect 4 as a hectic fever dream: modern gothy gradient surrealism crashed
-into a late-90s monster truck rally, played inside software that seems slightly
-possessed. The player should laugh, then feel watched, then laugh again.
+into the animations on a late-90s bowling alley lane screen, played inside
+software that seems slightly possessed. The player should laugh, then feel
+watched, then laugh again.
 
 ## The four pillars
 
@@ -20,17 +21,40 @@ completely wrong — a cherub judging your opening move, a rotating obelisk
 where a menu should be. This is the *modern* half: it's allowed to be
 genuinely beautiful. The gradients are lush, the bloom is real.
 
-**2. Shitty rockets, tanks, and monster trucks.** The *anti-beauty* half.
-Low-poly, wrong-scale, over-eager props with the energy of a 1999 toy
-commercial and a county fair. A monster truck does a lap for no reason. A
-rocket celebrates a good move by taking off badly. A tow plane drags a banner
-reading AS SCHEDULED across a game nobody scheduled. These things are
-enthusiastic and cheap on purpose, and they share the frame with pillar 1
-without apologizing.
+**2. Bowling alley lane screen animations.** The *anti-beauty* half, and the
+reference that decides every prop: the overhead monitor at a bowling centre,
+playing its canned reaction to what you just did. Low-poly, wrong-scale,
+flat-shaded, 12fps, over-eager. A mascot nobody introduced does a little dance.
+Extruded chrome text spins at the lens and holds. A rocket takes off badly. The
+same celebration plays every time, because there is only one.
 
-The energy is the county fair, not a reference to one. An in-joke the player
-has to place — the rally-ad cadence this pillar used to lean on — is a joke
-that lands for the person who wrote it and nobody else.
+Three things make it that reference and not merely "cheap 3D":
+
+- **Everything is a canned bit.** The screen has a clip for every outcome and
+  plays it whether or not it fits the moment. It is reacting to your throw, not
+  performing; it does the same reaction next time.
+- **The cast is unexplained.** Recurring characters with no origin and no
+  stakes — they show up, react, leave. Nobody says who they are. Cartoon
+  violence with no consequence is in bounds; blood is not.
+- **The callout is a form.** A word, extruded in chrome, spinning in at the
+  camera, held a beat too long, gone. `STRIKE!` energy applied to a game that
+  is not bowling.
+
+These things are enthusiastic and cheap on purpose, and they share the frame
+with pillar 1 without apologizing.
+
+The energy is the lane screen, not a reference to one: the player never has to
+place a joke to get it. The rally-ad cadence this pillar used to lean on was an
+in-joke that landed for whoever wrote it and nobody else, and it's gone. What
+survives from the county-fair era is whatever also reads as a clip the lane
+screen would play — a monster truck doing a lap does; a tow plane over a
+fairground does not.
+
+And a lane screen is never blank. Between throws it runs an **attract loop**:
+the same cast wandering through with nothing to react to, ads for things that
+don't exist, the logo doing something. That's what the menu is. A game in
+progress earns the good clips; the menu gets the ones that play to an empty
+room.
 
 **3. Possessed late-90s software.** The chrome around the game — menus, HUD,
 dialogs — is WordArt titles, beveled buttons, marquees, cursor trails, system
@@ -76,6 +100,13 @@ a mascot costume is — no gore, no jump-scare screamers, no creepypasta "the
 game knows your name" stuff. Menace comes from deadpan wrongness (the dialog
 box that says "OK" and "OK"), not from threat.
 
+The lane screen is the tone's best friend and its biggest hazard. Best friend:
+those animations are genuinely uncanny — a cast with no origin, reactions that
+don't match what happened, cheerful violence with no stakes — and all of that is
+already comic-sinister without trying. Hazard: the reference makes it easy to
+reach for gross-out or for a gag that's just "remember bowling?". Neither is the
+brief. Nostalgia is a texture here, never the joke.
+
 ## Palette and type (anchors, not handcuffs)
 
 - Void: near-black purples and blues (`#0a0612` territory), never pure black.
@@ -86,7 +117,8 @@ box that says "OK" and "OK"), not from threat.
 - Jank accents: acid green, chrome silver — props and chrome UI only.
 - Type: one absurd chrome/WordArt display face for titles and shouting, one
   honest period system face (bevel-era UI grot) for everything functional.
-  Never a tasteful modern geometric sans anywhere.
+  Never a tasteful modern geometric sans anywhere. The display face is the
+  callout face — if a word is going to spin at the camera, it's set in that one.
 
 Agents may riff within these families. Introducing a new family is a decision
 for Connor, not a vibe call mid-task.
@@ -113,7 +145,7 @@ for Connor, not a vibe call mid-task.
 Rules first, because they're what the sample demonstrates: **short beats
 clever.** Deadpan beats spooky. The software is sincere — it believes it is
 functioning normally, which is the joke. ALL CAPS is for shouting surfaces
-(status line, rally copy); sentence case is for chrome that thinks it's
+(status line, callouts); sentence case is for chrome that thinks it's
 ordinary software. Never wink. And the confidence law from PLAN.md binds
 every string: estimated claims hedge, proven claims are flat.
 
@@ -133,7 +165,7 @@ The sample:
 11. Status, bot thinking: `MOSS IS THINKING ABOUT DIRT.`
 12. Review, estimated ply (hedged): `That one looks expensive.`
 13. Review, proven ply (flat): `This loses in nine.`
-14. Quit confirm: `Leave? The rally continues without you.`
+14. Quit confirm: `Leave? The screen keeps playing without you.`
 15. Desync notice (styled possessed, factually honest): `THE BOARDS
     DISAGREE. This game can't continue. Rematch?`
 16. Mute toggle, two states: `NOISE` / `SILENCE`
@@ -151,9 +183,9 @@ soul (weights, depth, slip) is fixed and predates the fever dream.
 
 **Moss** — *occupies the middle and waits.*
 
-- **Who they are here:** the rally's groundskeeper. Was mowing something
+- **Who they are here:** the alley's groundskeeper. Was mowing something
   before the void arrived and sees no reason to stop now. Not slow —
-  *unhurried*. The monster trucks drive around Moss.
+  *unhurried*. The rest of the cast works around Moss.
 - **Void variation:** the bruises go green-black (Moss's `#6aa348` family
   darkened into the void palette, never neon); the drifting weather reads as
   spores rather than weather. Heat still means fever — the palette law is

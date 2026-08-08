@@ -1,57 +1,28 @@
 /**
  * The roster's contract, which is mostly the taste law written as assertions.
- * The gags themselves can only be judged in a screenshot, but "every event kind
- * has a gag" and "no prop is over budget" are facts a test can hold onto — and
- * both are exactly the kind of thing that rots silently when phase 5 adds a bot
- * with a signature act.
+ * The gags themselves can only be judged in a screenshot, but "no prop is over
+ * budget" and "every act has a berth and a real length" are facts a test can
+ * hold onto — and both are exactly the kind of thing that rots silently when a
+ * later phase adds a bot with a signature act.
+ *
+ * Which act answers which event moved to `gags.ts`, and so did that half of
+ * this file's coverage (`gags.test.ts`).
  */
 
 import { describe, expect, it } from "vitest";
-import { gagFor } from "./PropStage.js";
 import { PROP_ACTS } from "./registry.js";
-import { EVENT_KINDS, type SpectacleEvent } from "../director/types.js";
 import {
   beaconPose,
   bannerPose,
+  calloutPose,
   detonationPose,
+  mascotPose,
   rocketPose,
   signPose,
   sprinklerPose,
 } from "./steps.js";
 
-/** One representative event per kind — the same set the debug panel fires. */
-const SAMPLES: SpectacleEvent[] = [
-  { kind: "move", player: "red", col: 3, quality: "brilliant" },
-  { kind: "move", player: "red", col: 3, quality: "dubious" },
-  { kind: "move", player: "red", col: 3, quality: "blunder" },
-  { kind: "threat", player: "yellow" },
-  { kind: "tension-shift", direction: "rising" },
-  { kind: "tension-shift", direction: "collapsing" },
-  { kind: "win", player: "red", line: [] },
-  { kind: "draw" },
-  { kind: "idle-beat" },
-];
-
 describe("the gag roster", () => {
-  it("has an act for every event kind", () => {
-    for (const kind of EVENT_KINDS) {
-      const named = SAMPLES.filter((e) => e.kind === kind).map(gagFor);
-      expect(named.length, kind).toBeGreaterThan(0);
-      expect(named.some((name) => name !== null), kind).toBe(true);
-    }
-  });
-
-  it("only names acts that exist", () => {
-    for (const event of SAMPLES) {
-      const name = gagFor(event);
-      if (name) expect(PROP_ACTS[name], name).toBeDefined();
-    }
-  });
-
-  it("leaves ordinary moves alone", () => {
-    expect(gagFor({ kind: "move", player: "red", col: 3, quality: "fine" })).toBeNull();
-  });
-
   it("keeps every prop under the 300-triangle budget", () => {
     for (const act of Object.values(PROP_ACTS)) {
       expect(act.tris, act.name).toBeLessThanOrEqual(300);
@@ -59,9 +30,10 @@ describe("the gag roster", () => {
     }
   });
 
-  it("gives every act a real length", () => {
+  it("gives every act a real length and a berth", () => {
     for (const act of Object.values(PROP_ACTS)) {
       expect(act.durationMs, act.name).toBeGreaterThan(500);
+      expect(["left", "right", "floor", "sky", "lens"], act.name).toContain(act.berth);
     }
   });
 });
@@ -120,3 +92,52 @@ describe("roster poses", () => {
     expect(detonationPose(1).pyro).toBe(0);
   });
 });
+
+describe("the lane screen", () => {
+  it("rolls the mascot on and off stage, both moods", () => {
+    for (const mood of ["cheer", "flop"] as const) {
+      expect(mascotPose(0, mood).u).toBe(0);
+      expect(mascotPose(1, mood).u).toBe(1);
+      // It rolls rather than slides: the angle tracks the distance, and it has
+      // turned exactly whole turns by the time it stops to do the bit.
+      const arrival = mascotPose(0.3, mood);
+      expect(arrival.roll / (Math.PI * 2)).toBeCloseTo(-1, 6);
+      expect(mascotPose(0.9, mood).roll).toBeLessThan(arrival.roll);
+    }
+  });
+
+  it("gives each mood one legible thing and holds it", () => {
+    // Cheer hops twice and never squashes; flop squashes once and never hops.
+    const cheer = sample((p) => mascotPose(p, "cheer"));
+    expect(new Set(cheer.map((c) => c.squash))).toEqual(new Set([1]));
+    expect(Math.max(...cheer.map((c) => c.hop))).toBeGreaterThan(1);
+    expect(runs(cheer.map((c) => c.hop > 0.01))).toBe(2);
+
+    const flop = sample((p) => mascotPose(p, "flop"));
+    expect(new Set(flop.map((c) => c.hop))).toEqual(new Set([0]));
+    // Flat is instant and total — two values, never a slope between them.
+    expect(new Set(flop.map((c) => c.squash))).toEqual(new Set([1, 0.3]));
+    expect(runs(flop.map((c) => c.squash < 1))).toBe(1);
+  });
+
+  it("throws the callout through the lens rather than fading it", () => {
+    expect(calloutPose(0).z).toBe(1);
+    // It stops flat-on, and stays flat-on for the hold.
+    expect(calloutPose(0.4).z).toBe(0);
+    expect(calloutPose(0.4).yaw).toBe(0);
+    expect(calloutPose(0.24).yaw).toBeCloseTo(0, 6);
+    // Spinning on the way in, and past the camera on the way out.
+    expect(Math.abs(calloutPose(0.05).yaw)).toBeGreaterThan(1);
+    expect(calloutPose(1).z).toBeLessThan(-1);
+  });
+});
+
+/** The pose sampled across the whole act, at a finer grain than the step clock. */
+function sample<T>(pose: (p: number) => T): T[] {
+  return Array.from({ length: 201 }, (_, i) => pose(i / 200));
+}
+
+/** How many separate stretches of `true` there are — one per hop, one per flat. */
+function runs(flags: boolean[]): number {
+  return flags.filter((on, i) => on && !flags[i - 1]).length;
+}

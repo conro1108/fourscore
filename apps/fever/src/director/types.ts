@@ -46,11 +46,23 @@ export type SpectacleEvent =
   /** Fired occasionally so ambient gags have a hook. */
   | { kind: "idle-beat" };
 
+/**
+ * Where the spectacle is playing.
+ *
+ * `attract` is the menu — a lane screen with nothing to react to, which per
+ * VISION.md is never blank. The Director fires idle beats far more often in it
+ * and the prop stage lets acts overlap, because on the menu the props *are*
+ * the content rather than spikes above it.
+ */
+export type StageMode = "attract" | "match";
+
 export interface DirectorFrame {
   /** Smoothed; never jumps discontinuously except on "win". */
   fever: Fever;
   /** This tick's spikes, already debounced. */
   events: SpectacleEvent[];
+  /** Passed straight through from the input, for subsystems that pace by it. */
+  mode: StageMode;
 }
 
 export const EVENT_KINDS = [
