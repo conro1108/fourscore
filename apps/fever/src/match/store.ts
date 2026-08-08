@@ -20,6 +20,16 @@ export interface MatchStore {
   /** Bumped on every new game so stale async work can notice and stand down. */
   generation: number;
   variant: Variant;
+  /**
+   * Who the other player is.
+   *
+   * `online` changes exactly two things: nobody searches (the turn loop stands
+   * down) and a move you make also has to leave the machine. Everything else —
+   * the move list, the drop animation, the Director, the void — cannot tell the
+   * difference, and that is the whole design. `botId` stays meaningful either
+   * way: online it holds the roster creature your opponent looks like.
+   */
+  mode: "bot" | "online";
   botId: string;
   humanFirst: boolean;
   /** Committed game truth, column indices in play order. */
@@ -39,6 +49,17 @@ export interface MatchStore {
    * dropping into the backdrop while you read the roster.
    */
   live: boolean;
+  /**
+   * How a move gets off this machine, in online mode.
+   *
+   * Registered by `online/runtime.ts` while a wire match is up and cleared when
+   * it comes down. A seam rather than an import because the runtime already
+   * reads this store, and a store that imported it back would be a cycle — and
+   * because a store with no sender is exactly what the preview harness and every
+   * bot game want: `playColumn` then has nowhere to send and does nothing, which
+   * is the correct amount of online play to have in a game against Moss.
+   */
+  sendMove: ((col: number) => void) | null;
 
   /**
    * Start over. `live: false` sets the board up without handing it to the
@@ -48,7 +69,13 @@ export interface MatchStore {
    * and the turn loop is subscribed.
    */
   newGame(
-    opts?: Partial<{ variant: Variant; humanFirst: boolean; botId: string; live: boolean }>,
+    opts?: Partial<{
+      variant: Variant;
+      humanFirst: boolean;
+      botId: string;
+      live: boolean;
+      mode: "bot" | "online";
+    }>,
   ): void;
   /** Hand the current board to the players, or take it back as scenery. */
   setLive(live: boolean): void;
@@ -56,6 +83,12 @@ export interface MatchStore {
   playColumn(col: number): void;
   /** Commit a move to game truth. Both the human path and the bot path end here. */
   commitMove(col: number): void;
+  /**
+   * Adopt a move list wholesale. Online repairs only: the database is the
+   * authority when the two disagree, and `landed` is handed in because a repair
+   * has to be able to say "these are already on the board, don't drop them".
+   */
+  adoptMoves(moves: number[], landed: number): void;
   /** The scene reports a drop animation finishing. */
   discLanded(): void;
   setThinking(thinking: boolean): void;
@@ -77,6 +110,7 @@ export const canHumanPlay = (s: MatchStore): boolean =>
 export const useMatchStore = create<MatchStore>((set, get) => ({
   generation: 0,
   variant: CONNECT4,
+  mode: "bot",
   botId: "moss",
   humanFirst: true,
   moves: [],
@@ -84,18 +118,23 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   match: new Match(CONNECT4),
   thinking: false,
   live: false,
+  sendMove: null,
 
   newGame: (opts = {}) => {
     const s = get();
     const variant = opts.variant ?? s.variant;
     const humanFirst = opts.humanFirst ?? s.humanFirst;
     const botId = opts.botId ?? s.botId;
+    const mode = opts.mode ?? s.mode;
     // Fire and forget: clearing the bot's table is housekeeping, and making the
-    // new game wait on a worker round-trip reads as a dead button.
+    // new game wait on a worker round-trip reads as a dead button. Online it
+    // buys nothing — nothing searches — but it costs nothing either, and the
+    // table is stale by then whichever mode comes next.
     void engineClient().reset(botId, variant.id).catch(() => {});
     set({
       generation: s.generation + 1,
       variant,
+      mode,
       humanFirst,
       botId,
       moves: [],
@@ -111,7 +150,11 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   playColumn: (col) => {
     const s = get();
     if (!canHumanPlay(s)) return;
-    s.commitMove(col);
+    // Online, the disc appears now and the insert goes out in parallel: a
+    // turn-based game that pauses for a round trip on every click feels broken
+    // even though it isn't. The sender commits — see `online/runtime.ts`.
+    if (s.mode === "online") s.sendMove?.(col);
+    else s.commitMove(col);
   },
 
   commitMove: (col) => {
@@ -120,6 +163,13 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
     const moves = [...s.moves, col];
     set({ moves, match: Match.fromMoves(moves, s.variant) });
   },
+
+  adoptMoves: (moves, landed) =>
+    set((s) => ({
+      moves,
+      landed: Math.min(landed, moves.length),
+      match: Match.fromMoves(moves, s.variant),
+    })),
 
   discLanded: () => {
     const s = get();

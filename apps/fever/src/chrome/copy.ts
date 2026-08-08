@@ -80,6 +80,7 @@ export const COPY = {
   opponent: "Opponent",
   settings: "Settings",
   about: "About",
+  online: "Play a person",
 
   /** The variant switch, exactly as the voice sample writes it. */
   variant: (id: string): string => (id === "connect5" ? "CONNECT 5 (more)" : "CONNECT 4"),
@@ -110,11 +111,39 @@ export const COPY = {
   on: "On",
   off: "Off",
 
+  // Playing a person. Sentence case again: this is the connection dialog of an
+  // ordinary application, and the only funny thing about it is how calm it is
+  // about there being somebody else on the other end.
+  //
+  // The opponent has no persona and gets none. Every other opponent in the game
+  // is written; this one is a stranger the software knows nothing about, so it
+  // says "they" and leaves it there — inventing a voice for a real person is the
+  // one thing the possessed software isn't allowed to do.
+  onlineTitle: "Two players",
+  onlineBody: "One of you hosts. The other one types the code in.",
+  onlineHost: "Host a game",
+  onlineJoin: "Join",
+  onlineCode: "Code",
+  connecting: "Connecting…",
+  waitingTitle: "Waiting for them",
+  waitingBody: "Send them the code. The game starts the moment they're in.",
+  copyLink: "Copy link",
+  copied: "Copied",
+  cancel: "Cancel",
+  lobby: "Lobby",
+  /** Who you're playing, when they haven't told the database their name. */
+  stranger: "somebody",
+  /** The status line's other half online. They are a person; they get no persona. */
+  theirTurn: "THEY ARE THINKING.",
+  waitingForThem: "NOBODY IS HERE YET.",
+
   // Outcomes. Flat and declarative, because a finished board is a fact — the
   // one class of claim in the game that doesn't have to hedge.
   won: "YOU WIN. THE SCREEN IS DELIGHTED.",
   drew: "A DRAW. NOBODY IS PLEASED.",
   lost: (bot: BotProfile): string => DEFEAT[bot.id] ?? `${shout(bot)} WINS.`,
+  /** Online, the loss line can't name a persona, so it names nobody. */
+  lostOnline: "THEY WIN. THE SCREEN IS DELIGHTED ANYWAY.",
   again: "AGAIN.",
   swap: (bot: BotProfile, botStarts: boolean): string =>
     botStarts ? `Rematch, ${bot.name} starts` : "Rematch, you start",
@@ -132,4 +161,10 @@ export const COPY = {
   errorTitle: "fourscore.exe",
   errorTail: "Nothing else is wrong.",
   retry: "Try again",
+  /**
+   * The desync report. Client-authoritative play means this can happen and the
+   * software has to say what happened rather than render a board neither of you
+   * is playing — possessed styling, honest facts (PLAN.md product truth 4).
+   */
+  desync: "Their game is out of step with this one. The move it sent can't be played here.",
 } as const;

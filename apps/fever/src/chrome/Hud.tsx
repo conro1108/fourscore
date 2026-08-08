@@ -20,6 +20,12 @@ import { COPY } from "./copy.js";
 
 export interface HudProps {
   bot: BotProfile;
+  /**
+   * Who you're actually playing, when it isn't the bot whose creature is on the
+   * stage. Online your opponent *looks* like a roster bot — that's how they get
+   * a void and a clip — but they are a person and the strip says their name.
+   */
+  opponentName?: string;
   variant: Variant;
   /** Already-shouted; empty renders nothing. */
   status: string;
@@ -41,7 +47,15 @@ const FIRE_FROM = 0.25;
 const fireLevel = (fever: number): number =>
   Math.max(0, (fever - FIRE_FROM) / (1 - FIRE_FROM));
 
-export function Hud({ bot, variant, status, heat = 0, onLeave, onSettings }: HudProps) {
+export function Hud({
+  bot,
+  opponentName,
+  variant,
+  status,
+  heat = 0,
+  onLeave,
+  onSettings,
+}: HudProps) {
   const fire = fireLevel(heat);
   return (
     <>
@@ -57,7 +71,7 @@ export function Hud({ bot, variant, status, heat = 0, onLeave, onSettings }: Hud
         <div className="hud-left">
           <Wordmark small />
           <div className="hud-vs">
-            vs <b>{bot.name}</b> · {variant.name}
+            vs <b>{opponentName ?? bot.name}</b> · {variant.name}
           </div>
         </div>
         {/* A floating toolbar, raised off the void like a palette window that

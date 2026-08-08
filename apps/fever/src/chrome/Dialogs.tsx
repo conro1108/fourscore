@@ -56,7 +56,8 @@ export function ErrorBox({
   onLeave,
 }: {
   detail: string;
-  onRetry: () => void;
+  /** Omit when there is nothing to try again — a desync doesn't un-desync. */
+  onRetry?: () => void;
   onLeave: () => void;
 }) {
   return (
@@ -66,12 +67,50 @@ export function ErrorBox({
       buttons={
         <>
           <Btn onClick={onLeave}>{COPY.leave}</Btn>
-          <Btn onClick={onRetry}>{COPY.retry}</Btn>
+          {onRetry && <Btn onClick={onRetry}>{COPY.retry}</Btn>}
         </>
       }
     >
       <p>{detail}</p>
       <p>{COPY.errorTail}</p>
+    </Window>
+  );
+}
+
+/**
+ * The same window at the end of a game against a person.
+ *
+ * Its own component rather than a flag on `Outcome`, because the two differ in
+ * every string: there is no persona to lose to, and a rematch is a new row in a
+ * database rather than a new board. What it keeps is the shape — one shouted
+ * line, two buttons, and an X that leaves you looking at the finished position.
+ */
+export function OnlineOutcome({
+  result,
+  onRematch,
+  onLobby,
+  onClose,
+}: {
+  result: "win" | "loss" | "draw";
+  onRematch: () => void;
+  onLobby: () => void;
+  onClose: () => void;
+}) {
+  const line = result === "draw" ? COPY.drew : result === "win" ? COPY.won : COPY.lostOnline;
+  return (
+    <Window
+      title={COPY.windowTitle}
+      label="game over"
+      className="win--outcome"
+      onClose={onClose}
+      buttons={
+        <>
+          <Btn onClick={onLobby}>{COPY.lobby}</Btn>
+          <Btn onClick={onRematch}>{COPY.again}</Btn>
+        </>
+      }
+    >
+      <div className="outcome">{line}</div>
     </Window>
   );
 }

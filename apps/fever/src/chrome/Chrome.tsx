@@ -15,10 +15,14 @@ import { playSpike } from "../audio/index.js";
 import { useFeverStep } from "../director/store.js";
 import { retryBotTurn } from "../match/controller.js";
 import { humanPlayer, useMatchStore } from "../match/store.js";
+import { hostMatch, joinMatch, leaveOnline, openLobby } from "../online/runtime.js";
+import { joinLink } from "../online/session.js";
+import { useOnlineStore } from "../online/store.js";
 import { recordKey, useRecordStore } from "../settings/records.js";
-import { About, ErrorBox, Outcome, Quit } from "./Dialogs.js";
+import { About, ErrorBox, OnlineOutcome, Outcome, Quit } from "./Dialogs.js";
 import { Hud } from "./Hud.js";
 import { Menu } from "./Menu.js";
+import { Online } from "./Online.js";
 import { Roster } from "./Roster.js";
 import { Settings } from "./Settings.js";
 import { COPY } from "./copy.js";
@@ -40,11 +44,14 @@ export function Chrome() {
   const close = useShellStore((x) => x.close);
   const records = useRecordStore((x) => x.records);
   const record = useRecordStore((x) => x.record);
+  const online = useOnlineStore();
+  const [copied, setCopied] = useState(false);
   // Stepped, not raw: this component is most of the DOM and it must not
   // re-render sixty times a second.
   const fever = useFeverStep(20);
 
   const bot = byId(s.botId);
+  const wire = s.mode === "online";
   const human = humanPlayer(s);
   const over = s.match.status !== "playing";
   const settled = s.landed === s.moves.length;
@@ -72,10 +79,12 @@ export function Chrome() {
   }, [dialog]);
 
   // The record is written once per finished game, identified by its moves.
+  // Bot games only: the record is your standing against a rung of the ladder,
+  // and folding a stranger's win into it would make the ladder a lie.
   useEffect(() => {
-    if (screen !== "match" || !over || !settled) return;
+    if (screen !== "match" || !over || !settled || wire) return;
     record(recordKey(s.botId, s.variant.id), result, `${s.botId}@${s.variant.id}:${s.moves.join()}`);
-  }, [screen, over, settled, result, record, s.botId, s.variant.id, s.moves]);
+  }, [screen, over, settled, result, record, wire, s.botId, s.variant.id, s.moves]);
 
   // A board left half-played on the menu is still that game: picking it back up
   // hands it to the players rather than throwing it away. Anything else — a
@@ -100,9 +109,34 @@ export function Chrome() {
   const configure = (opts: Partial<{ variant: Variant; botId: string; humanFirst: boolean }>) =>
     s.newGame({ ...opts, live: false });
 
+  // Leaving a bot game keeps the board as menu scenery; leaving an online one
+  // hands the row back and puts the bot board you had before it back on the
+  // stage, because a wire board with nobody on the other end is not scenery,
+  // it's a game you can't resume.
   const leaveMatch = () => {
+    if (wire) {
+      leaveOnline();
+      go("menu");
+      return;
+    }
     s.setLive(false);
     go("menu");
+  };
+
+  const backToLobby = () => {
+    leaveOnline();
+    void openLobby();
+  };
+
+  const copyLink = () => {
+    const code = online.row?.join_code;
+    if (!code) return;
+    void navigator.clipboard
+      ?.writeText(joinLink(location.origin, location.pathname, code))
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      });
   };
 
   return (
@@ -110,6 +144,7 @@ export function Chrome() {
       {screen === "match" && (
         <Hud
           bot={bot}
+          opponentName={wire ? (online.opponentName ?? COPY.stranger) : undefined}
           variant={s.variant}
           status={statusLine(s, bot, dismissed)}
           heat={fever}
@@ -128,12 +163,37 @@ export function Chrome() {
           onVariant={(v) => configure({ variant: v })}
           onStart={start}
           onRoster={() => go("roster")}
+          onOnline={() => void openLobby()}
           onSettings={() => open({ kind: "settings" })}
           onAbout={() => open({ kind: "about" })}
         />
       )}
 
-      {(screen === "roster" || dialog !== null || showOutcome) && <div className="veil" />}
+      {(screen === "roster" || screen === "online" || dialog !== null || showOutcome) && (
+        <div className="veil" />
+      )}
+
+      {screen === "online" && (
+        <Online
+          variant={s.variant}
+          me={online.me}
+          code={online.row?.join_code ?? null}
+          busy={online.busy}
+          error={online.error}
+          copied={copied}
+          onVariant={(v) => configure({ variant: v })}
+          onHost={() => void hostMatch()}
+          onJoin={(code) => void joinMatch(code)}
+          onCopyLink={copyLink}
+          // Closing the lobby while hosting drops the row you were waiting on,
+          // which is what "cancel" has to mean — the code stops working and
+          // nobody arrives into an empty screen.
+          onClose={() => {
+            leaveOnline();
+            go("menu");
+          }}
+        />
+      )}
 
       {screen === "roster" && (
         <Roster
@@ -162,10 +222,17 @@ export function Chrome() {
       {dialog?.kind === "error" && (
         <ErrorBox
           detail={dialog.detail}
-          onRetry={() => {
-            close();
-            retryBotTurn();
-          }}
+          // There is nothing to try again online: the only error that reaches
+          // here is a desync, and re-reading a move that can't be played gets
+          // the same answer. The way out is out.
+          onRetry={
+            wire
+              ? undefined
+              : () => {
+                  close();
+                  retryBotTurn();
+                }
+          }
           onLeave={() => {
             close();
             leaveMatch();
@@ -173,7 +240,22 @@ export function Chrome() {
         />
       )}
 
-      {showOutcome && (
+      {showOutcome && wire && (
+        <OnlineOutcome
+          result={result}
+          // A rematch is a fresh row with a fresh code — there is no "same
+          // opponent, one more" without asking them again, so it says so by
+          // putting you back in front of the code.
+          onRematch={() => {
+            leaveOnline();
+            void openLobby().then(() => hostMatch());
+          }}
+          onLobby={backToLobby}
+          onClose={() => setDismissedGen(s.generation)}
+        />
+      )}
+
+      {showOutcome && !wire && (
         <Outcome
           bot={bot}
           result={result}
@@ -199,6 +281,7 @@ function statusLine(
   dismissed: boolean,
 ): string {
   const human = humanPlayer(s);
+  const wire = s.mode === "online";
   const settled = s.landed === s.moves.length;
   if (s.match.status !== "playing") {
     if (!dismissed || !settled) return "";
@@ -206,9 +289,12 @@ function statusLine(
       ? COPY.drew
       : s.match.winner === human
         ? COPY.won
-        : COPY.lost(bot);
+        : wire
+          ? COPY.lostOnline
+          : COPY.lost(bot);
   }
-  return s.match.turn === human && settled && !s.thinking
-    ? COPY.yourTurn
-    : COPY.thinking(bot);
+  if (s.match.turn === human && settled && !s.thinking) return COPY.yourTurn;
+  // Online the other seat is a person, and a person doesn't get one of the
+  // roster's written thinking lines — those belong to a character.
+  return wire ? COPY.theirTurn : COPY.thinking(bot);
 }

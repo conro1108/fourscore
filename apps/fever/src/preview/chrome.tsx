@@ -16,9 +16,10 @@
 
 import type { CSSProperties } from "react";
 import { CONNECT4, byId, type Variant } from "@fourscore/engine";
-import { About, ErrorBox, Outcome, Quit } from "../chrome/Dialogs.js";
+import { About, ErrorBox, OnlineOutcome, Outcome, Quit } from "../chrome/Dialogs.js";
 import { Hud } from "../chrome/Hud.js";
 import { Menu } from "../chrome/Menu.js";
+import { Online } from "../chrome/Online.js";
 import { Roster } from "../chrome/Roster.js";
 import { Settings } from "../chrome/Settings.js";
 import { COPY } from "../chrome/copy.js";
@@ -29,6 +30,10 @@ const HOT = 0.66;
 export type ChromeState =
   | "menu"
   | "roster"
+  | "online"
+  | "online-waiting"
+  | "online-outcome"
+  | "desync"
   | "settings"
   | "about"
   | "quit"
@@ -62,6 +67,7 @@ function Surface({
           onVariant={noop}
           onStart={noop}
           onRoster={noop}
+          onOnline={noop}
           onSettings={noop}
           onAbout={noop}
         />
@@ -79,6 +85,44 @@ function Surface({
           onClose={noop}
         />
       );
+    case "online":
+      return (
+        <Online
+          variant={variant}
+          me="preview-user"
+          code={null}
+          busy={false}
+          error={null}
+          copied={false}
+          onVariant={noop}
+          onHost={noop}
+          onJoin={noop}
+          onCopyLink={noop}
+          onClose={noop}
+        />
+      );
+    case "online-waiting":
+      return (
+        <Online
+          variant={variant}
+          me="preview-user"
+          code="QK7M"
+          busy={false}
+          error={null}
+          copied={false}
+          onVariant={noop}
+          onHost={noop}
+          onJoin={noop}
+          onCopyLink={noop}
+          onClose={noop}
+        />
+      );
+    case "online-outcome":
+      return <OnlineOutcome result="loss" onRematch={noop} onLobby={noop} onClose={noop} />;
+    // The desync report: the same error window with nothing to retry, which is
+    // most of what makes it read as final rather than as a hiccup.
+    case "desync":
+      return <ErrorBox detail={COPY.desync} onLeave={noop} />;
     case "settings":
       return <Settings onClose={noop} />;
     case "about":
@@ -125,7 +169,7 @@ export function ChromeFixture({
   // everything else here too — a dialog state that hides the strip it floats
   // over isn't the state the player sees. The two full-screen states replace
   // the HUD rather than covering it.
-  const inMatch = state !== "menu" && state !== "roster";
+  const inMatch = !(["menu", "roster", "online", "online-waiting"] as ChromeState[]).includes(state);
   const veiled = state !== "menu" && state !== "hud";
 
   return (

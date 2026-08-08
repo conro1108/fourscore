@@ -13,7 +13,7 @@
 
 import { create } from "zustand";
 
-export type Screen = "menu" | "roster" | "match";
+export type Screen = "menu" | "roster" | "online" | "match";
 
 /**
  * The modal on top, if any.

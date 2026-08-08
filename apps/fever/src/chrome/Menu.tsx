@@ -26,6 +26,7 @@ export interface MenuProps {
   onVariant: (v: Variant) => void;
   onStart: () => void;
   onRoster: () => void;
+  onOnline: () => void;
   onSettings: () => void;
   onAbout: () => void;
 }
@@ -37,6 +38,7 @@ export function Menu({
   onVariant,
   onStart,
   onRoster,
+  onOnline,
   onSettings,
   onAbout,
 }: MenuProps) {
@@ -62,6 +64,11 @@ export function Menu({
           </Btn>
           <Btn wide onClick={onRoster}>
             {COPY.opponent}: {bot.name}
+          </Btn>
+          {/* Third, under the two that pick a bot game, because that is what it
+              is an alternative to. */}
+          <Btn wide onClick={onOnline}>
+            {COPY.online}
           </Btn>
           {/* The variant switch, both states visible at once: a period toggle
               showed you the choice, not the consequence of pressing it. */}

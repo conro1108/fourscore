@@ -494,6 +494,59 @@ body {
   flex: 1;
 }
 
+/* -- playing a person ------------------------------------------------------ */
+
+.win--online {
+  width: min(430px, 92vw);
+}
+
+/* The text field, sunken like the list box. Monospaced and spaced out, because
+   what goes in it is four characters somebody is reading off a phone. */
+.field {
+  font-family: var(--face-system);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  width: 84px;
+  padding: 3px 6px;
+  color: var(--sys-ink);
+  background: #ffffff;
+  border: 2px solid;
+  border-color: var(--sys-dark) var(--sys-lit) var(--sys-lit) var(--sys-dark);
+}
+
+.field:focus {
+  outline: 1px dotted var(--sys-ink);
+  outline-offset: -4px;
+}
+
+/* The code, at the size you can read across a room. Sunken picture box again —
+   the software is displaying it to you, not telling you about it. */
+.join-code {
+  font-family: var(--face-shout);
+  font-size: 40px;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  text-align: center;
+  color: #2f5b00;
+  background: #ffffff;
+  padding: 10px 0 8px;
+  margin: 4px 0 8px;
+  border: 2px solid;
+  border-color: var(--sys-dark) var(--sys-lit) var(--sys-lit) var(--sys-dark);
+}
+
+.online-note {
+  color: #55524c;
+  text-align: center;
+}
+
+/* Lobby-sized failure: a line in the window, not a window on the window. */
+.online-error {
+  margin-top: 10px;
+  color: #8c1111;
+}
+
 /* -- the roster ------------------------------------------------------------ */
 
 .win--roster {

@@ -95,6 +95,9 @@ async function botTurn(): Promise<void> {
 function maybeBotTurn(): void {
   const s = useMatchStore.getState();
   if (!s.live) return;
+  // Online, the other seat belongs to a person and the worker has no business
+  // in it. This is the entire cost of multiplayer in the turn loop.
+  if (s.mode !== "bot") return;
   if (s.match.status !== "playing") return;
   if (s.match.turn !== botPlayer(s)) return;
   // One attempt per position, ever. The key never repeats — `generation` only
