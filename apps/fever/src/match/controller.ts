@@ -16,8 +16,24 @@
 import { engineClient } from "../engine/client.js";
 import { botPlayer, useMatchStore } from "./store.js";
 
-/** Even an instant bot pauses, or its move reads as a glitch rather than a move. */
-const MIN_THINK_MS = 380;
+/**
+ * How long the bot sits with the position before committing, even when the
+ * search came back instantly.
+ *
+ * Two rules, both from watching it play: it has to be long enough that a move
+ * reads as a decision rather than a glitch (380ms was not — the disc arrived
+ * while you were still letting go of the mouse), and it must not be the *same*
+ * length twice, or the pause reads as a timer counting down rather than someone
+ * thinking. The jitter is the whole difference between "waiting" and "waited".
+ *
+ * This is timing, not theater — the taste law's "randomness never picks how a
+ * gag looks" doesn't reach it, and a fixed think time is the thing that looks
+ * mechanical.
+ */
+const THINK_MIN_MS = 900;
+const THINK_JITTER_MS = 1000;
+
+const thinkPause = (): number => THINK_MIN_MS + Math.random() * THINK_JITTER_MS;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -51,7 +67,7 @@ async function botTurn(): Promise<void> {
   try {
     const [decision] = await Promise.all([
       engineClient().decide(s.botId, s.variant.id, s.moves),
-      sleep(MIN_THINK_MS),
+      sleep(thinkPause()),
     ]);
     await waitForStore(() => {
       const t = store.getState();

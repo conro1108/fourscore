@@ -44,8 +44,11 @@ function buildRig(): AudioRig {
   // Ambient params move at a human rate; nothing audible needs 60Hz control.
   setInterval(() => bed.update(directorFrame().fever), 80);
 
-  // Warm the spike cache so the first gag isn't late to its own moment.
+  // Warm the spike cache so the first gag isn't late to its own moment. The
+  // detonation is two and a half seconds of offline render and fires exactly
+  // once per game, at the moment nobody will forgive a gap.
   void soundBuffer("spike-truck");
+  void soundBuffer("spike-win");
 
   return { ctx, master, ambientBus, spikeBus, bed };
 }

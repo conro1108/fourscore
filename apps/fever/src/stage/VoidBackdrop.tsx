@@ -70,21 +70,32 @@ const fragment = /* glsl */ `
     // bottom half of the range doing real work.
     float f = pow(uFever, 0.55);
 
-    // Deep radial well: bruised purple center falling to near-black edges.
+    float t = uTime;
+
+    // Deep radial well: bruised purple center falling to near-black edges. The
+    // well breathes — its mouth opens and closes a few percent on a slow cycle
+    // — so the frame is never the same twice even at fever 0. Cheap, and it's
+    // what stops the idle void reading as a still image.
+    float breath = 0.5 + 0.5 * sin(t * 0.09);
     vec3 center = vec3(0.086, 0.047, 0.149);
     vec3 edge   = vec3(0.027, 0.016, 0.055);
-    vec3 col = mix(center, edge, smoothstep(0.15, 0.95, r));
+    vec3 col = mix(center, edge, smoothstep(0.11 + 0.07 * breath, 0.88 + 0.14 * breath, r));
 
-    // Weather, drifting in two directions at two scales.
-    float t = uTime;
-    float n1 = noise(p * 2.6 + vec2(t * 0.11, t * 0.05));
-    float n2 = noise(p * 5.2 + vec2(-t * 0.04, t * 0.09) + 17.0);
+    // Weather, drifting in two directions at two scales. The two fields move at
+    // deliberately unrelated speeds and angles: matched motion reads as one
+    // sliding texture, mismatched motion reads as depth.
+    float n1 = noise(p * 2.6 + vec2(t * 0.19, t * 0.075));
+    float n2 = noise(p * 5.2 + vec2(-t * 0.13, t * 0.21) + 17.0);
 
     // Soft bruises at rest, defined blotches at full fever.
     float sharpen = mix(2.0, 1.15, f);
     vec3 bruise = vec3(0.141, 0.063, 0.200);
     vec3 tealNight = vec3(0.031, 0.110, 0.129);
-    col += bruise * pow(n1, sharpen) * (0.55 + 1.05 * f);
+    // The two constants below are pivoted around mid-fever on purpose: the
+    // idle end got livelier (a void that only wakes up when the game does has
+    // nothing to escalate from) while the value at the thesis frame's 0.55 is
+    // unchanged to the third decimal. The thesis frame is invariant.
+    col += bruise * pow(n1, sharpen) * (0.72 + 0.82 * f);
     col += tealNight * pow(n2, sharpen) * (0.30 + 0.45 * f);
     col *= 1.0 + 0.45 * f * smoothstep(0.55, 0.05, r);
 
@@ -92,10 +103,13 @@ const fragment = /* glsl */ `
     // cycles the mirrored ramp so colors crawl the way a real slick does.
     // It lives inside the bruises (masked by n1) and favors the frame's
     // edges over the well, so the board keeps its dark backdrop.
-    float slick = noise(p * 1.5 + vec2(t * 0.05, -t * 0.028) + 40.0);
-    float film = abs(fract(slick * 1.35 + t * 0.012) * 2.0 - 1.0);
+    float slick = noise(p * 1.5 + vec2(t * 0.09, -t * 0.05) + 40.0);
+    // The film thickness cycles on its own clock, faster than the field it
+    // sits in — that difference is why the colors crawl *through* the slick
+    // instead of travelling with it.
+    float film = abs(fract(slick * 1.35 + t * 0.055) * 2.0 - 1.0);
     float sheenMask = pow(n1, 1.6) * smoothstep(0.10, 0.55, r);
-    col += slickRamp(film) * sheenMask * (0.10 + 0.34 * f);
+    col += slickRamp(film) * sheenMask * (0.16 + 0.26 * f);
 
     // The heat family, entering with fever and only with fever: embers low in
     // the frame, arterial red banking into hazard orange where they burn
@@ -126,9 +140,14 @@ const fragment = /* glsl */ `
   }
 `;
 
-/** Drift speed in noise-units per second, across the fever range. */
-const CALM_DRIFT = 0.6;
-const FEVERED_DRIFT = 4.5;
+/**
+ * Drift speed in noise-units per second, across the fever range. The calm end
+ * used to be 0.6, which was honest to "uncanny idle" and read as a static
+ * wallpaper in actual play — the void has to look alive *before* the game gets
+ * sharp, or the escalation has nothing to escalate from.
+ */
+const CALM_DRIFT = 1.5;
+const FEVERED_DRIFT = 6.5;
 
 export function VoidBackdrop() {
   const material = useRef<THREE.ShaderMaterial>(null);

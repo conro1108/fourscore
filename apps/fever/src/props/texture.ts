@@ -6,6 +6,26 @@
 
 import * as THREE from "three";
 
+/** Draw a word across the whole 64px tile, squeezed to fit. Blocky by law. */
+function shout(
+  g: CanvasRenderingContext2D,
+  text: string,
+  color: string,
+  y: number,
+  size = 13,
+): void {
+  g.save();
+  g.fillStyle = color;
+  g.font = `bold ${size}px "Arial Black", monospace`;
+  g.textAlign = "center";
+  const width = g.measureText(text).width;
+  // Squeeze rather than shrink: stretched letterforms are the period, and a
+  // legible word matters more than its proportions on a 64px prop tile.
+  if (width > 60) g.scale(60 / width, 1);
+  g.fillText(text, width > 60 ? (32 * width) / 60 : 32, y);
+  g.restore();
+}
+
 function propCanvas(draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
@@ -66,5 +86,95 @@ export function truckLivery(): THREE.CanvasTexture {
     g.fillStyle = "#7fe018";
     g.font = "bold 7px monospace";
     g.fillText("SUNDAY", 14, 33);
+  });
+}
+
+/**
+ * The rocket: white with a red band and a sponsor, because every cheap rocket
+ * in every toy commercial is white with a red band and a sponsor.
+ */
+export function rocketSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#a3164e";
+    g.fillRect(0, 22, 64, 10);
+    g.fillStyle = "#2c2733";
+    g.fillRect(0, 33, 64, 2);
+    shout(g, "4SCORE", "#2c2733", 17, 11);
+    g.fillStyle = "#7fe018";
+    g.fillRect(4, 44, 56, 3);
+    g.fillRect(4, 52, 56, 3);
+  });
+}
+
+/** Hazard stripes, for the threat beacon. The heat family means fever. */
+export function hazardSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#17111c";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#ed5705";
+    for (let i = -64; i < 64; i += 16) {
+      g.beginPath();
+      g.moveTo(i, 64);
+      g.lineTo(i + 8, 64);
+      g.lineTo(i + 72, 0);
+      g.lineTo(i + 64, 0);
+      g.closePath();
+      g.fill();
+    }
+  });
+}
+
+/**
+ * A sign on a stick. One word, hand-lettered by a machine that has never seen
+ * a hand. Acid green on black — jank accent, props only.
+ */
+export function signFace(text: string): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#17111c";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#7fe018";
+    g.fillRect(2, 2, 60, 60);
+    g.fillStyle = "#17111c";
+    g.fillRect(5, 5, 54, 54);
+    shout(g, text, "#b7f04d", 40, 20);
+  });
+}
+
+/**
+ * Tow-banner cloth. Drawn as one word on one tile so the component can set
+ * `repeat.x` and get SUNDAY SUNDAY SUNDAY for the price of one texture —
+ * which is also, exactly, how a real banner says it.
+ */
+export function bannerCloth(text: string): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#a3164e";
+    g.fillRect(0, 0, 64, 6);
+    g.fillRect(0, 58, 64, 6);
+    shout(g, text, "#17111c", 42, 26);
+  });
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
+/**
+ * The win banner: chrome WordArt, the display face of the possessed software,
+ * on the one prop that gets to state a fact.
+ */
+export function wordArt(text: string): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#0a0612";
+    g.fillRect(0, 0, 64, 64);
+    // Chrome bevel: three passes, offset by a pixel each, dark to light.
+    shout(g, text, "#3a2f42", 40, 24);
+    shout(g, text, "#7d8390", 38, 24);
+    shout(g, text, "#e8e4f0", 37, 24);
+    g.fillStyle = "#ed5705";
+    g.fillRect(0, 46, 64, 3);
+    g.fillStyle = "#c8991f";
+    g.fillRect(0, 12, 64, 2);
   });
 }

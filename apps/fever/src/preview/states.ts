@@ -19,6 +19,23 @@ export interface PreviewCase {
   prop?: { name: string; phase: number };
 }
 
+/**
+ * The roster, and the phase each act is worth looking at — its one pose, the
+ * frame it would be photographed in. Picked by eye, not by formula: the truck
+ * is its apex freeze, the rocket is the stall, the detonation is the banner
+ * pinned against the lens.
+ */
+const ROSTER: { act: string; phase: number; caption: string }[] = [
+  { act: "rocket-fizzle", phase: 0.56, caption: "blunder — the rocket, out of ideas" },
+  { act: "sign-hmm", phase: 0.4, caption: "dubious — HMM." },
+  { act: "beacon-drop", phase: 0.5, caption: "threat — the hazard beacon, strobing" },
+  { act: "banner-rising", phase: 0.5, caption: "tension rising — SUNDAY SUNDAY SUNDAY" },
+  { act: "banner-collapsing", phase: 0.5, caption: "tension collapsing — NEVERMIND" },
+  { act: "banner-draw", phase: 0.5, caption: "draw — A DRAW A DRAW" },
+  { act: "sprinkler", phase: 0.32, caption: "idle beat — Moss waters nothing" },
+  { act: "win-detonation", phase: 0.42, caption: "WIN — the detonation, banner at the lens" },
+];
+
 export const PREVIEW_STATES: PreviewCase[] = [
   { id: "idle-c4", caption: "idle board — Connect 4", variant: CONNECT4, moves: [] },
   { id: "idle-c5", caption: "idle board — Connect 5", variant: CONNECT5, moves: [] },
@@ -80,6 +97,51 @@ export const PREVIEW_STATES: PreviewCase[] = [
     moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
     fever: 0.55,
     prop: { name: "truck-lap", phase: 0.22 },
+  },
+  // The fever ladder again on the bigger board (phase 3). Same three moods,
+  // wider frame: the void composes in screen space, so Connect 5 is the test
+  // of whether the look is a look or a lucky aspect ratio.
+  {
+    id: "fever-0-c5",
+    caption: "Connect 5, fever 0.0",
+    variant: CONNECT5,
+    moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2],
+    fever: 0,
+  },
+  {
+    id: "fever-mid-c5",
+    caption: "Connect 5, fever 0.5",
+    variant: CONNECT5,
+    moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2],
+    fever: 0.5,
+  },
+  {
+    id: "fever-full-c5",
+    caption: "Connect 5, fever 1.0",
+    variant: CONNECT5,
+    moves: [4, 4, 5, 3, 5, 5, 6, 4, 3, 2, 6, 6, 7, 5, 2],
+    fever: 1,
+  },
+  // THE GAG ROSTER (phase 3). Every act frozen mid-choreography, at the same
+  // fever as the thesis frame so the row can be read against it directly: same
+  // world, same two budgets, one new object each.
+  ...ROSTER.map((gag) => ({
+    id: `gag-${gag.act}`,
+    caption: gag.caption,
+    variant: CONNECT4,
+    moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+    fever: 0.55,
+    prop: { name: gag.act, phase: gag.phase },
+  })),
+  // The detonation on the big board, on top of a real win: the blink and the
+  // pyro share a frame here, which is the check the phase-2 ledger asked for.
+  {
+    id: "gag-win-c5",
+    caption: "win detonation over a live win — Connect 5",
+    variant: CONNECT5,
+    moves: [4, 0, 4, 1, 4, 2, 4, 3, 4],
+    fever: 1,
+    prop: { name: "win-detonation", phase: 0.42 },
   },
   {
     id: "win-c4",

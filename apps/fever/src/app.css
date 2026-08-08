@@ -29,6 +29,16 @@ body,
   overflow: hidden;
 }
 
+/* The game never scrolls; the preview grid has to. Without this the harness
+   silently shows only the first screenful of states — everything below the
+   fold exists, is mounted, and can't be reached. */
+html:has(.harness-grid),
+html:has(.harness-grid) body,
+html:has(.harness-grid) #root {
+  height: auto;
+  overflow: visible;
+}
+
 body {
   background: #07040e;
   color: #e5dcf2;

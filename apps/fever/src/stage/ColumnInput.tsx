@@ -4,7 +4,9 @@
  * to input affordance.
  */
 
+import { useEffect, useMemo } from "react";
 import type { Player } from "@fourscore/engine";
+import { coinGeometry } from "./coin.js";
 import type { StageLayout } from "./layout.js";
 
 export function ColumnInput({
@@ -51,9 +53,19 @@ export function GhostDisc({
   player: Player;
 }) {
   const color = player === "red" ? "#a3164e" : "#c8991f";
+  // The ghost is the same coin, not a stand-in cylinder — a preview whose
+  // silhouette differs from the thing it previews is a lie about the shape.
+  const geometry = useMemo(
+    () => coinGeometry(layout.discRadius, layout.discThickness),
+    [layout.discRadius, layout.discThickness],
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
-    <mesh position={[layout.xOf(col), layout.dropY, 0]} rotation-x={Math.PI / 2}>
-      <cylinderGeometry args={[layout.discRadius, layout.discRadius, layout.discThickness, 40]} />
+    <mesh
+      geometry={geometry}
+      position={[layout.xOf(col), layout.dropY, 0]}
+      rotation-x={Math.PI / 2}
+    >
       <meshStandardMaterial color={color} transparent opacity={0.4} depthWrite={false} />
     </mesh>
   );

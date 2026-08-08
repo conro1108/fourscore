@@ -24,10 +24,15 @@ const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 
 await page.goto(`${BASE}/preview.html`);
-const ids = await page.evaluate(async () => {
-  const mod = await import("/src/preview/states.ts");
-  return mod.PREVIEW_STATES.map((s) => s.id);
-});
+// With no arguments, every state. With arguments, just those — iterating on
+// one gag shouldn't cost a full harness pass.
+const only = process.argv.slice(2);
+const ids = only.length
+  ? only
+  : await page.evaluate(async () => {
+      const mod = await import("/src/preview/states.ts");
+      return mod.PREVIEW_STATES.map((s) => s.id);
+    });
 
 for (const id of ids) {
   await page.goto(`${BASE}/preview.html?state=${id}`);
@@ -36,9 +41,21 @@ for (const id of ids) {
   console.log("shot", id);
 }
 
+// The grid, a screenful at a time. Not `fullPage`: the grid mounts its scenes
+// on visibility because a browser only gives out ~16 WebGL contexts, and a
+// full-page capture asks for every one of them at once.
+if (only.length) {
+  await browser.close();
+  process.exit(0);
+}
 await page.goto(`${BASE}/preview.html`);
 await page.waitForTimeout(2600);
-await page.screenshot({ path: `${outDir}/grid.png`, fullPage: true });
-console.log("shot grid");
+const pages = await page.evaluate(() => Math.ceil(document.body.scrollHeight / innerHeight));
+for (let i = 0; i < pages; i++) {
+  await page.evaluate((n) => scrollTo(0, n * innerHeight), i);
+  await page.waitForTimeout(2600);
+  await page.screenshot({ path: `${outDir}/grid-${i + 1}.png` });
+  console.log("shot grid", i + 1);
+}
 
 await browser.close();

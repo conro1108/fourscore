@@ -5,12 +5,13 @@
  * that's what makes a wire move indistinguishable from a local one.
  */
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Player } from "@fourscore/engine";
 import { placements, type DiscPlacement } from "../match/store.js";
 import { planDrop, squashAt } from "../match/timing.js";
+import { coinGeometry } from "./coin.js";
 import { stageFx } from "./fx.js";
 import type { StageLayout } from "./layout.js";
 
@@ -34,10 +35,12 @@ const keyOf = (col: number, row: number): string => `${col}:${row}`;
 
 function SettledDisc({
   layout,
+  geometry,
   disc,
   win,
 }: {
   layout: StageLayout;
+  geometry: THREE.BufferGeometry;
   disc: DiscPlacement;
   win: WinKeys;
 }) {
@@ -58,10 +61,10 @@ function SettledDisc({
 
   return (
     <mesh
+      geometry={geometry}
       position={[layout.xOf(disc.col), layout.yOf(disc.row), 0]}
       rotation-x={Math.PI / 2}
     >
-      <cylinderGeometry args={[layout.discRadius, layout.discRadius, layout.discThickness, 40]} />
       <meshPhysicalMaterial
         ref={material}
         color={dimmed ? "#3a2f42" : style.color}
@@ -79,10 +82,12 @@ function SettledDisc({
 
 function FallingDisc({
   layout,
+  geometry,
   disc,
   onLanded,
 }: {
   layout: StageLayout;
+  geometry: THREE.BufferGeometry;
   disc: DiscPlacement;
   onLanded: () => void;
 }) {
@@ -119,10 +124,7 @@ function FallingDisc({
 
   return (
     <group ref={group} position={[layout.xOf(disc.col), layout.dropY, 0]}>
-      <mesh rotation-x={Math.PI / 2}>
-        <cylinderGeometry
-          args={[layout.discRadius, layout.discRadius, layout.discThickness, 40]}
-        />
+      <mesh geometry={geometry} rotation-x={Math.PI / 2}>
         <meshPhysicalMaterial
           color={style.color}
           emissive={style.emissive}
@@ -152,6 +154,15 @@ export function Discs({
 }) {
   const all = useMemo(() => placements(moves, layout.variant), [moves, layout.variant]);
 
+  // One coin, forty-two meshes. Built here rather than per disc: the reeded
+  // lathe is ~1.7k triangles, which is nothing once but real money times a
+  // full board.
+  const geometry = useMemo(
+    () => coinGeometry(layout.discRadius, layout.discThickness),
+    [layout.discRadius, layout.discThickness],
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
   // Match reports winning cells with row 0 at the top; the stage counts rows
   // from the floor. The win only lights once the last disc has landed — the
   // fact is already true, but the theater hasn't caught up yet.
@@ -168,12 +179,13 @@ export function Discs({
   return (
     <group>
       {all.slice(0, landed).map((disc) => (
-        <SettledDisc key={disc.ply} layout={layout} disc={disc} win={win} />
+        <SettledDisc key={disc.ply} layout={layout} geometry={geometry} disc={disc} win={win} />
       ))}
       {falling && (
         <FallingDisc
           key={falling.ply}
           layout={layout}
+          geometry={geometry}
           disc={falling}
           onLanded={onDiscLanded ?? (() => {})}
         />
