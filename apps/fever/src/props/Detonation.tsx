@@ -9,8 +9,10 @@
  * It is also the only act licensed to state a fact. `win` comes from the board
  * being finished, not from a search (`director/types.ts`), so the banner is
  * flat and declarative where every other string in the roster hedges or shuts
- * up. `SUNDAY IS OVER.` — the tagline says every Sunday is tonight; this is the
- * one moment that isn't true.
+ * up. It says `GAME OVER`, which is the flattest declaration there is. It used
+ * to say `SUNDAY IS OVER` — a callback to the menu tagline — and the callback
+ * didn't land: on the one prop that gets half a second at the lens, a line you
+ * have to work out is a line you can't read.
  *
  * Budget, audited (box = 12, quad = 2):
  *   5 pyro jets x 12 + 24 debris x 2 + banner 2 = 110 triangles.
@@ -39,7 +41,7 @@ export function Detonation({ layout, phase }: { layout: StageLayout; phase: () =
   const slammed = useRef(false);
 
   const hazard = usePropTexture(hazardSkin);
-  const sign = usePropTexture(() => wordArt("SUNDAY IS OVER"));
+  const sign = usePropTexture(() => wordArt("GAME OVER"));
   // Glow values are deliberately modest: the bloom in the post stack is the
   // expensive half's, and a prop shoved into it at 2.5 doesn't read as bright,
   // it reads as white. The heat family has to still look like heat.

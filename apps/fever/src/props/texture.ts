@@ -26,10 +26,13 @@ function shout(
   g.restore();
 }
 
-function propCanvas(draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
+function propCanvas(
+  draw: (g: CanvasRenderingContext2D) => void,
+  height = 64,
+): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
-  canvas.height = 64;
+  canvas.height = height;
   const g = canvas.getContext("2d")!;
   draw(g);
   const tex = new THREE.CanvasTexture(canvas);
@@ -163,18 +166,25 @@ export function bannerCloth(text: string): THREE.CanvasTexture {
 /**
  * The win banner: chrome WordArt, the display face of the possessed software,
  * on the one prop that gets to state a fact.
+ *
+ * 64x16 rather than 64x64, and that's the whole reason it's legible. The banner
+ * quad is 5.2 by 1.4 — nearly 4:1 — so a square tile spent three quarters of its
+ * pixels on empty space above and below the word and then magnified the ten
+ * pixels of actual letter across two metres of screen. Matching the tile's
+ * aspect to the quad's puts every pixel in the budget into the letters. Still
+ * ≤64px, still nearest, still no mipmaps: the law is the size, not the shape.
  */
 export function wordArt(text: string): THREE.CanvasTexture {
   return propCanvas((g) => {
     g.fillStyle = "#0a0612";
-    g.fillRect(0, 0, 64, 64);
+    g.fillRect(0, 0, 64, 16);
     // Chrome bevel: three passes, offset by a pixel each, dark to light.
-    shout(g, text, "#3a2f42", 40, 24);
-    shout(g, text, "#7d8390", 38, 24);
-    shout(g, text, "#e8e4f0", 37, 24);
+    shout(g, text, "#3a2f42", 14, 12);
+    shout(g, text, "#7d8390", 13, 12);
+    shout(g, text, "#e8e4f0", 12, 12);
     g.fillStyle = "#ed5705";
-    g.fillRect(0, 46, 64, 3);
+    g.fillRect(0, 15, 64, 1);
     g.fillStyle = "#c8991f";
-    g.fillRect(0, 12, 64, 2);
-  });
+    g.fillRect(0, 0, 64, 1);
+  }, 16);
 }

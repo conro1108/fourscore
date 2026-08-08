@@ -243,7 +243,12 @@ export function detonationPose(phase: number): DetonationPose {
   } else if (p >= BANNER_OUT) {
     const t = (p - BANNER_OUT) / (1 - BANNER_OUT);
     bannerZ = t * t * 1.4;
-    bannerRoll = t * 3.4;
+    // Tips away, never turns over. This used to roll 3.4 radians, and the last
+    // third of the act was a banner past 180° — which is a sentence the player
+    // reads upside down and backwards. It reads as broken text rather than as
+    // a thing being thrown, and "looks broken by accident" is the one thing the
+    // taste law doesn't allow. A quarter turn is plenty of tumble.
+    bannerRoll = t * 0.8;
   }
 
   // The slam beat: the first stepped frame at rest, which is where the whole

@@ -111,7 +111,10 @@ describe("roster poses", () => {
     expect(detonationPose(0).bannerZ).toBe(1);
     expect(detonationPose(0.5).bannerZ).toBe(0);
     expect(detonationPose(1).bannerZ).toBeGreaterThan(1);
-    expect(detonationPose(1).bannerRoll).toBeGreaterThan(3);
+    // It tips as it goes, but never turns over: past a quarter turn the words
+    // are upside down and backwards, which reads as broken text.
+    expect(detonationPose(1).bannerRoll).toBeGreaterThan(0.3);
+    expect(detonationPose(1).bannerRoll).toBeLessThan(Math.PI / 2);
     // Pyro erupts immediately and is out before the act ends.
     expect(detonationPose(0.1).pyro).toBe(1);
     expect(detonationPose(1).pyro).toBe(0);
