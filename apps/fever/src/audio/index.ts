@@ -14,7 +14,7 @@
  * The spike bus is the one place fever touches one-shots: at full fever
  * everything plays a few percent sharp and sits in a bigger, wronger room.
  * Individual recipes never look at fever — a gag has to sound the same every
- * time it fires (the taste law), and the whole rally running hot is a
+ * time it fires (the taste law), and the whole room running hot is a
  * property of the evening, not of the gag.
  */
 

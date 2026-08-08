@@ -38,16 +38,14 @@ export type SoundName =
   | "spike-truck"
   | "spike-win"
   | "spike-rocket"
-  | "spike-sign"
   | "spike-beacon"
-  | "spike-banner-rising"
-  | "spike-banner-collapsing"
-  | "spike-banner-draw"
-  | "spike-sprinkler"
   | "spike-mascot-cheer"
   | "spike-mascot-flop"
+  | "spike-stare"
+  | "spike-deep-space"
   | "spike-callout"
   // -- the signatures: one per opponent (bots/identity.ts) --
+  | "spike-mower"
   | "spike-bumpers"
   | "spike-slab"
   | "spike-pins"
@@ -218,8 +216,8 @@ function truckHorn(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
 
 /**
  * The detonation. A pyro thud under a noise blast, and over the top a chord
- * that bends *up* a whole tone and refuses to resolve — the sound of a rally
- * PA being asked to do something a rally PA cannot do. Longer than anything
+ * that bends *up* a whole tone and refuses to resolve — the sound of a house
+ * PA being asked to do something a house PA cannot do. Longer than anything
  * else in the game, because the win is the biggest thing in the game.
  */
 function winBlast(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
@@ -239,7 +237,7 @@ function winBlast(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
   else noise(ctx, 0.5, 0x51f7d).connect(boom);
 
   // The chord: a major triad that bends a tone sharp over two seconds and
-  // stops there. Nothing resolves; the rally just ends.
+  // stops there. Nothing resolves; the clip just ends.
   const chord = env(ctx, [
     [0.02, 0],
     [0.09, 0.28],
@@ -310,39 +308,6 @@ async function rocketFizzle(ctx: OfflineAudioContext, source: AudioBuffer | null
   strike(ctx, bus, 1.98, [196, 279, 431], 0.5, 0.22);
 }
 
-/** A sign says HMM. Two wooden clacks and a nasal descending hum between them. */
-function signHmm(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
-  const bus = out(ctx, { drive: 8, space: [0.22, 3], wet: 0.25 });
-  strike(ctx, bus, 0, [420, 611], 0.09, 0.5);
-  strike(ctx, bus, 1.05, [392, 570], 0.08, 0.4);
-
-  // The hum, waggling on the step clock rather than wobbling smoothly.
-  const waggle = gain(ctx, 0.7);
-  waggle.gain.setValueAtTime(0.7, 0);
-  for (let i = 0; i < 12; i++) {
-    waggle.gain.setValueAtTime(i % 2 === 0 ? 0.85 : 0.55, 0.08 + i * 0.0833);
-  }
-  const level = env(ctx, [
-    [0.06, 0],
-    [0.12, 0.3],
-    [0.85, 0.26],
-    [1.02, 0],
-  ]);
-  const nasal = filter(ctx, "bandpass", 520, 6);
-  waggle.connect(level);
-  level.connect(nasal);
-  nasal.connect(bus);
-  if (source) {
-    sampleVoice(ctx, source, { at: 0.5, to: 0.84, over: 0.45 }).connect(waggle);
-    return;
-  }
-  for (const freq of [196, 197.6]) {
-    const o = osc(ctx, "triangle", freq, 0.06, 1.05);
-    o.frequency.setValueAtTime(freq, 0.5);
-    o.frequency.linearRampToValueAtTime(freq * 0.84, 0.95);
-    o.connect(waggle);
-  }
-}
 
 /**
  * A hazard beacon lowers in and strobes. An alarm with no sound is a lamp —
@@ -501,119 +466,151 @@ function calloutHit(ctx: OfflineAudioContext, source: AudioBuffer | null): void 
   }
 }
 
-/**
- * The tow plane. One engine, one flyby, and three PA barks along the banner —
- * the barks are what makes the banner a rhythm rather than a word.
- *
- * `steps` pitches the barks; rising steps up, collapsing steps down, and the
- * draw gets exactly one and no bend at all. Same construction all three times,
- * which is the point: it's one plane with three moods, not three sounds.
- */
-function flyby(
-  ctx: OfflineAudioContext,
-  source: AudioBuffer | null,
-  opts: { barks: number[]; cough: boolean; passSeconds: number },
-): void {
-  const bus = out(ctx, { drive: 12, space: [0.9, 2.4], wet: 0.35 });
-  const pass = opts.passSeconds;
 
-  // Engine: two saws with a propeller flutter gated at 17Hz, dopplering down
-  // across the pass, with the lowpass opening as it comes and closing as it
-  // goes.
-  const flutter = gain(ctx, 1);
-  for (let i = 0; i * 0.0588 < pass; i++) {
-    flutter.gain.setValueAtTime(i % 2 === 0 ? 1 : 0.55, i * 0.0588);
-  }
-  const level = env(ctx, [
-    [0, 0],
-    [pass * 0.45, 0.26],
-    [pass * 0.75, 0.16],
-    [pass, 0],
-  ]);
-  const air = filter(ctx, "lowpass", 700);
-  air.frequency.linearRampToValueAtTime(2200, pass * 0.45);
-  air.frequency.linearRampToValueAtTime(500, pass);
-  flutter.connect(level);
-  level.connect(air);
-  air.connect(bus);
+/**
+ * Moss's mower: one small engine, idling, for four and a half seconds.
+ *
+ * The quietest thing in the roster and the longest, which is the same trade the
+ * sprinkler made before it — an act the player sees this often has to wear, and
+ * nothing wears like something that never peaks. It has no spike in it at all.
+ *
+ * The chug is a gate rather than an LFO (the timing law: steps, not curves), and
+ * it slows across the act by exactly nothing. It is not building to anything.
+ */
+function mowerIdle(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 4, space: [0.5, 2.4], wet: 0.18 });
+
+  // Four-stroke chug: a gate at ~9Hz on a low saw, through a lowpass that
+  // takes everything that could be called bright out of it.
+  const chugs: number[] = [];
+  for (let t = 0.05; t < 4.4; t += 0.111) chugs.push(t);
+  // Quiet: this is the sound the player hears most on Moss's stage, and the
+  // roster's other signatures sit at rms 0.15-0.34. It belongs at the bottom
+  // of that band, not the top — an idle is background by definition.
+  const engine = gate(ctx, chugs, 0.055, 0.13);
+  const body = filter(ctx, "lowpass", 520);
+  engine.connect(body);
+  body.connect(bus);
+
   if (source) {
-    sampleVoice(ctx, source, { at: pass * 0.45, to: 0.86, over: pass * 0.5 }).connect(flutter);
+    const level = env(ctx, [
+      [0, 0],
+      [0.2, 0.24],
+      [4.1, 0.22],
+      [4.5, 0],
+    ]);
+    level.connect(bus);
+    play(ctx, source, level, 0);
   } else {
-    for (const freq of [92, 95.5]) {
-      const o = osc(ctx, "sawtooth", freq, 0, pass);
-      o.frequency.setValueAtTime(freq, pass * 0.45);
-      o.frequency.linearRampToValueAtTime(freq * 0.86, pass);
-      o.connect(flutter);
+    for (const freq of [68, 68 * 1.004, 136]) {
+      osc(ctx, "sawtooth", freq, 0, 4.5).connect(gain(ctx, freq > 100 ? 0.3 : 1)).connect(engine);
     }
   }
 
-  if (opts.cough) {
-    // The engine gives up on the way out. Its own voice either way: a sourced
-    // plane sample is a healthy plane, and the cough is the joke.
-    const cough = gate(ctx, [pass * 0.8, pass * 0.86, pass * 0.94], 0.04, 0.5);
-    cough.connect(bus);
-    const dying = osc(ctx, "sawtooth", 90, pass * 0.78, pass);
-    dying.frequency.linearRampToValueAtTime(52, pass);
-    dying.connect(cough);
-  }
-
-  // The barks. Distorted enough that the words are gone and the shape isn't.
-  for (const [i, freq] of opts.barks.entries()) {
-    const at = 0.95 + i * 0.6;
-    const bark = env(ctx, [
-      [at, 0],
-      [at + 0.012, 0.3],
-      [at + 0.2, 0.26],
-      [at + 0.28, 0],
-    ]);
-    const mouth = filter(ctx, "bandpass", freq * 3.4, 2.2);
-    bark.connect(mouth);
-    mouth.connect(bus);
-    osc(ctx, "sawtooth", freq, at, at + 0.3).connect(bark);
-    osc(ctx, "square", freq * 1.005, at, at + 0.3).connect(bark);
-  }
+  // The blade, over the top: a thin band of noise that stays exactly where it
+  // is. Present the whole act, doing nothing to anything.
+  const blade = env(ctx, [
+    [0.02, 0],
+    [0.4, 0.05],
+    [4.1, 0.045],
+    [4.5, 0],
+  ]);
+  const whine = filter(ctx, "bandpass", 3100, 6);
+  blade.connect(whine);
+  whine.connect(bus);
+  noise(ctx, 4.5, 0x9c1f0, 0.02).connect(blade);
 }
 
-/** Moss's sprinkler: tk-tk-tk and some water. It is never in a hurry either. */
-function sprinkler(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
-  const bus = out(ctx, { space: [0.4, 2.8], wet: 0.2 });
+/**
+ * The stare: a choir patch with two voices too few, arriving and not resolving.
+ *
+ * The reference's whole sinister register in one chord — cheap General MIDI
+ * "Choir Aahs" was already uncanny in 1997 and nobody had to try. It is a minor
+ * triad with no fifth, held flat, cut off rather than released, and it never
+ * goes anywhere because neither does the act.
+ */
+function stareDown(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 8, space: [1.1, 2.4], wet: 0.5 });
 
-  // Water, under everything, going nowhere. On before the head is in frame:
-  // a sprinkler doesn't start spraying when you look at it.
-  const water = env(ctx, [
-    [0.02, 0],
-    [0.16, 0.12],
-    [2.1, 0.1],
-    [2.6, 0],
+  const level = env(ctx, [
+    [0, 0],
+    [0.25, 0.24],
+    [2.6, 0.22],
+    // Cut, not faded: three frames from full to nothing. A choir that releases
+    // is a choir that finished; this one is switched off.
+    [2.72, 0],
   ]);
-  const spray = filter(ctx, "bandpass", 5200, 0.9);
-  water.connect(spray);
-  spray.connect(bus);
-  noise(ctx, 2.6, 0x9c1f0, 0.02).connect(water);
+  const throat = filter(ctx, "lowpass", 1500);
+  level.connect(throat);
+  throat.connect(bus);
 
-  // The head ticks around at 7Hz, then runs out of enthusiasm.
-  const ticks: number[] = [];
-  let t = 0.28;
-  for (let i = 0; i < 15; i++) {
-    ticks.push(t);
-    t += i < 11 ? 0.143 : 0.143 * (1 + (i - 10) * 0.5);
-  }
   if (source) {
-    const tickBus = gain(ctx, 0.5);
-    tickBus.connect(bus);
-    for (const at of ticks) play(ctx, source, tickBus, at);
-    return;
+    play(ctx, source, level, 0);
+  } else {
+    // A and C, no E. The missing fifth is the two voices.
+    for (const freq of [220, 261.63, 440, 523.25]) {
+      for (const detune of [1, 1.007]) {
+        osc(ctx, "sawtooth", freq * detune, 0, 2.75)
+          .connect(gain(ctx, freq > 400 ? 0.18 : 0.3))
+          .connect(level);
+      }
+    }
+    // Breath, so it's a choir and not an organ. Barely there.
+    noise(ctx, 2.75, 0x3ba7).connect(filter(ctx, "bandpass", 900, 1.2)).connect(gain(ctx, 0.05)).connect(level);
   }
-  for (const at of ticks) {
-    const tick = env(ctx, [
+
+  // One low thud on the lean, which is the only event in the act.
+  strike(ctx, bus, 2.05, [55, 82, 131], 0.5, 0.32);
+}
+
+/**
+ * Deep space: the interlude's music, which is a screensaver's music.
+ *
+ * A four-note sine arpeggio on a long delay, drifting up, going nowhere, with a
+ * noise swell under it. The joke is the genre confusion — this is the cue for a
+ * documentary about the solar system, playing over a game of Connect 4, at the
+ * same volume as everything else.
+ */
+function deepSpace(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { space: [2.2, 3.2], wet: 0.6 });
+
+  // The swell: everything and nothing, arriving before the planet does. It
+  // reaches audible inside a frame — a one-shot that takes a beat to start is a
+  // spike that misses its moment, and `tools/audio-check.mjs` fails the build
+  // over it. Slow *after* the onset is the mood; slow to the onset is a bug.
+  const air = env(ctx, [
+    [0, 0],
+    [0.05, 0.06],
+    [1.6, 0.1],
+    [3.2, 0.08],
+    [4.1, 0],
+  ]);
+  air.connect(filter(ctx, "lowpass", 700)).connect(bus);
+  noise(ctx, 4.1, 0x50ac).connect(air);
+
+  // C–E–G–B, one per beat, each held past the next. Sines, because a sine is
+  // what a cheap patch reaches for when it means "space".
+  const notes: [number, number][] = [
+    [523.25, 0.1],
+    [659.25, 0.8],
+    [783.99, 1.5],
+    [987.77, 2.2],
+  ];
+  for (const [freq, at] of notes) {
+    const level = env(ctx, [
       [at, 0],
-      [at + 0.003, 0.55],
-      [at + 0.016, 0],
+      [at + 0.03, 0.17],
+      [at + 0.9, 0.05],
+      [at + 1.4, 0],
     ]);
-    const metal = filter(ctx, "bandpass", 2600, 8);
-    tick.connect(metal);
-    metal.connect(bus);
-    noise(ctx, 0.02, 0x4410 + Math.round(at * 1000), at).connect(tick);
+    level.connect(bus);
+    if (source) {
+      play(ctx, source, level, at, freq / 523.25);
+      continue;
+    }
+    osc(ctx, "sine", freq, at, at + 1.4).connect(level);
+    // The octave under it at a quarter, which is the whole of the patch.
+    osc(ctx, "sine", freq / 2, at, at + 1.4).connect(gain(ctx, 0.25)).connect(level);
   }
 }
 
@@ -1019,7 +1016,7 @@ function columnHover(ctx: OfflineAudioContext, source: AudioBuffer | null): void
 // The match.
 // ---------------------------------------------------------------------------
 
-/** A rally PA welcoming you to something. The crowd is real. */
+/** A house PA welcoming you to something. Nobody is on the mic. */
 function matchStart(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
   const bus = out(ctx, { drive: 10, space: [1.1, 2.4], wet: 0.5 });
 
@@ -1238,38 +1235,10 @@ export const RECIPES: Record<SoundName, Recipe> = {
     seconds: 2.5,
     build: rocketFizzle,
   },
-  "spike-sign": {
-    want: "human 'hmm', close-mic, dry, <1s",
-    seconds: 1.3,
-    build: signHmm,
-  },
   "spike-beacon": {
     want: "warning klaxon / reversing beacon, one cycle, dry, <0.5s",
     seconds: 2.3,
     build: beaconDrop,
-  },
-  "spike-banner-rising": {
-    want: "small propeller plane, steady pass, dry, ~3s",
-    seconds: 3.6,
-    build: (ctx, source) =>
-      flyby(ctx, source, { barks: [220, 247, 277], cough: false, passSeconds: 3.4 }),
-  },
-  "spike-banner-collapsing": {
-    want: "small propeller plane, laboring or missing, dry, ~3s",
-    seconds: 3.6,
-    build: (ctx, source) =>
-      flyby(ctx, source, { barks: [277, 247, 208], cough: true, passSeconds: 3.4 }),
-  },
-  "spike-banner-draw": {
-    want: "PA announcer, one flat syllable, dry, <1s",
-    seconds: 2.2,
-    build: (ctx, source) =>
-      flyby(ctx, source, { barks: [233], cough: false, passSeconds: 2.1 }),
-  },
-  "spike-sprinkler": {
-    want: "impact sprinkler ticking, dry, ~3s",
-    seconds: 2.8,
-    build: sprinkler,
   },
   "spike-mascot-cheer": {
     want: "cheap MIDI brass fanfare, three rising notes, ~1.5s",
@@ -1281,12 +1250,27 @@ export const RECIPES: Record<SoundName, Recipe> = {
     seconds: 1.6,
     build: (ctx, source) => mascotSting(ctx, source, false),
   },
+  "spike-stare": {
+    want: "cheap MIDI choir pad, one held minor chord, ~3s",
+    seconds: 3.1,
+    build: stareDown,
+  },
+  "spike-deep-space": {
+    want: "sine arpeggio with long delay, documentary-space cue, ~4s",
+    seconds: 4.1,
+    build: deepSpace,
+  },
   "spike-callout": {
     want: "orchestra hit / MIDI stab, one shot, dry, <1s",
     seconds: 1.3,
     build: calloutHit,
   },
 
+  "spike-mower": {
+    want: "small petrol engine idling, steady, ~4.5s",
+    seconds: 4.55,
+    build: mowerIdle,
+  },
   "spike-bumpers": {
     want: "small electric motor, short run, dry, <0.5s",
     seconds: 1.4,

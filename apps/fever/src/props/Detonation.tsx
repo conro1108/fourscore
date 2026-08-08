@@ -4,7 +4,7 @@
  * Everything else in the roster is one object doing one thing. This is four
  * at once: a pyro rack erupts along the foot of the frame, debris launches out
  * of it, a chrome WordArt banner slams at the camera and freezes a beat too
- * long, and then the whole rally throws it back into the void. The banner is
+ * long, and then the whole screen throws it back into the void. The word is
  * cut out of its tile rather than printed on it, so what tumbles away is the
  * words and not a board with words on them.
  *

@@ -19,13 +19,13 @@ export function startAudioCues(): void {
       generation = s.generation;
       couldPlay = false;
       // Only a game somebody is playing gets announced. The menu rebuilds the
-      // board every time you change the variant or the opponent, and a rally
+      // board every time you change the variant or the opponent, and a fanfare
       // sting for each of those turns the announcement into a click sound.
       if (s.live) playSpike("match-start");
       return;
     }
     const canPlay = canHumanPlay(s);
-    // Control coming back to you, but not the opening move — the rally has
+    // Control coming back to you, but not the opening move — the screen has
     // just announced itself and does not need to also tell you it's your turn.
     if (canPlay && !couldPlay && s.moves.length > 0) playSpike("turn-yours", 0.7);
     couldPlay = canPlay;

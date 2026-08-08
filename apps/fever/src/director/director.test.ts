@@ -302,10 +302,13 @@ describe("event debouncing", () => {
   });
 
   it("beats idly in the quiet, and only in the quiet", () => {
-    const idle = run(initialDirectorState(1), input(), 30_000);
+    // Two minutes of a game in which nothing whatsoever happens. In a match the
+    // idle beat is punctuation, not content, so the count here is deliberately
+    // low — the screen's job is to answer what you did.
+    const idle = run(initialDirectorState(1), input(), 120_000);
     const beats = idle.events.filter((e) => e.kind === "idle-beat");
-    expect(beats.length).toBeGreaterThanOrEqual(3);
-    expect(beats.length).toBeLessThanOrEqual(5);
+    expect(beats.length).toBeGreaterThanOrEqual(5);
+    expect(beats.length).toBeLessThanOrEqual(9);
 
     // A threat resets the quiet, so no beat lands right on top of it.
     let s = advance(initialDirectorState(0), input(), 16).state;

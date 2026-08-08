@@ -93,7 +93,9 @@ describe("a signature on the stage", () => {
 
   it("adds the opponent's act to their event without removing the library", () => {
     const pebble = IDENTITIES.pebble!;
-    const general = candidatesFor(threat).map((c) => c.name);
+    const general = candidatesFor(threat)
+      .map((c) => c.name)
+      .filter((name): name is string => name !== null);
     const drawn = new Set(
       Array.from({ length: 40 }, (_, i) => pickGag(threat, () => i / 40, { bot: pebble })),
     );

@@ -38,7 +38,7 @@ const EVENTS = {
 const SIGNATURES = {
   acorn: "bumpers-up",
   pebble: "slab-drop",
-  moss: "sprinkler",
+  moss: "mower-crawl",
   bramble: "pin-scatter",
   cinder: "shell-game",
   vane: "score-lie",

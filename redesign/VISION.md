@@ -28,6 +28,42 @@ flat-shaded, 12fps, over-eager. A mascot nobody introduced does a little dance.
 Extruded chrome text spins at the lens and holds. A rocket takes off badly. The
 same celebration plays every time, because there is only one.
 
+**The four traits** (Connor, 2026-08-08 — this is the spec):
+
+- **Low-poly, high-gloss.** Rendered on a Windows 95 screensaver engine.
+  Jarringly smooth, excessively shiny, perfectly geometric, and the physics make
+  absolutely no sense. In this game the gloss lives in the *text* — the props
+  stay flat and cheap by the taste law, and the chrome/WordArt callouts carry
+  the shine. That was a decision, not a compromise: a glossy prop stops being a
+  prop, and the two budgets colliding is the whole aesthetic.
+- **Anthropomorphic terror.** The objects are sentient. They have faces, the
+  faces are expressive, and nobody explains any of it. Our version of this is
+  the discs and the equipment: a disc with a face, the same disc in sunglasses,
+  a mower with headlamp eyes. **A prop with no face is the weakest thing on the
+  stage** — that is what killed the sprinkler.
+- **Disproportionate intensity.** You played a legal move in a board game and
+  the screen reacts as though a warhead went off. The emotional stakes on screen
+  are entirely disconnected from what happened. `INCREDIBLE` in rainbow WordArt,
+  over a move that was merely allowed.
+- **Surreal non sequiturs.** For no reason the setting becomes the vacuum of
+  space, or a medieval joust, and then it isn't. The screen leaves the venue and
+  comes back with no account of itself. This is the trait that most separates
+  the reference from "cheap 3D", and it is the only kind of clip that can answer
+  an ordinary move honestly — it cannot be a comment on your play, because it
+  does not know you played.
+
+Pure, unadulterated camp. *"What happens when you give a 1998 graphics design
+intern a Red Bull, zero supervision, and a vague prompt to make the pins look
+funny."*
+
+**The bowling scenarios are register, not content.** A ball in sunglasses
+driving out of an exploding airplane, a lone pin sweeping the floor before an
+anvil lands on it — those are illustrations of how much intensity each beat
+gets, and they are *not* a shopping list. Fourscore's cast is its own: discs,
+the board, the alley's equipment, and the software itself. Building the literal
+bowling clip is the failure mode here, and so is building nothing because
+nothing bowling-shaped fits.
+
 Three things make it that reference and not merely "cheap 3D":
 
 - **Everything is a canned bit.** The screen has a clip for every outcome and
@@ -190,10 +226,15 @@ soul (weights, depth, slip) is fixed and predates the fever dream.
   darkened into the void palette, never neon); the drifting weather reads as
   spores rather than weather. Heat still means fever — the palette law is
   not a personality.
-- **Signature gag:** a lawn sprinkler rises from below the frame, waters
-  nothing for exactly two stepped beats, and descends. Fires on `idle-beat`.
-  Budget: one 40-tri sprinkler, 64px texture, 12fps. It is never in a hurry
-  either.
+- **Signature gag:** `mower-crawl`. A ride-on mower with headlamp eyes and a
+  radiator grille for a mouth crosses the frame at one speed, stops dead in the
+  middle for a quarter of the act for no reason anybody could name, and
+  continues. It cuts nothing. Fires on `idle-beat`. Budget: 124 tris, 64px
+  texture, 12fps. It is never in a hurry either.
+  *(This replaced a sprinkler, which was the persona taken literally — the
+  groundskeeper has groundskeeping equipment — and was the weakest act on the
+  stage for exactly the reason the second trait names: it was a thing, and this
+  cast is sentient. The joke did not change. The face is what makes it land.)*
 - **Voice:** lowercase, present tense, no exclamation marks, no urgency
   anywhere. Sample status lines: `moss is thinking about dirt.` /
   `your move. moss can wait.` / `moss took the middle. it lives there.`

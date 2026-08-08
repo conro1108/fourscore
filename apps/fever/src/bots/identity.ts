@@ -103,7 +103,7 @@ export const IDENTITIES: Record<string, BotIdentity> = {
     // words for it): the tint is Moss's engine green pulled into the void and
     // the grain is up, which is what turns the weather into specks.
     void: variation({ tint: "#1b3813", tintAmount: 0.5, grain: 1.7, drift: 0.75, slick: 0.75 }),
-    signature: { act: "sprinkler", on: "idle-beat" },
+    signature: { act: "mower-crawl", on: "idle-beat" },
   },
   bramble: {
     id: "bramble",

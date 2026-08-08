@@ -13,9 +13,9 @@
  *   which is what keeps two of them out of the same corner.
  *
  * The one thing both share is the ending. `win` and `draw` preempt whatever is
- * running, because the alternative is a sprinkler quietly finishing its
- * watering while the game is over — the detonation is the biggest thing in the
- * game and it does not wait its turn.
+ * running, because the alternative is a mower quietly finishing its lap while
+ * the game is over — the detonation is the biggest thing in the game and it
+ * does not wait its turn.
  *
  * What each act is allowed to claim is decided in `director/types.ts` and
  * enforced in `gags.ts` by which pool it sits in: only `win`/`draw` may draw an
@@ -95,13 +95,17 @@ export function PropStage({ layout }: { layout: StageLayout }) {
       const now = performance.now();
       const forced = preempts(event);
       const current = live.current;
-      const rules = STAGE[directorFrame().mode];
+      const mode = directorFrame().mode;
+      const rules = STAGE[mode];
       if (!forced && (now < freeAt.current || current.length >= rules.maxActs)) return;
 
       const busy = new Set(current.map((r) => r.act.berth));
       const name = pickGag(event, Math.random, {
         avoid: previous.current,
         eligible: (act) => forced || !busy.has(act.berth),
+        // The menu and a match answer an idle beat from different pools — the
+        // attract loop is content and the in-match one is punctuation.
+        mode,
         // Read at draw time, not at subscribe time: the opponent changes on
         // the menu while this subscription is alive, and the very next attract
         // beat should already be theirs.

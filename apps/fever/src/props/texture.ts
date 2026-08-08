@@ -120,7 +120,7 @@ export function rocketSkin(): THREE.CanvasTexture {
  * an overlay somebody added, not a character somebody designed, and it should
  * look like it.
  */
-export function mascotFace(mood: "up" | "down"): THREE.CanvasTexture {
+export function mascotFace(mood: "up" | "down" | "shades"): THREE.CanvasTexture {
   const tex = propCanvas((g) => {
     g.fillStyle = "#c8991f";
     g.beginPath();
@@ -130,6 +130,30 @@ export function mascotFace(mood: "up" | "down"): THREE.CanvasTexture {
     g.beginPath();
     g.arc(32, 32, 24, 0, Math.PI * 2);
     g.fill();
+
+    if (mood === "shades") {
+      // The same disc, wearing sunglasses, and nothing accounts for it. One
+      // black bar with two notches out of the bottom — read it as glasses or
+      // read it as a censor bar; either is the joke, and at 64px they are the
+      // same eleven pixels. The grin underneath is the `up` grin exactly, which
+      // is what makes it unsettling rather than cool: this is the cheerful one.
+      g.fillStyle = "#17111c";
+      g.fillRect(12, 22, 40, 11);
+      g.fillRect(28, 20, 8, 3);
+      g.fillStyle = "#e2b743";
+      g.fillRect(30, 31, 4, 2);
+      // The glint — one hard white notch on one lens, never both. A specular
+      // line is the whole vocabulary of cheap 3D chrome and it costs 12 texels.
+      g.fillStyle = "#e8e4f0";
+      g.fillRect(16, 24, 3, 6);
+      g.fillRect(19, 24, 2, 3);
+
+      g.fillStyle = "#17111c";
+      g.fillRect(19, 40, 7, 4);
+      g.fillRect(26, 44, 12, 4);
+      g.fillRect(38, 40, 7, 4);
+      return;
+    }
 
     // Eyes: squares, because circles at 64px are four pixels of mush.
     g.fillStyle = "#17111c";
@@ -161,6 +185,134 @@ export function mascotFace(mood: "up" | "down"): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * The mower's livery: municipal green, one stripe, and some rust.
+ *
+ * Plainer than it was, because the face is the prop. The first pass stencilled
+ * GROUNDS / UNIT 1 across it and box-mapping put that on the body and the seat
+ * at two different sizes — which is the truck's toy-commercial trick, and it
+ * buried the one detail that makes this a character rather than a crate.
+ */
+export function mowerLivery(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#3f6b2e";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#2b4a1f";
+    g.fillRect(0, 42, 64, 22);
+    g.fillStyle = "#6aa348";
+    g.fillRect(0, 38, 64, 4);
+    // Rust, in three blocks, because a machine nobody has replaced has rust and
+    // a machine somebody drew has rust in three blocks.
+    g.fillStyle = "#8a5a2b";
+    g.fillRect(6, 48, 7, 5);
+    g.fillRect(41, 54, 10, 4);
+  });
+}
+
+/**
+ * The mower's face: two headlamp eyes and a mouth that is a radiator grille. It
+ * has exactly one expression and holds it through an entire game of Connect 4.
+ *
+ * Cut out of a transparent tile (`alphaTest`) so it sits on the body as a decal
+ * rather than as a lit panel — the livery shows through around it.
+ */
+export function mowerFace(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    // Headlamp eyes, big enough to be the prop's whole read from across the
+    // frame. The first pass drew them at a mower's proportions and the harness
+    // handed back a green box: a face is only a face if it is most of the tile.
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(6, 10, 20, 18);
+    g.fillRect(38, 10, 20, 18);
+    g.fillStyle = "#17111c";
+    // Pupils, both dead centre and both a little too small. Nobody is driving
+    // and the machine is not concerned about that.
+    g.fillRect(13, 16, 7, 9);
+    g.fillRect(45, 16, 7, 9);
+    // The grille: five bars, which is a mouth if it is on a face and a grille
+    // if it is on a mower, and it is on both.
+    g.fillStyle = "#17111c";
+    g.fillRect(12, 40, 40, 16);
+    g.fillStyle = "#8fae7c";
+    for (let i = 0; i < 5; i++) g.fillRect(16 + i * 8, 44, 4, 9);
+  });
+}
+
+/**
+ * A planet nobody ordered: two bands and a terminator, in the void's own
+ * colours so the interlude reads as somewhere else rather than as a bug.
+ *
+ * Bands rather than a gradient. A sphere this cheap has eight facets around, so
+ * a smooth ramp lands one shade per facet and comes back looking like a shading
+ * error — hard bands at least look like a decision somebody made in 1997.
+ */
+export function planetSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#6b48ad";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#a884e0";
+    g.fillRect(0, 12, 64, 9);
+    g.fillStyle = "#4a2f7a";
+    g.fillRect(0, 30, 64, 6);
+    g.fillStyle = "#e4d2ff";
+    g.fillRect(0, 44, 64, 3);
+    // The terminator: the right third is simply darker, with a hard edge. No
+    // light in this scene is responsible for it.
+    g.fillStyle = "rgba(10, 6, 18, 0.55)";
+    g.fillRect(42, 0, 22, 64);
+    // The one storm. It is a rectangle.
+    g.fillStyle = "#c9a2f5";
+    g.fillRect(12, 22, 11, 6);
+  });
+}
+
+/**
+ * The ring, as a cut-out annulus on one tile. Drawn flat and mapped to a quad
+ * rather than built as geometry: a torus is 400 triangles of a shape that is
+ * two triangles of texture, and the law is the law.
+ */
+export function ringSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    const band = (radius: number, width: number, color: string) => {
+      g.strokeStyle = color;
+      g.lineWidth = width;
+      g.beginPath();
+      g.ellipse(32, 32, radius, radius * 0.3, 0, 0, Math.PI * 2);
+      g.stroke();
+    };
+    band(30, 5, "#9d8ec2");
+    band(24, 3, "#e4d2ff");
+    band(19, 2, "#6b48ad");
+  });
+}
+
+/**
+ * A four-point sparkle, cut out of nothing. The whole star vocabulary of every
+ * 1997 title card that wanted you to know something was shiny.
+ *
+ * One tile, two frames, chosen by the act on the step clock — a big one and a
+ * small one, and nothing in between, so a field of them twinkles by swapping
+ * cels rather than by fading. Fading is the one thing a sparkle must never do.
+ */
+export function sparkTexture(big: boolean): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    const arm = big ? 30 : 18;
+    const waist = big ? 5 : 3;
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.moveTo(32, 32 - arm);
+    g.lineTo(32 + waist, 32 - waist);
+    g.lineTo(32 + arm, 32);
+    g.lineTo(32 + waist, 32 + waist);
+    g.lineTo(32, 32 + arm);
+    g.lineTo(32 - waist, 32 + waist);
+    g.lineTo(32 - arm, 32);
+    g.lineTo(32 - waist, 32 - waist);
+    g.closePath();
+    g.fill();
+  });
+}
+
 /** Hazard stripes, for the threat beacon. The heat family means fever. */
 export function hazardSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {
@@ -178,45 +330,6 @@ export function hazardSkin(): THREE.CanvasTexture {
     }
   });
 }
-
-/**
- * A sign on a stick. One word, hand-lettered by a machine that has never seen
- * a hand. Acid green on black — jank accent, props only.
- */
-export function signFace(text: string): THREE.CanvasTexture {
-  return propCanvas((g) => {
-    g.fillStyle = "#17111c";
-    g.fillRect(0, 0, 64, 64);
-    g.fillStyle = "#7fe018";
-    g.fillRect(2, 2, 60, 60);
-    g.fillStyle = "#17111c";
-    g.fillRect(5, 5, 54, 54);
-    shout(g, text, "#b7f04d", 40, 20);
-  });
-}
-
-/**
- * Tow-banner cloth. Drawn as one phrase on one tile so the component can set
- * `repeat.x` and say it as many times as it likes for the price of one
- * texture — which is also, exactly, how a real banner says it.
- */
-export function bannerCloth(text: string): THREE.CanvasTexture {
-  const tex = propCanvas((g) => {
-    g.fillStyle = "#e8e4f0";
-    g.fillRect(0, 0, 64, 64);
-    g.fillStyle = "#a3164e";
-    g.fillRect(0, 0, 64, 6);
-    g.fillRect(0, 58, 64, 6);
-    shout(g, text, "#17111c", 42, 26);
-  });
-  tex.wrapS = THREE.RepeatWrapping;
-  return tex;
-}
-
-/* -------------------------------------------------------------------------- *
- * The signatures (phase 5). One skin per opponent's clip. Same 64px, same
- * nearest filter, same rule about curves: there aren't any.
- * -------------------------------------------------------------------------- */
 
 /**
  * Acorn's bumper: foam, in chevrons, in a colour nobody would choose.
@@ -366,7 +479,7 @@ export function machineSkin(): THREE.CanvasTexture {
  * -------------------------------------------------------------------------- */
 
 /** The presets, in the family of the wordmark's ramp without being it twice. */
-export type WordArtStyle = "chrome" | "heat" | "acid" | "void";
+export type WordArtStyle = "chrome" | "heat" | "acid" | "void" | "rainbow";
 
 /**
  * A ramp is `[endOfBand, colour]` down the letterform, 0 at the cap line and 1
@@ -432,6 +545,29 @@ const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> 
     ],
     ink: "#0a0612",
   },
+  /**
+   * The one preset that isn't pretending to be metal.
+   *
+   * Every other ramp here is a finish — sky, flash, horizon, ground — and this
+   * one is four flat colours that have no business touching, which is the
+   * actual 1997 artifact: the gradient fill picked out of a grid by somebody
+   * who wanted the word to be *more*, applied to a word that needed none of it.
+   * It has no dark band at all, so it has no horizon and no volume; it reads as
+   * a sticker rather than as an object, and that is what it is for. It goes on
+   * the words that are enthusiastic about nothing.
+   *
+   * It still gets the same ink ring, which is the only reason it survives the
+   * vote — four light bands with no outline would come back as a bright smear.
+   */
+  rainbow: {
+    ramp: [
+      [0.3, "#ff3ba7"],
+      [0.52, "#ffd200"],
+      [0.74, "#2fe3c8"],
+      [1, "#7a5cff"],
+    ],
+    ink: "#150d22",
+  },
 };
 
 /**
@@ -447,6 +583,22 @@ const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> 
  * The transparent background is the reason `usePropMaterial` grew `alphaTest`:
  * with no slab, the tile is mostly nothing, and nothing has to be *cut*, not
  * blended (see `material.ts`).
+ *
+ * It is drawn at 3x and brought down by **majority vote**, which is the step
+ * that makes it look drawn rather than typeset. Canvas antialiases every glyph
+ * edge, so an edge texel is a blend — and a nearest filter magnifying a blend
+ * does not give you a hard pixel, it gives you a large soft one. Ten texels of
+ * blur become two metres of blur at the lens.
+ *
+ * Voting rather than thresholding, and that distinction cost a pass to learn.
+ * Snapping each texel of a 1x render to the nearest of the five colours the
+ * tile is allowed is the obvious version, and it eats the outline: the ink ring
+ * is under a texel wide, so most of it is a blend that snaps to whichever side
+ * of it happened to dominate, and the word comes back eroded with a confetti of
+ * mid-tones along every edge. At 3x the ring is nearly three subpixels and
+ * simply wins its texels. A vote can also only ever return a colour that was
+ * actually there, which is what kills the confetti — an average can invent a
+ * colour, and every colour it invents is one nobody chose.
  */
 export function wordArt(text: string, style: WordArtStyle = "chrome"): THREE.CanvasTexture {
   const { ramp, ink } = WORD_ART[style];
@@ -470,7 +622,15 @@ export function wordArt(text: string, style: WordArtStyle = "chrome"): THREE.Can
    */
   const SKEW = 0.3;
 
-  return propCanvas((g) => {
+  return propCanvas((tile) => {
+    // Everything below is drawn in tile coordinates; the 3x is a scale on the
+    // way in and a vote on the way out, and nothing in between knows about it.
+    const hi = document.createElement("canvas");
+    hi.width = 64 * SUPERSAMPLE;
+    hi.height = 16 * SUPERSAMPLE;
+    const g = hi.getContext("2d")!;
+    g.scale(SUPERSAMPLE, SUPERSAMPLE);
+
     g.font = `bold ${SIZE}px "Arial Black", monospace`;
     g.textAlign = "center";
     g.lineJoin = "miter";
@@ -530,5 +690,101 @@ export function wordArt(text: string, style: WordArtStyle = "chrome"): THREE.Can
       from = to;
     }
     draw(grad, 0, 0, true);
+
+    // And now throw away everything the renderer decided in between.
+    vote(g, tile, 64, 16, [ink, ...ramp.map(([, color]) => color)]);
   }, 16);
+}
+
+/**
+ * Subpixels per texel per axis on the way to the vote. Nine samples.
+ *
+ * Three, and four is worse — which is not what more sampling usually does. The
+ * ink ring is a shade under a texel wide, so at 4x it reliably owns nine of
+ * sixteen subpixels in every boundary texel and wins them all; the outline puts
+ * on a texel everywhere at once and `HUH.` closes up into a purple brick. Nine
+ * samples leave the ring winning the texels it is mostly in and losing the ones
+ * it is barely in, which is the ragged one-texel edge the art wants.
+ */
+const SUPERSAMPLE = 3;
+
+/**
+ * Bring a 3x render down to the tile: each texel becomes whichever of the
+ * palette (or nothing at all) the most of its nine subpixels wanted.
+ *
+ * Ink is first in the palette and wins ties, which is deliberate. An outline
+ * that loses a coin flip has a hole in it, and one hole in a one-texel ring is
+ * the whole difference between a letter with an edge and a letter with a
+ * scratch on it. A word that wins its ties comes out a shade heavier than the
+ * renderer drew it, which is what a hand-drawn one would have been anyway.
+ */
+function vote(
+  from: CanvasRenderingContext2D,
+  to: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  palette: string[],
+): void {
+  const rgb = palette.map((hex) => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]);
+  const source = from.getImageData(0, 0, width * SUPERSAMPLE, height * SUPERSAMPLE).data;
+  const out = to.createImageData(width, height);
+  // One slot per palette entry; transparent is counted separately because it
+  // has no colour to be nearest to.
+  const votes = new Array<number>(rgb.length);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      votes.fill(0);
+      let clear = 0;
+      for (let sy = 0; sy < SUPERSAMPLE; sy++) {
+        for (let sx = 0; sx < SUPERSAMPLE; sx++) {
+          const i =
+            (((y * SUPERSAMPLE + sy) * width * SUPERSAMPLE + x * SUPERSAMPLE + sx) << 2);
+          if (source[i + 3]! < 128) {
+            clear++;
+            continue;
+          }
+          let best = 0;
+          let bestDistance = Infinity;
+          for (let p = 0; p < rgb.length; p++) {
+            const [r, gg, b] = rgb[p]!;
+            const distance =
+              (source[i]! - r!) ** 2 + (source[i + 1]! - gg!) ** 2 + (source[i + 2]! - b!) ** 2;
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              best = p;
+            }
+          }
+          votes[best]!++;
+        }
+      }
+
+      let winner = 0;
+      let count = votes[0]!;
+      for (let p = 1; p < votes.length; p++) {
+        // Strictly greater, so the earliest palette entry holds a tie — and
+        // the palette starts with ink.
+        if (votes[p]! > count) {
+          count = votes[p]!;
+          winner = p;
+        }
+      }
+      // Nothing only wins outright. A texel the glyph half covers belongs to
+      // the glyph; that is the shade of extra weight a hand-drawn one has.
+      if (count < clear) winner = -1;
+
+      const o = (y * width + x) << 2;
+      if (winner < 0) continue; // left at zero: transparent, and hard about it
+      const [r, gg, b] = rgb[winner]!;
+      out.data[o] = r!;
+      out.data[o + 1] = gg!;
+      out.data[o + 2] = b!;
+      out.data[o + 3] = 255;
+    }
+  }
+  to.putImageData(out, 0, 0);
 }

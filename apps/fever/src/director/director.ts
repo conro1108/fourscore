@@ -66,7 +66,7 @@ export interface DirectorTuning {
   /**
    * Idle period on the menu, where idle beats are the entire show. A lane
    * screen with nothing to react to still isn't blank (VISION.md), and at the
-   * in-match rate the menu was one sprinkler every eight seconds.
+   * in-match rate the menu was one prop every eight seconds.
    */
   attractIdlePeriod: number;
 }
@@ -96,7 +96,14 @@ export const TUNING: DirectorTuning = {
   brilliantSwing: 0.18,
   brilliantSlack: 0.03,
   threatCooldown: 3000,
-  idlePeriod: 7000,
+  // Rare, in a match. At 7s an idle beat landed between almost every pair of
+  // moves and the ambient acts became the majority of what the stage did — the
+  // screen was performing on its own schedule instead of answering yours, which
+  // is backwards for a reference whose whole mechanic is *reacting to a throw*.
+  // At 16s a quiet stretch is a quiet stretch and the thing that breaks it is
+  // usually something you did. The menu is unaffected; there, ambient is the
+  // entire show and `attractIdlePeriod` still runs at 1.8s.
+  idlePeriod: 16_000,
   idleQuiet: 3000,
   attractIdlePeriod: 1800,
 };

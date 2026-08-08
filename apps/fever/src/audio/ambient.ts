@@ -10,7 +10,7 @@
  * - The choir: a quiet, slightly wrong A-major cluster that only exists above
  *   mid-fever — the vaguely religious half of the void, arriving when things
  *   get serious.
- * - The crowd (`ambient-crowd`): a rally happening somewhere you can't see.
+ * - The crowd (`ambient-crowd`): an alley happening somewhere you can't see.
  *   Fever walks you toward it.
  * - The tape (`ambient-tape`): hiss and mains hum, always there, the layer
  *   that says all of this is being played back off something. Its wow is a
@@ -140,7 +140,7 @@ export function startAmbient(ctx: AudioContext, bus: GainNode): AmbientBed {
       for (const [i, osc] of choirOscs.entries()) {
         osc.detune.setTargetAtTime(((i * 7) % 11) - 5 + 14 * presence, now, SMOOTH * 2);
       }
-      // The rally gets closer and brighter; you are never quite in it.
+      // The room gets closer and brighter; you are never quite in it.
       if (crowd) {
         crowd.gain.gain.setTargetAtTime(0.02 + 0.11 * f * f, now, SMOOTH * 3);
         crowd.tone.frequency.setTargetAtTime(900 + 2600 * f, now, SMOOTH * 3);

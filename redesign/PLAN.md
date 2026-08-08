@@ -749,6 +749,77 @@ thesis artifacts, and what they couldn't fix.
   back inside the thesis frame. That was only visible in a screenshot; the
   numbers looked reasonable in the file.
 
+- **Phase 6½ — The Lane Screen Audit** *(Opus, 2026-08-08, run against Connor's
+  notes rather than against this phase's bullet list — "these notes are more
+  important than the plan as written")*.
+  **The reference is now written down.** VISION.md pillar 2 leads with Connor's
+  four traits — low-poly/high-gloss, anthropomorphic sentience, disproportionate
+  intensity, surreal non sequitur — and with the warning that goes with them:
+  *the bowling scenarios are register, not content*. Building the literal
+  bowling clip is the failure mode, and so is building nothing because nothing
+  bowling-shaped fits. Read that section before touching a prop.
+  **Ranked by Connor:** rocket best, then the truck, then the mascot; the
+  sprinkler last by a distance. That ranking is the whole design brief for this
+  phase — everything kept is close to the top of it and everything cut is at the
+  bottom.
+  **The sprinkler is gone and Moss has a character.** `mower-crawl` (124 tris):
+  a mower with headlamp eyes and a grille for a mouth crosses at one speed,
+  stops dead in the middle for a quarter of the act, continues, cuts nothing.
+  The persona, the pace and the joke are unchanged; what changed is that it has
+  a face. Trait 2 is the diagnosis of why the sprinkler was weak — it was a
+  *thing*, and this cast is sentient.
+  **Ordinary moves get answered now.** `MOVES.fine` was an empty pool, which
+  made the props a readout: something on screen meant the engine had an opinion
+  about you and nothing on screen meant it didn't. A lane screen reacts to
+  *throws*, not to quality. So `fine` draws from a pool that is 26/31 silence
+  and otherwise the two acts that cannot be read as a verdict. The mechanism is
+  a **null candidate** in `gags.ts` — silence is drawn, never decided
+  beforehand, so no berth veto can turn "nothing happens" into an act.
+  **In-match idle beats cut hard**, `idlePeriod` 7s → 16s, and the idle pool is
+  now two pools (`MATCH_IDLE` / `ATTRACT_IDLE`, chosen by `StageMode`): in a
+  game the props are punctuation and the in-match list holds nothing loud; the
+  menu is unchanged at 1.8s, because there the props are the content.
+  **Three new acts.** `stare-down` — the mascot, in sunglasses, at the wrong
+  scale, rising out of the floor to look at you and doing nothing else; trait 1
+  and trait 2, and it took `sign-hmm`'s slot on `dubious`. `deep-space` — a
+  ringed planet drifting across with four sparkles, trait 4, the only act
+  licensed to be about nothing. `callout-incredible` in a new `rainbow` WordArt
+  preset (four light bands, no dark one, so it has no horizon and reads as a
+  sticker rather than an object) and `callout-a-move` in void, which are trait 3
+  from both ends.
+  **The tow plane is retired**, as this phase's brief demanded: `banner-rising`
+  / `-collapsing` / `-draw` were a plane over a fairground, and the beat they
+  served is the beat a lane screen does as a word at the lens. `callout-happening`
+  / `callout-nevermind` / `callout-draw` answer the same three events —
+  `NEVERMIND` was always the best line in the game and it never needed a plane.
+  `sign-hmm` went with them: a sign on a stick waggling at the frame's edge is
+  somebody *in a crowd* reacting, and a lane screen has no crowd in it. Gone
+  with them: `Banner.tsx`, `Sign.tsx`, their poses and textures, and four sounds.
+  **Kept, with the reason this phase asks for.** The ruined airhorn stays as the
+  signature spike. The brief calls it "right instinct, wrong venue", but an
+  airhorn is a sound a bowling centre actually makes, it is still the loudest
+  thing in the game at rms 0.65, and every other sound in the library was
+  written against it — swapping it re-scopes the whole audio phase to fix a
+  reference that isn't broken. The new spikes are MIDI as the brief wants (a
+  choir two voices short, a documentary-space arpeggio, an engine that idles).
+  **Nothing in the game says "rally"** any more, in copy or comment:
+  `THE CROWD IS REAL` → `THE SCREEN IS DELIGHTED`, and the quit dialog now says
+  `Leave? The screen keeps playing.`
+  **Verified:** `npm test` 193 green, typecheck clean, `npm run audio` renders
+  all 31 recipes (the mower at rms 0.24, the quiet end of the signature band
+  where it belongs), and every new act was screenshotted and looked at.
+  **Two things the harness caught that typechecked fine**, both worth keeping in
+  mind: the mower was first modelled at a mower's proportions and came back as
+  an unreadable pile of green boxes along the bottom edge — it is now one body
+  with one big face at 1.65x. And `deep-space` was placed *behind* the board,
+  because "somewhere else" wants depth; the board occluded the whole act and the
+  planet was visible only through the disc holes. There is no depth behind the
+  board on this stage. The interlude plays over the top of the game like every
+  other clip, and what says it is somewhere else is the content, not the z.
+  **Not done, and deliberately:** the CRT/scanline question in `stage/Post.tsx`
+  is untouched — it is Connor's call by the brief's own wording, and it is the
+  one item here that can't be judged from a still.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta

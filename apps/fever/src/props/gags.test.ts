@@ -29,27 +29,72 @@ const rolls = (...values: number[]): (() => number) => {
   return () => values[i++ % values.length]!;
 };
 
+const FINE: SpectacleEvent = { kind: "move", player: "red", col: 3, quality: "fine" };
+
 describe("the gag pools", () => {
   it("names only acts that exist, for every event", () => {
-    for (const event of SAMPLES) {
-      for (const c of candidatesFor(event)) {
-        expect(PROP_ACTS[c.name], `${event.kind}: ${c.name}`).toBeDefined();
-        expect(c.weight, c.name).toBeGreaterThan(0);
+    for (const event of [...SAMPLES, FINE]) {
+      for (const mode of ["match", "attract"] as const) {
+        for (const c of candidatesFor(event, mode)) {
+          if (c.name !== null) expect(PROP_ACTS[c.name], `${event.kind}: ${c.name}`).toBeDefined();
+          expect(c.weight, c.name ?? "silence").toBeGreaterThan(0);
+        }
       }
     }
   });
 
-  it("has an act for every event kind but the ordinary move", () => {
+  it("has an act for every event kind", () => {
     for (const kind of EVENT_KINDS) {
-      const pools = SAMPLES.filter((e) => e.kind === kind).map(candidatesFor);
+      const pools = SAMPLES.filter((e) => e.kind === kind).map((e) => candidatesFor(e));
       expect(pools.length, kind).toBeGreaterThan(0);
       expect(
-        pools.some((pool) => pool.length > 0),
+        pools.some((pool) => pool.some((c) => c.name !== null)),
         kind,
       ).toBe(true);
     }
-    expect(candidatesFor({ kind: "move", player: "red", col: 3, quality: "fine" })).toEqual([]);
-    expect(pickGag({ kind: "move", player: "red", col: 3, quality: "fine" }, Math.random)).toBeNull();
+  });
+
+  /**
+   * The ordinary move, which is ~85% of them. It has a pool now — a lane screen
+   * reacts to throws and not to quality — but the pool is mostly silence, and
+   * these two numbers are the whole of the tuning: a screen that answers every
+   * move is a screen with no spikes left for the moves that matter.
+   */
+  it("leaves most ordinary moves alone", () => {
+    const pool = candidatesFor(FINE);
+    const total = pool.reduce((sum, c) => sum + c.weight, 0);
+    const silence = pool.find((c) => c.name === null)!.weight;
+    expect(silence / total).toBeGreaterThan(0.7);
+    expect(silence / total).toBeLessThan(0.95);
+  });
+
+  /**
+   * And what it does answer with may not read as a verdict. The grade is this
+   * engine's estimate either way, but `fine` is the one grade where the screen
+   * is reacting to the *fact* that you moved — so its acts are the two that
+   * cannot be mistaken for an opinion about the move: an interlude that has
+   * nothing to do with the game and a word with nothing in it.
+   */
+  it("answers an ordinary move only with acts that claim nothing", () => {
+    for (const c of candidatesFor(FINE)) {
+      if (c.name === null) continue;
+      expect(PROP_ACTS[c.name]!.declares, c.name).toBeFalsy();
+      expect(["deep-space", "callout-incredible", "callout-a-move"]).toContain(c.name);
+    }
+  });
+
+  /**
+   * The menu and a match answer the same beat from different lists: on the menu
+   * the props are the content, in a game they are punctuation.
+   */
+  it("runs a smaller idle pool in a match than on the menu", () => {
+    const beat: SpectacleEvent = { kind: "idle-beat" };
+    const match = candidatesFor(beat, "match");
+    const attract = candidatesFor(beat, "attract");
+    expect(attract.length).toBeGreaterThan(match.length);
+    // Nothing loud in the in-match pool: every act it can draw is one that
+    // costs nothing to see again.
+    for (const c of match) expect(["truck-lap", "win-detonation"]).not.toContain(c.name);
   });
 
   /**
@@ -59,15 +104,18 @@ describe("the gag pools", () => {
    * outcome (`director/types.ts`).
    */
   it("never lets an estimate draw an act that declares a result", () => {
-    for (const event of SAMPLES) {
+    for (const event of [...SAMPLES, FINE]) {
       const fact = event.kind === "win" || event.kind === "draw";
-      for (const c of candidatesFor(event)) {
-        if (PROP_ACTS[c.name]!.declares) expect(fact, `${event.kind} -> ${c.name}`).toBe(true);
+      for (const mode of ["match", "attract"] as const) {
+        for (const c of candidatesFor(event, mode)) {
+          if (c.name === null) continue;
+          if (PROP_ACTS[c.name]!.declares) expect(fact, `${event.kind} -> ${c.name}`).toBe(true);
+        }
       }
     }
     // And the two that do declare are still there to be drawn.
     expect(candidatesFor({ kind: "win", player: "red", line: [] })[0]!.name).toBe("win-detonation");
-    expect(candidatesFor({ kind: "draw" })[0]!.name).toBe("banner-draw");
+    expect(candidatesFor({ kind: "draw" })[0]!.name).toBe("callout-draw");
   });
 
   it("ends the game the same way every time", () => {
@@ -108,6 +156,21 @@ describe("drawing a gag", () => {
     const collapsing: SpectacleEvent = { kind: "tension-shift", direction: "collapsing" };
     const only = pickGag(collapsing, () => 0.5)!;
     expect(pickGag(collapsing, () => 0.5, { avoid: only })).toBe(only);
+  });
+
+  /**
+   * Silence is drawn, not decided beforehand — so it keeps its share of the
+   * pool whatever else is going on. A busy stage must not make the screen
+   * *more* talkative about ordinary moves, which is what a coin flipped before
+   * the draw would have done: the silence entry would have been the only
+   * candidate left standing and then been vetoed into an act.
+   */
+  it("draws silence for an ordinary move, and a veto can't undo it", () => {
+    expect(pickGag(FINE, () => 0.1)).toBeNull();
+    expect(pickGag(FINE, () => 0.95)).not.toBeNull();
+    expect(pickGag(FINE, () => 0.1, { eligible: () => false })).toBeNull();
+    // `avoid` can't reach it either: the screen may do nothing twice running.
+    expect(pickGag(FINE, () => 0.1, { avoid: "deep-space" })).toBeNull();
   });
 
   it("loses the act to a veto, not the reaction", () => {

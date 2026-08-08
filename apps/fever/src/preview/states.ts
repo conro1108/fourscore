@@ -47,12 +47,14 @@ const ROSTER: { act: string; phase: number; caption: string }[] = [
   { act: "callout-heat", phase: 0.4, caption: "threat — the callout, heat, at the lens" },
   { act: "callout-still-here", phase: 0.4, caption: "idle beat — the callout, chrome" },
   { act: "rocket-fizzle", phase: 0.56, caption: "blunder — the rocket, out of ideas" },
-  { act: "sign-hmm", phase: 0.4, caption: "dubious — HMM." },
   { act: "beacon-drop", phase: 0.5, caption: "threat — the hazard beacon, strobing" },
-  { act: "banner-rising", phase: 0.5, caption: "tension rising — AS SCHEDULED" },
-  { act: "banner-collapsing", phase: 0.5, caption: "tension collapsing — NEVERMIND" },
-  { act: "banner-draw", phase: 0.5, caption: "draw — A DRAW A DRAW" },
-  { act: "sprinkler", phase: 0.32, caption: "idle beat — Moss waters nothing" },
+  { act: "callout-happening", phase: 0.4, caption: "tension rising — IT'S HAPPENING" },
+  { act: "callout-nevermind", phase: 0.4, caption: "tension collapsing — NEVERMIND" },
+  { act: "callout-draw", phase: 0.4, caption: "draw — A DRAW." },
+  { act: "stare-down", phase: 0.7, caption: "threat — the mascot, in sunglasses, leaning in" },
+  { act: "deep-space", phase: 0.5, caption: "ordinary move — somewhere else entirely" },
+  { act: "callout-incredible", phase: 0.4, caption: "ordinary move — INCREDIBLE, in rainbow" },
+  { act: "callout-a-move", phase: 0.4, caption: "ordinary move — A MOVE." },
   { act: "win-detonation", phase: 0.42, caption: "WIN — the detonation, banner at the lens" },
 ];
 
@@ -66,7 +68,7 @@ const ROSTER: { act: string; phase: number; caption: string }[] = [
 const BOTS: { id: string; name: string; act: string; phase: number }[] = [
   { id: "acorn", name: "Acorn", act: "bumpers-up", phase: 0.5 },
   { id: "pebble", name: "Pebble", act: "slab-drop", phase: 0.5 },
-  { id: "moss", name: "Moss", act: "sprinkler", phase: 0.32 },
+  { id: "moss", name: "Moss", act: "mower-crawl", phase: 0.5 },
   { id: "bramble", name: "Bramble", act: "pin-scatter", phase: 0.42 },
   { id: "cinder", name: "Cinder", act: "shell-game", phase: 0.76 },
   { id: "vane", name: "Vane", act: "score-lie", phase: 0.6 },
@@ -263,7 +265,7 @@ export const PREVIEW_STATES: PreviewCase[] = [
     moves: [],
     fever: 0.35,
     prop: [
-      { name: "sprinkler", phase: 0.35 },
+      { name: "deep-space", phase: 0.45 },
       { name: "rocket-fizzle", phase: 0.56 },
     ],
     chrome: { state: "menu" },

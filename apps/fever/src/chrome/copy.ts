@@ -112,7 +112,7 @@ export const COPY = {
 
   // Outcomes. Flat and declarative, because a finished board is a fact — the
   // one class of claim in the game that doesn't have to hedge.
-  won: "YOU WIN. THE CROWD IS REAL.",
+  won: "YOU WIN. THE SCREEN IS DELIGHTED.",
   drew: "A DRAW. NOBODY IS PLEASED.",
   lost: (bot: BotProfile): string => DEFEAT[bot.id] ?? `${shout(bot)} WINS.`,
   again: "AGAIN.",
@@ -124,7 +124,7 @@ export const COPY = {
   aboutBody: "This program is running normally.",
   ok: "OK",
   quitTitle: "Leave?",
-  quitBody: "Leave? The rally continues without you.",
+  quitBody: "Leave? The screen keeps playing.",
   stay: "Stay",
 
   // The error dialog jokes in the styling and never in the facts: the first

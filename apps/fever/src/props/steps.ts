@@ -122,25 +122,6 @@ export function rocketPose(phase: number): RocketPose {
   return { rise: 1.27 - t * t * 1.9, tilt: t * 2.4, burning: false };
 }
 
-/** The rally sign on a stick: up, hold, gone. */
-export interface SignPose {
-  /** Height in frame-heights; 0 is fully below the frame edge. */
-  rise: number;
-  /** Waggle in radians, alternating on the step clock. */
-  lean: number;
-}
-
-export function signPose(phase: number, step: number): SignPose {
-  const p = clamp01(phase);
-  const UP = 0.14;
-  const DOWN = 0.72;
-  // Two-frame waggle while it's up: the only motion the sign ever makes.
-  const lean = step % 2 === 0 ? 0.06 : -0.06;
-  if (p < UP) return { rise: (p / UP) * 1, lean };
-  if (p < DOWN) return { rise: 1, lean };
-  return { rise: 1 - (p - DOWN) / (1 - DOWN), lean };
-}
-
 /** The hazard beacon that drops in when someone is one move from a run. */
 export interface BeaconPose {
   /** Distance below the top of the frame, in frame-heights. */
@@ -162,38 +143,115 @@ export function beaconPose(phase: number, step: number): BeaconPose {
   return { drop: 1 - (p - OUT) / (1 - OUT), spin, lamp };
 }
 
-/** The banner plane: straight across, no arrival, no departure, just passing. */
-export interface BannerPose {
-  /** 0..1 across the frame, off-stage to off-stage. */
+/**
+ * Moss's mower: crosses, stops for no reason, crosses the rest of the way.
+ *
+ * Replaces the sprinkler, which was a *thing* where the reference wants a
+ * *character* — the trait is that the cast is sentient, not that the alley has
+ * equipment. So this one has a face, and the face never changes, and it is the
+ * only act in the game whose whole joke is that nothing escalates.
+ *
+ * Constant velocity everywhere, no easing at either end: it enters already at
+ * its cruising speed and leaves at the same one. Moss is not slow, Moss is
+ * unhurried, and the difference between those two is entirely in the fact that
+ * it never accelerates.
+ */
+export interface MowerPose {
+  /** 0..1 along its lane, off-frame to off-frame. */
   u: number;
-  /** Vertical bob in world-ish units, stepped. */
-  bob: number;
+  /** Blade angle in radians. Never stops, never cuts anything. */
+  blades: number;
+  /** Two-frame chassis jolt in world-ish units — a machine, idling badly. */
+  jolt: number;
 }
 
-export function bannerPose(phase: number, step: number): BannerPose {
+/** Where along its lane it stops, and how much of the act it spends stopped. */
+const MOWER_HOLD_U = 0.44;
+const MOWER_STOP = 0.26;
+/**
+ * The two moving segments, derived rather than chosen — which is what makes
+ * "one speed" a property of the code instead of a pair of numbers that happen
+ * to agree today. It covers the whole lane in the act minus the stop, so both
+ * segments run at `1 / (1 - MOWER_STOP)` and the hold is the only event.
+ */
+const MOWER_IN = MOWER_HOLD_U * (1 - MOWER_STOP);
+const MOWER_OUT = MOWER_IN + MOWER_STOP;
+/** Turns of the blade across the act. Fast enough to alias on the step clock. */
+const MOWER_TURNS = 9;
+
+export function mowerPose(phase: number, step: number): MowerPose {
   const p = clamp01(phase);
-  // Constant speed all the way through — a tow plane has no reason to
-  // accelerate, and the banner behind it is the thing being read.
-  return { u: p, bob: (step % 4 < 2 ? 1 : -1) * 0.08 };
+  const blades = p * MOWER_TURNS * Math.PI * 2;
+  const jolt = (step % 2 === 0 ? 1 : -1) * 0.035;
+
+  if (p < MOWER_IN) return { u: (p / MOWER_IN) * MOWER_HOLD_U, blades, jolt };
+  // The hold. It has arrived somewhere it has no reason to be and stays there
+  // for a quarter of the act, which is a very long time on a screen this loud.
+  if (p < MOWER_OUT) return { u: MOWER_HOLD_U, blades, jolt };
+  const t = (p - MOWER_OUT) / (1 - MOWER_OUT);
+  return { u: MOWER_HOLD_U + t * (1 - MOWER_HOLD_U), blades, jolt };
 }
 
-/** Moss's sprinkler: up, water nothing for two beats, down. (VISION.md) */
-export interface SprinklerPose {
-  /** Height in frame-heights above its hidden rest position. */
+/**
+ * The stare: the mascot, in sunglasses, declining to do a bit.
+ *
+ * The reference's "apex predator" trait, taken as register rather than as
+ * content — total confidence and zero action. It is the same disc as
+ * `mascotPose`, which is the point: a lane screen's cast is unexplained, so the
+ * character that cheers for you is also the character that rises out of the
+ * floor and looks at you, and nothing accounts for the difference.
+ *
+ * Every transition is one frame. It does not rise, it *appears higher* three
+ * times; the one lean is the only thing that ever happens; the exit is a single
+ * frame of nothing. Interpolating any of it would make it a creature moving
+ * rather than a machine playing four cels.
+ */
+export interface StarePose {
+  /** Height in frame-heights above its hidden rest position, 0..1. */
   rise: number;
-  /** Which of the two watering beats is happening, or 0 for neither. */
-  beat: 0 | 1 | 2;
+  /** Lean toward the lens, 0..1. It leans once and never leans back. */
+  lean: number;
 }
 
-export function sprinklerPose(phase: number): SprinklerPose {
+export function starePose(phase: number): StarePose {
   const p = clamp01(phase);
-  const UP = 0.22;
-  const BEAT1 = 0.42;
-  const BEAT2 = 0.62;
-  const DOWN = 0.78;
-  const rise = p < UP ? p / UP : p < DOWN ? 1 : 1 - (p - DOWN) / (1 - DOWN);
-  const beat = p >= UP && p < BEAT1 ? 1 : p >= BEAT2 && p < DOWN ? 2 : 0;
-  return { rise, beat: beat as 0 | 1 | 2 };
+  const STEPS: [until: number, rise: number][] = [
+    [0.08, 0.35],
+    [0.16, 0.7],
+    [0.62, 1],
+  ];
+  const GONE = 0.88;
+
+  for (const [until, rise] of STEPS) if (p < until) return { rise, lean: 0 };
+  // Leaned in, held, for a quarter of the act. Nothing else is scheduled; the
+  // act from here is just a face, closer. Then one frame and an empty stage.
+  if (p < GONE) return { rise: 1, lean: 1 };
+  return { rise: 0, lean: 0 };
+}
+
+/**
+ * Deep space: the act with nothing whatsoever to do with the game.
+ *
+ * The reference's fourth trait — the screen cuts to the vacuum of space for no
+ * reason and cuts back — and the one act that is allowed to be about nothing.
+ * It cannot react to the move because it does not know a move happened, which
+ * is exactly why it is the funniest thing to answer an ordinary move with.
+ *
+ * A flat drift at a constant rate. It does not arrive and it does not conclude;
+ * it was already crossing before the screen looked at it.
+ */
+export interface DeepSpacePose {
+  /** 0..1 across the sky, off-frame to off-frame. */
+  u: number;
+  /** Height above the drift line, in world-ish units — a very shallow arc. */
+  arc: number;
+  /** Which of the two twinkle cels the stars are on. */
+  twinkle: 0 | 1;
+}
+
+export function deepSpacePose(phase: number, step: number): DeepSpacePose {
+  const p = clamp01(phase);
+  return { u: p, arc: Math.sin(p * Math.PI) * 0.6, twinkle: (step % 2) as 0 | 1 };
 }
 
 /* ------------------------------------------------------------------------ *

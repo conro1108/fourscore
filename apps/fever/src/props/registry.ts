@@ -22,21 +22,21 @@
 
 import type { SoundName } from "../audio/library.js";
 import type { StageLayout } from "../stage/layout.js";
-import { makeBanner, BANNER_MS } from "./Banner.js";
 import { Beacon, BEACON_MS } from "./Beacon.js";
 import { Bumpers, BUMPERS_MS } from "./Bumpers.js";
 import { makeCallout, CALLOUT_MS } from "./Callout.js";
+import { DeepSpace, DEEP_SPACE_MS } from "./DeepSpace.js";
 import { Detonation, DETONATION_MS } from "./Detonation.js";
 import { LaneSolve, SOLVE_MS } from "./LaneSolve.js";
 import { makeMascot, MASCOT_MS } from "./Mascot.js";
+import { Mower, MOWER_MS } from "./Mower.js";
 import { Pins, PINS_MS } from "./Pins.js";
 import { Pinsetter, PINSETTER_MS } from "./Pinsetter.js";
 import { Rocket, ROCKET_MS } from "./Rocket.js";
 import { Scoreboard, SCORE_MS } from "./Scoreboard.js";
 import { Shells, SHELLS_MS } from "./Shells.js";
-import { makeSign, SIGN_MS } from "./Sign.js";
 import { Slab, SLAB_MS } from "./Slab.js";
-import { Sprinkler, SPRINKLER_MS } from "./Sprinkler.js";
+import { Stare, STARE_MS } from "./Stare.js";
 import { Truck, TRUCK_LAP_MS } from "./Truck.js";
 
 /**
@@ -89,33 +89,7 @@ const declaring = (a: PropAct): PropAct => ({ ...a, declares: true });
 export const PROP_ACTS: Record<string, PropAct> = {
   "truck-lap": act("truck-lap", TRUCK_LAP_MS, 180, "floor", Truck, "spike-truck"),
   "rocket-fizzle": act("rocket-fizzle", ROCKET_MS, 84, "right", Rocket, "spike-rocket"),
-  "sign-hmm": act("sign-hmm", SIGN_MS, 24, "left", makeSign("HMM."), "spike-sign"),
   "beacon-drop": act("beacon-drop", BEACON_MS, 68, "right", Beacon, "spike-beacon"),
-  // The tension banners are weather, not verdicts — `tension-shift` rides the
-  // Director's estimate and may not assert a result. Their PA barks step up or
-  // down in pitch and never say a word, which is the same rule in sound: an
-  // announcement with no content can't overclaim.
-  "banner-rising": act(
-    "banner-rising",
-    BANNER_MS,
-    60,
-    "sky",
-    makeBanner("AS SCHEDULED", 1),
-    "spike-banner-rising",
-  ),
-  "banner-collapsing": act(
-    "banner-collapsing",
-    BANNER_MS,
-    60,
-    "sky",
-    makeBanner("NEVERMIND", 1),
-    "spike-banner-collapsing",
-  ),
-  // A draw is a fact, so this one gets to be flat. One bark, no bend.
-  "banner-draw": declaring(
-    act("banner-draw", BANNER_MS, 60, "sky", makeBanner("A DRAW", 2), "spike-banner-draw"),
-  ),
-  "sprinkler": act("sprinkler", SPRINKLER_MS, 64, "left", Sprinkler, "spike-sprinkler"),
   "win-detonation": declaring(
     act("win-detonation", DETONATION_MS, 110, "lens", Detonation, "spike-win"),
   ),
@@ -132,6 +106,14 @@ export const PROP_ACTS: Record<string, PropAct> = {
     "spike-mascot-cheer",
   ),
   "mascot-flop": act("mascot-flop", MASCOT_MS, 40, "floor", makeMascot("flop"), "spike-mascot-flop"),
+  // The same disc in sunglasses, at the wrong scale, doing nothing at all. The
+  // cast is unexplained by law, so this needs no account of itself — and a
+  // character that declines to react is the one register the roster was missing.
+  "stare-down": act("stare-down", STARE_MS, 40, "right", Stare, "spike-stare"),
+  // The act about nothing. It cannot comment on your move because it does not
+  // know you made one, which is why it is the only thing that may answer an
+  // ordinary one (see `gags.ts`).
+  "deep-space": act("deep-space", DEEP_SPACE_MS, 74, "sky", DeepSpace, "spike-deep-space"),
   // The callouts: reactions, never results. `NICE.` is a screen having an
   // opinion; anything that names an outcome would be a claim the Director's
   // estimate cannot back (director/types.ts).
@@ -186,6 +168,63 @@ export const PROP_ACTS: Record<string, PropAct> = {
     makeCallout("STILL HERE", "chrome"),
     "spike-callout",
   ),
+  // The two words for ordinary moves, and they are the joke from both ends.
+  // `INCREDIBLE` is a screen at full volume about a move that was merely
+  // allowed — the only word in the gallery set in `rainbow`, the preset with no
+  // dark band and therefore no horizon and no volume, so it reads as a sticker
+  // stuck on the frame rather than as an object in it. `A MOVE.` is the same
+  // screen having run out of things to say and saying that, in the flattest
+  // preset there is. Neither names a result, so both stay inside the claims law
+  // on a graded event (`director/types.ts`).
+  "callout-incredible": act(
+    "callout-incredible",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("INCREDIBLE", "rainbow"),
+    "spike-callout",
+  ),
+  "callout-a-move": act(
+    "callout-a-move",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("A MOVE.", "void"),
+    "spike-callout",
+  ),
+  // -- what used to be the tow plane -----------------------------------------
+  // `banner-rising` / `-collapsing` / `-draw` were a plane towing a banner over
+  // a fairground, and phase 6½ names them the clearest miss in the roster: the
+  // beat is right and the venue is wrong. A lane screen does this exact beat as
+  // a word at the lens, and the detonation has been showing how since phase 3.
+  // So the three of them are gone and these three answer the same three events,
+  // with the same copy where the copy still fits — `NEVERMIND` was always the
+  // best line in the game and it never needed a plane.
+  //
+  // The two tension words stay hedged: `tension-shift` is the Director's
+  // estimate (`director/types.ts`), so the screen may shout about the weather
+  // and may not name a result.
+  "callout-happening": act(
+    "callout-happening",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("IT'S HAPPENING", "heat"),
+    "spike-callout",
+  ),
+  "callout-nevermind": act(
+    "callout-nevermind",
+    CALLOUT_MS,
+    2,
+    "lens",
+    makeCallout("NEVERMIND", "void"),
+    "spike-callout",
+  ),
+  // A draw is a fact, so this one gets to be flat, and gets the chrome the
+  // software uses to talk about itself.
+  "callout-draw": declaring(
+    act("callout-draw", CALLOUT_MS, 2, "lens", makeCallout("A DRAW.", "chrome"), "spike-callout"),
+  ),
 
   // -- the signatures (phase 5) ----------------------------------------------
   // One clip per opponent, wired to them in `bots/identity.ts` and written out
@@ -194,6 +233,9 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // the only thing the berth rule exists to stop. None of them declares —
   // a signature answers a threat or a grade, and both are estimates.
   "bumpers-up": act("bumpers-up", BUMPERS_MS, 24, "floor", Bumpers, "spike-bumpers"),
+  // Moss's, and the sprinkler's replacement: same persona, same pace, a
+  // character instead of a piece of equipment.
+  "mower-crawl": act("mower-crawl", MOWER_MS, 124, "floor", Mower, "spike-mower"),
   "slab-drop": act("slab-drop", SLAB_MS, 24, "sky", Slab, "spike-slab"),
   "pin-scatter": act("pin-scatter", PINS_MS, 120, "floor", Pins, "spike-pins"),
   "shell-game": act("shell-game", SHELLS_MS, 84, "right", Shells, "spike-shells"),

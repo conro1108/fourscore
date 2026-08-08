@@ -13,7 +13,6 @@ import { describe, expect, it } from "vitest";
 import { PROP_ACTS } from "./registry.js";
 import {
   beaconPose,
-  bannerPose,
   bumperPose,
   calloutPose,
   detonationPose,
@@ -25,10 +24,11 @@ import {
   scorePose,
   shellPose,
   shellSlot,
-  signPose,
   slabPose,
   solvePose,
-  sprinklerPose,
+  starePose,
+  mowerPose,
+  deepSpacePose,
 } from "./steps.js";
 
 describe("the gag roster", () => {
@@ -57,22 +57,54 @@ describe("roster poses", () => {
     expect(rocketPose(0.52)).toEqual(rocketPose(0.62));
   });
 
-  it("the sign and sprinkler both end hidden where they started", () => {
-    expect(signPose(0, 0).rise).toBe(0);
-    expect(signPose(1, 0).rise).toBeCloseTo(0);
-    expect(sprinklerPose(0).rise).toBe(0);
-    expect(sprinklerPose(1).rise).toBeCloseTo(0);
+  it("the stare ends hidden, having arrived already risen", () => {
+    expect(starePose(0).rise).toBeGreaterThan(0);
+    expect(starePose(1).rise).toBe(0);
   });
 
-  it("the sprinkler waters nothing exactly twice, with a gap", () => {
-    const beats = [];
-    let prev: number = 0;
+  /**
+   * The stare's entrance is cels, not a rise: sampling it densely turns up a
+   * handful of distinct heights, not a continuum. This is the one act built
+   * entirely out of hard cuts, so it is the one worth asserting that on.
+   */
+  it("the stare arrives in steps and never interpolates", () => {
+    const heights = new Set<number>();
+    for (let p = 0; p <= 1; p += 0.001) heights.add(starePose(p).rise);
+    expect(heights.size).toBeLessThanOrEqual(4);
+    // And it leans exactly once, having already stopped moving.
+    const leans = [];
+    let prev = 0;
     for (let p = 0; p <= 1; p += 0.001) {
-      const { beat } = sprinklerPose(p);
-      if (beat !== prev && beat !== 0) beats.push(beat);
-      prev = beat;
+      const { lean } = starePose(p);
+      if (lean !== prev) leans.push(lean);
+      prev = lean;
     }
-    expect(beats).toEqual([1, 2]);
+    expect(leans).toEqual([1, 0]);
+  });
+
+  /**
+   * Moss's mower crosses at one speed and stops once. Constant velocity is the
+   * whole character — the difference between unhurried and slow is that it
+   * never accelerates — so the test is that the two moving segments have the
+   * same gradient and the middle one has none.
+   */
+  it("the mower crosses at a constant crawl and stops dead in the middle", () => {
+    const u = (p: number) => mowerPose(p, 0).u;
+    expect(u(0)).toBe(0);
+    expect(u(1)).toBeCloseTo(1);
+    const inSpeed = (u(0.3) - u(0.2)) / 0.1;
+    const outSpeed = (u(0.9) - u(0.8)) / 0.1;
+    expect(inSpeed).toBeCloseTo(outSpeed, 1);
+    expect(u(0.35)).toBe(u(0.55));
+    // The blades never stop, including while it does.
+    expect(mowerPose(0.55, 0).blades).toBeGreaterThan(mowerPose(0.35, 0).blades);
+  });
+
+  it("the interlude drifts across and twinkles on the step clock", () => {
+    expect(deepSpacePose(0, 0).u).toBe(0);
+    expect(deepSpacePose(1, 0).u).toBe(1);
+    // Two cels, alternating, and nothing between them.
+    expect(new Set([0, 1, 2, 3].map((s) => deepSpacePose(0.5, s).twinkle)).size).toBe(2);
   });
 
   it("the beacon strobes rather than breathes", () => {
@@ -80,12 +112,6 @@ describe("roster poses", () => {
     expect(levels.size).toBe(2);
     expect(beaconPose(0, 0).drop).toBe(0);
     expect(beaconPose(1, 0).drop).toBeCloseTo(0);
-  });
-
-  it("the banner crosses at a constant speed, off-stage to off-stage", () => {
-    expect(bannerPose(0, 0).u).toBe(0);
-    expect(bannerPose(1, 0).u).toBe(1);
-    expect(bannerPose(0.5, 0).u).toBeCloseTo(0.5);
   });
 
   it("the detonation holds the banner, then throws it back into the void", () => {
