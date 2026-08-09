@@ -198,12 +198,3 @@ animate off the *move list*, not off the click, so a move arriving over the wire
 drops exactly like one you made; that's why `rendered` lags `moves` by one
 animation. It's also the only place a desync can surface, and it says so on
 screen rather than rendering nonsense.
-
-## Git
-
-This project merges straight to `main` — no feature branches or PRs.
-
-Always commit and push after completing a piece of work, without asking for
-confirmation first. Always `git pull` before pushing, in case downstream
-changes have landed — this is still single-threaded on `main`, just cheap
-insurance.
