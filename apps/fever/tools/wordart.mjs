@@ -40,23 +40,34 @@ const dataUrl = await page.evaluate(async () => {
   const words = [
     ["GAME OVER", "chrome"],
     ["STILL HERE", "chrome"],
+    ["A DRAW.", "chrome"],
     ["NICE.", "acid"],
     ["OOF.", "heat"],
-    ["HUH.", "void"],
     ["HEATING UP", "heat"],
+    ["IT'S HAPPENING", "heat"],
+    ["HUH.", "void"],
+    ["A MOVE.", "void"],
+    ["NEVERMIND", "void"],
+    ["INCREDIBLE", "rainbow"],
   ];
-  const S = 12;
+  // Magnification, and the tile's own size read off the tile rather than
+  // assumed: `wordArt` ships bigger than 64 wide (see its note) and a hardcoded
+  // 64 here would quietly halve the zoom the moment that changed.
+  const tiles = words.map(([text, style]) => wordArt(text, style).image);
+  const { width: TW, height: TH } = tiles[0];
+  const S = Math.max(2, Math.round(768 / TW));
+
   const c = document.createElement("canvas");
-  c.width = 64 * S;
-  c.height = 16 * S * words.length;
+  c.width = TW * S;
+  c.height = TH * S * words.length;
   const g = c.getContext("2d");
   g.imageSmoothingEnabled = false;
   // Mid grey behind, so the transparent gutter and the ink outline both read.
   // On black the cutout is invisible and on white the outline is.
   g.fillStyle = "#5a5566";
   g.fillRect(0, 0, c.width, c.height);
-  words.forEach(([text, style], i) => {
-    g.drawImage(wordArt(text, style).image, 0, i * 16 * S, 64 * S, 16 * S);
+  tiles.forEach((tile, i) => {
+    g.drawImage(tile, 0, i * TH * S, TW * S, TH * S);
   });
   return c.toDataURL();
 });

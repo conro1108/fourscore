@@ -21,7 +21,11 @@
  * and `draw` are facts.
  *
  * Budget, audited: one quad = 2 triangles — the cheapest act in the game, and
- * the loudest. One 64x16 nearest texture (see `wordArt`).
+ * the loudest. One nearest-filtered WordArt tile, which is the one texture in
+ * the game allowed past 64px and says why in its own note (`wordArt`): this
+ * quad is seven world units across at the hold and is the largest thing that
+ * ever appears on screen, so at 64 texels wide a long word's letters merged
+ * into each other and `INCREDIBLE` was a smear.
  */
 
 import { useFrame } from "@react-three/fiber";

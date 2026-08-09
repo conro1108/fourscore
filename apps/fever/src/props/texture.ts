@@ -29,9 +29,10 @@ function shout(
 function propCanvas(
   draw: (g: CanvasRenderingContext2D) => void,
   height = 64,
+  width = 64,
 ): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 64;
+  canvas.width = width;
   canvas.height = height;
   const g = canvas.getContext("2d")!;
   draw(g);
@@ -691,6 +692,20 @@ export type WordArtStyle = "chrome" | "heat" | "acid" | "void" | "rainbow";
  * flash — one texel of near-white immediately above one texel of near-black.
  * A hard specular line reads as metal catching light; the same two colours in
  * wider bands read as a sandwich.
+ *
+ * And there is a second half to that rule, which `chrome` and `void` both broke
+ * (Connor, 2026-08-09: "pretty fucky"). **The horizon has to be a colour, not a
+ * hole.** Both of them had it at a near-black within a few points of the ink
+ * ring and of the void behind the word — so the horizon, the outline and the
+ * background all merged into one dark mass across the middle of every letter,
+ * and the ground band below was too dim to climb back out of it. `GAME OVER`
+ * read as the top half of some letters floating over a smudge.
+ *
+ * `heat` is the one that was always right and is the reference for the other
+ * four: its horizon is arterial red, which is dark *and* saturated, so it reads
+ * as the far edge of a shiny surface rather than as a gap in the letter. Every
+ * ramp's horizon now has real chroma, and every ground band is bright enough to
+ * hold its own against the void.
  */
 const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> = {
   // The wordmark's ramp, thinned to four. The one the software uses to say its
@@ -699,8 +714,10 @@ const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> 
     ramp: [
       [0.36, "#e8e4f0"],
       [0.48, "#ffffff"],
-      [0.58, "#2a1d40"],
-      [1, "#9d8ec2"],
+      // Slate violet rather than the near-black this was: at #2a1d40 the
+      // horizon was four points off the ink ring and the word came apart.
+      [0.58, "#5b4a86"],
+      [1, "#c3b4e6"],
     ],
     ink: "#150d22",
   },
@@ -732,8 +749,10 @@ const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> 
     ramp: [
       [0.36, "#a884e0"],
       [0.48, "#e4d2ff"],
-      [0.58, "#1a0f2e"],
-      [1, "#6b48ad"],
+      // Same fix as chrome's, further round: saturated where chrome's is
+      // greyed, so the two still read as two finishes of one object.
+      [0.58, "#4a2b8c"],
+      [1, "#8f66d6"],
     ],
     ink: "#0a0612",
   },
@@ -765,12 +784,38 @@ const WORD_ART: Record<WordArtStyle, { ramp: [number, string][]; ink: string }> 
 /**
  * A word in WordArt, cut out of its tile — no slab, no box, just the letters.
  *
- * 64x16 rather than 64x64, and that's the whole reason it's legible. The banner
+ * 4:1 rather than square, and that's most of the reason it's legible. The banner
  * quad is 5.2 by 1.4 — nearly 4:1 — so a square tile spent three quarters of its
  * pixels on empty space above and below the word and then magnified the ten
  * pixels of actual letter across two metres of screen. Matching the tile's
- * aspect to the quad's puts every pixel in the budget into the letters. Still
- * ≤64px, still nearest, still no mipmaps: the law is the size, not the shape.
+ * aspect to the quad's puts every pixel in the budget into the letters.
+ *
+ * ## Why this one tile is bigger than 64 (Connor, 2026-08-09: "pretty fucky")
+ *
+ * The design below is authored in 64x16 units and rendered at `TILE`x that, so
+ * the tile ships at 128x32 and every proportion in it — the lean, the ink ring,
+ * the ramp's bands, the shadow offset — is identical to what it always was. It
+ * is the same artifact sampled twice as finely, not a different one.
+ *
+ * The cap it breaks is real and so is the reason. ≤64px is the *prop* law, and
+ * it is about liveries: a texture wrapped on an object, seen at an object's
+ * size. This tile is type, it is the biggest thing that ever appears on screen —
+ * a callout at the hold is seven world units across and fills most of the
+ * frame — and at 64 texels wide that is fourteen screen pixels per texel. Ten
+ * letters got five texels each, their outlines merged, and `INCREDIBLE` came
+ * back as a rainbow smear with a shape somewhere inside it. That is not
+ * intentional wrongness; it is a word you can't read.
+ *
+ * It is also the one place the vision asks for this. Pillar 1 puts the gloss in
+ * the text specifically so the props can stay cheap — "the chrome/WordArt
+ * callouts carry the shine. That was a decision, not a compromise" — and the
+ * review screen's eval curve is SVG for exactly the same reason the repo
+ * `CLAUDE.md` gives: the thing that has to be *read* gets display resolution,
+ * and keeping it out of the sprite budget is what lets both budgets be right.
+ *
+ * Still nearest, still no mipmaps, still voted down to five flat colours. The
+ * letters are as hard-edged and as banded as they ever were. What changed is
+ * that there are now enough texels for the edge to be an edge.
  *
  * The transparent background is the reason `usePropMaterial` grew `alphaTest`:
  * with no slab, the tile is mostly nothing, and nothing has to be *cut*, not
@@ -814,14 +859,16 @@ export function wordArt(text: string, style: WordArtStyle = "chrome"): THREE.Can
    */
   const SKEW = 0.3;
 
-  return propCanvas((tile) => {
-    // Everything below is drawn in tile coordinates; the 3x is a scale on the
-    // way in and a vote on the way out, and nothing in between knows about it.
+  return propCanvas(
+    (tile) => {
+    // Everything below is drawn in 64x16 design units. `TILE` is a scale on the
+    // way in and `SUPERSAMPLE` is another; the vote on the way out lands on the
+    // shipped tile, and nothing in between knows about either.
     const hi = document.createElement("canvas");
-    hi.width = 64 * SUPERSAMPLE;
-    hi.height = 16 * SUPERSAMPLE;
+    hi.width = TILE_W * SUPERSAMPLE;
+    hi.height = TILE_H * SUPERSAMPLE;
     const g = hi.getContext("2d")!;
-    g.scale(SUPERSAMPLE, SUPERSAMPLE);
+    g.scale(SUPERSAMPLE * TILE, SUPERSAMPLE * TILE);
 
     g.font = `bold ${SIZE}px "Arial Black", monospace`;
     g.textAlign = "center";
@@ -883,10 +930,28 @@ export function wordArt(text: string, style: WordArtStyle = "chrome"): THREE.Can
     }
     draw(grad, 0, 0, true);
 
-    // And now throw away everything the renderer decided in between.
-    vote(g, tile, 64, 16, [ink, ...ramp.map(([, color]) => color)]);
-  }, 16);
+      // And now throw away everything the renderer decided in between.
+      vote(g, tile, TILE_W, TILE_H, [ink, ...ramp.map(([, color]) => color)]);
+    },
+    TILE_H,
+    TILE_W,
+  );
 }
+
+/**
+ * Design units per shipped texel for the WordArt tile. See the note on
+ * `wordArt` for why this one texture is allowed past 64.
+ *
+ * Two, and not four. The vote's whole job is to hand back an edge that is one
+ * texel of ink and then nothing, and the ink ring is authored a shade under one
+ * design unit wide — at 4 it is four texels of ring around a letter, which is a
+ * thick even border and reads as a sticker die-cut by a machine. At 2 the ring
+ * still breaks raggedly across its texels, which is the hand-drawn artifact the
+ * whole `vote`/`SUPERSAMPLE` apparatus exists to produce.
+ */
+const TILE = 2;
+const TILE_W = 64 * TILE;
+const TILE_H = 16 * TILE;
 
 /**
  * Subpixels per texel per axis on the way to the vote. Nine samples.
