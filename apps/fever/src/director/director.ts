@@ -60,15 +60,15 @@ export interface DirectorTuning {
   brilliantSlack: number;
   /** Minimum gap between `threat` events for the same player, in ms. */
   threatCooldown: number;
-  /** Idle beats: this often, but only after this long with nothing else happening. */
-  idlePeriod: number;
-  idleQuiet: number;
   /**
-   * Idle period on the menu, where idle beats are the entire show. A lane
-   * screen with nothing to react to still isn't blank (VISION.md), and at the
-   * in-match rate the menu was one prop every eight seconds.
+   * Idle beats, and they are a menu-only mechanism now (see `advance`).
+   *
+   * `attractIdlePeriod` is how often the attract loop fires one; `idleQuiet` is
+   * how long the stage has to have been quiet first, which still matters
+   * because the menu's own opening beats shouldn't stack.
    */
   attractIdlePeriod: number;
+  idleQuiet: number;
 }
 
 export const TUNING: DirectorTuning = {
@@ -96,16 +96,8 @@ export const TUNING: DirectorTuning = {
   brilliantSwing: 0.18,
   brilliantSlack: 0.03,
   threatCooldown: 3000,
-  // Rare, in a match. At 7s an idle beat landed between almost every pair of
-  // moves and the ambient acts became the majority of what the stage did — the
-  // screen was performing on its own schedule instead of answering yours, which
-  // is backwards for a reference whose whole mechanic is *reacting to a throw*.
-  // At 16s a quiet stretch is a quiet stretch and the thing that breaks it is
-  // usually something you did. The menu is unaffected; there, ambient is the
-  // entire show and `attractIdlePeriod` still runs at 1.8s.
-  idlePeriod: 16_000,
-  idleQuiet: 3000,
   attractIdlePeriod: 1800,
+  idleQuiet: 3000,
 };
 
 export interface DirectorInput {
@@ -305,13 +297,24 @@ export function advance(
   }
 
   // -- idle ------------------------------------------------------------------
-  // Ambient gags get a hook, but only in the quiet — an idle beat landing on
-  // top of a blunder reaction is two gags fighting over one moment.
+  // The attract loop's heartbeat, and *only* the attract loop's.
+  //
+  // In a match the stage answers what happened and does nothing otherwise
+  // (Connor, 2026-08-09). Ambient beats had been cut back twice already — 7s to
+  // 16s, then to a pool holding only acts that claim nothing — and both times
+  // the same complaint survived the tuning: a clip that fires because time
+  // passed is the screen performing on its own schedule, and it spends a
+  // reaction the next blunder needed. The reference's whole mechanic is
+  // reacting to a throw, so a game with nothing happening in it now shows
+  // nothing, and the quiet is what makes the next answer land.
+  //
+  // The menu is untouched, because there is nothing there to react to and a
+  // lane screen is never blank (VISION.md).
   if (events.length > 0) s.lastEventAt = now;
-  const idlePeriod = input.mode === "attract" ? t.attractIdlePeriod : t.idlePeriod;
   if (
+    input.mode === "attract" &&
     events.length === 0 &&
-    now - s.lastIdleAt >= idlePeriod &&
+    now - s.lastIdleAt >= t.attractIdlePeriod &&
     now - s.lastEventAt >= t.idleQuiet
   ) {
     s.lastIdleAt = now;

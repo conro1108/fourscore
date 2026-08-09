@@ -455,6 +455,198 @@ export function machineSkin(): THREE.CanvasTexture {
 }
 
 /* -------------------------------------------------------------------------- *
+ * The full-frame acts (phase 9). Same rules, one addition worth naming: three
+ * of these props are large in frame — the piano falls past the whole board, the
+ * finger is nearly as tall as it — and a 64px tile stretched over something
+ * that big is four fat pixels per feature. So they carry *fewer* features,
+ * larger, rather than the same detail smaller. A big prop is not a small prop
+ * closer up.
+ * -------------------------------------------------------------------------- */
+
+/** The cannon: circus red, gold hoops, and a claim about the act. */
+export function cannonLivery(): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    g.fillStyle = "#8f1230";
+    g.fillRect(0, 0, 64, 64);
+    // Hoops around the barrel. Tiled along its length, so these are the bands
+    // you actually see rather than two smears at the ends.
+    g.fillStyle = "#c9a227";
+    g.fillRect(0, 6, 64, 7);
+    g.fillRect(0, 51, 64, 7);
+    g.fillStyle = "#e2b743";
+    g.fillRect(0, 13, 64, 2);
+    g.fillRect(0, 49, 64, 2);
+    // One star, off centre, because it was applied by hand and not well.
+    g.fillStyle = "#e8e4f0";
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      g.fillRect(26 + Math.cos(a) * 8, 30 + Math.sin(a) * 8, 5, 5);
+    }
+  });
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.set(3, 1);
+  return tex;
+}
+
+/**
+ * The piano's lacquer: black, with the one hard specular line that is the
+ * whole vocabulary of cheap 3D gloss. The prop stays Lambert — the shine is
+ * painted on, which is the only way a flat-shaded thing gets to look polished.
+ */
+export function pianoLacquer(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#14101a";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#2c2733";
+    g.fillRect(0, 46, 64, 18);
+    // The highlight: two bands, hard-edged, running the length of the lid.
+    g.fillStyle = "#4a4356";
+    g.fillRect(0, 10, 64, 5);
+    g.fillStyle = "#6d6480";
+    g.fillRect(0, 15, 64, 2);
+  });
+}
+
+/**
+ * The keyboard. Eight whites with the sharps between them, on a tile the
+ * keyboard's own shape — 64x16 rather than square, because this goes on a long
+ * shallow strip and a square tile squeezed onto it is four fat pixels per key.
+ *
+ * The first pass put the eyes and the keys on one square tile and mapped it to
+ * the whole front of the prop. Box faces each take the entire tile, so the
+ * harness handed back a wide white bar with the face crushed into the top
+ * centimetre of it. Two features at two aspect ratios want two tiles.
+ */
+export function pianoKeys(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#2c2733";
+    g.fillRect(0, 0, 64, 16);
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(1, 2, 62, 13);
+    // The sharps. The row is a pixel short at one end because nobody measured.
+    g.fillStyle = "#17111c";
+    for (let i = 1; i < 8; i++) g.fillRect(i * 7.6, 2, 3, 8);
+  }, 16);
+}
+
+/**
+ * The piano's face: two eyes on the fallboard, as a cut-out decal.
+ *
+ * The keys were always going to be teeth — an instrument with a mouth is most
+ * of the way to a character already, and the second trait says a prop with no
+ * face is the weakest thing on the stage. So this is the two rectangles that
+ * finish the job, and they are wide open, which is the only expression a thing
+ * falling out of the top of the frame is entitled to.
+ */
+export function pianoFace(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(6, 16, 20, 26);
+    g.fillRect(38, 16, 20, 26);
+    g.fillStyle = "#17111c";
+    // Pupils, both looking down, because that is where it is going.
+    g.fillRect(12, 28, 9, 12);
+    g.fillRect(44, 28, 9, 12);
+  });
+}
+
+/**
+ * The wrecking ball's iron: two bands of it, and nothing else.
+ *
+ * Lighter than iron is, because a dark sphere against a near-black void is a
+ * silhouette — the harness handed back a hole in the picture with two eyes in
+ * it. The facets have to catch something for the shape to read as round.
+ */
+export function ironSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#59606b";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#464c56";
+    g.fillRect(0, 26, 64, 14);
+    g.fillStyle = "#767e8b";
+    g.fillRect(0, 8, 64, 4);
+    // Rust, in three blocks, same as the mower's — the alley has one weather.
+    g.fillStyle = "#8a5a2b";
+    g.fillRect(10, 46, 9, 6);
+    g.fillRect(44, 18, 7, 5);
+  });
+}
+
+/**
+ * The wrecking ball's eyes, as a decal. Half-lidded and pointed slightly down
+ * the way it is travelling: the ball is not alarmed about any of this and it is
+ * important that it isn't.
+ */
+export function ironFace(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#e8e4f0";
+    g.fillRect(8, 18, 18, 20);
+    g.fillRect(38, 18, 18, 20);
+    // The lids: a hard bar across the top half of each, which is the whole of
+    // the expression. The iron's own mid tone, so it reads as the ball's
+    // surface coming down over the eye rather than as a second colour.
+    g.fillStyle = "#464c56";
+    g.fillRect(8, 18, 18, 9);
+    g.fillRect(38, 18, 18, 9);
+    g.fillStyle = "#17111c";
+    g.fillRect(14, 27, 7, 9);
+    g.fillRect(44, 27, 7, 9);
+  });
+}
+
+/**
+ * The mirror ball's facets: a hard grid of silver squares with the grout
+ * showing. Two rows are brighter than the rest and always the same two, so the
+ * stepped spin reads as glints going past rather than as the ball flickering.
+ */
+export function mirrorFacets(): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    g.fillStyle = "#2c2733";
+    g.fillRect(0, 0, 64, 64);
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const bright = y === 2 || (y === 5 && x % 2 === 0);
+        g.fillStyle = bright ? "#f2f0f8" : (x + y) % 2 === 0 ? "#a9aebb" : "#868c99";
+        g.fillRect(x * 8 + 1, y * 8 + 1, 6, 6);
+      }
+    }
+  });
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.set(3, 1);
+  return tex;
+}
+
+/**
+ * The foam finger. A number, a word, and a colour that was chosen from a list
+ * of two — the sponsor decal the truck wears, moved onto merchandise.
+ *
+ * `NO. 1` rather than `#1`: the hash sets narrow and closed up at this size and
+ * came back from the harness as a smudge over the numeral.
+ */
+export function foamSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#7fe018";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#5fae10";
+    g.fillRect(0, 0, 64, 6);
+    g.fillRect(0, 58, 64, 6);
+    shout(g, "NO. 1", "#17111c", 40, 30);
+  });
+}
+
+/** The washer's plank, and the rig that is about to stop holding it up. */
+export function plankSkin(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#8a6a3b";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#6d5330";
+    for (let i = 0; i < 64; i += 21) g.fillRect(i, 0, 3, 64);
+    g.fillStyle = "#a98a54";
+    g.fillRect(0, 24, 64, 5);
+  });
+}
+
+/* -------------------------------------------------------------------------- *
  * WordArt — the thing the wordmark is, on a prop.
  *
  * The stage's words used to be three offset passes of grey on a black tile,

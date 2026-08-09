@@ -53,6 +53,13 @@ export type SoundName =
   | "spike-score"
   | "spike-solve"
   | "spike-pinsetter"
+  // -- the full-frame acts (props/registry.ts, phase 9) --
+  | "spike-cannon"
+  | "spike-piano"
+  | "spike-wrecking"
+  | "spike-mirror"
+  | "spike-washer"
+  | "spike-finger"
   // -- the board --
   | "disc-drop"
   | "disc-land"
@@ -946,6 +953,344 @@ function pinsetter(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
 }
 
 // ---------------------------------------------------------------------------
+// The full-frame acts (phase 9). Six props that cross the frame instead of
+// sitting at the edge of it, and six sounds written to the same shape as the
+// rest: one buffer per act, carrying the whole choreography — the beat of
+// silence before the cannon fires is inside `spike-cannon`, not scheduled by
+// the stage.
+//
+// One thing is different, and it is because these acts are physically bigger:
+// each of them has a single loud event with a long approach or a long tail, so
+// the low end is where the size lives. A big prop with a small sound reads as a
+// sprite, which is the one thing more expensive geometry can't fix.
+// ---------------------------------------------------------------------------
+
+/**
+ * The cannon. A three-step crank, a beat of nothing, one report, and a long
+ * whistle going away — the whistle is the shot crossing the frame, so it is the
+ * longest voice in the sound and it never comes back down.
+ */
+function cannonShot(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 14, space: [0.9, 2.4], wet: 0.4 });
+
+  // Rolling in, then the ratchet: three clacks, one per stepped crank position.
+  const roll = env(ctx, [
+    [0, 0],
+    [0.1, 0.14],
+    [0.5, 0.1],
+    [0.56, 0],
+  ]);
+  roll.connect(filter(ctx, "lowpass", 480)).connect(bus);
+  noise(ctx, 0.6, 0x5ba71).connect(roll);
+  for (const at of [0.6, 0.78, 0.96]) strike(ctx, bus, at, [340, 516], 0.05, 0.28);
+
+  // The report. Everything before it is quiet so this can be the only loud
+  // thing in the buffer.
+  const fireAt = 1.34;
+  const boom = env(ctx, [
+    [fireAt, 0],
+    [fireAt + 0.005, 0.95],
+    [fireAt + 0.35, 0.12],
+    [fireAt + 0.9, 0],
+  ]);
+  const body = filter(ctx, "lowpass", 1400);
+  body.frequency.exponentialRampToValueAtTime(90, fireAt + 0.5);
+  boom.connect(body);
+  body.connect(bus);
+  if (source) play(ctx, source, boom, fireAt);
+  else {
+    noise(ctx, 1.0, 0x3c19f, fireAt).connect(boom);
+    const thump = osc(ctx, "sine", 120, fireAt, fireAt + 0.6);
+    thump.frequency.exponentialRampToValueAtTime(38, fireAt + 0.5);
+    thump.connect(gain(ctx, 0.7)).connect(boom);
+  }
+
+  // The shot going away: a whistle that falls the whole time and is still
+  // falling when the buffer ends. Nothing lands.
+  const whistleAt = fireAt + 0.06;
+  const whistle = env(ctx, [
+    [whistleAt, 0],
+    [whistleAt + 0.05, 0.16],
+    [whistleAt + 1.5, 0.09],
+    [whistleAt + 2.0, 0],
+  ]);
+  whistle.connect(bus);
+  const tone = osc(ctx, "square", 1250, whistleAt, whistleAt + 2.05);
+  tone.frequency.linearRampToValueAtTime(430, whistleAt + 2.0);
+  tone.connect(gain(ctx, 0.5)).connect(whistle);
+}
+
+/**
+ * The piano. A fall, a crash of every note at once, a third of the act of
+ * absolutely nothing while it hangs there, then the rest of the fall — and one
+ * small woody tap at the end, which is the key.
+ *
+ * The cluster is the sound: eleven partials struck together is what a piano
+ * makes when it is not being played, and it is the only chord in the game that
+ * isn't a chord.
+ */
+function pianoDrop(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 9, space: [1.1, 2.2], wet: 0.42 });
+
+  // The first fall: air, rising, cut off dead by the hold.
+  const fall = env(ctx, [
+    [0, 0],
+    [0.1, 0.3],
+    [0.62, 0.44],
+    [0.66, 0],
+  ]);
+  const wind = filter(ctx, "bandpass", 300, 0.8);
+  wind.frequency.linearRampToValueAtTime(1100, 0.64);
+  fall.connect(wind);
+  wind.connect(bus);
+  noise(ctx, 0.7, 0x9f24c).connect(fall);
+
+  // The hold. Nothing is scheduled between 0.66 and 1.9 — the longest silence
+  // in the library, and it is the joke.
+
+  const crashAt = 1.92;
+  const level = env(ctx, [
+    [crashAt, 0],
+    [crashAt + 0.004, 0.9],
+    [crashAt + 0.5, 0.22],
+    [crashAt + 1.2, 0],
+  ]);
+  level.connect(bus);
+  if (source) play(ctx, source, level, crashAt);
+  else {
+    // Every string at once, and the low ones loudest. Detuned in whole cents
+    // nobody chose carefully, because a piano dropped from a height is out.
+    for (const [i, freq] of [55, 82.4, 110, 138.6, 164.8, 220, 277.2, 329.6, 440].entries()) {
+      const o = osc(ctx, "triangle", freq * (1 + (i % 3) * 0.004), crashAt, crashAt + 1.3);
+      o.connect(gain(ctx, 0.3 / (1 + i * 0.35))).connect(level);
+    }
+    const body = osc(ctx, "sine", 58, crashAt, crashAt + 0.7);
+    body.frequency.exponentialRampToValueAtTime(32, crashAt + 0.6);
+    body.connect(gain(ctx, 0.7)).connect(level);
+    noise(ctx, 0.3, 0x14bb2, crashAt).connect(gain(ctx, 0.35)).connect(level);
+  }
+
+  // The key, coming back. One tap, wooden, far too small for what just
+  // happened, which is the entire punchline.
+  strike(ctx, bus, 2.78, [780, 1180], 0.09, 0.22);
+  strike(ctx, bus, 3.16, [740, 1120], 0.08, 0.16);
+}
+
+/**
+ * The wrecking ball. Chain, air, chain — and no impact anywhere in it, because
+ * there is no impact anywhere in the act. A swoosh that resolves into nothing
+ * is a strange sound to write on purpose and it is what this one is.
+ */
+function wreckingBall(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 11, space: [1.4, 2.0], wet: 0.5 });
+
+  /** One pass across the frame: air swelling and falling, chain over the top. */
+  const pass = (at: number, seconds: number, level: number): void => {
+    const air = env(ctx, [
+      [at, 0],
+      [at + seconds * 0.45, level],
+      [at + seconds, 0],
+    ]);
+    const move = filter(ctx, "bandpass", 180, 0.9);
+    move.frequency.linearRampToValueAtTime(520, at + seconds * 0.5);
+    move.frequency.linearRampToValueAtTime(150, at + seconds);
+    air.connect(move);
+    move.connect(bus);
+    if (source) play(ctx, source, air, at);
+    else noise(ctx, seconds + 0.1, 0x2ae83 + Math.round(at * 100), at).connect(air);
+    // The links, rattling on the step clock the whole way across.
+    for (let t = at; t < at + seconds; t += 0.083) {
+      strike(ctx, bus, t, [620, 940, 1380], 0.035, 0.09 * level * 3);
+    }
+  };
+
+  pass(0.02, 1.5, 0.34);
+  // The hang: one link settling, and then nothing at all for half a second.
+  strike(ctx, bus, 1.56, [640, 960], 0.12, 0.14);
+  pass(2.32, 1.5, 0.28);
+}
+
+/**
+ * The mirror ball. A winch, a shimmer that holds far too long, and the winch
+ * again. The shimmer is four sines a whole tone apart with no root under them —
+ * pretty, and slightly wrong, and it does not resolve.
+ */
+function mirrorBall(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 3, space: [1.6, 2.6], wet: 0.5 });
+
+  const winch = (at: number, seconds: number, from: number, to: number): void => {
+    const g = env(ctx, [
+      [at, 0],
+      [at + 0.04, 0.16],
+      [at + seconds - 0.05, 0.14],
+      [at + seconds, 0],
+    ]);
+    g.connect(filter(ctx, "lowpass", 1200)).connect(bus);
+    if (source) play(ctx, source, g, at);
+    else {
+      const motor = osc(ctx, "sawtooth", from, at, at + seconds);
+      motor.frequency.linearRampToValueAtTime(to, at + seconds - 0.02);
+      motor.connect(g);
+    }
+    // Four clacks, one per stepped position, same as the pose.
+    for (let i = 0; i < 4; i++) strike(ctx, bus, at + (i * seconds) / 4, [420, 640], 0.04, 0.2);
+  };
+
+  winch(0.02, 0.6, 260, 150);
+
+  // The shimmer. Whole tones stacked, no third, no root movement — a chord
+  // that is only sparkle.
+  const holdAt = 0.7;
+  const hold = env(ctx, [
+    [holdAt, 0],
+    [holdAt + 0.4, 0.17],
+    [holdAt + 2.3, 0.15],
+    [holdAt + 2.7, 0],
+  ]);
+  hold.connect(bus);
+  for (const [i, freq] of [523.25, 587.33, 659.25, 739.99].entries()) {
+    osc(ctx, "sine", freq, holdAt, holdAt + 2.75)
+      .connect(gain(ctx, 0.14 - i * 0.02))
+      .connect(hold);
+  }
+  // The glints, gated on the two-frame clock the facets use. Hard steps, so the
+  // sparkle strobes with the light rather than breathing under it.
+  const glints = [];
+  for (let t = holdAt + 0.5; t < holdAt + 2.3; t += 0.167) glints.push(t);
+  const gated = gate(ctx, glints, 0.05, 0.09);
+  gated.connect(bus);
+  osc(ctx, "triangle", 2093, holdAt, holdAt + 2.4).connect(gated);
+
+  winch(3.6, 0.6, 150, 260);
+}
+
+/**
+ * The window washer. Six winch jerks going up, a rubber squeak across glass
+ * that isn't there, a beat of nothing, and one rope letting go.
+ *
+ * The fall has no landing in it. The act ends before the rig hits anything, so
+ * the sound ends on the rope and the air, and the last thing in the buffer is
+ * still going down.
+ */
+function windowWasher(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 7, space: [0.8, 2.8], wet: 0.34 });
+
+  // Going up: six jerks, each a short motor burst and a clack.
+  for (let i = 0; i < 6; i++) {
+    const at = 0.04 + i * 0.22;
+    const g = env(ctx, [
+      [at, 0],
+      [at + 0.02, 0.17],
+      [at + 0.14, 0],
+    ]);
+    g.connect(filter(ctx, "lowpass", 900)).connect(bus);
+    const motor = osc(ctx, "sawtooth", 150 + i * 8, at, at + 0.16);
+    motor.frequency.linearRampToValueAtTime(240 + i * 8, at + 0.13);
+    motor.connect(g);
+    strike(ctx, bus, at + 0.15, [280, 424], 0.05, 0.18);
+  }
+
+  // The wipe: six stepped squeaks up a scale that is not a scale, because a
+  // squeegee does not play in tune.
+  for (let i = 0; i < 6; i++) {
+    const at = 1.6 + i * 0.14;
+    const g = env(ctx, [
+      [at, 0],
+      [at + 0.01, 0.13],
+      [at + 0.1, 0],
+    ]);
+    g.connect(bus);
+    if (source) play(ctx, source, g, at, 1 + i * 0.08);
+    else {
+      const squeak = osc(ctx, "sawtooth", 900 + i * 130, at, at + 0.12);
+      squeak.frequency.linearRampToValueAtTime(1400 + i * 130, at + 0.1);
+      squeak.connect(filter(ctx, "highpass", 700)).connect(g);
+    }
+  }
+
+  // The rope. One snap, and then air going away from you.
+  const snapAt = 3.0;
+  strike(ctx, bus, snapAt, [180, 268, 410], 0.18, 0.5);
+  const drop = env(ctx, [
+    [snapAt + 0.02, 0],
+    [snapAt + 0.2, 0.34],
+    [snapAt + 1.0, 0.2],
+    [snapAt + 1.1, 0],
+  ]);
+  const going = filter(ctx, "lowpass", 1600);
+  going.frequency.exponentialRampToValueAtTime(240, snapAt + 1.0);
+  drop.connect(going);
+  going.connect(bus);
+  noise(ctx, 1.2, 0x6b3d1, snapAt + 0.02).connect(drop);
+}
+
+/**
+ * The foam finger. A PA crowd that was not recorded here, two wags of squeaking
+ * foam, and a held cheer that stops mid-breath.
+ *
+ * The crowd is the point and it is deliberately canned: reversed into itself,
+ * so it swells the wrong way round before it starts. That is the sound of a
+ * clip being played rather than of people being pleased.
+ */
+async function foamFinger(ctx: OfflineAudioContext, source: AudioBuffer | null): Promise<void> {
+  const bus = out(ctx, { drive: 6, space: [1.3, 2.4], wet: 0.45 });
+
+  const crowd = await preRender(2.4, (c) => {
+    const level = env(c, [
+      [0, 0],
+      [0.25, 0.4],
+      [2.0, 0.3],
+      [2.35, 0],
+    ]);
+    const band = filter(c, "bandpass", 900, 0.5);
+    level.connect(band);
+    band.connect(c.destination);
+    if (source) sampleVoice(c, source).connect(level);
+    else {
+      noise(c, 2.4, 0x8cd12).connect(level);
+      // Two tones under it, so the noise reads as voices rather than as hiss.
+      for (const freq of [320, 505]) {
+        osc(c, "sawtooth", freq, 0, 2.4).connect(gain(c, 0.05)).connect(level);
+      }
+    }
+  });
+  const swell = env(ctx, [
+    [0, 0],
+    [0.1, 0.5],
+    [2.3, 0.42],
+    [2.7, 0],
+  ]);
+  swell.connect(bus);
+  // Reversed: it comes up the wrong way round, which is what a canned crowd
+  // sounds like when the tape is not the one it was cut for.
+  play(ctx, reversed(ctx, crowd), swell, 0.04);
+
+  // Two wags of foam, which is a soft dry squeak and nothing else.
+  for (const at of [1.02, 1.42]) {
+    const g = env(ctx, [
+      [at, 0],
+      [at + 0.02, 0.14],
+      [at + 0.16, 0],
+    ]);
+    g.connect(filter(ctx, "bandpass", 1400, 1.4)).connect(bus);
+    noise(ctx, 0.2, 0x4de91 + Math.round(at * 100), at).connect(g);
+  }
+
+  // Two PA pips over the top of the hold, because the screen has decided this
+  // is an announcement.
+  for (const [i, freq] of [880, 1174.66].entries()) {
+    const at = 1.86 + i * 0.2;
+    const level = env(ctx, [
+      [at, 0],
+      [at + 0.008, 0.2],
+      [at + 0.24, 0],
+    ]);
+    level.connect(bus);
+    osc(ctx, "square", freq, at, at + 0.26).connect(level);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The board. These fire on nearly every move, so they are small, dry and
 // quiet: a sound you hear twenty times a game is furniture, not a spike.
 // ---------------------------------------------------------------------------
@@ -1305,6 +1650,37 @@ export const RECIPES: Record<SoundName, Recipe> = {
     want: "hydraulic ram or pneumatic machine step, dry, ~1s",
     seconds: 3.9,
     build: pinsetter,
+  },
+
+  "spike-cannon": {
+    want: "circus cannon or mortar report, dry, single blast, <1s",
+    seconds: 3.5,
+    build: cannonShot,
+  },
+  "spike-piano": {
+    want: "grand piano struck as a cluster, all strings, ~2s",
+    seconds: 3.35,
+    build: pianoDrop,
+  },
+  "spike-wrecking": {
+    want: "heavy chain rattling under load, steady, ~2s",
+    seconds: 3.95,
+    build: wreckingBall,
+  },
+  "spike-mirror": {
+    want: "small winch motor, one short run, dry, <1s",
+    seconds: 4.35,
+    build: mirrorBall,
+  },
+  "spike-washer": {
+    want: "rubber squeegee squeaking on glass, one stroke, dry, <1s",
+    seconds: 4.15,
+    build: windowWasher,
+  },
+  "spike-finger": {
+    want: "PA crowd cheer, canned and distant, ~2.5s",
+    seconds: 3.15,
+    build: foamFinger,
   },
 
   "disc-drop": { want: "short air whoosh / cloth swipe, dry, <0.5s", seconds: 0.32, build: discDrop },

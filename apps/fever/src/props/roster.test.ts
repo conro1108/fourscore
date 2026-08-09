@@ -15,7 +15,13 @@ import {
   beaconPose,
   bumperPose,
   calloutPose,
+  cannonPose,
   detonationPose,
+  fingerPose,
+  mirrorPose,
+  pianoPose,
+  washerPose,
+  wreckingPose,
   mascotPose,
   pinPose,
   pinsetterHeight,
@@ -269,6 +275,126 @@ describe("the signatures", () => {
     expect(pinsetterHeight(0.2)).toBe(0.55);
     expect(pinsetterHeight(0.5)).toBe(0.12);
     expect(pinsetterHeight(0.8)).toBe(0.55);
+  });
+});
+
+/**
+ * The full-frame acts (phase 9). Same two questions as everything above, plus
+ * the one this set exists for: **does it actually cross the frame.** The
+ * complaint that produced these six was spatial — the roster had grown up along
+ * the bottom edge — so "the travel is large" is the property worth asserting,
+ * and it is the one that would rot silently if somebody tuned a segment
+ * boundary and clipped the arc.
+ */
+describe("the full-frame acts", () => {
+  it("throws the cannon's shot clear across the frame and off it", () => {
+    // The cannon itself arrives and leaves off-stage left.
+    expect(cannonPose(0).u).toBe(0);
+    expect(cannonPose(1).u).toBeCloseTo(0);
+    // Nothing in the air before the shot or after it.
+    expect(cannonPose(0.2).shot).toBeNull();
+    expect(cannonPose(1).shot).toBeNull();
+    // The barrel goes up in three steps and no interpolation between them.
+    const cranks = new Set(sample((p) => cannonPose(p).crank));
+    expect(cranks).toEqual(new Set([0, 1 / 3, 2 / 3, 1]));
+
+    // The travel: from one side of the frame past the other, over the top.
+    const flight = sample((p) => cannonPose(p).shot).filter((s) => s !== null);
+    expect(flight.length).toBeGreaterThan(20);
+    expect(flight[0]!.u).toBeLessThan(0.1);
+    expect(flight[flight.length - 1]!.u).toBeGreaterThan(1);
+    // And it goes *over* — most of a frame-height above the muzzle, which is
+    // the whole point of the act and the part a clipped arc would quietly lose.
+    // (The first pass overshot the other way, at 1.5, and put the shot off the
+    // top of the picture for its entire flight.)
+    const apex = Math.max(...flight.map((s) => s!.v));
+    expect(apex).toBeGreaterThan(0.6);
+    expect(apex).toBeLessThan(1);
+  });
+
+  it("stops the piano dead in mid-air, and sends one key back", () => {
+    // Above the frame, then out the bottom of it.
+    expect(pianoPose(0).y).toBeGreaterThan(1);
+    expect(pianoPose(0.67).y).toBeLessThan(-1);
+    // The hold: two samples well apart inside it are the same frame, and the
+    // tilt arrives on the frame the fall stops rather than during it.
+    expect(pianoPose(0.3)).toEqual(pianoPose(0.5));
+    expect(pianoPose(0.19).tilt).toBe(0);
+    expect(pianoPose(0.21).tilt).toBeGreaterThan(0);
+
+    // The exit is the key, and it happens in an empty frame.
+    expect(sample((p) => pianoPose(p).present).some((v) => !v)).toBe(true);
+    const key = sample((p) => pianoPose(p).key);
+    expect(key.filter((k) => k !== null).length).toBeGreaterThan(10);
+    // It comes up into frame and goes back out — one arc, not a landing.
+    expect(Math.max(...key.map((k) => k ?? -99))).toBeGreaterThan(-1);
+    expect(key[key.length - 1]).toBeLessThan(-1);
+    // Nothing is on stage at the very last sample.
+    expect(pianoPose(1).present).toBe(false);
+  });
+
+  it("swings the ball the whole way across, and stops it dead in the middle", () => {
+    // In off one edge and out the other: it never doubles back.
+    expect(wreckingPose(0, 0).swing).toBeLessThan(-0.9);
+    expect(wreckingPose(1, 0).swing).toBeGreaterThan(0.9);
+    const swings = sample((p) => wreckingPose(p, 0).swing);
+    expect(swings.every((s, i) => i === 0 || s >= swings[i - 1]!)).toBe(true);
+
+    // The hang, at the bottom of the arc, held exactly — the only still
+    // stretch in the act, and the one place a pendulum cannot stop.
+    expect(wreckingPose(0.4, 0).swing).toBe(0);
+    expect(wreckingPose(0.55, 0).swing).toBe(0);
+    expect(runs(swings.map((s) => s === 0))).toBe(1);
+
+    // And the chain rattles on the two-frame clock the whole time.
+    expect(new Set([0, 1, 2, 3].map((s) => wreckingPose(0.5, s).rattle)).size).toBe(2);
+  });
+
+  it("winches the mirror ball down in steps and strobes rather than sweeps", () => {
+    expect(mirrorPose(0, 0).drop).toBe(0);
+    expect(mirrorPose(1, 0).drop).toBeCloseTo(0);
+    expect(mirrorPose(0.5, 0).drop).toBe(1);
+    // Four positions on the way in and out, and nothing between them.
+    expect(new Set(sample((p) => mirrorPose(p, 0).drop))).toEqual(
+      new Set([0, 0.25, 0.5, 0.75, 1]),
+    );
+    // Two glint cels, alternating on the step clock.
+    expect(new Set([0, 1, 2, 3].map((s) => mirrorPose(0.5, s).glint)).size).toBe(2);
+    // The spin is whole steps only: it never moves within one.
+    expect(mirrorPose(0.4, 7).spin).toBe(mirrorPose(0.6, 7).spin);
+  });
+
+  it("climbs the washer up the frame and drops it further than it started", () => {
+    expect(washerPose(0).height).toBeLessThan(0);
+    expect(washerPose(0.5).height).toBe(1);
+    // The fall is the exit and it ends below where the climb began — an act
+    // that stops at its start height is one that came to rest on stage.
+    expect(washerPose(1).height).toBeLessThan(washerPose(0).height);
+    expect(washerPose(1).falling).toBe(true);
+    // Six stepped positions on the way up, and no wiping while it climbs.
+    const climb = sample(washerPose).filter((p) => !p.falling && p.wipe === null);
+    expect(new Set(climb.map((p) => p.height)).size).toBeLessThanOrEqual(7);
+    // One stroke, once, in six steps, and it happens at the top.
+    const wipes = sample(washerPose).map((p) => p.wipe);
+    expect(runs(wipes.map((v) => v !== null && v < 1))).toBe(1);
+    expect(new Set(wipes.filter((v): v is number => v !== null)).size).toBeLessThanOrEqual(7);
+  });
+
+  it("raises the finger to full height and wags it exactly twice", () => {
+    expect(fingerPose(0).rise).toBe(0);
+    expect(fingerPose(1).rise).toBe(0);
+    expect(fingerPose(0.5).rise).toBe(1);
+    // Four steps up, four down, nothing in between them.
+    expect(new Set(sample((p) => fingerPose(p).rise))).toEqual(
+      new Set([0, 0.25, 0.5, 0.75, 1]),
+    );
+    // Two wags: one each side of vertical, and it is dead still either side.
+    const wag = sample((p) => fingerPose(p).wag);
+    expect(runs(wag.map((w) => w < -0.01))).toBe(1);
+    expect(runs(wag.map((w) => w > 0.01))).toBe(1);
+    expect(fingerPose(0.7).wag).toBe(0);
+    // And it never wags while it is still coming up or already going down.
+    for (const p of [0.08, 0.92]) expect(fingerPose(p).wag, `${p}`).toBe(0);
   });
 });
 

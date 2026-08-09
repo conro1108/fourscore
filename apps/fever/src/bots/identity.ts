@@ -32,9 +32,18 @@
 
 import type { SpectacleEvent } from "../director/types.js";
 
-/** What a signature can hang off: an event kind, or one grade of move. */
+/**
+ * What a signature can hang off: an event kind, or one grade of move.
+ *
+ * `idle-beat` is still here and no opponent uses it any more. A match emits no
+ * idle beats at all (`director/director.ts`), so a signature wired to one would
+ * only ever play on the menu — which is an opponent you cannot tell apart in
+ * the one place it matters. It stays in the type because the menu's attract
+ * loop is still built out of idle beats and the hook is still meaningful there.
+ */
 export type SignatureHook =
   | "brilliant"
+  | "fine"
   | "dubious"
   | "blunder"
   | "threat"
@@ -88,7 +97,11 @@ export const IDENTITIES: Record<string, BotIdentity> = {
     id: "acorn",
     // Warm, fine, bright: the one void that hasn't got round to being ominous.
     void: variation({ tint: "#3a2b0a", tintAmount: 0.4, grain: 1.3, drift: 1.15, slick: 1.2 }),
-    signature: { act: "bumpers-up", on: "idle-beat" },
+    // Was on `idle-beat`, which a match no longer has. `brilliant` is the
+    // closest thing to Acorn's actual character: it has been told about winning
+    // and not about losing, so the bumpers going up is what good news looks
+    // like to it. Nothing about the clip changed.
+    signature: { act: "bumpers-up", on: "brilliant" },
   },
   pebble: {
     id: "pebble",
@@ -103,7 +116,13 @@ export const IDENTITIES: Record<string, BotIdentity> = {
     // words for it): the tint is Moss's engine green pulled into the void and
     // the grain is up, which is what turns the weather into specks.
     void: variation({ tint: "#1b3813", tintAmount: 0.5, grain: 1.7, drift: 0.75, slick: 0.75 }),
-    signature: { act: "mower-crawl", on: "idle-beat" },
+    // Also off `idle-beat`, and onto the most ordinary event there is. An
+    // unremarkable move is the closest a reaction pool gets to nothing having
+    // happened, which is the beat the mower was written for — Moss crosses the
+    // frame because time passed, and now the thing that passes is your turn.
+    // `fine` is ~85% of moves and its pool is mostly silence, so this lands at
+    // about one crawl every seven moves on Moss's stage.
+    signature: { act: "mower-crawl", on: "fine" },
   },
   bramble: {
     id: "bramble",
@@ -139,7 +158,11 @@ export const IDENTITIES: Record<string, BotIdentity> = {
     // and — because the shader's fever terms are untouched by any of this —
     // the most alarming at 1.
     void: variation({ tint: "#2e2b24", tintAmount: 0.35, grain: 0.4, drift: 0.22, slick: 1.2 }),
-    signature: { act: "pinsetter", on: "idle-beat" },
+    // Off `idle-beat` and onto `threat`, which is the funniest place for it:
+    // the pinsetter comes down when it comes down, so hanging it on the most
+    // urgent event on the bus is the strongest possible statement that it has
+    // never been reacting to you.
+    signature: { act: "pinsetter", on: "threat" },
   },
 };
 

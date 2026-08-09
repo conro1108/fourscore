@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { candidatesFor, pickGag } from "./gags.js";
 import { PROP_ACTS } from "./registry.js";
+import { IDENTITIES } from "../bots/identity.js";
 import { EVENT_KINDS, type SpectacleEvent } from "../director/types.js";
 
 /** One representative event per kind — the same set the debug panel fires. */
@@ -43,9 +44,14 @@ describe("the gag pools", () => {
     }
   });
 
+  /**
+   * Every event still has something to answer it — except the idle beat in a
+   * match, which has nothing on purpose and is checked separately below.
+   */
   it("has an act for every event kind", () => {
     for (const kind of EVENT_KINDS) {
-      const pools = SAMPLES.filter((e) => e.kind === kind).map((e) => candidatesFor(e));
+      const mode = kind === "idle-beat" ? "attract" : "match";
+      const pools = SAMPLES.filter((e) => e.kind === kind).map((e) => candidatesFor(e, mode));
       expect(pools.length, kind).toBeGreaterThan(0);
       expect(
         pools.some((pool) => pool.some((c) => c.name !== null)),
@@ -84,17 +90,43 @@ describe("the gag pools", () => {
   });
 
   /**
-   * The menu and a match answer the same beat from different lists: on the menu
-   * the props are the content, in a game they are punctuation.
+   * The ambient rule (Connor, 2026-08-09). In a match the stage answers what
+   * you did and does nothing else — so the in-match idle pool is empty, and an
+   * idle beat that somehow reached it would still draw nothing.
+   *
+   * The Director doesn't emit one in a match at all (`director.test.ts` holds
+   * that end); this is the second lock, because the two halves of "no ambient"
+   * live in different files and either alone would let it back in.
    */
-  it("runs a smaller idle pool in a match than on the menu", () => {
+  it("has nothing to answer an idle beat in a match", () => {
     const beat: SpectacleEvent = { kind: "idle-beat" };
-    const match = candidatesFor(beat, "match");
-    const attract = candidatesFor(beat, "attract");
-    expect(attract.length).toBeGreaterThan(match.length);
-    // Nothing loud in the in-match pool: every act it can draw is one that
-    // costs nothing to see again.
-    for (const c of match) expect(["truck-lap", "win-detonation"]).not.toContain(c.name);
+    expect(candidatesFor(beat, "match")).toEqual([]);
+    expect(pickGag(beat, () => 0.5, { mode: "match" })).toBeNull();
+    // Not even the opponent's: a signature rides the idle beat on the menu
+    // only, so it can't be the one thing that keeps ambient alive in a game.
+    const moss = { bot: IDENTITIES.moss!, mode: "match" as const };
+    expect(pickGag(beat, () => 0.5, moss)).toBeNull();
+
+    // The menu still has its whole library, and the signature still rides it.
+    expect(candidatesFor(beat, "attract").length).toBeGreaterThan(5);
+    const attract = new Set(
+      [0.1, 0.3, 0.5, 0.7, 0.9].map((r) =>
+        pickGag(beat, () => r, { bot: IDENTITIES.moss!, mode: "attract" }),
+      ),
+    );
+    expect(attract.has("mower-crawl")).toBe(true);
+  });
+
+  /**
+   * What replaced the ambient beat: the acts that used to fill a quiet game now
+   * answer moves, and there are enough of them per grade that three blunders
+   * are not three identical clips. Two was the old floor and it was thin.
+   */
+  it("gives every grade that gets a reaction a real spread of them", () => {
+    for (const quality of ["brilliant", "dubious", "blunder"] as const) {
+      const pool = candidatesFor({ kind: "move", player: "red", col: 3, quality });
+      expect(pool.length, quality).toBeGreaterThanOrEqual(3);
+    }
   });
 
   /**
@@ -132,17 +164,20 @@ describe("drawing a gag", () => {
 
   it("spreads a grade over its whole pool", () => {
     const seen = new Set<string>();
-    const rng = rolls(0.05, 0.4, 0.6, 0.9);
-    // Four draws with no `avoid`, so this is the weights alone.
-    for (let i = 0; i < 8; i++) seen.add(pickGag(blunder, rng)!);
+    const rng = rolls(0.05, 0.3, 0.5, 0.7, 0.95);
+    // One roll per candidate, with no `avoid`, so this is the weights alone.
+    for (let i = 0; i < 10; i++) seen.add(pickGag(blunder, rng)!);
     expect(seen).toEqual(new Set(candidatesFor(blunder).map((c) => c.name)));
   });
 
   it("respects the weights", () => {
-    // `mascot-flop` 3, `rocket-fizzle` 3, `callout-oof` 2, of 8.
+    // `mascot-flop` 3, `rocket-fizzle` 3, `callout-oof` 2, `piano-drop` 3,
+    // `window-washer` 2 — thirteen, in that order.
     expect(pickGag(blunder, () => 0.1)).toBe("mascot-flop");
-    expect(pickGag(blunder, () => 0.5)).toBe("rocket-fizzle");
-    expect(pickGag(blunder, () => 0.9)).toBe("callout-oof");
+    expect(pickGag(blunder, () => 0.3)).toBe("rocket-fizzle");
+    expect(pickGag(blunder, () => 0.5)).toBe("callout-oof");
+    expect(pickGag(blunder, () => 0.7)).toBe("piano-drop");
+    expect(pickGag(blunder, () => 0.95)).toBe("window-washer");
   });
 
   it("never plays the same act twice running", () => {

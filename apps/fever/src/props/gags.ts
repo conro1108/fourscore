@@ -57,26 +57,32 @@ const ATTRACT_IDLE: Candidate[] = [
   w("stare-down", 2),
   w("mascot-flop", 1),
   w("rocket-fizzle", 1),
+  // The full-frame acts are the best things in the roster and the menu is where
+  // they are the *content* rather than punctuation, so they carry real weight
+  // here. Two at a time, in two different berths, is what the attract loop is.
+  w("cannon-shot", 3),
+  w("wrecking-ball", 3),
+  w("foam-finger", 2),
+  w("mirror-ball", 2),
+  w("piano-drop", 2),
 ];
 
 /**
- * The same beat in a match, and a much shorter list on purpose.
+ * There is no in-match idle pool, and that is the point.
  *
- * In a game the props are punctuation, not content: the screen should mostly be
- * reacting to what you did, and an idle beat that fires the truck spends a
- * reaction the next blunder needed. So the in-match idle pool holds only acts
- * that claim nothing and cost nothing to see again — the interlude that is
- * about nothing, a shrug, and a character declining to perform. Everything
- * loud stays in the reaction pools where it means something.
+ * The screen used to perform on its own schedule as well as yours — a quiet
+ * stretch in a game would break itself with an interlude — and the Director no
+ * longer emits `idle-beat` outside the menu at all (`director.ts`). The pool
+ * went with it: everything the stage does in a match is now an answer to
+ * something you or the opponent did.
  *
- * The opponent's signature is added on top of this by `poolFor`, which is what
- * keeps Moss's screen recognisably Moss's during a quiet game.
+ * The consequence to keep an eye on is opponent identity. Three signatures used
+ * to hang off `idle-beat`, which made them the thing you saw in a quiet game;
+ * they hang off move grades and threats now (`bots/identity.ts`), because a
+ * signature that only fires on a beat that no longer exists is an opponent
+ * nobody can tell apart.
  */
-const MATCH_IDLE: Candidate[] = [
-  w("deep-space", 3),
-  w("stare-down", 2),
-  w("callout-still-here", 1),
-];
+const MATCH_IDLE: readonly Candidate[] = [];
 
 /**
  * One pool per move grade. A grade with more than one answer is the whole
@@ -95,14 +101,26 @@ const MATCH_IDLE: Candidate[] = [
  * silence weight is what keeps this a surprise rather than a metronome.
  */
 const MOVES: Record<"brilliant" | "fine" | "dubious" | "blunder", Candidate[]> = {
-  brilliant: [w("mascot-cheer", 3), w("truck-lap", 2), w("callout-nice", 2)],
-  blunder: [w("mascot-flop", 3), w("rocket-fizzle", 3), w("callout-oof", 2)],
+  brilliant: [
+    w("mascot-cheer", 3),
+    w("truck-lap", 2),
+    w("callout-nice", 2),
+    w("cannon-shot", 3),
+    w("foam-finger", 3),
+  ],
+  blunder: [
+    w("mascot-flop", 3),
+    w("rocket-fizzle", 3),
+    w("callout-oof", 2),
+    w("piano-drop", 3),
+    w("window-washer", 2),
+  ],
   // The stare answers a questionable move by declining to comment on it,
   // which is the closest thing this roster has to a raised eyebrow. It took
   // the slot `sign-hmm` held: a sign on a stick waggling at the edge of the
   // frame is somebody in a crowd reacting, and a lane screen has no crowd in
   // it — it is the thing the crowd is looking at.
-  dubious: [w("stare-down", 2), w("callout-huh", 2)],
+  dubious: [w("stare-down", 2), w("callout-huh", 2), w("mirror-ball", 2)],
   fine: [w(null, 26), w("deep-space", 2), w("callout-incredible", 2), w("callout-a-move", 1)],
 };
 
@@ -115,10 +133,15 @@ export function candidatesFor(
     case "move":
       return MOVES[event.quality];
     case "threat":
-      return [w("beacon-drop", 4), w("stare-down", 2), w("callout-heat", 1)];
+      return [
+        w("beacon-drop", 4),
+        w("stare-down", 2),
+        w("callout-heat", 1),
+        w("wrecking-ball", 4),
+      ];
     case "tension-shift":
       return event.direction === "rising"
-        ? [w("callout-heat", 2), w("callout-happening", 2)]
+        ? [w("callout-heat", 2), w("callout-happening", 2), w("mirror-ball", 3)]
         : [w("callout-nevermind", 1)];
     case "win":
       return [w("win-detonation", 1)];
@@ -138,12 +161,19 @@ export function candidatesFor(
  * parity and nobody can tell whose stage they are standing on, which is this
  * phase's accept criterion.
  *
- * `IDLE_WEIGHT` is smaller and separate: every signature also joins the idle
- * pool, because an opponent whose gag only answers blunders is invisible in a
- * clean game, and the whole point is that you can tell them apart.
+ * A signature also joins the *menu's* idle pool at a smaller weight, so the
+ * opponent under the cursor is already dressing the stage behind the roster
+ * window. It no longer joins an in-match one, because there is no longer an
+ * in-match one — see `MATCH_IDLE`.
  */
 const SIGNATURE_WEIGHT = 5;
-const SIGNATURE_IDLE_WEIGHT = 3;
+/**
+ * And on the menu's idle beat, where a signature rides along so the opponent
+ * you have highlighted is visible behind the roster window before you have
+ * played a move against them. Smaller, because the attract loop is a library
+ * and not a portrait.
+ */
+const SIGNATURE_ATTRACT_WEIGHT = 3;
 
 export interface PickOptions {
   /** The act that just played. Skipped when the pool has anything else. */
@@ -185,9 +215,14 @@ function poolFor(
   if (!entry || entry.declares) return pool;
 
   const own = signatureMatches(on, event);
-  if (!own && event.kind !== "idle-beat") return pool;
+  // The attract loop is the one place a signature plays without its own event
+  // having happened. In a match it answers what it is wired to and nothing
+  // else — which is now the only way an opponent's clip reaches the stage at
+  // all, since a match has no idle beats left.
+  const rides = event.kind === "idle-beat" && mode === "attract";
+  if (!own && !rides) return pool;
 
-  const weight = own ? SIGNATURE_WEIGHT : SIGNATURE_IDLE_WEIGHT;
+  const weight = own ? SIGNATURE_WEIGHT : SIGNATURE_ATTRACT_WEIGHT;
   // A signature may also be in the general pool for this event on its own
   // merits — Moss's used to be, in the days when it was a sprinkler and the
   // idle pool was one list. Raise that entry rather than listing it twice,

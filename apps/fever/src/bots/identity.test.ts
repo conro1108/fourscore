@@ -103,12 +103,32 @@ describe("a signature on the stage", () => {
     for (const name of general) expect(drawn, name).toContain(name);
   });
 
-  it("puts every opponent's act in the idle pool too, so a clean game still shows it", () => {
+  /**
+   * On the menu a signature rides the attract loop, so the opponent under the
+   * cursor is already dressing the stage behind the roster window.
+   *
+   * In a match it does not, because a match has no idle beats at all any more
+   * (`director.ts`) — which makes the hook each signature is wired to the only
+   * way that opponent reaches the stage. That is the trap this pair of
+   * assertions exists to catch: three signatures used to hang off `idle-beat`,
+   * and left there they would have gone silent in every game ever played.
+   */
+  it("rides the menu's idle beat, and never a match's", () => {
     for (const identity of Object.values(IDENTITIES)) {
-      const drawn = new Set(
-        Array.from({ length: 60 }, (_, i) => pickGag(idle, () => i / 60, { bot: identity })),
+      const onMenu = new Set(
+        Array.from({ length: 60 }, (_, i) =>
+          pickGag(idle, () => i / 60, { bot: identity, mode: "attract" }),
+        ),
       );
-      expect(drawn, identity.id).toContain(identity.signature.act);
+      expect(onMenu, identity.id).toContain(identity.signature.act);
+      expect(pickGag(idle, () => 0.5, { bot: identity, mode: "match" }), identity.id).toBeNull();
+    }
+  });
+
+  /** And every signature hangs off something a match actually emits. */
+  it("wires every opponent to an event a game can produce", () => {
+    for (const identity of Object.values(IDENTITIES)) {
+      expect(identity.signature.on, identity.id).not.toBe("idle-beat");
     }
   });
 

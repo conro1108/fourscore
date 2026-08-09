@@ -56,6 +56,18 @@ const ROSTER: { act: string; phase: number; caption: string }[] = [
   { act: "callout-incredible", phase: 0.4, caption: "ordinary move — INCREDIBLE, in rainbow" },
   { act: "callout-a-move", phase: 0.4, caption: "ordinary move — A MOVE." },
   { act: "win-detonation", phase: 0.42, caption: "WIN — the detonation, banner at the lens" },
+  // The full-frame acts. Picked at the frame where the *travel* shows, which is
+  // a different rule from the roster above — those are photographed at their
+  // one pose, and these exist because the roster had grown up along the bottom
+  // edge, so a shot of one sitting still proves nothing. The cannon is caught
+  // mid-arc rather than at the muzzle; the piano is the impossible hold; the
+  // ball is at the far side of a sweep it began off-frame.
+  { act: "cannon-shot", phase: 0.52, caption: "brilliant — the shot, mid-arc, over the board" },
+  { act: "piano-drop", phase: 0.36, caption: "blunder — the piano, held in mid-air" },
+  { act: "wrecking-ball", phase: 0.5, caption: "threat — the ball, hanging at the far side" },
+  { act: "mirror-ball", phase: 0.5, caption: "tension rising — the mirror ball, down and spinning" },
+  { act: "window-washer", phase: 0.6, caption: "blunder — the washer, at the top, wiping" },
+  { act: "foam-finger", phase: 0.7, caption: "brilliant — the foam finger, pointing, held" },
 ];
 
 /**

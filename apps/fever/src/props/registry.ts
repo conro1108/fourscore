@@ -25,9 +25,15 @@ import type { StageLayout } from "../stage/layout.js";
 import { Beacon, BEACON_MS } from "./Beacon.js";
 import { Bumpers, BUMPERS_MS } from "./Bumpers.js";
 import { makeCallout, CALLOUT_MS } from "./Callout.js";
+import { Cannon, CANNON_MS } from "./Cannon.js";
 import { DeepSpace, DEEP_SPACE_MS } from "./DeepSpace.js";
 import { Detonation, DETONATION_MS } from "./Detonation.js";
+import { Finger, FINGER_MS } from "./Finger.js";
 import { LaneSolve, SOLVE_MS } from "./LaneSolve.js";
+import { MirrorBall, MIRROR_MS } from "./MirrorBall.js";
+import { Piano, PIANO_MS } from "./Piano.js";
+import { Washer, WASHER_MS } from "./Washer.js";
+import { Wrecking, WRECKING_MS } from "./Wrecking.js";
 import { makeMascot, MASCOT_MS } from "./Mascot.js";
 import { Mower, MOWER_MS } from "./Mower.js";
 import { Pins, PINS_MS } from "./Pins.js";
@@ -242,4 +248,25 @@ export const PROP_ACTS: Record<string, PropAct> = {
   "score-lie": act("score-lie", SCORE_MS, 26, "left", Scoreboard, "spike-score"),
   "lane-solve": act("lane-solve", SOLVE_MS, 32, "lens", LaneSolve, "spike-solve"),
   "pinsetter": act("pinsetter", PINSETTER_MS, 72, "sky", Pinsetter, "spike-pinsetter"),
+
+  // -- the full-frame acts (phase 9) -----------------------------------------
+  // The roster above grew up along one edge. The truck, both mascots, the mower
+  // and the pins all cross the floor; the rocket climbs one corner; everything
+  // else arrives at the lens. Played end to end that reads as a strip of
+  // activity under a board, with the whole upper stage empty — which is what
+  // Connor saw and what these six are for.
+  //
+  // Each one crosses or fills the frame rather than sitting at the edge of it,
+  // and the berths are picked to spread them: two on `left`, two on `sky`, one
+  // each on `right` and `lens`, and none at all on the crowded `floor`. That
+  // spread is load-bearing on the menu, where two acts run at once.
+  //
+  // None of them declares — they answer grades, threats and tension, and all
+  // three are the Director's estimate (`director/types.ts`).
+  "cannon-shot": act("cannon-shot", CANNON_MS, 140, "left", Cannon, "spike-cannon"),
+  "piano-drop": act("piano-drop", PIANO_MS, 84, "sky", Piano, "spike-piano"),
+  "wrecking-ball": act("wrecking-ball", WRECKING_MS, 162, "sky", Wrecking, "spike-wrecking"),
+  "mirror-ball": act("mirror-ball", MIRROR_MS, 84, "lens", MirrorBall, "spike-mirror"),
+  "window-washer": act("window-washer", WASHER_MS, 102, "left", Washer, "spike-washer"),
+  "foam-finger": act("foam-finger", FINGER_MS, 48, "right", Finger, "spike-finger"),
 };

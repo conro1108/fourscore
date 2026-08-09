@@ -18,6 +18,13 @@
   "spike-solve": { "want": "single square-wave computer blip, dry, <0.1s" },
   "spike-pinsetter": { "want": "hydraulic ram or pneumatic machine step, dry, ~1s" },
 
+  "spike-cannon": { "want": "circus cannon or mortar report, dry, single blast, <1s" },
+  "spike-piano": { "want": "grand piano struck as a cluster, all strings, ~2s" },
+  "spike-wrecking": { "want": "heavy chain rattling under load, steady, ~2s" },
+  "spike-mirror": { "want": "small winch motor, one short run, dry, <1s" },
+  "spike-washer": { "want": "rubber squeegee squeaking on glass, one stroke, dry, <1s" },
+  "spike-finger": { "want": "PA crowd cheer, canned and distant, ~2.5s" },
+
   "disc-drop": { "want": "short air whoosh / cloth swipe, dry, <0.5s" },
   "disc-land": { "want": "coin or poker chip on hard lacquer, dry, <1s" },
   "column-hover": { "want": "tiny UI tick, dry, <0.1s" },

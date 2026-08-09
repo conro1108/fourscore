@@ -301,31 +301,37 @@ describe("event debouncing", () => {
     expect(down.events).toContainEqual({ kind: "tension-shift", direction: "collapsing" });
   });
 
-  it("beats idly in the quiet, and only in the quiet", () => {
-    // Two minutes of a game in which nothing whatsoever happens. In a match the
-    // idle beat is punctuation, not content, so the count here is deliberately
-    // low — the screen's job is to answer what you did.
+  /**
+   * The ambient rule (Connor, 2026-08-09): in a match the stage answers what
+   * happened and does nothing otherwise. Two minutes of a game in which
+   * nothing whatsoever occurs produces nothing whatsoever.
+   *
+   * This is the assertion the whole change rests on, and it is worth stating as
+   * "zero" rather than as "few": the previous two attempts at this were tuning
+   * — 7s to 16s, then a smaller pool — and a rate that is merely low still
+   * makes the screen something that performs on its own schedule.
+   */
+  it("never beats idly in a match", () => {
     const idle = run(initialDirectorState(1), input(), 120_000);
-    const beats = idle.events.filter((e) => e.kind === "idle-beat");
-    expect(beats.length).toBeGreaterThanOrEqual(5);
-    expect(beats.length).toBeLessThanOrEqual(9);
-
-    // A threat resets the quiet, so no beat lands right on top of it.
-    let s = advance(initialDirectorState(0), input(), 16).state;
-    s = run(s, input(), TUNING.idlePeriod - 500).state;
-    const busy = advance(s, input({ immediateThreats: { red: 1, yellow: 0 } }), 16);
-    const after = run(busy.state, input({ immediateThreats: { red: 1, yellow: 0 } }), 1000);
-    expect(after.events.filter((e) => e.kind === "idle-beat")).toEqual([]);
+    expect(idle.events.filter((e) => e.kind === "idle-beat")).toEqual([]);
   });
 
-  it("beats far more often on the menu, where they are the whole show", () => {
-    const count = (mode: "attract" | "match") =>
-      run(initialDirectorState(1), input({ mode }), 30_000).events.filter(
-        (e) => e.kind === "idle-beat",
-      ).length;
-    expect(count("attract")).toBeGreaterThan(count("match") * 2);
-    // The quiet rule still holds in both: an idle beat waits for a gap.
-    expect(30_000 / count("attract")).toBeGreaterThanOrEqual(TUNING.attractIdlePeriod);
+  it("beats on the menu, where they are the whole show", () => {
+    const beats = run(initialDirectorState(1), input({ mode: "attract" }), 30_000).events.filter(
+      (e) => e.kind === "idle-beat",
+    );
+    expect(beats.length).toBeGreaterThan(8);
+    // The quiet rule still holds: an idle beat waits for a gap.
+    expect(30_000 / beats.length).toBeGreaterThanOrEqual(TUNING.attractIdlePeriod);
+
+    // And it waits for the *stage* to be quiet, not just the clock. A threat
+    // resets the gap, so no beat lands on top of one.
+    let s = advance(initialDirectorState(0), input({ mode: "attract" }), 16).state;
+    s = run(s, input({ mode: "attract" }), TUNING.attractIdlePeriod).state;
+    const threatened = input({ mode: "attract", immediateThreats: { red: 1, yellow: 0 } });
+    const busy = advance(s, threatened, 16);
+    const after = run(busy.state, threatened, 1000);
+    expect(after.events.filter((e) => e.kind === "idle-beat")).toEqual([]);
   });
 
   it("ends the game exactly once", () => {

@@ -603,6 +603,305 @@ export function pinsetterHeight(phase: number): number {
   return 1;
 }
 
+/* ------------------------------------------------------------------------ *
+ * The full-frame acts (phase 9). The roster above grew up along the bottom
+ * edge: the truck, the mascot, the mower and the pins all cross the floor, the
+ * rocket climbs one corner, and everything else arrives at the lens. Held
+ * together on one screen that reads as a strip of activity under a board, with
+ * a lot of empty stage above it.
+ *
+ * So every act down here is built to cross the frame rather than to sit at the
+ * edge of it: a shot that arcs from one bottom corner to the opposite top one,
+ * a piano that falls past the whole board, a ball that sweeps the entire width.
+ * The rule they add to the taste law is spatial rather than temporal — an act
+ * whose whole travel fits in one corner belongs to the old roster, and there
+ * are already enough of those.
+ *
+ * Everything else is unchanged: they enter from off-stage, do one legible
+ * thing, hold it a beat too long, and leave the way they came.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The cannon. It rolls in, cranks its barrel up in three hard steps, fires the
+ * mascot across the entire frame, and sits there smoking.
+ *
+ * The longest travel in the game, and deliberately: the shot leaves the muzzle
+ * at the bottom left and exits past the top right corner, so the act is a
+ * diagonal across everything rather than a lap along the floor. The hold is the
+ * beat between the barrel reaching its angle and the shot — the cannon is
+ * ready, aimed, and does nothing, for long enough that you look at it.
+ */
+export interface CannonPose {
+  /** Where the cannon is, 0 = off-frame left, 1 = in position. */
+  u: number;
+  /** Barrel elevation 0..1. Three steps, never a sweep. */
+  crank: number;
+  /** Barrel recoil back along its own axis, in world-ish units. */
+  recoil: number;
+  /**
+   * The shot, or null before it is fired and after it has left. `u` runs 0..1
+   * across the frame's width and `v` is height in frame-heights above the
+   * muzzle — over 1 for most of the flight, because the arc goes over the top.
+   */
+  shot: { u: number; v: number; spin: number } | null;
+  /** Muzzle smoke, 0..1. It outlives the shot, which is the point. */
+  smoke: number;
+}
+
+const CANNON_ROLL_IN = 0.14;
+const CANNON_AIMED = 0.32;
+const CANNON_FIRE = 0.4;
+const CANNON_LANDED = 0.8;
+const CANNON_ROLL_OUT = 0.88;
+
+export function cannonPose(phase: number): CannonPose {
+  const p = clamp01(phase);
+
+  // The shot: a parabola in flight, nothing before or after. Written first
+  // because every segment below needs to know whether it is in the air.
+  let shot: CannonPose["shot"] = null;
+  if (p >= CANNON_FIRE && p < CANNON_LANDED) {
+    const t = (p - CANNON_FIRE) / (CANNON_LANDED - CANNON_FIRE);
+    // Overshoots the far edge rather than landing on it: the act ends with the
+    // shot gone, not with it coming to rest somewhere.
+    //
+    // The apex is 0.75 of a frame-height above the muzzle, which puts it just
+    // under the top edge. It was 1.5 in the first pass and the harness handed
+    // back a stage with no shot on it at all — the arc cleared the frame
+    // entirely and the whole act was a cannon and some smoke.
+    shot = { u: t * 1.15, v: 4 * t * (1 - t) * 0.75, spin: t * Math.PI * 5 };
+  }
+
+  // Recoil is two stepped frames of the barrel driven back and one of it
+  // returning — a spring with three positions and no travel between them.
+  const sinceFire = p - CANNON_FIRE;
+  const recoil = sinceFire >= 0 && sinceFire < 0.03 ? 0.5 : sinceFire < 0.06 ? 0.2 : 0;
+  const smoke =
+    sinceFire < 0 ? 0 : sinceFire < 0.04 ? 1 : Math.max(0, 1 - (sinceFire - 0.04) / 0.34);
+
+  if (p < CANNON_ROLL_IN) {
+    return { u: p / CANNON_ROLL_IN, crank: 0, recoil, shot, smoke };
+  }
+  if (p < CANNON_AIMED) {
+    const t = (p - CANNON_ROLL_IN) / (CANNON_AIMED - CANNON_ROLL_IN);
+    return { u: 1, crank: Math.ceil(t * 3) / 3, recoil, shot, smoke };
+  }
+  if (p < CANNON_ROLL_OUT) return { u: 1, crank: 1, recoil, shot, smoke };
+  return { u: 1 - (p - CANNON_ROLL_OUT) / (1 - CANNON_ROLL_OUT), crank: 1, recoil, shot, smoke };
+}
+
+/**
+ * The piano. It falls the height of the frame, stops dead in mid-air for a
+ * third of the act, falls the rest of the way, and one key comes back up.
+ *
+ * The stop is the whole joke and it is the taste law's "the physics make
+ * absolutely no sense" taken literally: nothing catches it, nothing holds it,
+ * it is simply at a height and then it is at another one. Interpolating out of
+ * the hold would make it a thing being lowered; cutting into it makes it a
+ * thing that stopped.
+ */
+export interface PianoPose {
+  /** Height in frame-heights, 0 = frame centre. Under -1 is out the bottom. */
+  y: number;
+  /** Tilt in radians. It acquires one at the hold and never loses it. */
+  tilt: number;
+  /** True while the piano is on stage at all. */
+  present: boolean;
+  /** The one key that bounces back up, in the same units. Null when it isn't. */
+  key: number | null;
+}
+
+const PIANO_HELD = 0.2;
+const PIANO_DROPS = 0.54;
+const PIANO_GONE = 0.68;
+const PIANO_KEY = 0.8;
+
+export function pianoPose(phase: number): PianoPose {
+  const p = clamp01(phase);
+  const START = 1.15;
+  const HOLD_AT = 0.05;
+
+  if (p < PIANO_HELD) {
+    // Accelerating, no ease out: it stops because the joke is there.
+    const t = p / PIANO_HELD;
+    return { y: START - (START - HOLD_AT) * t * t, tilt: 0, present: true, key: null };
+  }
+  if (p < PIANO_DROPS) {
+    // Held. Nothing is scheduled and nothing moves; the tilt arrives on the
+    // same frame the fall stops, so it reads as the thing having been caught
+    // by something that isn't there.
+    return { y: HOLD_AT, tilt: 0.12, present: true, key: null };
+  }
+  if (p < PIANO_GONE) {
+    const t = (p - PIANO_DROPS) / (PIANO_GONE - PIANO_DROPS);
+    return { y: HOLD_AT - (HOLD_AT + 1.6) * t * t, tilt: 0.12, present: true, key: null };
+  }
+  if (p < PIANO_KEY) return { y: -2, tilt: 0.12, present: false, key: null };
+
+  // The exit: one white key comes back up into the empty frame, and goes
+  // down again. Nobody is shown what it bounced off.
+  const t = (p - PIANO_KEY) / (1 - PIANO_KEY);
+  return { y: -2, tilt: 0.12, present: false, key: -1.15 + 4 * t * (1 - t) * 1.4 };
+}
+
+/**
+ * The wrecking ball. It swings in from off-frame left, stops dead at the bottom
+ * of its arc in front of the middle of the board, hangs there for a quarter of
+ * the act, and then carries on and out the far side.
+ *
+ * The stop is at the *bottom* of the swing, which is the one place a pendulum
+ * is going fastest and the last place it could possibly stop. That is the joke,
+ * and it is also what makes the act legible: the first pass held it at the top
+ * of the arc — momentarily still, so at least defensible — and the harness
+ * showed a frame with a chain in the corner and the ball six units off-screen.
+ * The pose you hold has to be a pose somebody can see.
+ *
+ * It hits nothing on the way through. There was never anything to hit; the
+ * board is behind it.
+ */
+export interface WreckingPose {
+  /** Swing angle in radians from straight down. Negative is frame-left. */
+  swing: number;
+  /** Two-frame chain rattle, in world-ish units along the chain. */
+  rattle: number;
+}
+
+const WRECK_ARRIVES = 0.34;
+const WRECK_HANGS = 0.6;
+/** The extremes of the arc. Wide enough that the ball starts and ends off-frame. */
+const WRECK_ARC = 1.0;
+
+export function wreckingPose(phase: number, step: number): WreckingPose {
+  const p = clamp01(phase);
+  const rattle = (step % 2 === 0 ? 1 : -1) * 0.04;
+  // A pendulum's own curve rather than a straight sweep — fastest at the
+  // bottom, slowest at the ends — which is the one place this roster lets a
+  // curve in, because a wrecking ball crossing at constant speed reads as a
+  // sprite on a track. The 12fps sampling is what keeps it hard-edged.
+  const fall = (t: number) => -Math.cos((t * Math.PI) / 2) * WRECK_ARC;
+
+  if (p < WRECK_ARRIVES) return { swing: fall(p / WRECK_ARRIVES), rattle };
+  if (p < WRECK_HANGS) return { swing: 0, rattle };
+  return { swing: -fall(1 - (p - WRECK_HANGS) / (1 - WRECK_HANGS)), rattle };
+}
+
+/**
+ * The mirror ball. Down on four steps, spinning at the centre of the frame for
+ * two-thirds of the act, up on four.
+ *
+ * The one act in the new set that arrives where the game is rather than across
+ * it: it comes down in front of the board, in the middle, and stays long enough
+ * to be in the way. The spin is stepped hard, so the light squares it throws
+ * jump around the void rather than sweeping it — a mirror ball at 12fps is a
+ * strobe, which is both wrong and exactly what a lane screen would render.
+ */
+export interface MirrorPose {
+  /** 0 = above the frame, 1 = at the centre. */
+  drop: number;
+  /** Yaw in radians. Whole steps only. */
+  spin: number;
+  /** Which of the two glint cels the facets are on. */
+  glint: 0 | 1;
+}
+
+const MIRROR_DOWN = 0.16;
+const MIRROR_UP = 0.82;
+
+export function mirrorPose(phase: number, step: number): MirrorPose {
+  const p = clamp01(phase);
+  const spin = step * 0.62;
+  const glint = (step % 2) as 0 | 1;
+  if (p < MIRROR_DOWN) return { drop: Math.ceil((p / MIRROR_DOWN) * 4) / 4, spin, glint };
+  if (p < MIRROR_UP) return { drop: 1, spin, glint };
+  return { drop: 1 - Math.ceil(((p - MIRROR_UP) / (1 - MIRROR_UP)) * 4) / 4, spin, glint };
+}
+
+/**
+ * The window washer. A plank winches up the full height of the frame with the
+ * mascot on it, one stripe gets wiped, and then the rope gives.
+ *
+ * The only act that travels *up* the frame under its own power, which is what
+ * it is for — the roster could already fall, cross and arrive, and had nothing
+ * that climbed. The fall at the end is its exit and it is faster than the
+ * climb by a factor of six: the whole act is patient, and then it is over.
+ */
+export interface WasherPose {
+  /** Height in frame-heights, -0.7 = below the frame, 1 = at the top of it. */
+  height: number;
+  /**
+   * The squeegee stroke across the glass, 0..1, or null when it isn't wiping.
+   * Stepped: the stroke is six positions, not a sweep.
+   */
+  wipe: number | null;
+  /** The rope has gone. Nothing about the pose is being held up any more. */
+  falling: boolean;
+}
+
+const WASH_CLIMB = 0.34;
+const WASH_ARRIVED = 0.46;
+const WASH_WIPED = 0.66;
+const WASH_ROPE_GOES = 0.84;
+const WASH_BOTTOM = -0.75;
+
+export function washerPose(phase: number): WasherPose {
+  const p = clamp01(phase);
+  // Six stepped jerks of the winch rather than a ramp: the machine that lifts
+  // this thing is not good, and neither is the rope.
+  if (p < WASH_CLIMB) {
+    const t = Math.ceil((p / WASH_CLIMB) * 6) / 6;
+    return { height: WASH_BOTTOM + (1 - WASH_BOTTOM) * t, wipe: null, falling: false };
+  }
+  if (p < WASH_ARRIVED) return { height: 1, wipe: null, falling: false };
+  if (p < WASH_WIPED) {
+    const t = (p - WASH_ARRIVED) / (WASH_WIPED - WASH_ARRIVED);
+    return { height: 1, wipe: Math.ceil(t * 6) / 6, falling: false };
+  }
+  // Done, and admiring it, for a fifth of the act.
+  if (p < WASH_ROPE_GOES) return { height: 1, wipe: 1, falling: false };
+  // Straight down, accelerating, ending well under where it started — the one
+  // fast thing in the act, and it never eases.
+  const t = (p - WASH_ROPE_GOES) / (1 - WASH_ROPE_GOES);
+  return { height: 1 - (1.6 - WASH_BOTTOM) * t * t, wipe: 1, falling: true };
+}
+
+/**
+ * The foam finger. Up out of the floor on four steps to the full height of the
+ * frame, two wags, a long point, and back down.
+ *
+ * The only prop that addresses the player rather than the stage, which is why
+ * it holds the point for a quarter of the act and does nothing else in it. Two
+ * wags and not three: three is a character emoting, two is a machine playing a
+ * cel it has played before.
+ */
+export interface FingerPose {
+  /** 0 = below the floor, 1 = at full height. */
+  rise: number;
+  /** Wag in radians about its own base. Zero everywhere except the two wags. */
+  wag: number;
+}
+
+const FINGER_UP = 0.16;
+const FINGER_WAGS = 0.3;
+const FINGER_POINTS = 0.56;
+const FINGER_DOWN = 0.84;
+
+export function fingerPose(phase: number): FingerPose {
+  const p = clamp01(phase);
+  const rise = (r: number) => ({ rise: r, wag: 0 });
+
+  if (p < FINGER_UP) return rise(Math.ceil((p / FINGER_UP) * 4) / 4);
+  if (p < FINGER_WAGS) return rise(1);
+  if (p < FINGER_POINTS) {
+    // Two triangular wags, left and right of vertical, with nothing between
+    // them — the same shape as the mascot's two hops, one axis over.
+    const t = (p - FINGER_WAGS) / (FINGER_POINTS - FINGER_WAGS);
+    const half = t < 0.5 ? t * 2 : (t - 0.5) * 2;
+    return { rise: 1, wag: (tri(half) * (t < 0.5 ? -1 : 1) * Math.PI) / 9 };
+  }
+  if (p < FINGER_DOWN) return rise(1);
+  return rise(1 - Math.ceil(((p - FINGER_DOWN) / (1 - FINGER_DOWN)) * 4) / 4);
+}
+
 /**
  * The win detonation — the biggest thing in the game, and the only act allowed
  * to be flatly declarative about the result (see `director/types.ts`: `win` is
