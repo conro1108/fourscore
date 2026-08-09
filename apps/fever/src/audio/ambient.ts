@@ -117,8 +117,17 @@ export function startAmbient(ctx: AudioContext, bus: GainNode): AmbientBed {
   // -- the two loops ---------------------------------------------------------
   let crowd: Loop | null = null;
   let tape: Loop | null = null;
-  void soundBuffer("ambient-crowd").then((b) => (crowd = startLoop(ctx, bus, b, 1400)));
-  void soundBuffer("ambient-tape").then((b) => (tape = startLoop(ctx, bus, b, 12000)));
+  // A loop that never arrives is a quieter bed, not a broken one — but it has
+  // to say so, because the two of them failing is otherwise indistinguishable
+  // from the whole bus being asleep.
+  const warn = (which: string) => (e: unknown) =>
+    console.warn(`the ${which} loop never arrived; the bed runs without it`, e);
+  void soundBuffer("ambient-crowd")
+    .then((b) => (crowd = startLoop(ctx, bus, b, 1400)))
+    .catch(warn("crowd"));
+  void soundBuffer("ambient-tape")
+    .then((b) => (tape = startLoop(ctx, bus, b, 12000)))
+    .catch(warn("tape"));
 
   // -- fever mapping ---------------------------------------------------------
   const SMOOTH = 0.25;

@@ -31,6 +31,19 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 
+// A handle on the real context, so the interruption check below can suspend it
+// behind the app's back the way iOS does. Nothing else may use `__ctx`: the
+// point of the checks is that they only touch what a player or the OS touches.
+await page.addInitScript(() => {
+  const Real = window.AudioContext;
+  window.AudioContext = class extends Real {
+    constructor(...args) {
+      super(...args);
+      window.__ctx = this;
+    }
+  };
+});
+
 await page.goto(BASE);
 await page.waitForFunction(() => window.__fever !== undefined);
 await page.waitForSelector("canvas");
@@ -44,6 +57,29 @@ await page.waitForTimeout(400);
 const after = await page.evaluate(() => window.__fever.audio.rigState());
 if (after !== "running") throw new Error(`audio did not start on a gesture: ${after}`);
 console.log(`[autoplay] context: none before the gesture, "${after}" after it`);
+
+// -- coming back from an interruption -----------------------------------------
+// iOS suspends the context every time the PWA loses the foreground — a call,
+// the app switcher, the lock button — and returning is not a gesture, so
+// nothing on the unlock path fires. The first version of this shipped silent
+// for the rest of the session after the first phone call, and it looked from
+// the inside exactly like a game with the sound turned off.
+for (const [how, wake] of [
+  ["a sound firing", () => window.__fever.audio.playSpike("ui-click")],
+  ["coming back to the foreground", () => document.dispatchEvent(new Event("visibilitychange"))],
+]) {
+  await page.evaluate(() => window.__ctx.suspend());
+  if ((await page.evaluate(() => window.__ctx.state)) !== "suspended") {
+    throw new Error("could not suspend the context to test recovery");
+  }
+  await page.evaluate(wake);
+  await page
+    .waitForFunction(() => window.__ctx.state === "running", undefined, { timeout: 3000 })
+    .catch(() => {
+      throw new Error(`a suspended context did not come back on ${how}`);
+    });
+  console.log(`[interrupt] suspended context recovers on ${how}`);
+}
 
 // -- the ambient bed's two loops ----------------------------------------------
 // They're offline renders that arrive a moment after the rig, wired into

@@ -1797,7 +1797,16 @@ function limit(buffer: AudioBuffer): AudioBuffer {
 export function soundBuffer(name: SoundName): Promise<AudioBuffer> {
   let cached = cache.get(name);
   if (!cached) {
-    cached = render(name);
+    // A failed render must not be remembered. WebKit will refuse or stall an
+    // offline render on a page that isn't in front, and a rejected promise
+    // left in this map is a sound that never plays again for the rest of the
+    // session — with no error, because every caller of a cached promise gets
+    // the *first* attempt's failure forever. Dropping it means the next call
+    // simply tries again, on a page that is now probably in front.
+    cached = render(name).catch((e) => {
+      cache.delete(name);
+      throw e;
+    });
     cache.set(name, cached);
   }
   return cached;
