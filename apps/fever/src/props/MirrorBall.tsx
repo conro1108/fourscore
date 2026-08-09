@@ -78,7 +78,9 @@ export function MirrorBall({ layout, phase }: { layout: StageLayout; phase: () =
     group.current.position.y = yTop + pose.drop * (yRest - yTop);
     if (ball.current) ball.current.rotation.y = pose.spin;
     // The light exists only while the ball is down, and alternates between two
-    // cels of four squares — on, then the other four, and nothing between.
+    // cels of two squares — this pair, then the other pair, and nothing in
+    // between. Half the glints at a time is what makes it read as light moving
+    // rather than as four lamps blinking together.
     glints.current.forEach((mesh, i) => {
       if (mesh) mesh.visible = pose.drop > 0.99 && i % 2 === pose.glint;
     });

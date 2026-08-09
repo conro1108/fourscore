@@ -298,6 +298,16 @@ describe("the full-frame acts", () => {
     const cranks = new Set(sample((p) => cannonPose(p).crank));
     expect(cranks).toEqual(new Set([0, 1 / 3, 2 / 3, 1]));
 
+    // The barrel is at rest right up until it fires and back at rest after —
+    // three positions, and the same one at both ends. A sign slip in the recoil
+    // window put it retracted for the entire approach, which reads as a barrel
+    // that changes length rather than as a kick.
+    expect(cannonPose(0.1).recoil).toBe(0);
+    expect(cannonPose(0.39).recoil).toBe(0);
+    expect(cannonPose(0.41).recoil).toBeGreaterThan(0);
+    expect(cannonPose(1).recoil).toBe(0);
+    expect(runs(sample((p) => cannonPose(p).recoil > 0))).toBe(1);
+
     // The travel: from one side of the frame past the other, over the top.
     const flight = sample((p) => cannonPose(p).shot).filter((s) => s !== null);
     expect(flight.length).toBeGreaterThan(20);

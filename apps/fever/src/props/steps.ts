@@ -674,8 +674,14 @@ export function cannonPose(phase: number): CannonPose {
 
   // Recoil is two stepped frames of the barrel driven back and one of it
   // returning — a spring with three positions and no travel between them.
+  // Note the leading `sinceFire < 0`: without it the *second* branch catches
+  // every negative value, and the barrel spends the roll-in, the crank and the
+  // whole aimed hold retracted a fifth of a unit into its own trunnion before
+  // sliding forward to rest after the shot. A barrel that is a different length
+  // before and after firing is "looks broken by accident" exactly.
   const sinceFire = p - CANNON_FIRE;
-  const recoil = sinceFire >= 0 && sinceFire < 0.03 ? 0.5 : sinceFire < 0.06 ? 0.2 : 0;
+  const recoil =
+    sinceFire < 0 ? 0 : sinceFire < 0.03 ? 0.5 : sinceFire < 0.06 ? 0.2 : 0;
   const smoke =
     sinceFire < 0 ? 0 : sinceFire < 0.04 ? 1 : Math.max(0, 1 - (sinceFire - 0.04) / 0.34);
 

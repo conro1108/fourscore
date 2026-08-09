@@ -2,6 +2,10 @@
  * Prop textures are generated on a canvas at 64px and nearest-filtered — the
  * cheap side of the budget law, by law: ≤64px, no mipmaps, no smoothing.
  * Every prop texture in the game comes from a function in this style.
+ *
+ * One exception, and only one: `wordArt` ships a 128x32 tile. It is type rather
+ * than a livery, it is the largest thing that ever appears on screen, and the
+ * argument for it is written where it lives — see the note on that function.
  */
 
 import * as THREE from "three";

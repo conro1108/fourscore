@@ -986,7 +986,13 @@ function cannonShot(ctx: OfflineAudioContext, source: AudioBuffer | null): void 
 
   // The report. Everything before it is quiet so this can be the only loud
   // thing in the buffer.
-  const fireAt = 1.34;
+  //
+  // 1.52 is not a feel — it is `CANNON_FIRE 0.4 x CANNON_MS 3800` (`steps.ts`,
+  // `Cannon.tsx`). One buffer carrying the whole act means the buffer has to
+  // agree with the act's own segment boundaries, and this was written at 1.34,
+  // which put the loudest transient in the library 180ms before the muzzle
+  // moved. Fever plays spikes up to 5% sharp, which only ever widens that.
+  const fireAt = 1.52;
   const boom = env(ctx, [
     [fireAt, 0],
     [fireAt + 0.005, 0.95],
@@ -1011,12 +1017,12 @@ function cannonShot(ctx: OfflineAudioContext, source: AudioBuffer | null): void 
   const whistle = env(ctx, [
     [whistleAt, 0],
     [whistleAt + 0.05, 0.16],
-    [whistleAt + 1.5, 0.09],
-    [whistleAt + 2.0, 0],
+    [whistleAt + 1.4, 0.09],
+    [whistleAt + 1.85, 0],
   ]);
   whistle.connect(bus);
-  const tone = osc(ctx, "square", 1250, whistleAt, whistleAt + 2.05);
-  tone.frequency.linearRampToValueAtTime(430, whistleAt + 2.0);
+  const tone = osc(ctx, "square", 1250, whistleAt, whistleAt + 1.88);
+  tone.frequency.linearRampToValueAtTime(430, whistleAt + 1.85);
   tone.connect(gain(ctx, 0.5)).connect(whistle);
 }
 
@@ -1191,9 +1197,11 @@ function windowWasher(ctx: OfflineAudioContext, source: AudioBuffer | null): voi
   }
 
   // The wipe: six stepped squeaks up a scale that is not a scale, because a
-  // squeegee does not play in tune.
+  // squeegee does not play in tune. Six of them at 140ms because that is what
+  // the pose does — `WASH_ARRIVED 0.46` to `WASH_WIPED 0.66` of 4200ms, in six
+  // steps (`steps.ts`).
   for (let i = 0; i < 6; i++) {
-    const at = 1.6 + i * 0.14;
+    const at = 1.93 + i * 0.14;
     const g = env(ctx, [
       [at, 0],
       [at + 0.01, 0.13],
@@ -1209,19 +1217,23 @@ function windowWasher(ctx: OfflineAudioContext, source: AudioBuffer | null): voi
   }
 
   // The rope. One snap, and then air going away from you.
-  const snapAt = 3.0;
+  //
+  // `WASH_ROPE_GOES 0.84 x WASHER_MS 4200`, to the millisecond. Written at 3.0
+  // it landed half a second before the rope went, so the act's loudest moment
+  // arrived while the rig was still hanging there admiring its stripe.
+  const snapAt = 3.53;
   strike(ctx, bus, snapAt, [180, 268, 410], 0.18, 0.5);
   const drop = env(ctx, [
     [snapAt + 0.02, 0],
-    [snapAt + 0.2, 0.34],
-    [snapAt + 1.0, 0.2],
-    [snapAt + 1.1, 0],
+    [snapAt + 0.15, 0.34],
+    [snapAt + 0.5, 0.2],
+    [snapAt + 0.6, 0],
   ]);
   const going = filter(ctx, "lowpass", 1600);
-  going.frequency.exponentialRampToValueAtTime(240, snapAt + 1.0);
+  going.frequency.exponentialRampToValueAtTime(240, snapAt + 0.55);
   drop.connect(going);
   going.connect(bus);
-  noise(ctx, 1.2, 0x6b3d1, snapAt + 0.02).connect(drop);
+  noise(ctx, 0.7, 0x6b3d1, snapAt + 0.02).connect(drop);
 }
 
 /**
@@ -1254,6 +1266,16 @@ async function foamFinger(ctx: OfflineAudioContext, source: AudioBuffer | null):
       }
     }
   });
+  // The PA being punched in — one small click, before anything else.
+  //
+  // Not decoration: `tools/audio-check.mjs` fails the build on a non-ambient
+  // recipe whose first audible sample lands after 0.12s, and a reversed crowd
+  // opens on the *original's* silent tail, so this one arrived at 0.111 and
+  // passed the gate by nine milliseconds. A spike that takes a tenth of a
+  // second to start isn't a spike, and a channel opening is the honest way for
+  // a canned clip to say it has started.
+  strike(ctx, bus, 0.01, [900, 1360], 0.03, 0.16);
+
   const swell = env(ctx, [
     [0, 0],
     [0.1, 0.5],

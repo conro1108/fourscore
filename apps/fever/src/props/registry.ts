@@ -264,7 +264,7 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // None of them declares — they answer grades, threats and tension, and all
   // three are the Director's estimate (`director/types.ts`).
   "cannon-shot": act("cannon-shot", CANNON_MS, 140, "left", Cannon, "spike-cannon"),
-  "piano-drop": act("piano-drop", PIANO_MS, 84, "sky", Piano, "spike-piano"),
+  "piano-drop": act("piano-drop", PIANO_MS, 76, "sky", Piano, "spike-piano"),
   "wrecking-ball": act("wrecking-ball", WRECKING_MS, 162, "sky", Wrecking, "spike-wrecking"),
   "mirror-ball": act("mirror-ball", MIRROR_MS, 84, "lens", MirrorBall, "spike-mirror"),
   "window-washer": act("window-washer", WASHER_MS, 102, "left", Washer, "spike-washer"),

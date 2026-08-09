@@ -18,7 +18,9 @@
  *
  * Budget, audited (box = 12, quad = 2):
  *   5 pyro jets x 12 + 24 debris x 2 + banner 2 = 110 triangles.
- * Two 64px textures (hazard, WordArt), Lambert flat, no environment map.
+ * Two nearest textures — the 64px hazard skin and the WordArt tile, which is
+ * the one texture in the game allowed past 64 and argues for itself in
+ * `wordArt`. Lambert flat, no environment map.
  */
 
 import { useFrame } from "@react-three/fiber";

@@ -15,10 +15,11 @@
  */
 
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useRef } from "react";
 import * as THREE from "three";
 import { stageFx } from "../stage/fx.js";
 import type { StageLayout } from "../stage/layout.js";
+import { usePropMaterial, usePropTexture } from "./material.js";
 import { stepIndex, stepped, truckPose } from "./steps.js";
 import { truckLivery } from "./texture.js";
 
@@ -31,30 +32,19 @@ export function Truck({ layout, phase }: { layout: StageLayout; phase: () => num
   const wheels = useRef<(THREE.Group | null)[]>([]);
   const wasAirborne = useRef(false);
 
-  const livery = useMemo(() => truckLivery(), []);
-  useEffect(() => () => livery.dispose(), [livery]);
+  const livery = usePropTexture(truckLivery);
 
   // The livery doubles as its own emissive map: the flames and chrome stripe
   // glow faintly, which is what hands the cheap prop to the expensive bloom.
-  const bodyMat = useMemo(
-    () =>
-      new THREE.MeshLambertMaterial({
-        map: livery,
-        flatShading: true,
-        emissive: "#ffffff",
-        emissiveMap: livery,
-        emissiveIntensity: 0.5,
-      }),
-    [livery],
-  );
-  const darkMat = useMemo(
-    () => new THREE.MeshLambertMaterial({ color: "#2c2733", flatShading: true }),
-    [],
-  );
-  const chromeMat = useMemo(
-    () => new THREE.MeshLambertMaterial({ color: "#c8ccd4", flatShading: true }),
-    [],
-  );
+  //
+  // Through `usePropMaterial` like everything else. These were three raw
+  // `useMemo`s with no cleanup, from before `material.ts` existed to own
+  // disposal — so every lap of the truck leaked three materials, which is a
+  // slow drip nothing in the game could ever surface. It was the last prop
+  // outside the contract.
+  const bodyMat = usePropMaterial({ map: livery, glow: 0.5 });
+  const darkMat = usePropMaterial({ color: "#2c2733" });
+  const chromeMat = usePropMaterial({ color: "#c8ccd4" });
 
   // The lap crosses the whole frame, off-screen to off-screen, under the
   // board and in front of it. Everything derives from layout — no 7s.
