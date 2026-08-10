@@ -190,7 +190,36 @@ export const CONNECT5 = makeVariant({
   run: 5,
 });
 
-export const VARIANTS: readonly Variant[] = [CONNECT4, CONNECT5];
+/**
+ * Connect 6 and Connect 7, sized by the same law as Connect 5: keep the line
+ * density near Connect 4's 1.64 lines per cell, keep the width odd so there is
+ * a true centre column, and keep the height even for the parity theorem.
+ *
+ * 11x10 run 6 gives 175 lines over 110 cells (1.59/cell); 13x12 run 7 gives
+ * 246 over 156 (1.58/cell). The sequence 1.64 → 1.61 → 1.59 → 1.58 is the
+ * texture staying put while the board grows.
+ *
+ * These are also why the transposition table stores keys in five lanes: a
+ * `key()` needs `width * (height + 1)` bits, which is 121 here and 169 for
+ * Connect 7 — see the note on `TranspositionTable`.
+ */
+export const CONNECT6 = makeVariant({
+  id: "connect6",
+  name: "Connect 6",
+  width: 11,
+  height: 10,
+  run: 6,
+});
+
+export const CONNECT7 = makeVariant({
+  id: "connect7",
+  name: "Connect 7",
+  width: 13,
+  height: 12,
+  run: 7,
+});
+
+export const VARIANTS: readonly Variant[] = [CONNECT4, CONNECT5, CONNECT6, CONNECT7];
 
 export const variantById = (id: string): Variant => {
   const v = VARIANTS.find((x) => x.id === id);

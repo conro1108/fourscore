@@ -45,19 +45,28 @@ const FLAG_EMPTY = 0;
 const FLAG_UPPER = 1;
 const FLAG_LOWER = 2;
 
-const LO_MASK = 0xffffffffn;
-const HI_SHIFT = 32n;
+const LANE_MASK = 0xffffffffn;
+const LANE_SHIFT = 32n;
+
+/**
+ * The widest `key()` the table can compare exactly: four full 32-bit lanes
+ * plus a float64 remainder with 53 exact integer bits. Connect 7's 13x12
+ * needs 169 of these.
+ */
+export const TT_MAX_KEY_BITS = 4 * 32 + 53;
 
 /**
  * Fixed-size open-addressed transposition table.
  *
- * Keys are stored as a 32-bit low half and whatever is left over, rather than
- * as one float64. On Connect 4 a `key()` is at most 49 bits and would fit in a
- * float64's 53 bits of exact integer, but the packing needs `width * (height +
- * 1)` bits and any board past 7x6 blows through that — Connect 5's 9x8 needs
- * 81. A float64 doesn't fail loudly there; it rounds, so two different
- * positions start comparing equal and the "exact" solver quietly returns wrong
- * scores. Splitting the key keeps the comparison exact at every board size.
+ * Keys are stored across four 32-bit lanes and a float64 remainder, rather
+ * than as one float64. On Connect 4 a `key()` is at most 49 bits and would fit
+ * in a float64's 53 bits of exact integer, but the packing needs `width *
+ * (height + 1)` bits and any board past 7x6 blows through that — Connect 5's
+ * 9x8 needs 81, Connect 7's 13x12 needs 169. A float64 doesn't fail loudly
+ * there; it rounds, so two different positions start comparing equal and the
+ * "exact" solver quietly returns wrong scores. Splitting the key into lanes
+ * keeps the comparison exact up to `TT_MAX_KEY_BITS`, and `solveScoreWithStats`
+ * refuses boards past that rather than rounding.
  *
  * Collisions simply overwrite: a wrong hit costs a re-search, not a wrong
  * answer, because the stored value is always re-validated against the current
@@ -66,40 +75,67 @@ const HI_SHIFT = 32n;
  */
 export class TranspositionTable {
   private readonly size: number;
-  private readonly keysLo: Uint32Array;
-  private readonly keysHi: Float64Array;
+  private readonly keysA: Uint32Array;
+  private readonly keysB: Uint32Array;
+  private readonly keysC: Uint32Array;
+  private readonly keysD: Uint32Array;
+  private readonly keysE: Float64Array;
   private readonly vals: Int8Array;
   private readonly flags: Uint8Array;
 
   constructor(sizeLog2 = 20) {
     this.size = 1 << sizeLog2;
-    this.keysLo = new Uint32Array(this.size);
-    this.keysHi = new Float64Array(this.size);
+    this.keysA = new Uint32Array(this.size);
+    this.keysB = new Uint32Array(this.size);
+    this.keysC = new Uint32Array(this.size);
+    this.keysD = new Uint32Array(this.size);
+    this.keysE = new Float64Array(this.size);
     this.vals = new Int8Array(this.size);
     this.flags = new Uint8Array(this.size);
   }
 
-  private index(lo: number, hi: number): number {
-    // The low bits vary slowly between sibling positions, so a plain modulo by
-    // a power of two would cluster badly. Mixing the high half down first is
-    // what keeps the table spread out.
-    return (lo ^ hi) & (this.size - 1);
-  }
-
   get(key: bigint): { value: number; flag: number } | null {
-    const lo = Number(key & LO_MASK);
-    const hi = Number(key >> HI_SHIFT);
-    const i = this.index(lo, hi);
-    if (this.flags[i] === FLAG_EMPTY || this.keysLo[i] !== lo || this.keysHi[i] !== hi) return null;
+    const a = Number(key & LANE_MASK);
+    let rest = key >> LANE_SHIFT;
+    const b = Number(rest & LANE_MASK);
+    rest >>= LANE_SHIFT;
+    const c = Number(rest & LANE_MASK);
+    rest >>= LANE_SHIFT;
+    const d = Number(rest & LANE_MASK);
+    const e = Number(rest >> LANE_SHIFT);
+    // The low bits vary slowly between sibling positions, so a plain modulo by
+    // a power of two would cluster badly. Mixing the upper lanes down is what
+    // keeps the table spread out. (XOR truncates `e` to 32 bits, which is fine
+    // for spreading; the stored comparison below is the exact one.)
+    const i = (a ^ b ^ c ^ d ^ e) & (this.size - 1);
+    if (
+      this.flags[i] === FLAG_EMPTY ||
+      this.keysA[i] !== a ||
+      this.keysB[i] !== b ||
+      this.keysC[i] !== c ||
+      this.keysD[i] !== d ||
+      this.keysE[i] !== e
+    ) {
+      return null;
+    }
     return { value: this.vals[i]!, flag: this.flags[i]! };
   }
 
   put(key: bigint, value: number, flag: number): void {
-    const lo = Number(key & LO_MASK);
-    const hi = Number(key >> HI_SHIFT);
-    const i = this.index(lo, hi);
-    this.keysLo[i] = lo;
-    this.keysHi[i] = hi;
+    const a = Number(key & LANE_MASK);
+    let rest = key >> LANE_SHIFT;
+    const b = Number(rest & LANE_MASK);
+    rest >>= LANE_SHIFT;
+    const c = Number(rest & LANE_MASK);
+    rest >>= LANE_SHIFT;
+    const d = Number(rest & LANE_MASK);
+    const e = Number(rest >> LANE_SHIFT);
+    const i = (a ^ b ^ c ^ d ^ e) & (this.size - 1);
+    this.keysA[i] = a;
+    this.keysB[i] = b;
+    this.keysC[i] = c;
+    this.keysD[i] = d;
+    this.keysE[i] = e;
     this.vals[i] = value;
     this.flags[i] = flag;
   }
@@ -270,6 +306,14 @@ export function solveScoreWithStats(
   p: Position,
   opts: SolveOptions = {},
 ): { score: number; stats: SolveStats } {
+  // Refuse rather than round: past this the table's key comparison stops being
+  // exact and the solver returns wrong scores with no error.
+  if (p.variant.keyBits > TT_MAX_KEY_BITS) {
+    throw new Error(
+      `board needs ${p.variant.keyBits}-bit keys; the table compares at most ${TT_MAX_KEY_BITS}`,
+    );
+  }
+
   const ctx: SearchContext = {
     table: opts.table ?? new TranspositionTable(),
     nodes: 0,

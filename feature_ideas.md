@@ -4,6 +4,58 @@ Things we decided were good but deliberately deferred, and things we tried that
 didn't work. Not a backlog to burn down — just enough detail that picking one up
 later doesn't start from scratch.
 
+## Dead end: Connect 7's ladder is draw-shaped, not broken
+
+The first sweep read three middle rungs soft and the top inverted, and long
+windows with a win/loss/draw split showed why — completing seven in a row
+against any competent defence is hard enough that games fill the board:
+
+| rung | points | decisive split |
+| --- | --- | --- |
+| `moss > pebble`, 48 games | 60% | **13W 3L** 32D |
+| `bramble > moss`, 40 games | 64% | **14W 3L** 23D |
+| `cinder > bramble`, 40 games | 63% | **15W 5L** 20D |
+| `quill > vane`, 12 games (parity override on) | 46% | 1W 2L 9D |
+
+The ladder is ordered — the stronger bot wins the decisive games 3- or 4-to-1 —
+but draw mass drags every points rate toward 50%, and at the very top there are
+barely any decisive games at all. That's the board's character: half a point
+for a draw is the scoring being honest about a game that neither side lost.
+Don't tune weights to chase the 65% bar here; the fix, if one is ever wanted,
+is a bigger board — which today means raising `TT_MAX_KEY_BITS`, since 13x12's
+169-bit keys already sit near the 181-bit lane limit. Only `pebble > acorn`
+(92%) is asserted in `bots.test.ts`.
+
+## Dead end: the soft rungs on Connect 6
+
+Two rungs sit under the 65% bar on Connect 6 and stay there under every knob,
+so they are documented rather than asserted — same policy as `quill > vane` on
+Connect 5 below.
+
+**`cinder > bramble`, ~60%.** Measured 63% over 16 games (seed 1) and 60% over
+40 (seed 101), so it's the rate, not noise. Everything tried, all over 40 games
+with the same seed:
+
+| change | rate |
+| --- | --- |
+| base weights, derived depth 6 | **60% (shipped)** |
+| `depthByVariant` 7 — one ply past the derived rounding | 49% |
+| parity 12 → 24 | 60% |
+| aggression mirror, threat 30 / immediate 46 | 59% |
+| positional, parity 18 / center 14 | 46% |
+
+Extra depth actively hurting is the same "deeper with worse weights is weaker"
+effect the Connect 5 table below shows for Quill. No budget clipping involved:
+Cinder peaks at 51k nodes of a 1.6M budget.
+
+**`quill > vane`, ~59%.** Inverted outright (38%) with Connect 4 weights; the
+same parity 34 → 46 override that ships on Connect 5 brings it to 59% over 16
+games, which is the same plateau. The cause reads identical: parity dominates
+harder the taller the board, and Quill's separator — solving the endgame —
+fires even less on Connect 6, where the crossover is 82 discs of 110. The
+override ships on Connect 6 and Connect 7 both; nobody has swept Connect 7's
+top rung levers beyond that, so start there if it reads worse than ~55%.
+
 ## Dead end: the `quill > vane` rung on Connect 5
 
 Quill wins about 56% over 8 games, under the 65% bar the ladder holds itself to.

@@ -19,7 +19,9 @@ reference is ever needed.
 Board size and run length live in a `Variant` object (`board.ts`), and everything
 derived from them — masks, move order, shift schedules, centre weights, score
 bounds — is computed once per variant and read from there. `CONNECT4` is 7x6
-run 4, `CONNECT5` is 9x8 run 5, and `makeVariant` takes any width/height/run.
+run 4, `CONNECT5` is 9x8 run 5, `CONNECT6` is 11x10 run 6, `CONNECT7` is 13x12
+run 7 — all sized to hold line density near Connect 4's 1.64 lines per cell,
+odd width, even height — and `makeVariant` takes any width/height/run.
 
 Nothing should reintroduce a module-level `WIDTH`/`HEIGHT`. The Connect 4 aliases
 still exported from `board.ts` are a convenience for callers that only ever touch
@@ -58,12 +60,15 @@ it back into the obvious nested loop.
 ### The transposition table key is a real constraint
 
 `Position.key()` needs `width * (height + 1)` bits: 49 for Connect 4, 81 for
-Connect 5. A `Float64Array` only holds 53 bits of integer exactly and **rounds
-silently** past that, so two different positions start comparing equal and the
-exact solver returns wrong scores with no error. The table stores keys as a
-32-bit low half plus a float64 remainder for that reason. Collisions are still
-fine — a wrong hit costs a re-search — but only while the key comparison itself
-is exact. Never hash the key down to fit.
+Connect 5, 121 for Connect 6, 169 for Connect 7. A `Float64Array` only holds 53
+bits of integer exactly and **rounds silently** past that, so two different
+positions start comparing equal and the exact solver returns wrong scores with
+no error. The table stores keys across four 32-bit lanes plus a float64
+remainder for that reason — exact to `TT_MAX_KEY_BITS` (181), and the solver
+throws rather than rounds on a board past that. The lanes cost ~5% of Connect 4
+solve throughput, measured, which is the price of Connect 6 and 7 existing at
+all. Collisions are still fine — a wrong hit costs a re-search — but only while
+the key comparison itself is exact. Never hash the key down to fit.
 
 ## The ladder has to stay a ladder
 
@@ -112,6 +117,22 @@ So both scale with the board: `depthFor` divides depth by log(width)/log(7), and
 `heuristicBudget` scales with cell count and width. Connect 4 is untouched by
 construction (width 7 → identity). If you add a bot or a variant and a rung goes
 soft, check whether it's clipping the budget *before* touching the weights.
+
+Connect 7's ladder measures soft almost everywhere and is not: the long windows
+show the stronger bot winning decisive games 3- or 4-to-1 while most games fill
+all 156 cells, so draw mass drags every points rate toward 50% (at the top, 9 of
+12 games draw). That's the run length's character, documented in
+[feature_ideas.md](feature_ideas.md#dead-end-connect-7s-ladder-is-draw-shaped-not-broken)
+— don't chase the 65% bar there with weights.
+
+Connect 6 repeated Connect 5's history on its first sweep: `quill > vane`
+inverted outright (38%) until Quill got the same parity-46 override, which
+brings it to the same ~59% plateau, and `cinder > bramble` sits at ~60% with
+every knob measured and none of them moving it — depth one deeper made it
+*worse* (49%), which is the depth-vs-weights interaction doing exactly what
+this section says it does. Both are documented in
+[feature_ideas.md](feature_ideas.md#dead-end-the-soft-rungs-on-connect-6) and
+deliberately unasserted.
 
 `quill > vane` on Connect 5 is known soft (~56%, under the bar) and deliberately
 not asserted in `bots.test.ts`. The measurements and the dead ends are in
@@ -181,8 +202,10 @@ the median.
 Measured: Connect 4 crosses over around 10-13 discs of 42. Connect 5 crosses over
 at **44 discs of 72**, which is late enough that a game ending in a win is
 usually over first — in a five-game sample the Oracle never got to solve at all
-in two of them. That is not a bug to tune away, and the UI must not paper over
-it: `exactnessNote` in `bots.ts` generates the claim from the number so a bot
+in two of them. Connect 6 crosses at **82 discs of 110** (six games, 77-82) and
+Connect 7 at **127 discs of 156** (five games, 125-127), so on the big boards
+proven play is close to an endgame rumour. That is not a bug to tune away, and
+the UI must not paper over it: `exactnessNote` in `bots.ts` generates the claim from the number so a bot
 can't go on advertising Connect 4's crossover on a Connect 5 board. If you add a
 variant, generate the claim, don't write one.
 

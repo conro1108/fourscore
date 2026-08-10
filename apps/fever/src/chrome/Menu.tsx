@@ -12,7 +12,7 @@
  */
 
 import type { BotProfile, Variant } from "@fourscore/engine";
-import { CONNECT4, CONNECT5 } from "@fourscore/engine";
+import { VARIANTS } from "@fourscore/engine";
 import { Flames } from "./Flames.js";
 import { Wordmark } from "./Wordmark.js";
 import { Btn, Window } from "./Window.js";
@@ -70,10 +70,19 @@ export function Menu({
           <Btn wide onClick={onOnline}>
             {COPY.online}
           </Btn>
-          {/* The variant switch, both states visible at once: a period toggle
-              showed you the choice, not the consequence of pressing it. */}
+          {/* The variant switch, every state visible at once: a period toggle
+              showed you the choice, not the consequence of pressing it. Two
+              rows of two, because four across squeezes the labels into
+              ellipses and the labels are the joke. */}
           <div className="menu-pair">
-            {[CONNECT4, CONNECT5].map((v) => (
+            {VARIANTS.slice(0, 2).map((v) => (
+              <Btn key={v.id} on={variant.id === v.id} onClick={() => onVariant(v)}>
+                {COPY.variant(v.id)}
+              </Btn>
+            ))}
+          </div>
+          <div className="menu-pair">
+            {VARIANTS.slice(2).map((v) => (
               <Btn key={v.id} on={variant.id === v.id} onClick={() => onVariant(v)}>
                 {COPY.variant(v.id)}
               </Btn>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BotBrain, ROSTER, byId, type BotProfile } from "./bots.js";
 import { Match } from "./match.js";
-import { CONNECT4, CONNECT5, Position } from "./board.js";
+import { CONNECT4, CONNECT5, CONNECT6, CONNECT7, Position } from "./board.js";
 import { searchHeuristic } from "./evaluate.js";
 
 /** Deterministic RNG, so a flaky ladder can't pass by luck. */
@@ -204,6 +204,28 @@ describe("the ladder is actually a ladder", () => {
   for (const [strong, weak, games] of connect5Rungs) {
     it(`${strong} beats ${weak} on Connect 5`, () => {
       const points = headToHead(strong, weak, games, 1, CONNECT5);
+      expect(points).toBeGreaterThan(games * 0.65);
+    });
+  }
+
+  /**
+   * The rungs that hold on the two big boards, which is fewer than elsewhere.
+   *
+   * Connect 6 and 7 each repeated Connect 5's history on their first sweep —
+   * the top inverted until Quill got its parity override, and a couple of
+   * middle rungs sit just under the bar with every knob measured (the tables
+   * are in feature_ideas.md). What's asserted here is only what measured
+   * comfortably clear: the bar plus noise room at these game counts.
+   */
+  const bigBoardRungs = [
+    [CONNECT6, "pebble", "acorn", 8],
+    [CONNECT6, "bramble", "moss", 8],
+    [CONNECT7, "pebble", "acorn", 8],
+  ] as const;
+
+  for (const [variant, strong, weak, games] of bigBoardRungs) {
+    it(`${strong} beats ${weak} on ${variant.name}`, () => {
+      const points = headToHead(strong, weak, games, 1, variant);
       expect(points).toBeGreaterThan(games * 0.65);
     });
   }

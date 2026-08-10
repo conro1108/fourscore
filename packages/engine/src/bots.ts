@@ -216,14 +216,23 @@ export const ROSTER: readonly BotProfile[] = [
     // this takes the smaller change. See the note on the Connect 5 ladder in
     // CLAUDE.md — this rung is known soft and is not fixed by weights, depth or
     // an earlier crossover.
-    weightsByVariant: { connect5: w({ parity: 46, threat: 18, immediate: 30, center: 9 }) },
+    weightsByVariant: {
+      connect5: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
+      // The taller the board, the harder parity dominates — same medicine as
+      // Connect 5, same measured plateau (see the dead-end note there).
+      connect6: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
+      connect7: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
+    },
     // Fallible while it is still estimating, and only then: `pick` never slips
     // a move that came out of the exact solver, so "from there it does not make
     // mistakes" stays literally true. A rate this low is a slip every few games
     // in the opening — enough that the rung below the Oracle is a person you
     // can catch out rather than a second unbeatable machine.
     slipRate: 0.008,
-    exactFrom: { connect4: 16, connect5: 50 },
+    // Six plies after the Oracle's measured crossover on every board, same as
+    // the gap Connect 4 and Connect 5 shipped with: Quill solving later than
+    // the Oracle is part of the rung, not a measurement of its own.
+    exactFrom: { connect4: 16, connect5: 50, connect6: 88, connect7: 133 },
     bluffs: false,
     colors: { body: "#3f8fa8", shade: "#2a6274" },
   },
@@ -241,7 +250,11 @@ export const ROSTER: readonly BotProfile[] = [
     depth: 10,
     weights: w({ parity: 36, threat: 18, immediate: 30, center: 10 }),
     slipRate: 0,
-    exactFrom: { connect4: 10, connect5: 44 },
+    // Measured with `measure-solve.ts live <variant>`, worst case across
+    // games: Connect 6 crosses at 82 discs of 110 (six games, 77-82), Connect 7
+    // at 127 of 156 (five games, 125-127). Both are past half the board, so
+    // `exactnessNote` adds the "usually over first" caveat by itself.
+    exactFrom: { connect4: 10, connect5: 44, connect6: 82, connect7: 127 },
     bluffs: false,
     colors: { body: "#d8d2c4", shade: "#9d9483" },
   },

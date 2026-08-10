@@ -5,7 +5,7 @@
  * state at mid- or full-fever.
  */
 
-import { CONNECT4, CONNECT5, type Player, type Variant } from "@fourscore/engine";
+import { CONNECT4, CONNECT5, CONNECT6, CONNECT7, type Player, type Variant } from "@fourscore/engine";
 import type { PinnedAct } from "../director/scope.js";
 import type { ChromeState } from "./chrome.js";
 import { REVIEW_MOVES } from "./reviewFixture.js";
@@ -96,6 +96,14 @@ const BOTS: { id: string; name: string; act: string; phase: number }[] = [
 export const PREVIEW_STATES: PreviewCase[] = [
   { id: "idle-c4", caption: "idle board — Connect 4", variant: CONNECT4, moves: [] },
   { id: "idle-c5", caption: "idle board — Connect 5", variant: CONNECT5, moves: [] },
+  { id: "idle-c6", caption: "idle board — Connect 6", variant: CONNECT6, moves: [] },
+  { id: "idle-c7", caption: "idle board — Connect 7", variant: CONNECT7, moves: [] },
+  {
+    id: "mid-c7",
+    caption: "mid-game — Connect 7, the biggest board framed",
+    variant: CONNECT7,
+    moves: [6, 6, 7, 5, 7, 7, 8, 6, 5, 4, 8, 8, 9, 7, 4, 3, 6, 5, 9, 10, 2],
+  },
   {
     id: "mid-c4",
     caption: "mid-game with hover ghost — Connect 4",

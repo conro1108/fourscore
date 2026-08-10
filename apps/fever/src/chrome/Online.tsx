@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { CONNECT4, CONNECT5, type Variant } from "@fourscore/engine";
+import { VARIANTS, type Variant } from "@fourscore/engine";
 import { Btn, Window } from "./Window.js";
 import { COPY } from "./copy.js";
 
@@ -81,12 +81,23 @@ export function Online({
 
       <div className="groove">
         <div className="groove-label">{COPY.onlineHost}</div>
-        <div className="row">
-          {[CONNECT4, CONNECT5].map((v) => (
+        {/* Four boards no longer share a row with the go button; the switch
+            gets the same two-by-two the menu uses. */}
+        <div className="menu-pair">
+          {VARIANTS.slice(0, 2).map((v) => (
             <Btn key={v.id} on={variant.id === v.id} onClick={() => onVariant(v)}>
               {COPY.variant(v.id)}
             </Btn>
           ))}
+        </div>
+        <div className="menu-pair">
+          {VARIANTS.slice(2).map((v) => (
+            <Btn key={v.id} on={variant.id === v.id} onClick={() => onVariant(v)}>
+              {COPY.variant(v.id)}
+            </Btn>
+          ))}
+        </div>
+        <div className="row">
           <div className="spacer" />
           <Btn disabled={!ready} onClick={onHost}>
             {me ? COPY.onlineHostGo : COPY.connecting}

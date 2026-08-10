@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 import {
   CONNECT4,
   CONNECT5,
+  CONNECT6,
+  CONNECT7,
   ROSTER,
   byId,
   type PlyRecord,
@@ -74,6 +76,8 @@ describe("copy", () => {
   it("names the variants the way the voice sample does", () => {
     expect(COPY.variant(CONNECT4.id)).toBe("CONNECT 4");
     expect(COPY.variant(CONNECT5.id)).toBe("CONNECT 5 (more)");
+    expect(COPY.variant(CONNECT6.id)).toBe("CONNECT 6 (even more)");
+    expect(COPY.variant(CONNECT7.id)).toBe("CONNECT 7 (too many)");
   });
 
   it("says who starts in the second person and the third", () => {

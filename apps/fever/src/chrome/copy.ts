@@ -132,8 +132,19 @@ export const COPY = {
   about: "About",
   online: "Play a person",
 
-  /** The variant switch, exactly as the voice sample writes it. */
-  variant: (id: string): string => (id === "connect5" ? "CONNECT 5 (more)" : "CONNECT 4"),
+  /**
+   * The variant switch. The first two are exactly as the voice sample writes
+   * them; the rest continue the escalation with the same shrug. The software
+   * is sincere about all four — "(too many)" is a fact it is reporting, not a
+   * warning it expects anyone to heed.
+   */
+  variant: (id: string): string =>
+    ({
+      connect4: "CONNECT 4",
+      connect5: "CONNECT 5 (more)",
+      connect6: "CONNECT 6 (even more)",
+      connect7: "CONNECT 7 (too many)",
+    })[id] ?? id.toUpperCase(),
 
   // The roster.
   rosterTitle: (n: number): string => `Opponents — ${n} installed`,

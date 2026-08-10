@@ -4,6 +4,8 @@ import {
   CELLS,
   CONNECT4,
   CONNECT5,
+  CONNECT6,
+  CONNECT7,
   HEIGHT,
   MOVE_ORDER,
   Position,
@@ -53,7 +55,7 @@ function refWins(grid: (string | null)[][], player: string, v: Variant): boolean
 /**
  * The variants the fuzz test runs over.
  *
- * The two shipping boards, plus two that exist only here: a cramped 5x4 run-3
+ * The four shipping boards, plus two that exist only here: a cramped 5x4 run-3
  * board, because short runs on a small board put every line right up against an
  * edge and that's where wraparound bugs live, and a 10x9 run-6 board to check
  * the shift schedules keep working at a run length nothing else exercises. The
@@ -63,6 +65,8 @@ function refWins(grid: (string | null)[][], player: string, v: Variant): boolean
 const FUZZ_VARIANTS: readonly Variant[] = [
   CONNECT4,
   CONNECT5,
+  CONNECT6,
+  CONNECT7,
   makeVariant({ id: "tiny3", name: "Tiny 3", width: 5, height: 4, run: 3 }),
   makeVariant({ id: "wide6", name: "Wide 6", width: 10, height: 9, run: 6 }),
 ];

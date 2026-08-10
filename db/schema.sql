@@ -21,7 +21,7 @@ create table fourscore.matches (
   id         uuid primary key default gen_random_uuid(),
   -- Cleared once someone joins, so a shared link stops working after it's used.
   join_code  text unique,
-  variant    text not null default 'connect4' check (variant in ('connect4', 'connect5')),
+  variant    text not null default 'connect4' check (variant in ('connect4', 'connect5', 'connect6', 'connect7')),
   host       uuid not null references auth.users on delete cascade,
   guest      uuid references auth.users on delete cascade,
   -- Which seat the host takes; seat 1 moves first.

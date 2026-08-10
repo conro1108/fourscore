@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONNECT4, CONNECT5, HEIGHT, Position, WIDTH } from "./board.js";
+import { CONNECT4, CONNECT5, CONNECT6, CONNECT7, HEIGHT, Position, WIDTH } from "./board.js";
 import { WIN_SCORE } from "./evaluate.js";
 import { Match, advantageOf, findWinningLine, gradeMove, reviewMatch } from "./match.js";
 import { analyze, maxScoreOf } from "./solver.js";
@@ -131,7 +131,7 @@ describe("advantageOf", () => {
   const mate = (discs: number) => WIN_SCORE - discs;
 
   it("keeps proven strictly above anything an estimate can reach", () => {
-    for (const v of [CONNECT4, CONNECT5]) {
+    for (const v of [CONNECT4, CONNECT5, CONNECT6, CONNECT7]) {
       // The widest an estimate can go: a huge positional score, and the most
       // emphatic forced win the evaluator can see (one landing on disc 1).
       const ceiling = Math.max(est(10_000, v), est(mate(1), v));

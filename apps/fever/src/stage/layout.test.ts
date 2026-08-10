@@ -1,4 +1,4 @@
-import { CONNECT4, CONNECT5, makeVariant } from "@fourscore/engine";
+import { CONNECT4, CONNECT5, CONNECT6, CONNECT7, makeVariant } from "@fourscore/engine";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { fitDistance, layoutFor } from "./layout.js";
@@ -9,6 +9,8 @@ import { ORBIT_LIMITS } from "./orbit.js";
 const VARIANTS = [
   CONNECT4,
   CONNECT5,
+  CONNECT6,
+  CONNECT7,
   makeVariant({ id: "wide", name: "Wide", width: 12, height: 4, run: 4 }),
   makeVariant({ id: "tall", name: "Tall", width: 4, height: 11, run: 4 }),
 ];

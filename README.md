@@ -2,32 +2,38 @@
 
 Connect 4 as a hectic fever dream — a ladder of opponents who all work at the
 same haunted bowling alley, for people who have run out of friends willing to
-play them. Also Connect 5, on a bigger board, where almost everything is harder
-— including for the solver.
+play them. Also Connect 5, 6 and 7, on progressively bigger boards, where almost
+everything is harder — including for the solver.
 
 Seven bots of increasing strength, each with a distinct way of playing rather
 than just a deeper search, and then one that solves the position exactly and
 does not make mistakes. After a loss it will tell you which move actually lost
 it — usually about eight plies before the position looked bad.
 
-## The two games
+## The four games
 
 |  | board | to win | cells | lines per cell |
 |---|---|---|---|---|
 | **Connect 4** | 7x6 | 4 in a row | 42 | 1.64 |
 | **Connect 5** | 9x8 | 5 in a row | 72 | 1.61 |
+| **Connect 6** | 11x10 | 6 in a row | 110 | 1.59 |
+| **Connect 7** | 13x12 | 7 in a row | 156 | 1.58 |
 
-The Connect 5 board is 9x8 rather than something smaller because line density is
-what makes a gravity game feel alive. Five in a row on the standard 7x6 board has
-27 winning lines over 42 cells and plays like a draw generator; 9x8 lands within
-a couple of percent of Connect 4's texture. Even height matters too — the parity
-idea the good bots run on (first player wants odd rows, second player even) is a
-theorem about alternating play on an even number of rows, and an odd-height board
-would quietly make Vane's whole personality wrong.
+The boards grow the way they do because line density is what makes a gravity
+game feel alive. Five in a row on the standard 7x6 board has 27 winning lines
+over 42 cells and plays like a draw generator; each board here lands within a
+few percent of Connect 4's texture instead. Odd width keeps a true centre
+column, and even height matters too — the parity idea the good bots run on
+(first player wants odd rows, second player even) is a theorem about
+alternating play on an even number of rows, and an odd-height board would
+quietly make Vane's whole personality wrong.
 
 The engine takes any width, height and run length — `makeVariant` in `board.ts` —
-so Connect N is a config change rather than a rewrite. The two above are just the
-ones with art and a tuned roster.
+so Connect N is a config change rather than a rewrite. The four above are just
+the ones with art and a tuned roster. Fair warning about the biggest one: seven
+in a row is hard to finish against anyone competent, and between the strong bots
+most Connect 7 games fill the board. A draw there is not the game failing; it is
+the game.
 
 ## Run it
 
@@ -97,8 +103,12 @@ row is a vastly bigger search than 7x6 with four, and a game that ends in a win
 usually ends before there are only 28 empty cells left. In a five-game sample the
 Oracle got to solve exactly in three of them.
 
-So on Connect 5 the Oracle is mostly just a very strong estimator, and the app
-says so rather than selling perfection it can't deliver: the blurb on the select
+On Connect 6 the crossover is 82 discs of 110, and on Connect 7 it is 127 of
+156 — measured the same way, worst case across games. Out there proven play is
+close to an endgame rumour: a decisive game is almost always over first.
+
+So on the bigger boards the Oracle is mostly just a very strong estimator, and
+the app says so rather than selling perfection it can't deliver: the blurb on the select
 screen is generated from the crossover number, so it can't drift away from what
 the solver actually does. Long, grinding games are where it turns into the thing
 it is on Connect 4.
@@ -137,9 +147,10 @@ engine reasoning out loud.
     One sentinel row suffices for any run length: a wrapping line has to pass
     through it on an intermediate step, and every step is in the AND chain.
   - `solver.ts` — negamax with alpha-beta, a transposition table, and a
-    null-window binary search over the score range. ~1.13M nodes/sec (it was
-    ~1.21M before geometry became a runtime parameter; the generic path searches
-    a bit-for-bit identical tree, just ~6% slower).
+    null-window binary search over the score range. ~1.09M nodes/sec (it was
+    ~1.21M before geometry became a runtime parameter and ~1.15M before the
+    transposition table's key grew lanes for Connect 6 and 7; both changes
+    search a bit-for-bit identical tree, just a few percent slower).
   - `evaluate.ts` — the heuristic and the depth-limited search over it.
   - `bots.ts` — the roster.
   - `match.ts` — match state and the post-game review.
