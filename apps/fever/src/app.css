@@ -769,9 +769,10 @@ body {
   line-height: 1.45;
 }
 
-/* The same sunken list box the roster uses, one row per move. */
+/* The same sunken list box the roster uses, one row per move — every move, so
+   the keys have somewhere to walk and nothing is hidden behind a "show all". */
 .review-list {
-  max-height: 150px;
+  max-height: 168px;
   overflow-y: auto;
   background: #ffffff;
   border: 2px solid;
@@ -808,10 +809,6 @@ body {
   flex: 1;
 }
 
-.review-item--on span {
-  color: #c9b6e8;
-}
-
 /* The grade word. Period software would have colour-coded this and been proud
    of it; the heat family stays out of it, because heat means fever. */
 .review-item em {
@@ -841,12 +838,25 @@ body {
   color: #87837c;
 }
 
-.review-item--on .grade--best,
-.review-item--on .grade--good,
-.review-item--on .grade--inaccuracy,
-.review-item--on .grade--mistake,
-.review-item--on .grade--blunder,
-.review-item--on .grade--unknown {
+/* A move that cost nothing recedes, so the ones that did are the only colour in
+   the box. This is what replaced filtering the list down to the bad moves: the
+   same reading, without hiding the game. Below the grades on purpose — these
+   two rules have to win against them, and they carry no more specificity. */
+.review-item--quiet b,
+.review-item--quiet em {
+  font-weight: 400;
+  color: #6d6a64;
+}
+
+/* The one row allowed to shout, and only because it is proven. */
+.review-item--turn b {
+  color: #a3164e;
+}
+
+/* Selection last: a highlighted row is one colour whatever it says. */
+.review-item--on b,
+.review-item--on em,
+.review-item--on span {
   color: #ffffff;
 }
 
@@ -859,6 +869,7 @@ body {
 /* The key hint, at the size period software put its hints: small, grey, and
    nowhere near the thing it describes shouting for attention. */
 .review-keys {
+  margin: 8px 0 0;
   font-size: 11px;
   color: #55524c;
   text-align: right;

@@ -220,7 +220,6 @@ export const COPY = {
   reviewFailed: "The game could not be read back.",
   /** Under the curve. No legend, no key, one line: see product truth 1. */
   curveCaption: "your advantage over the game",
-  reviewShowAll: (n: number): string => `Show all ${n}`,
   reviewPick: "Pick a move.",
   /** The board is the other half of this window, so say how to walk it. */
   reviewKeys: "← and → step through your moves.",

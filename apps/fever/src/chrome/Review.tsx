@@ -16,7 +16,7 @@
  * is carried entirely by how hard the sentences push.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { Player, Review as ReviewData } from "@fourscore/engine";
 import { EvalCurve } from "./EvalCurve.js";
 import { Btn, Window } from "./Window.js";
@@ -44,14 +44,17 @@ export function Review({
   onAgain,
   onClose,
 }: ReviewProps) {
-  const [showAll, setShowAll] = useState(false);
-
+  /**
+   * Every move you made, in order. Not a shortlist of the bad ones.
+   *
+   * The first version showed only the notable moves behind a "show all", which
+   * made the list a verdict and the game something you had to unfold. Worse, it
+   * fought the keys: arrowing onto an ordinary move highlighted a row that
+   * wasn't there. So the list is the whole game and the *grading* is what stands
+   * out — an unremarkable move is a quiet grey line you walk straight past, and
+   * the ones that cost you something are the only colour in the box.
+   */
   const mine = review ? review.plies.filter((p) => p.player === humanPlayer) : [];
-  // The short list is the moves worth looking at. When every move was fine
-  // there's nothing to shortlist, so it shows the end of the game instead —
-  // an empty list under a headline reads as a broken window.
-  const notable = mine.filter((p) => p.grade !== "best" && p.grade !== "good");
-  const shown = showAll ? mine : notable.length > 0 ? notable : mine.slice(-6);
   const record = selected === null ? null : (mine.find((p) => p.ply === selected) ?? null);
 
   const head = review && status === "ready" ? COPY.reviewHeadline(review, lost) : null;
@@ -137,11 +140,20 @@ export function Review({
           )}
 
           <div className="review-list">
-            {shown.map((rec) => (
+            {mine.map((rec) => (
               <button
                 key={rec.ply}
                 type="button"
-                className={`review-item ${selected === rec.ply ? "review-item--on" : ""}`}
+                className={[
+                  "review-item",
+                  // Quiet unless it cost something. The turning point is the one
+                  // row allowed to shout, and only because it is proven.
+                  rec.grade === "best" || rec.grade === "good" ? "review-item--quiet" : "",
+                  rec.turningPoint ? "review-item--turn" : "",
+                  selected === rec.ply ? "review-item--on" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 // Keep the selected row visible: arrow keys walk past the bottom
                 // of a scrolling list box, and a highlight you can't see reads
                 // as the keys doing nothing. `nearest` so it never scrolls the
@@ -164,13 +176,7 @@ export function Review({
               height as you click down a list is a window that moves under you. */}
           <p className="review-detail">{detail === head?.body ? "" : detail}</p>
 
-          <div className="row">
-            {mine.length > shown.length && (
-              <Btn onClick={() => setShowAll(true)}>{COPY.reviewShowAll(mine.length)}</Btn>
-            )}
-            <span className="spacer" />
-            {mine.length > 1 && <span className="review-keys">{COPY.reviewKeys}</span>}
-          </div>
+          {mine.length > 1 && <p className="review-keys">{COPY.reviewKeys}</p>}
         </>
       )}
     </Window>
