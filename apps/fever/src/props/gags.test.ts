@@ -110,7 +110,7 @@ describe("the gag pools", () => {
     // The menu still has its whole library, and the signature still rides it.
     expect(candidatesFor(beat, "attract").length).toBeGreaterThan(5);
     const attract = new Set(
-      [0.1, 0.3, 0.5, 0.7, 0.9].map((r) =>
+      [0.1, 0.3, 0.5, 0.7, 0.9, 0.99].map((r) =>
         pickGag(beat, () => r, { bot: IDENTITIES.moss!, mode: "attract" }),
       ),
     );

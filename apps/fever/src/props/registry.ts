@@ -25,6 +25,7 @@ import type { StageLayout } from "../stage/layout.js";
 import { Beacon, BEACON_MS } from "./Beacon.js";
 import { Bumpers, BUMPERS_MS } from "./Bumpers.js";
 import { makeCallout, CALLOUT_MS } from "./Callout.js";
+import { Cherub, CHERUB_MS } from "./Cherub.js";
 import { Cannon, CANNON_MS } from "./Cannon.js";
 import { DeepSpace, DEEP_SPACE_MS } from "./DeepSpace.js";
 import { Detonation, DETONATION_MS } from "./Detonation.js";
@@ -120,6 +121,11 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // know you made one, which is why it is the only thing that may answer an
   // ordinary one (see `gags.ts`).
   "deep-space": act("deep-space", DEEP_SPACE_MS, 74, "sky", DeepSpace, "spike-deep-space"),
+  // Pillar 1's imagery on pillar 2's budget (phase 9): the mascot with wings
+  // and a halo, lowered in to judge and leaving without saying. It answers a
+  // dubious move — something arrived to consider what you did — and wanders
+  // the attract loop, where there is nothing to judge and it comes anyway.
+  "cherub-visit": act("cherub-visit", CHERUB_MS, 116, "sky", Cherub, "spike-cherub"),
   // The callouts: reactions, never results. `NICE.` is a screen having an
   // opinion; anything that names an outcome would be a claim the Director's
   // estimate cannot back (director/types.ts).

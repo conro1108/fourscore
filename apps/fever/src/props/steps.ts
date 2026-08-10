@@ -254,6 +254,46 @@ export function deepSpacePose(phase: number, step: number): DeepSpacePose {
   return { u: p, arc: Math.sin(p * Math.PI) * 0.6, twinkle: (step % 2) as 0 | 1 };
 }
 
+/**
+ * The cherub: celestial imagery used completely wrong (VISION.md pillar 1 has
+ * asked for exactly this since the first draft — "a cherub judging your
+ * opening move"). The mascot disc again, now with wings and a halo and no
+ * account of where it got them, floats down out of the nothing, considers the
+ * board, tilts its head once, and ascends. It renders no verdict, which is the
+ * joke: something clearly arrived to judge, and left without saying.
+ */
+export interface CherubPose {
+  /** 1 = off-stage above the frame, 0 = at the hover. Hard steps both ways. */
+  height: number;
+  /** The one scheduled event: a head tilt, held, then released. 0 or 1. */
+  tilt: number;
+  /** Which of the two wing cels — up-stroke or down-stroke. */
+  flap: 0 | 1;
+}
+
+export function cherubPose(phase: number, step: number): CherubPose {
+  const p = clamp01(phase);
+  const flap = (step % 2) as 0 | 1;
+  // Four hard steps down; a long hover; four hard steps back up. A descent
+  // with a curve under it would read as landing, and this thing does not land
+  // — it is lowered, like scenery.
+  const DOWN: [until: number, height: number][] = [
+    [0.05, 1],
+    [0.1, 0.72],
+    [0.15, 0.45],
+    [0.2, 0.2],
+  ];
+  for (const [until, height] of DOWN) if (p < until) return { height, tilt: 0, flap };
+  if (p < 0.78) return { height: 0, tilt: p >= 0.42 && p < 0.62 ? 1 : 0, flap };
+  const UP: [until: number, height: number][] = [
+    [0.84, 0.2],
+    [0.9, 0.45],
+    [0.95, 0.72],
+  ];
+  for (const [until, height] of UP) if (p < until) return { height, tilt: 0, flap };
+  return { height: 1, tilt: 0, flap };
+}
+
 /* ------------------------------------------------------------------------ *
  * The lane screen (VISION.md pillar 2, after the reference change). Two forms
  * a bowling centre's overhead monitor has that a county fair doesn't:

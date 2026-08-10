@@ -102,15 +102,27 @@ console.log("[bed] crowd and tape loops both running");
 // step used to click a NOISE button that phase 6 moved, and timed out on a menu
 // that has no mute on it.
 const level = () => page.evaluate(() => window.__fever.audio.masterLevel());
+// Poll for the fade rather than sleeping through it: `master.gain.value` is
+// computed against the *audio* clock, and headless Chrome's null output sink
+// advances that clock slower than wall time — a fixed 600ms wait read the
+// fade ~40% of the way through, deterministically, and failed a mute that
+// works fine in a real browser.
+const settle = async (done, ms = 6000) => {
+  const t0 = Date.now();
+  let v = await level();
+  while (!done(v) && Date.now() - t0 < ms) {
+    await page.waitForTimeout(100);
+    v = await level();
+  }
+  return v;
+};
 await page.click('button:has-text("Settings")');
 await page.waitForSelector('button:has-text("NOISE")');
 const loud = await level();
 await page.click('button:has-text("NOISE")');
-await page.waitForTimeout(600);
-const quiet = await level();
+const quiet = await settle((v) => v < 0.01);
 await page.click('button:has-text("SILENCE")');
-await page.waitForTimeout(400);
-const loudAgain = await level();
+const loudAgain = await settle((v) => v > 0.1);
 await page.click('button:has-text("OK")');
 if (!(loud > 0.1 && quiet < 0.01 && loudAgain > 0.1)) {
   throw new Error(`mute did not work: ${loud} → ${quiet} → ${loudAgain}`);

@@ -72,7 +72,9 @@ phase 9, not a reason to keep polishing blind.
 - [x] 7 — Review, reimagined *(Opus)* — taken after 8
 - [x] 8 — Online *(Opus)* — taken before 7 at Connor's call ("i need
       multiplayer back")
-- [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)*
+- [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)* — in progress
+      2026-08-09; this pass: the look (void brightness, board material,
+      dialog motion, more win95, more surreal), plus deleting `apps/web`
 
 ## What survives, what dies
 
@@ -942,6 +944,65 @@ thesis artifacts, and what they couldn't fix.
   first drawn in the mud a losing disc dims to, which against a dark void is a
   marker nobody can see. It typechecked, and it was invisible.
 
+- **Phase 9, first sitting — the look** *(Fable, 2026-08-09, Connor's brief:
+  void too dark, board "a bland solidworks render", popup animations "too
+  shitty", more win95 / more surrealist chaos / more polish; and `apps/web`
+  can go)*. Phase 9 stays open — this sitting is the look; the ten-game feel
+  pass, the copy pass and the mobile/perf audit are still owed.
+  **The void has house lights now.** Two levers, judged in screenshots: the
+  shader's idle end came up (well centre/edge, weather amplitudes and slick
+  re-pivoted around mid-fever, so the thesis frame's 0.55 barely moves), and
+  the menu got the fever floor the phase-5 open question prescribed —
+  `TUNING.attractFloor` (0.32) lifts the *target* in attract mode only, so a
+  hot game still cools when you leave it, and the roster finally previews an
+  opponent's weather. Full fever's central wash was then trimmed (0.45 → 0.30)
+  and the embers fed a little, because the brighter base had pushed the
+  phase-3 "lavender holes" question the wrong way. The menu scrim thinned to
+  match.
+  **The board is an object, not an extrusion.** The plum plate is brighter and
+  wears `clearcoat` (two speculars — broad iridescent sheen under a tight wet
+  gloss — is what makes lacquer read); the rails went full mirror; and every
+  hole got a steel **eyelet** — one instanced torus per cell, seated proud of
+  the front plate, each catching its own slice of the VoidSky. The eyelets are
+  most of the fix: seventy-two little mirrors is the difference between a CAD
+  slab and a machine somebody built.
+  **Windows land instead of appearing.** `win-in` animates the standalone
+  `scale` property — four hard frames, small → too big → seated, ~15fps — so
+  per-window placement in `transform` (centred, docked, dragged) is untouched.
+  Closing is still instant, on purpose: period windows left without ceremony.
+  The veil is now the Win9x checkerboard dither (1px repeating-conic), stepped
+  in, and the stage *flinches* under a landing window (`windowLands()` in
+  `Chrome.tsx` fires the disc-impact dip, timed to the overshoot frame) — the
+  chrome and the scene are one surface now. More win95: every title bar
+  carries the program's own icon at 14px pixelated, every scroll surface in a
+  window has the beige period scrollbar (dithered track, raised thumb), and
+  buttons got the 1px dotted focus ring.
+  **The cherub.** Pillar 1's celestial imagery finally exists as a prop:
+  `cherub-visit` (116 tris) — the mascot disc with gold wings and a halo,
+  lowered in on four hard steps, hovers over the game, tilts its head once,
+  and is winched back up having said nothing. Answers `dubious` (something
+  arrived to consider what you did and declined to say) and wanders the
+  attract loop. `spike-cherub` is a General-MIDI harp gliss into a choir pad
+  two voices short, rms 0.25 — inside the signature band. Pose is pure
+  (`cherubPose`), tested alongside the roster.
+  **`apps/web` is deleted**, per the "full feature parity" clause (bots,
+  review, online all shipped) and Connor's go-ahead. Root scripts, CLAUDE.md
+  and README.md rewritten against `apps/fever`; the pixel-buffer rendering
+  rules left with it (the fever equivalents are the two budgets).
+  **Trap found, and it was in the tooling:** `npm run audio`'s mute check read
+  `master.gain.value` a fixed 600ms after the click, but headless Chrome's
+  null-sink audio clock runs slower than wall time, so it deterministically
+  sampled the fade 40% through and failed a mute that works — it polls for the
+  settled level now. Pre-existing on main; found because this session ran
+  everything.
+  **Verified:** typecheck, `npm test` 223 green (director floor + cherub pose
+  tests added), `npm run acceptance` 120fps both variants through the menu's
+  own animated windows, `npm run audio` 37 recipes rendered, `npm run build`
+  clean, and screenshots of `thesis` / fever ladder / `attract-menu` /
+  `chrome-*` / `gag-cherub-visit` plus a live menu shot with the Director
+  running (fever pinned at 0.32 by the floor, board scenery visible behind
+  the window) — all looked at.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -1199,6 +1260,20 @@ thesis artifacts, and what they couldn't fix.
   in the phase or the worst. It was left alone deliberately: silencing the stage
   for the review would make the review the one screen the world stops for, and
   that is a feel call for ten games, not for a screenshot.
+- **Decision (phase 9, first sitting):** the attract floor lifts the fever
+  *target*, not the smoothed value, and only in attract mode — the menu is a
+  show with the house lights partly up, and a hot game still cools down when
+  you walk out to it. In-match fever 0 is untouched: a cold opening should
+  still be cold.
+- **Open (phase 9, first sitting):** window *exits* are instant by decision
+  (period-correct, and the snap out is half the joke of the snap in). If the
+  ten-game pass finds a window that wants a leaving animation, the place to do
+  it is a `win-out` on `scale` plus a delayed unmount, and the place to decide
+  is real play, not a still.
+- **Open (phase 9, first sitting):** the board's eyelets are tuned against the
+  head-on frame and the orbit stops. At extreme orbit + full zoom nobody has
+  stared at them for long; if they moiré or glitter distractingly in motion,
+  the knobs are the torus tube radius (0.038) and `ringMat`'s roughness.
 - **Open (phase 7):** a review of a Connect 5 game has never been looked at. It
   works by construction — the variant crosses through `variantId` and the curve
   is per-ply — but Connect 5 crosses over to proof at 44 discs of 72, so most

@@ -1,8 +1,9 @@
 # Fourscore
 
-Connect 4 against a ladder of pixel-art opponents, for people who have run out
-of friends willing to play them. Also Connect 5, on a bigger board, where almost
-everything is harder — including for the solver.
+Connect 4 as a hectic fever dream — a ladder of opponents who all work at the
+same haunted bowling alley, for people who have run out of friends willing to
+play them. Also Connect 5, on a bigger board, where almost everything is harder
+— including for the solver.
 
 Seven bots of increasing strength, each with a distinct way of playing rather
 than just a deeper search, and then one that solves the position exactly and
@@ -146,14 +147,13 @@ engine reasoning out loud.
     finds where exact play becomes affordable on a board, `ladder.ts` sweeps
     every adjacent rung to check the roster is still ordered, `bench-solve.ts`
     is raw solver throughput. The numbers in this README come from these.
-- **`apps/web`** — Vite + React. Owns rendering and the match runtime; no game
-  logic.
-  - `render/` — the pixel-art layer. Art is authored as char grids (`art.ts`),
-    painted once into cached canvases (`pixel.ts`), and blitted onto a 120x152
-    buffer that CSS scales up crisply (`boardScene.ts`).
-  - `engine/` — the search worker and its client. All search runs off the main
-    thread, because the thinking animation is exactly the thing that must not
-    freeze while the bot is thinking.
+- **`apps/fever`** — Vite + React + react-three-fiber. Owns rendering and the
+  match runtime; no game logic. The 3D stage (`stage/`, `props/`), the Director
+  that turns game truth into spectacle (`director/`), the WebAudio mangling bus
+  (`audio/`), the possessed-90s DOM chrome (`chrome/`), online play (`online/`),
+  and the search worker (`engine/`) — all search runs off the main thread,
+  because the thinking animation is exactly the thing that must not freeze
+  while the bot is thinking.
 
 The engine is I/O-free and framework-free on purpose. That's the part that makes
 authoritative online play possible later: a server can import exactly the same
@@ -162,16 +162,12 @@ React is there for the screens around the game, not for the game.
 
 ## Rendering rules
 
-Art is authored as rows of single-character palette keys and painted once into
-an offscreen canvas. The scene buffer is sized from the variant — 120x152 for
-Connect 4, 152x184 for Connect 5 — and CSS upscales it with
-`image-rendering: pixelated`. `apps/web/scene-preview.html` draws every variant
-side by side against the dev server, because this is the one class of bug a unit
-test cannot see.
-
-**Never draw sprite art at a non-integer scale or offset.** At this buffer size
-that resamples the art off the pixel grid — 1px outlines double or vanish and
-eyes come out uneven. The idle bob moves by whole pixels or not at all, and the
-creature blits at exactly 2x. This is the same rule cozy_sprites enforces, and
-the shared outline ink (`#402e3a`) is why the board, the discs and the creatures
-look like they came out of one box of crayons.
+The look is governed by `redesign/VISION.md` — four pillars, and a taste law
+with two budgets: props are cheap by law (≤300 audited triangles, 64px
+nearest-filtered textures, flat shading, stepped 12fps timing), while the void,
+the board and the post stack are expensive by law (full resolution, smooth,
+genuinely beautiful). The collision of the two in one frame is the aesthetic.
+`apps/fever/preview.html` renders every named scene state against the dev
+server and `npm run shots` screenshots them, because this is the one class of
+bug a unit test cannot see. The shared outline ink (`#402e3a`) survives from
+the pixel-art era, same as cozy_sprites.

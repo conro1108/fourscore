@@ -69,6 +69,14 @@ export interface DirectorTuning {
    */
   attractIdlePeriod: number;
   idleQuiet: number;
+  /**
+   * Fever never drops below this on the menu. A live menu has no moves and no
+   * advantage, so `feverTarget` is 0 there — and at 0 the void is near-black
+   * with a beige window over most of it, which buried the opponents' weather
+   * (phase-5 open question) and made the whole front door read as a dark room.
+   * The attract loop is a show; the house lights stay partly up.
+   */
+  attractFloor: number;
 }
 
 export const TUNING: DirectorTuning = {
@@ -98,6 +106,7 @@ export const TUNING: DirectorTuning = {
   threatCooldown: 3000,
   attractIdlePeriod: 1800,
   idleQuiet: 3000,
+  attractFloor: 0.32,
 };
 
 export interface DirectorInput {
@@ -196,7 +205,10 @@ export function feverTarget(input: DirectorInput, t: DirectorTuning = TUNING): n
   const floor = t.floorMax * Math.pow(progress, t.floorCurve);
 
   const drive = clamp01(t.sharpnessWeight * sharpness + t.volatilityWeight * volatility);
-  return clamp01(floor + (1 - floor) * drive);
+  const target = clamp01(floor + (1 - floor) * drive);
+  // The menu floor applies to the target, not the smoothed value, so leaving a
+  // hot game for the menu still cools down — it just stops above black.
+  return input.mode === "attract" ? Math.max(target, t.attractFloor) : target;
 }
 
 /**

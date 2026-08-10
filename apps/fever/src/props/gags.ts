@@ -52,6 +52,7 @@ const w = (name: string | null, weight: number): Candidate => ({ name, weight })
 const ATTRACT_IDLE: Candidate[] = [
   w("mascot-cheer", 3),
   w("deep-space", 3),
+  w("cherub-visit", 2),
   w("callout-still-here", 2),
   w("truck-lap", 2),
   w("stare-down", 2),
@@ -120,7 +121,9 @@ const MOVES: Record<"brilliant" | "fine" | "dubious" | "blunder", Candidate[]> =
   // the slot `sign-hmm` held: a sign on a stick waggling at the edge of the
   // frame is somebody in a crowd reacting, and a lane screen has no crowd in
   // it — it is the thing the crowd is looking at.
-  dubious: [w("stare-down", 2), w("callout-huh", 2), w("mirror-ball", 2)],
+  // The cherub sits here with the stare: both are something arriving to
+  // consider what you did and declining to say. Neither claims a result.
+  dubious: [w("stare-down", 2), w("callout-huh", 2), w("mirror-ball", 2), w("cherub-visit", 2)],
   fine: [w(null, 26), w("deep-space", 2), w("callout-incredible", 2), w("callout-a-move", 1)],
 };
 

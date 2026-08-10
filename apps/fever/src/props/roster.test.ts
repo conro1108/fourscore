@@ -14,6 +14,7 @@ import { PROP_ACTS } from "./registry.js";
 import {
   beaconPose,
   bumperPose,
+  cherubPose,
   calloutPose,
   cannonPose,
   detonationPose,
@@ -111,6 +112,21 @@ describe("roster poses", () => {
     expect(deepSpacePose(1, 0).u).toBe(1);
     // Two cels, alternating, and nothing between them.
     expect(new Set([0, 1, 2, 3].map((s) => deepSpacePose(0.5, s).twinkle)).size).toBe(2);
+  });
+
+  it("lowers the cherub in hard steps, tilts it once, and takes it back", () => {
+    // Off-stage above the frame at both ends — lowered in, winched out.
+    expect(cherubPose(0, 0).height).toBe(1);
+    expect(cherubPose(1, 0).height).toBe(1);
+    expect(cherubPose(0.5, 0).height).toBe(0);
+    // The descent is steps, not a float: five heights, nothing between them.
+    expect(new Set(sample((p) => cherubPose(p, 0).height)).size).toBeLessThanOrEqual(5);
+    // The one scheduled event: a single held tilt, mid-hover, level otherwise.
+    expect(runs(sample((p) => cherubPose(p, 0).tilt === 1))).toBe(1);
+    expect(cherubPose(0.1, 0).tilt).toBe(0);
+    expect(cherubPose(0.9, 0).tilt).toBe(0);
+    // Two wing cels, alternating on the step clock.
+    expect(new Set([0, 1, 2, 3].map((s) => cherubPose(0.5, s).flap)).size).toBe(2);
   });
 
   it("the beacon strobes rather than breathes", () => {

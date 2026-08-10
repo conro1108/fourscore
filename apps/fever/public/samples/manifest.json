@@ -7,6 +7,7 @@
   "spike-mascot-flop": { "want": "sad trombone, one fall, ~1.5s (same patch as the fanfare)" },
   "spike-stare": { "want": "cheap MIDI choir pad, one held minor chord, ~3s" },
   "spike-deep-space": { "want": "sine arpeggio with long delay, documentary-space cue, ~4s" },
+  "spike-cherub": { "want": "MIDI harp gliss into a synth choir pad, ~3s" },
   "spike-callout": { "want": "orchestra hit / MIDI stab, one shot, dry, <1s" },
 
   "spike-mower": { "want": "small petrol engine idling, steady, ~4.5s" },

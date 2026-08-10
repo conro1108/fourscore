@@ -118,15 +118,32 @@ body {
 }
 
 /*
- * What a window sits on. Period software had no modal veil and this one is
- * nearly invisible, but it exists for a reason the period didn't have: the
- * board behind these windows is a live 3D scene that takes clicks, and a
- * settings window you can accidentally play a move through is not a window.
+ * What a window sits on. Period software had no modal veil and this one is a
+ * period *texture* doing a job the period didn't have: the board behind these
+ * windows is a live 3D scene that takes clicks, and a settings window you can
+ * accidentally play a move through is not a window. The dim is a one-pixel
+ * checkerboard — the exact dither Windows used when it grayed a screen out —
+ * so the scene behind it darkens without ever going smooth. It arrives in two
+ * hard steps, like everything else the chrome does.
  */
 .veil {
   position: absolute;
   inset: 0;
-  background: rgba(7, 4, 14, 0.45);
+  background:
+    repeating-conic-gradient(rgba(7, 4, 14, 0.72) 0% 25%, transparent 0% 50%) 0 0 / 2px 2px,
+    rgba(7, 4, 14, 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .veil {
+    animation: veil-in 0.12s steps(2, end);
+  }
+}
+
+@keyframes veil-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* -- the wordmark ---------------------------------------------------------- */
@@ -278,6 +295,12 @@ body {
   border-color: var(--sys-lit) var(--sys-dark) var(--sys-dark) var(--sys-lit);
 }
 
+/* The period focus ring: one dotted pixel line, inside the bevel. */
+.btn:focus-visible {
+  outline: 1px dotted var(--sys-ink);
+  outline-offset: -4px;
+}
+
 .btn:disabled {
   cursor: default;
   color: var(--sys-mid);
@@ -325,6 +348,41 @@ body {
   font-size: 13px;
 }
 
+/*
+ * The window arrives: four hard frames, small to slightly too big to seated,
+ * ~15fps. On the `scale` property rather than in `transform`, because where a
+ * window sits (centred, docked, dragged) lives in `transform` per-window and
+ * the entrance must not know or care. Closing is instantaneous, which is not
+ * an omission — period windows left without ceremony, and the snap *out* is
+ * half of what makes the snap *in* read as software rather than as motion
+ * design. The stage flinches under the landing (`Chrome.tsx`), which is the
+ * window having mass in the world it's been left running on top of.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .win {
+    animation: win-in 0.21s linear;
+  }
+}
+
+@keyframes win-in {
+  0%,
+  24% {
+    scale: 0.42;
+  }
+  25%,
+  49% {
+    scale: 0.8;
+  }
+  50%,
+  74% {
+    scale: 1.06;
+  }
+  75%,
+  100% {
+    scale: 1;
+  }
+}
+
 .win-title {
   display: flex;
   justify-content: space-between;
@@ -345,7 +403,16 @@ body {
   touch-action: none;
 }
 
+.win-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  image-rendering: pixelated;
+  -webkit-user-drag: none;
+}
+
 .win-title-text {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -428,6 +495,28 @@ body {
   padding: 0 16px 14px;
 }
 
+/*
+ * The scrollbars inside a window are furniture too. A default macOS overlay
+ * scrollbar floating in a sunken Win95 list box is the modern world leaking in
+ * — so every scroll surface in a window gets the period bar: a dithered track
+ * (the same one-pixel checkerboard as the veil) and a raised beige thumb.
+ */
+.win ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+.win ::-webkit-scrollbar-track {
+  background:
+    repeating-conic-gradient(#ffffff 0% 25%, #c8c4bc 0% 50%) 0 0 / 2px 2px;
+}
+
+.win ::-webkit-scrollbar-thumb {
+  background: var(--sys);
+  border: 2px solid;
+  border-color: var(--sys-lit) var(--sys-dark) var(--sys-dark) var(--sys-lit);
+}
+
 /* Groove: the inset rule period dialogs used to fence a group of controls. */
 .groove {
   border: 1px solid;
@@ -472,7 +561,7 @@ body {
   inset: 0;
   /* The void is behind this and has to stay visible; the scrim only takes back
      enough contrast for the dialog to sit on something. */
-  background: radial-gradient(ellipse at 50% 48%, rgba(7, 4, 14, 0.8), rgba(7, 4, 14, 0.25) 72%);
+  background: radial-gradient(ellipse at 50% 48%, rgba(7, 4, 14, 0.58), rgba(7, 4, 14, 0.14) 72%);
   /* Scrim only — the board is behind it and you can still take hold of the
      void and turn it while you decide who to play. */
   pointer-events: none;

@@ -20,6 +20,7 @@ import { joinLink } from "../online/session.js";
 import { useOnlineStore } from "../online/store.js";
 import { useReviewStore } from "../review/store.js";
 import { recordKey, useRecordStore } from "../settings/records.js";
+import { stageFx } from "../stage/fx.js";
 import { About, ErrorBox, OnlineOutcome, Outcome, Quit } from "./Dialogs.js";
 import { Review } from "./Review.js";
 import { Hud } from "./Hud.js";
@@ -71,14 +72,20 @@ export function Chrome() {
 
   // The window announces itself. Losing opens with the system error sound
   // instead of the window sound — this software considers your defeat a fault
-  // condition, and says so without saying anything.
+  // condition, and says so without saying anything. And every window lands
+  // with mass: the same camera flinch a disc impact fires, so the chrome and
+  // the stage are one surface rather than a picture over a picture.
   useEffect(() => {
-    if (showOutcome) playSpike(result === "loss" ? "error-ding" : "dialog-open", 0.8);
+    if (!showOutcome) return;
+    playSpike(result === "loss" ? "error-ding" : "dialog-open", 0.8);
+    return windowLands();
   }, [showOutcome, result]);
 
   // Every other window gets the ordinary chirp; the error gets the ding.
   useEffect(() => {
-    if (dialog) playSpike(dialog.kind === "error" ? "error-ding" : "dialog-open", 0.8);
+    if (!dialog) return;
+    playSpike(dialog.kind === "error" ? "error-ding" : "dialog-open", 0.8);
+    return windowLands();
   }, [dialog]);
 
   // A review is about one finished game. Starting another one throws it away
@@ -325,6 +332,20 @@ export function Chrome() {
       )}
     </div>
   );
+}
+
+/**
+ * The stage flinch, timed to the overshoot frame of the window's entrance
+ * (`win-in` in app.css hits its too-big frame ~half way through 0.21s) rather
+ * than to the mount — the dip is the window *landing*, not the window
+ * existing. Returns the cleanup so a window dismissed mid-entrance doesn't
+ * shake a stage nothing landed on.
+ */
+function windowLands(): () => void {
+  const t = setTimeout(() => {
+    stageFx.lastLandAt = performance.now();
+  }, 120);
+  return () => clearTimeout(t);
 }
 
 /**

@@ -79,6 +79,9 @@ export function Window({ title, children, buttons, onClose, className, label }: 
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
+        {/* The program's own icon in every title bar, pixels showing — the one
+            place the fire is always burning, however calm the window sounds. */}
+        <img className="win-icon" src="/icon-192.png" alt="" draggable={false} />
         <span className="win-title-text">{title}</span>
         {onClose && (
           <button

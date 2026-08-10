@@ -102,8 +102,10 @@ const fragment = /* glsl */ `
     // The opponent reaches the well faintly — half the weather's dose — so the
     // frame's darkest region stays the void's own near-black rather than
     // becoming a coloured room.
-    vec3 center = mix(vec3(0.086, 0.047, 0.149), uTint * 0.55, uTintAmount * 0.5);
-    vec3 edge   = vec3(0.027, 0.016, 0.055);
+    // Lifted for the polish lap (Connor: "the background is a bit dark") —
+    // still bruised purple falling toward black, but the room has lights now.
+    vec3 center = mix(vec3(0.118, 0.066, 0.196), uTint * 0.55, uTintAmount * 0.5);
+    vec3 edge   = vec3(0.043, 0.026, 0.084);
     vec3 col = mix(center, edge, smoothstep(0.11 + 0.07 * breath, 0.88 + 0.14 * breath, r));
 
     // Weather, drifting in two directions at two scales. The two fields move at
@@ -120,11 +122,15 @@ const fragment = /* glsl */ `
     vec3 tealNight = mix(vec3(0.031, 0.110, 0.129), uTint * 0.5, uTintAmount * 0.7);
     // The two constants below are pivoted around mid-fever on purpose: the
     // idle end got livelier (a void that only wakes up when the game does has
-    // nothing to escalate from) while the value at the thesis frame's 0.55 is
-    // unchanged to the third decimal. The thesis frame is invariant.
-    col += bruise * pow(n1, sharpen) * (0.72 + 0.82 * f);
-    col += tealNight * pow(n2, sharpen) * (0.30 + 0.45 * f);
-    col *= 1.0 + 0.45 * f * smoothstep(0.55, 0.05, r);
+    // nothing to escalate from) while the value at the thesis frame's 0.55
+    // barely moves. Re-pivoted brighter again in phase 9 — same trick, more
+    // light at rest.
+    col += bruise * pow(n1, sharpen) * (0.92 + 0.55 * f);
+    col += tealNight * pow(n2, sharpen) * (0.44 + 0.27 * f);
+    // Trimmed with the phase-9 brightening: the base is lighter now, so the
+    // full-fever central wash needs less gain to read as "gone hot" without
+    // flooding the board's holes to lavender (the phase-3 open question).
+    col *= 1.0 + 0.30 * f * smoothstep(0.55, 0.05, r);
 
     // The oil slick. A slow field picks where the film sits; its thickness
     // cycles the mirrored ramp so colors crawl the way a real slick does.
@@ -138,7 +144,7 @@ const fragment = /* glsl */ `
     // the weather, and nothing else about their void is wrong at all.
     float film = abs(fract(slick * 1.35 + t * 0.055 * sign(uSlick)) * 2.0 - 1.0);
     float sheenMask = pow(n1, 1.6) * smoothstep(0.10, 0.55, r);
-    col += slickRamp(film) * sheenMask * (0.16 + 0.26 * f) * abs(uSlick);
+    col += slickRamp(film) * sheenMask * (0.23 + 0.17 * f) * abs(uSlick);
 
     // The heat family, entering with fever and only with fever: embers low in
     // the frame, arterial red banking into hazard orange where they burn
@@ -149,12 +155,12 @@ const fragment = /* glsl */ `
     vec3 arterial = vec3(0.55, 0.05, 0.07);
     vec3 hazard   = vec3(0.93, 0.34, 0.05);
     float low = smoothstep(0.62, 0.05, vUv.y);
-    col += mix(arterial, hazard, ember) * ember * heat * (0.20 + 0.55 * low);
+    col += mix(arterial, hazard, ember) * ember * heat * (0.26 + 0.62 * low);
     // A faint arterial underglow so the heat reads even between embers.
     col += arterial * heat * 0.10 * low;
 
     // A faint vertical grade so "up" exists in the nothing.
-    col += vec3(0.045, 0.020, 0.062) * smoothstep(0.15, 0.85, vUv.y) * 0.4;
+    col += vec3(0.045, 0.020, 0.062) * smoothstep(0.15, 0.85, vUv.y) * 0.55;
 
     // The colors above are authored as what should reach the screen, but the
     // post chain treats this output as linear and applies linear-to-sRGB at

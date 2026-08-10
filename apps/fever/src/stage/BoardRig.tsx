@@ -54,30 +54,74 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
   // across the plates as the camera sways. The board lives on the expensive
   // side of the budget law with the void — this is where "chrome that reflects
   // a sky that isn't there" happens.
+  //
+  // Retuned in phase 9 (Connor: the board read as "a bland solidworks render").
+  // The plum is brighter and wears a clearcoat, so there are two speculars —
+  // the body's broad iridescent sheen and a tight wet gloss over it — which is
+  // what makes lacquer read as lacquer instead of as tinted plastic.
   const plum = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
-        color: "#251733",
-        roughness: 0.26,
-        metalness: 0.4,
-        iridescence: 0.6,
+        color: "#33204a",
+        roughness: 0.34,
+        metalness: 0.35,
+        iridescence: 0.85,
+        iridescenceIOR: 1.6,
+        clearcoat: 1,
+        clearcoatRoughness: 0.18,
+        envMapIntensity: 2.1,
+      }),
+    [],
+  );
+  // The rails go full mirror: the board's edges are the one place "chrome that
+  // reflects a sky that isn't there" is allowed to be literal, and a bright
+  // seam around a dark face is what separates an object from an extrusion.
+  const railMat = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: "#8f84a8",
+        roughness: 0.18,
+        metalness: 1,
+        iridescence: 0.5,
+        iridescenceIOR: 1.6,
+        envMapIntensity: 1.9,
+      }),
+    [],
+  );
+  // Every hole gets a steel eyelet, seated on the front plate. Seventy-two
+  // small mirrors catching seventy-two different slices of the sky is most of
+  // what "not a CAD slab" means here — and they ring the discs the way an
+  // arcade machine would have actually been built.
+  const ringMat = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: "#a99cc0",
+        roughness: 0.14,
+        metalness: 1,
+        iridescence: 0.4,
         iridescenceIOR: 1.6,
         envMapIntensity: 1.7,
       }),
     [],
   );
-  const railMat = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        color: "#1a1026",
-        roughness: 0.35,
-        metalness: 0.4,
-        iridescence: 0.35,
-        iridescenceIOR: 1.6,
-        envMapIntensity: 1.3,
-      }),
-    [],
-  );
+
+  // One instanced draw for all the eyelets; matrices set once per variant.
+  const rings = useMemo(() => {
+    const { variant, holeRadius } = layout;
+    const geometry = new THREE.TorusGeometry(holeRadius + 0.005, 0.038, 10, 36);
+    const mesh = new THREE.InstancedMesh(geometry, ringMat, variant.width * variant.height);
+    const m = new THREE.Matrix4();
+    let i = 0;
+    for (let col = 0; col < variant.width; col++) {
+      for (let row = 0; row < variant.height; row++) {
+        m.setPosition(layout.xOf(col), layout.yOf(row), layout.slotHalf + layout.plateDepth + 0.02);
+        mesh.setMatrixAt(i++, m);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    return mesh;
+  }, [layout, ringMat]);
+  useEffect(() => () => rings.geometry.dispose(), [rings]);
 
   const { frameW, frameH, slotHalf, plateDepth } = layout;
   // The whole sandwich, not just the slot: the plates' own thickness is part
@@ -91,6 +135,9 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
       {/* Front and back plates share one geometry with real holes. */}
       <mesh geometry={plate} material={plum} position={[0, 0, slotHalf]} />
       <mesh geometry={plate} material={plum} position={[0, 0, -slotHalf - plateDepth]} />
+
+      {/* The eyelets, seated proud of the front face. */}
+      <primitive object={rings} />
 
       {/* Rails close the sandwich so light can't leak through the seams. */}
       <mesh material={railMat} position={[-(frameW - railT) / 2, 0, 0]}>

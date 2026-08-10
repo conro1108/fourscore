@@ -57,6 +57,7 @@ const ROSTER: { act: string; phase: number; caption: string }[] = [
   { act: "callout-draw", phase: 0.4, caption: "draw — A DRAW." },
   { act: "stare-down", phase: 0.7, caption: "threat — the mascot, in sunglasses, leaning in" },
   { act: "deep-space", phase: 0.5, caption: "ordinary move — somewhere else entirely" },
+  { act: "cherub-visit", phase: 0.5, caption: "dubious — the cherub, considering, mid-tilt" },
   { act: "callout-incredible", phase: 0.4, caption: "ordinary move — INCREDIBLE, in rainbow" },
   { act: "callout-a-move", phase: 0.4, caption: "ordinary move — A MOVE." },
   { act: "win-detonation", phase: 0.42, caption: "WIN — the detonation, banner at the lens" },

@@ -66,6 +66,17 @@ function settle(inp: DirectorInput, ms = 20_000): number {
 }
 
 describe("fever curve", () => {
+  it("keeps the house lights up on the menu, and only on the menu", () => {
+    // An empty board in a match is genuinely cold; the same board on the menu
+    // sits at the attract floor so the void is never near-black behind the
+    // front door (phase-9 polish; the phase-5 open question this closes).
+    expect(feverTarget(input())).toBe(0);
+    expect(feverTarget(input({ mode: "attract" }))).toBe(TUNING.attractFloor);
+    // A hot position is hotter than the floor; the floor never caps, only lifts.
+    const hot = { points: [est(0), est(0.5), est(-0.5), est(0.55)], moves: [3, 3, 3] };
+    expect(feverTarget(input({ ...hot, mode: "attract" }))).toBeGreaterThan(TUNING.attractFloor);
+  });
+
   it("stays in 0..1 across the whole range of inputs", () => {
     for (const a of [-1, -0.55, -0.2, 0, 0.2, 0.55, 1]) {
       for (const plies of [0, 10, 41]) {

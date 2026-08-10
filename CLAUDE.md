@@ -1,14 +1,18 @@
 # CLAUDE.md
 
-Fourscore is Connect 4 — and now Connect 5 — against a ladder of pixel-art bots,
-plus one that solves the position exactly. TypeScript, npm workspaces:
-`packages/engine` is the whole game as pure logic, `apps/web` is Vite + React and
-owns only rendering and the match runtime.
+Fourscore is Connect 4 — and now Connect 5 — against a ladder of bots, plus one
+that solves the position exactly, restaged as a fever dream. TypeScript, npm
+workspaces: `packages/engine` is the whole game as pure logic, `apps/fever` is
+the client (R3F scene + possessed-90s DOM chrome) and owns only rendering and
+the match runtime.
 
 `npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
 
-`apps/fever` is the primary target — that's where active work should go.
-`apps/web` is the legacy app; only touch it when explicitly asked to.
+Before visual or copy work, read `redesign/VISION.md` (the aesthetic law: the
+four pillars, the two budgets, the taste law, the voice) and `redesign/PLAN.md`
+(the phase ledger and the completion log — the shared memory between sessions).
+The old pixel-art client (`apps/web`) is deleted; it's in git history if a
+reference is ever needed.
 
 ## Geometry is a value, not a constant
 
@@ -26,8 +30,8 @@ the search must read `p.variant`.
 
 `packages/engine` imports nothing from the DOM, the network or the app. That's
 what makes authoritative online play possible later — a server would import the
-same module the client does. Game logic that leaks into `apps/web` breaks that,
-so it goes in the engine even when the app is the only caller today.
+same module the client does. Game logic that leaks into `apps/fever` breaks
+that, so it goes in the engine even when the app is the only caller today.
 
 ## The bitboard packing lives in one file
 
@@ -98,27 +102,22 @@ not asserted in `bots.test.ts`. The measurements and the dead ends are in
 read them before retuning it, and don't add it as a passing test without moving
 the number.
 
-## Never scale sprite art fractionally
+## Screenshot before you claim
 
-The scene draws to a buffer sized from the variant — 120x152 for Connect 4,
-152x184 for Connect 5 — that CSS upscales with `image-rendering: pixelated`. The
-buffer growing is fine; a fractional anything is not. Any non-integer scale,
-offset or rotation resamples the art off the pixel grid — 1px outlines double or
-vanish. The idle bob moves by whole pixels; the creature blits at exactly 2x and
-its x-origin is rounded because an odd buffer width would otherwise land it on a
-half pixel.
+Unit tests can't see any of the visual work; the harness is the eyes.
+`apps/fever/preview.html` renders named scene states (`?state=id` for one
+fullscreen), `npm run shots -- <ids>` screenshots them through real Chrome, and
+`npm run acceptance` / `npm run bots` / `npm run online` / `npm run review` /
+`npm run audio` drive the live app. This repo has repeatedly caught bugs this
+way that typechecked and passed tests — a shader composing off-screen, an
+invisible review marker, props framed at the wrong z. If you didn't look at it,
+it isn't done.
 
-Resizing a canvas resets its 2D context, so `imageSmoothingEnabled` has to be
-turned off again after a variant switch.
-
-Unit tests can't catch any of this; check a screenshot. `apps/web/scene-preview.html`
-renders every variant side by side against the dev server for exactly that, and
-`apps/web/review-preview.html` does the same for the review screen and its eval
-curve — both found real bugs that typechecked and passed tests.
-
-The eval curve is SVG, not the pixel buffer. A chart wants display resolution and
-smooth diagonals, which is the exact opposite of the sprite rule; keeping it out
-of the canvas is what lets both be right.
+The taste law that replaced the old pixel-buffer rules lives in
+`redesign/VISION.md`: props are cheap by law (≤300 tris, 64px nearest, stepped
+12fps timing), the void and board are expensive by law (full-res, smooth), and
+the collision of the two budgets is the aesthetic. No default ease-in-out
+anywhere in the chrome; `steps()` or instant.
 
 Shared outline ink is `#402e3a`, the same as cozy_sprites and battle_clicker.
 
@@ -194,10 +193,13 @@ Move state is a list of column indices, same as `Match.history`. Never put a
 packed bitboard in Postgres; `board.ts` stays the only thing that knows the
 packing.
 
-The client lives in `src/online/` and `src/ui/Online.tsx`, and reuses
-`BoardScene` untouched — your opponent gets a roster creature chosen by hashing
-their user id, so a person looks like an opponent instead of a bare grid. Discs
-animate off the *move list*, not off the click, so a move arriving over the wire
-drops exactly like one you made; that's why `rendered` lags `moves` by one
-animation. It's also the only place a desync can surface, and it says so on
-screen rather than rendering nonsense.
+The client lives in `apps/fever/src/online/` (pure `session.ts`, socket-owning
+`runtime.ts`) and `chrome/Online.tsx` — your opponent gets a roster identity
+chosen by hashing their user id, so a person looks like an opponent instead of
+a bare grid, but no persona lines: the software doesn't put words in a real
+person's mouth. Discs animate off the *move list*, not off the click, so a move
+arriving over the wire drops exactly like one you made; that's why `landed`
+lags `moves` by one animation. Realtime is an optimisation, not the transport —
+a 4s poll re-reads the row and move list because dropped UPDATEs really happen;
+don't remove it because the happy path works. Desyncs surface as an honest
+styled error dialog, never as rendered nonsense.

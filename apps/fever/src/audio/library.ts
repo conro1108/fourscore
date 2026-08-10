@@ -43,6 +43,7 @@ export type SoundName =
   | "spike-mascot-flop"
   | "spike-stare"
   | "spike-deep-space"
+  | "spike-cherub"
   | "spike-callout"
   // -- the signatures: one per opponent (bots/identity.ts) --
   | "spike-mower"
@@ -430,6 +431,61 @@ function mascotSting(ctx: OfflineAudioContext, source: AudioBuffer | null, up: b
     }
   }
   strike(ctx, bus, 1.12, [220, 331, 512], 0.22, 0.4); // the rimshot, late
+}
+
+/**
+ * The cherub: General MIDI heaven. A harp gliss nobody tuned, then a choir
+ * pad two voices short of a chord, held while the thing hovers and cut off
+ * when it has seen enough. The gliss is `setValueAtTime` steps — a harp on
+ * this sound card is a scale, not a strum — and the choir does not resolve,
+ * because the cherub renders no verdict.
+ */
+function cherubVisit(ctx: OfflineAudioContext, source: AudioBuffer | null): void {
+  const bus = out(ctx, { drive: 6, space: [1.6, 2.8], wet: 0.55 });
+
+  // The gliss, up the white notes, one hard step per note. It announces the
+  // descent the way a shopping-centre PA announces a lift arriving.
+  const glissNotes = [523.25, 587.33, 659.25, 698.46, 783.99, 880, 987.77, 1046.5];
+  glissNotes.forEach((freq, i) => {
+    const at = 0.05 + i * 0.07;
+    const pluck = env(ctx, [
+      [at, 0],
+      [at + 0.01, 0.16],
+      [at + 0.5, 0],
+    ]);
+    pluck.connect(bus);
+    if (source) play(ctx, source, pluck, at, freq / 523.25);
+    else osc(ctx, "triangle", freq, at, at + 0.5).connect(pluck);
+  });
+
+  // The choir: root, third, octave — no fifth, same missing voices as the
+  // stare's, because it is the same sound card. Major this time; heaven is
+  // cheerful about withholding judgment. Cut, not released.
+  const level = env(ctx, [
+    [0.7, 0],
+    [1.0, 0.2],
+    [3.0, 0.18],
+    [3.12, 0],
+  ]);
+  const throat = filter(ctx, "lowpass", 1700);
+  level.connect(throat);
+  throat.connect(bus);
+  if (source) {
+    play(ctx, source, level, 0.7, 1.26);
+  } else {
+    for (const freq of [261.63, 329.63, 523.25, 659.25]) {
+      for (const detune of [1, 1.006]) {
+        osc(ctx, "sawtooth", freq * detune, 0.7, 3.15)
+          .connect(gain(ctx, freq > 400 ? 0.14 : 0.24))
+          .connect(level);
+      }
+    }
+    // Breath over the top, so it reads as voices rather than as an organ.
+    noise(ctx, 2.5, 0x7e11, 0.7)
+      .connect(filter(ctx, "bandpass", 1100, 1.2))
+      .connect(gain(ctx, 0.04))
+      .connect(level);
+  }
 }
 
 /**
@@ -1626,6 +1682,11 @@ export const RECIPES: Record<SoundName, Recipe> = {
     want: "sine arpeggio with long delay, documentary-space cue, ~4s",
     seconds: 4.1,
     build: deepSpace,
+  },
+  "spike-cherub": {
+    want: "MIDI harp gliss into a synth choir pad, ~3s",
+    seconds: 3.6,
+    build: cherubVisit,
   },
   "spike-callout": {
     want: "orchestra hit / MIDI stab, one shot, dry, <1s",
