@@ -52,7 +52,7 @@ export function Cannon({ layout, phase }: { layout: StageLayout; phase: () => nu
   const darkMat = usePropMaterial({ color: "#2c2733" });
   const wheelMat = usePropMaterial({ color: "#8f6f14", glow: 0.12 });
   const rimMat = usePropMaterial({ color: "#a3164e", glow: 0.15 });
-  const faceMat = usePropMaterial({ map: face, glow: 0.35 });
+  const faceMat = usePropMaterial({ map: face, glow: 0.18 });
   // Faint, and small. A camera-facing quad is the cheapest smoke there is and
   // the cheapest way to get it wrong: bright enough to see the edges of, it
   // stops being a puff and becomes a grey card laid on the board.

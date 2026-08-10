@@ -14,7 +14,17 @@
  * anything: the board sits between them and becomes the thing at the end of
  * the lane.
  *
- * Budget, audited: two boxes = 24 triangles. One 64px texture.
+ * They are fat now, and that is the whole of the rework. Two 0.55-wide rails
+ * with a nine-times-repeated five-chevron tile came back from the harness as
+ * two shimmering hairlines in the bottom corners: the stripe period fell under
+ * a pixel at the far end, and a nearest filter with no mip chain has nothing to
+ * average it with, so the rail crawled instead of sitting still. Fine detail on
+ * something that recedes to a point is not detail, it is aliasing. Twice the
+ * section, a quarter of the stripes, and a dark kick rail underneath to give
+ * the foam something to sit on.
+ *
+ * Budget, audited (box = 12): 2 rails + 2 kick rails = 48 triangles.
+ * One 64px texture.
  */
 
 import { useFrame } from "@react-three/fiber";
@@ -34,15 +44,18 @@ export function Bumpers({ layout, phase }: { layout: StageLayout; phase: () => n
   const skin = usePropTexture(bumperSkin);
   // Barely lit from inside. Foam is the least luminous object in the game and
   // at the phase-3 roster's usual glow the pair came back as two neon planks.
-  const mat = usePropMaterial({ map: skin, glow: 0.1 });
+  const mat = usePropMaterial({ map: skin, glow: 0.16 });
+  const kickMat = usePropMaterial({ color: "#402e3a" });
   /** Seat once per act, not once per frame of the seating beat. */
   const clunked = useRef(false);
 
-  // Outside the board, and long enough in z to pass it at both ends.
-  const side = layout.frameW * 0.56;
+  // Outside the board, and long enough in z to pass it at both ends. Pulled in
+  // from 0.56: at the old width they hugged the bottom corners of the frame and
+  // the near ends were half off it.
+  const side = layout.frameW * 0.5;
   const length = layout.frameH + 8;
-  const hidden = -(layout.frameH / 2) - 2.4;
-  const shown = -(layout.frameH / 2) + 0.15;
+  const hidden = -(layout.frameH / 2) - 2.8;
+  const shown = -(layout.frameH / 2) + 0.5;
 
   useFrame(() => {
     if (!group.current) return;
@@ -64,9 +77,17 @@ export function Bumpers({ layout, phase }: { layout: StageLayout; phase: () => n
     // that says these are beside the board rather than under it.
     <group ref={group} position={[0, hidden, 1.4]}>
       {[-side, side].map((x) => (
-        <mesh key={x} material={mat} position={[x, 0, 0]}>
-          <boxGeometry args={[0.55, 0.42, length]} />
-        </mesh>
+        <group key={x}>
+          {/* The kick rail: an ink-dark plinth under the foam. Nothing about a
+              lane needs it — it is there so the bright rail has an edge to end
+              on rather than fading into whatever the void is doing below. */}
+          <mesh material={kickMat} position={[x, -0.62, 0]}>
+            <boxGeometry args={[0.8, 0.5, length]} />
+          </mesh>
+          <mesh material={mat} position={[x, 0, 0]}>
+            <boxGeometry args={[1.1, 0.85, length]} />
+          </mesh>
+        </group>
       ))}
     </group>
   );

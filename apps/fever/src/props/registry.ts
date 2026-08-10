@@ -94,11 +94,11 @@ const act = (
 const declaring = (a: PropAct): PropAct => ({ ...a, declares: true });
 
 export const PROP_ACTS: Record<string, PropAct> = {
-  "truck-lap": act("truck-lap", TRUCK_LAP_MS, 180, "floor", Truck, "spike-truck"),
+  "truck-lap": act("truck-lap", TRUCK_LAP_MS, 182, "floor", Truck, "spike-truck"),
   "rocket-fizzle": act("rocket-fizzle", ROCKET_MS, 84, "right", Rocket, "spike-rocket"),
-  "beacon-drop": act("beacon-drop", BEACON_MS, 68, "right", Beacon, "spike-beacon"),
+  "beacon-drop": act("beacon-drop", BEACON_MS, 122, "right", Beacon, "spike-beacon"),
   "win-detonation": declaring(
-    act("win-detonation", DETONATION_MS, 110, "lens", Detonation, "spike-win"),
+    act("win-detonation", DETONATION_MS, 190, "lens", Detonation, "spike-win"),
   ),
 
   // -- the lane screen (VISION.md pillar 2, after the reference change) -------
@@ -120,7 +120,7 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // The act about nothing. It cannot comment on your move because it does not
   // know you made one, which is why it is the only thing that may answer an
   // ordinary one (see `gags.ts`).
-  "deep-space": act("deep-space", DEEP_SPACE_MS, 74, "sky", DeepSpace, "spike-deep-space"),
+  "deep-space": act("deep-space", DEEP_SPACE_MS, 110, "sky", DeepSpace, "spike-deep-space"),
   // Pillar 1's imagery on pillar 2's budget (phase 9): the mascot with wings
   // and a halo, lowered in to judge and leaving without saying. It answers a
   // dubious move — something arrived to consider what you did — and wanders
@@ -244,7 +244,7 @@ export const PROP_ACTS: Record<string, PropAct> = {
   // able to share the menu with a general one, and two acts in one corner is
   // the only thing the berth rule exists to stop. None of them declares —
   // a signature answers a threat or a grade, and both are estimates.
-  "bumpers-up": act("bumpers-up", BUMPERS_MS, 24, "floor", Bumpers, "spike-bumpers"),
+  "bumpers-up": act("bumpers-up", BUMPERS_MS, 48, "floor", Bumpers, "spike-bumpers"),
   // Moss's, and the sprinkler's replacement: same persona, same pace, a
   // character instead of a piece of equipment.
   "mower-crawl": act("mower-crawl", MOWER_MS, 124, "floor", Mower, "spike-mower"),
@@ -274,5 +274,5 @@ export const PROP_ACTS: Record<string, PropAct> = {
   "wrecking-ball": act("wrecking-ball", WRECKING_MS, 162, "sky", Wrecking, "spike-wrecking"),
   "mirror-ball": act("mirror-ball", MIRROR_MS, 84, "lens", MirrorBall, "spike-mirror"),
   "window-washer": act("window-washer", WASHER_MS, 102, "left", Washer, "spike-washer"),
-  "foam-finger": act("foam-finger", FINGER_MS, 48, "right", Finger, "spike-finger"),
+  "foam-finger": act("foam-finger", FINGER_MS, 76, "right", Finger, "spike-finger"),
 };

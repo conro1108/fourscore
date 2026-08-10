@@ -26,10 +26,10 @@ import type { DirectorFrame, SpectacleEvent, StageMode } from "./types.js";
 
 export interface DirectorTuning {
   /**
-   * The estimated band of `advantageOf` — a forced win this engine can see, but
-   * hasn't proved, sits at 0.55. Dividing by it makes "as decided as an estimate
-   * can say" equal full sharpness, instead of leaving the top half of the fever
-   * range reachable only by the solver.
+   * The top of the estimated band of `advantageOf` — quiet estimates asymptote
+   * to 0.5 and a forced win this engine can see sits just above it. Dividing by
+   * it makes "as decided as an estimate can say" equal full sharpness, instead
+   * of leaving the top half of the fever range reachable only by the solver.
    */
   sharpnessRef: number;
   /** How much of the fever drive comes from |advantage| vs. how much it moves. */
@@ -80,7 +80,7 @@ export interface DirectorTuning {
 }
 
 export const TUNING: DirectorTuning = {
-  sharpnessRef: 0.55,
+  sharpnessRef: 0.5,
   sharpnessWeight: 0.6,
   volatilityWeight: 0.4,
   volatilityWindow: 4,
@@ -99,10 +99,15 @@ export const TUNING: DirectorTuning = {
   shiftDelta: 0.12,
   shiftCooldown: 6000,
   gradeWait: 600,
-  blunderLoss: 0.28,
-  dubiousLoss: 0.1,
-  brilliantSwing: 0.18,
-  brilliantSlack: 0.03,
+  // Set by rate, not by feel, against the same bot games `advantageOf`'s scale
+  // was measured on. On the old, near-flat axis a move could only clear 0.28 by
+  // crossing the decisive boundary, so `blunder` and `dubious` were both really
+  // "the game just ended": 2.2% and 1.4% of moves. These land at 2.5% and 3.7%
+  // — the same order, but now reachable by an ordinary bad move.
+  blunderLoss: 0.3,
+  dubiousLoss: 0.2,
+  brilliantSwing: 0.2,
+  brilliantSlack: 0.05,
   threatCooldown: 3000,
   attractIdlePeriod: 1800,
   idleQuiet: 3000,

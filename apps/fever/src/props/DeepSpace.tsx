@@ -13,8 +13,22 @@
  * a clip that cannot possibly be a comment on your play, because it does not
  * know you played. Everything else on the stage is at least pretending.
  *
- * Budget, audited (8x5 sphere = 64, quad = 2):
- *   planet 64 + ring 2 + 4 sparkles x 2 = 74 triangles. Law is <= 300.
+ * Teal and gold, not violet, and rounder than it was. Painting the planet in
+ * the void's own colours was the wrong reading of "somewhere else": a lavender
+ * sphere on a lavender void loses its whole lower half and the act arrives as a
+ * smear with a ring near it. Teal is in the oil-slick ramp, so it is house
+ * colour, and it is the one part of that ramp the void never spends. The
+ * terminator went from a third of the tile to a sixth for the same reason the
+ * silhouette needed — at a third it bit a flat side out of the sphere and the
+ * planet read as a potato.
+ *
+ * Budget, audited (10x6 sphere = 100, quad = 2):
+ *   planet 100 + ring 2 + 4 sparkles x 2 = 110 triangles. Law is <= 300.
+ * The two extra rings of facets are what stop a cheap sphere reading as a
+ * lump — 8x5 is fine on a wrecking ball, which is *supposed* to be crude, and
+ * wrong on the one prop whose whole job is to be a beautiful thing from
+ * elsewhere.
+ *
  * Two 64px nearest textures and one more shared between the sparkles.
  */
 
@@ -47,8 +61,8 @@ export function DeepSpace({ layout, phase }: { layout: StageLayout; phase: () =>
   const bigSpark = usePropTexture(() => sparkTexture(true));
   const smallSpark = usePropTexture(() => sparkTexture(false));
 
-  const planetMat = usePropMaterial({ map: skin, glow: 0.3 });
-  const ringMat = usePropMaterial({ map: rings, glow: 0.35, alphaTest: 0.4, side: THREE.DoubleSide });
+  const planetMat = usePropMaterial({ map: skin, glow: 0.34 });
+  const ringMat = usePropMaterial({ map: rings, glow: 0.3, alphaTest: 0.4, side: THREE.DoubleSide });
   // Two materials rather than one swapped texture: a material change per frame
   // would rebuild the program, and the twinkle is every other frame.
   const bigMat = usePropMaterial({ map: bigSpark, glow: 1.6, emissive: "#e4d2ff", alphaTest: 0.5 });
@@ -90,7 +104,7 @@ export function DeepSpace({ layout, phase }: { layout: StageLayout; phase: () =>
   return (
     <group ref={group} position={[xStart, y, 2.6]}>
       <mesh material={planetMat}>
-        <sphereGeometry args={[RADIUS, 8, 5]} />
+        <sphereGeometry args={[RADIUS, 10, 6]} />
       </mesh>
       {/* The ring is a textured quad lying flat, not a torus: a torus is 400
           triangles of a shape that is two triangles of texture. Tilted so it

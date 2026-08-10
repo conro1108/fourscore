@@ -244,7 +244,7 @@ describe("move events", () => {
     // Even plies are red's. Advantage is red's point of view, so red's own
     // number falling is red giving something up.
     expect(quality([3, 4, 5], [0, 0, 0, -0.4])).toBe("blunder");
-    expect(quality([3, 4, 5], [0, 0, 0, -0.15])).toBe("dubious");
+    expect(quality([3, 4, 5], [0, 0, 0, -0.25])).toBe("dubious");
     expect(quality([3, 4, 5], [0, 0, 0, -0.02])).toBe("fine");
 
     // Yellow moves on odd plies, so the same red-POV drop is yellow's gain.

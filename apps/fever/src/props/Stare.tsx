@@ -43,7 +43,8 @@ export function Stare({ layout, phase }: { layout: StageLayout; phase: () => num
   const group = useRef<THREE.Group>(null);
 
   const face = usePropTexture(() => mascotFace("shades"));
-  const faceMat = usePropMaterial({ map: face, glow: 0.5 });
+  // Low, with the mascot: the bone face is what bloom finds first.
+  const faceMat = usePropMaterial({ map: face, glow: 0.2 });
   const rimMat = usePropMaterial({ color: "#a3164e", glow: 0.15 });
 
   // Bottom right, in the rocket's berth: it comes up out of the floor at the

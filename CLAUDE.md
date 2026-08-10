@@ -70,9 +70,26 @@ is exact. Never hash the key down to fit.
 Bots differ by weight vector as well as depth, and those interact: a deeper
 search with worse weights can be weaker. `bots.test.ts` plays each rung against
 the one below and requires >65% — it has already caught a rung inverting. If you
-retune a bot, run it. Measured win rates between adjacent rungs are 68-83%, and
-slip rate moves them far more than the eval weights do, so tune strength with
-`slipRate`/`depth` and treat the weights as personality.
+retune a bot, run it. Measured win rates between the asserted adjacent rungs are
+67-90% on Connect 4 and 71-92% on Connect 5, and slip rate moves them far more
+than the eval weights do, so tune strength with `slipRate`/`depth` and treat the
+weights as personality.
+
+The two rungs nobody asserts sit lower than that and always have: `quill > vane`
+measures ~63% on Connect 4 and `vane > cinder` ~61% on Connect 5, both over 48
+and 32 games. Those were measured before and after the 2026 slip retune and did
+not move, so treat them as the top of the ladder being genuinely flat rather
+than as something a sweep has just broken.
+
+A slip is not a random move: `pick` draws from the non-best moves by rank with
+geometric weight, and above tier 1 it will not slip into a move the search has
+already proved loses. So a slip rate costs less strength than it looks like it
+should, and the schedule is several times higher than it used to be for the same
+ladder. Don't read `slipRate` as linear in strength.
+
+Twenty games is not enough to judge a rung. The same `moss > pebble` pairing
+read 63% on one twenty-game window and 74% and 79% on two forty-game ones; the
+bottom rungs cost milliseconds a game, so measure them long.
 
 A new variant is a retune. `packages/engine/tools/ladder.ts <variant>` sweeps
 every adjacent rung and flags soft or inverted ones; run it before trusting a

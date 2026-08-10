@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { BotBrain, ROSTER, byId } from "./bots.js";
+import { BotBrain, ROSTER, byId, type BotProfile } from "./bots.js";
 import { Match } from "./match.js";
 import { CONNECT4, CONNECT5, Position } from "./board.js";
+import { searchHeuristic } from "./evaluate.js";
 
 /** Deterministic RNG, so a flaky ladder can't pass by luck. */
 function mulberry32(seed: number): () => number {
@@ -65,11 +66,59 @@ describe("roster", () => {
   });
 
   it("only lets the bottom rung slip away a win it can see", () => {
-    // Everyone above Acorn plays a decisive move once they've found one.
+    // Exercised rather than asserted off the config, because the guard that
+    // makes it true lives in `pick` and reads the tier — an earlier version of
+    // this test compared the config to itself and would have passed with the
+    // guard deleted.
+    // Red has the bottom of columns 0-2 and can finish at 3.
+    const win = Position.fromMoves([0, 6, 1, 6, 2, 5]);
+    // Red threatens to finish at 3; yellow loses on the spot if it plays elsewhere.
+    const block = Position.fromMoves([0, 6, 1, 6, 2]);
+
+    const missesOver = (bot: BotProfile, p: Position, seeds: number) => {
+      let misses = 0;
+      for (let seed = 0; seed < seeds; seed++) {
+        if (new BotBrain(bot, mulberry32(seed)).decide(p).col !== 3) misses++;
+      }
+      return misses;
+    };
+
+    // Slip rate forced to 1, so every decision below goes down the slip path.
+    // At the shipped rates the top of the ladder slips once in a hundred moves
+    // and a broken guard would hide behind that.
     for (const bot of ROSTER.filter((b) => b.tier >= 2)) {
-      expect(bot.slipRate === 0 || bot.tier >= 2).toBe(true);
+      const always = { ...bot, slipRate: 1 };
+      expect([bot.id, missesOver(always, win, 5)]).toEqual([bot.id, 0]);
+      expect([bot.id, missesOver(always, block, 5)]).toEqual([bot.id, 0]);
     }
-    expect(byId("acorn").slipRate).toBeGreaterThan(0.3);
+
+    // Acorn is the exemption, and it's the only one: the guard reads the tier.
+    expect(ROSTER.filter((b) => b.tier < 2).map((b) => b.id)).toEqual(["acorn"]);
+
+    // And it does miss them in play — a slip rate that never shows up isn't
+    // fallibility, it's decoration.
+    expect(missesOver(byId("acorn"), win, 100)).toBeGreaterThan(10);
+    expect(missesOver(byId("acorn"), block, 100)).toBeGreaterThan(10);
+  });
+
+  it("slips toward the moves it rated next-best", () => {
+    // A slip is the bot's second thought, not a random legal move: the worst
+    // column on the board should be far rarer than the near-miss.
+    const p = Position.fromMoves([3, 3, 4]);
+    const scored = searchHeuristic(p, 4, byId("moss").weights, 400_000);
+    const ranked = [...scored.moves].sort((a, b) => b.score - a.score);
+    const runnerUp = ranked.find((m) => !scored.bestCols.includes(m.col))!.col;
+    const worst = ranked[ranked.length - 1]!.col;
+    expect(runnerUp).not.toBe(worst);
+
+    const counts = new Map<number, number>();
+    // Slip rate 1 isolates the choice from how often it happens.
+    const slippy = { ...byId("moss"), slipRate: 1 };
+    for (let seed = 0; seed < 400; seed++) {
+      const { col } = new BotBrain(slippy, mulberry32(seed)).decide(p);
+      counts.set(col, (counts.get(col) ?? 0) + 1);
+    }
+    expect(counts.get(runnerUp) ?? 0).toBeGreaterThan(2 * (counts.get(worst) ?? 0));
   });
 });
 
@@ -116,17 +165,20 @@ describe("the ladder is actually a ladder", () => {
   // "stronger" once personality is in the mix.
   // Game counts are a compromise: fewer than about sixteen and the result is
   // noise. An early version used fourteen and reported a rung as broken that a
-  // forty-game sweep showed was fine.
+  // forty-game sweep showed was fine — and `moss > pebble` did it again at
+  // twenty, reading 63% on a window where forty games read 74% and a second
+  // seed read 79%. The bottom two rungs are milliseconds a game, so they buy
+  // their way out of the noise rather than being believed at twenty.
   const rungs = [
-    ["pebble", "acorn", 20],
-    ["moss", "pebble", 20],
+    ["pebble", "acorn", 40],
+    ["moss", "pebble", 40],
     ["bramble", "moss", 16],
     ["cinder", "bramble", 10],
   ] as const;
 
   for (const [strong, weak, games] of rungs) {
     it(`${strong} beats ${weak}`, () => {
-      // A measured sweep puts every adjacent rung between 68% and 83%, so 65%
+      // A measured sweep puts every adjacent rung between 69% and 90%, so 65%
       // is a floor that catches a rung going soft without failing on noise.
       const points = headToHead(strong, weak, games);
       expect(points).toBeGreaterThan(games * 0.65);

@@ -10,6 +10,30 @@
 
 import * as THREE from "three";
 
+/**
+ * The shared outline ink, the same one the wordmark and the sibling projects
+ * use. A prop that is going to sit on a near-black void needs an edge that is
+ * darker than its own body and lighter than the void, and one ink everywhere is
+ * what keeps nine props reading as one cast.
+ */
+const INK = "#402e3a";
+
+/**
+ * Draw the ink border every box-mapped livery wears.
+ *
+ * Box mapping hands the whole tile to every face, so a border on the tile is an
+ * outline on every face — a cel outline for two `fillRect`s and no geometry. It
+ * is the cheapest thing in this file and the single biggest reason the reworked
+ * props read as objects instead of as untextured blocks.
+ */
+function inkEdge(g: CanvasRenderingContext2D, weight = 3): void {
+  g.fillStyle = INK;
+  g.fillRect(0, 0, 64, weight);
+  g.fillRect(0, 64 - weight, 64, weight);
+  g.fillRect(0, 0, weight, 64);
+  g.fillRect(64 - weight, 0, weight, 64);
+}
+
 /** Draw a word across the whole 64px tile, squeezed to fit. Blocky by law. */
 function shout(
   g: CanvasRenderingContext2D,
@@ -49,52 +73,158 @@ function propCanvas(
 }
 
 /**
- * The truck's livery: black panel, chrome top stripe, acid-green flames along
- * the rocker, and the sponsor nobody paid for — which the decal says out loud.
- * Box-mapped — the whole decal
- * lands on every face, which is exactly the wrong-scale toy-commercial energy
- * the prop budget wants.
+ * The truck's livery: a white panel, crimson flames off the rocker with acid
+ * cores, and the sponsor nobody paid for — which the decal says out loud.
+ * Box-mapped — the whole decal lands on every face, which is exactly the
+ * wrong-scale toy-commercial energy the prop budget wants.
+ *
+ * It was black with green flames, and that was the single worst thing on the
+ * stage: the void is dark purple and near-black, so a black truck crossing it
+ * is a hole with an equalizer painted on. Value contrast is what a silhouette
+ * is made of, and this prop is the one the whole redesign is judged against —
+ * so the body is now the brightest thing in the frame that isn't a disc, and
+ * the flames carry the colour instead of the paint.
  */
 export function truckLivery(): THREE.CanvasTexture {
   return propCanvas((g) => {
-    g.fillStyle = "#17111c";
+    g.fillStyle = "#eceaf4";
     g.fillRect(0, 0, 64, 64);
+    // A cooler band down the lower half so a flat-shaded box still has a top
+    // and a bottom when the light happens to hit it square on.
+    g.fillStyle = "#cdc9dc";
+    g.fillRect(0, 36, 64, 28);
 
-    // Chrome stripe up top.
-    g.fillStyle = "#c8ccd4";
-    g.fillRect(0, 4, 64, 6);
-    g.fillStyle = "#7d8390";
-    g.fillRect(0, 10, 64, 2);
-
-    // Acid flames licking up from the rocker panel.
-    g.fillStyle = "#7fe018";
-    for (let i = 0; i < 6; i++) {
-      const x = i * 11 - 2;
+    // Crimson flames licking up from the rocker panel, with acid cores. Big
+    // enough to survive being cropped by whichever face they land on.
+    g.fillStyle = "#a3164e";
+    for (let i = 0; i < 5; i++) {
+      const x = i * 13 - 3;
       g.beginPath();
       g.moveTo(x, 64);
-      g.lineTo(x + 5, 38 + (i % 2) * 7);
+      g.lineTo(x + 6, 26 + (i % 2) * 9);
+      g.lineTo(x + 13, 64);
+      g.closePath();
+      g.fill();
+    }
+    g.fillStyle = "#7fe018";
+    for (let i = 0; i < 5; i++) {
+      const x = i * 13 - 3;
+      g.beginPath();
+      g.moveTo(x + 3, 64);
+      g.lineTo(x + 6, 40 + (i % 2) * 7);
       g.lineTo(x + 10, 64);
       g.closePath();
       g.fill();
     }
-    g.fillStyle = "#b7f04d";
-    for (let i = 0; i < 6; i++) {
-      const x = i * 11 - 2;
+
+    // The sponsor, in ink rather than in white: on a white panel the old
+    // light-on-dark decal disappeared entirely.
+    shout(g, "4SCORE", INK, 20, 15);
+    g.fillStyle = "#a3164e";
+    g.font = "bold 8px monospace";
+    g.fillText("UNPAID", 15, 30);
+
+    inkEdge(g, 3);
+  });
+}
+
+/**
+ * The truck's tyre: a dark carcass with chunky lugs around it.
+ *
+ * Only the cylinder's *side* gets this. The old wheel was one flat dark
+ * material on all three slots and it came back from the harness as a black
+ * hexagonal prism the size of the body — a shape with no interior detail reads
+ * as a hole, and four holes read as a pile.
+ */
+export function truckTread(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#2c2733";
+    g.fillRect(0, 0, 64, 64);
+    // Lugs: eight blocks around the circumference, staggered top and bottom,
+    // which is the whole of what a monster tyre looks like from ten metres.
+    g.fillStyle = "#59505f";
+    for (let i = 0; i < 8; i++) {
+      g.fillRect(i * 8 + 1, i % 2 === 0 ? 2 : 30, 6, 32);
+    }
+    // Sidewall bands, so the tyre has an edge where it meets the hub.
+    g.fillStyle = INK;
+    g.fillRect(0, 0, 64, 3);
+    g.fillRect(0, 61, 64, 3);
+  });
+}
+
+/**
+ * The truck's hub cap, on both cylinder caps.
+ *
+ * This is the part that turns a prism into a wheel. A cap's UVs are already a
+ * circle, so a chrome disc with lug holes lands as a chrome disc with lug holes
+ * — and the near cap faces the camera for the whole lap.
+ */
+export function truckHub(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    const disc = (r: number, color: string) => {
+      g.fillStyle = color;
       g.beginPath();
-      g.moveTo(x + 2, 64);
-      g.lineTo(x + 5, 48 + (i % 2) * 5);
-      g.lineTo(x + 8, 64);
-      g.closePath();
+      g.arc(32, 32, r, 0, Math.PI * 2);
+      g.fill();
+    };
+    disc(32, "#2c2733");
+    disc(29, INK);
+    disc(25, "#e4e6ee");
+    disc(19, "#9aa0b0");
+    disc(9, "#e4e6ee");
+    // Five lugs, because five is what a wheel has and four is what a table has.
+    g.fillStyle = INK;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      g.beginPath();
+      g.arc(32 + Math.cos(a) * 14, 32 + Math.sin(a) * 14, 3, 0, Math.PI * 2);
       g.fill();
     }
+  });
+}
 
-    // The sponsor.
-    g.fillStyle = "#e8e4f0";
-    g.font = "bold 9px monospace";
-    g.fillText("4SCORE", 12, 24);
-    g.fillStyle = "#7fe018";
-    g.font = "bold 7px monospace";
-    g.fillText("UNPAID", 14, 33);
+/**
+ * The truck's face: headlamp eyes over a radiator grille, cut out of nothing.
+ *
+ * Same construction and same argument as the mower's — a prop with no face is
+ * the weakest thing on the stage — and the same placement rule: it goes on the
+ * end the yaw turns toward the camera, not on the end a truck's face belongs on
+ * in a world with a fixed viewpoint.
+ */
+export function truckFace(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    // Opaque, and the whole tile. A cut-out decal laid over the box-mapped
+    // livery put the eyes on top of a panel that already said 4SCORE in
+    // hundred-point type, and the two read as one texture rather than as a
+    // face on a nose. The nose is its own flat panel now, and the livery ends
+    // where it starts.
+    g.fillStyle = "#eceaf4";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#cdc9dc";
+    g.fillRect(0, 32, 64, 32);
+
+    g.fillStyle = "#ffe9a8";
+    g.fillRect(5, 9, 22, 20);
+    g.fillRect(37, 9, 22, 20);
+    g.fillStyle = INK;
+    // Brow bars, which are the whole of the expression: a monster truck is not
+    // pleased and it is not upset either.
+    g.fillRect(5, 9, 22, 5);
+    g.fillRect(37, 9, 22, 5);
+    // Pupils, both a little too high, both looking at nothing in particular.
+    g.fillRect(12, 16, 8, 11);
+    g.fillRect(44, 16, 8, 11);
+    g.fillStyle = "#ffffff";
+    g.fillRect(14, 18, 3, 3);
+    g.fillRect(46, 18, 3, 3);
+    // The grille, which is a mouth if it is on a face and a grille if it is on
+    // a truck, and it is on both.
+    g.fillStyle = INK;
+    g.fillRect(8, 37, 48, 20);
+    g.fillStyle = "#a3164e";
+    for (let i = 0; i < 5; i++) g.fillRect(12 + i * 9, 41, 5, 12);
+    inkEdge(g, 3);
   });
 }
 
@@ -124,16 +254,28 @@ export function rocketSkin(): THREE.CanvasTexture {
  * A lane screen's cast is a company logo with eyes stuck on it — the face is
  * an overlay somebody added, not a character somebody designed, and it should
  * look like it.
+ *
+ * Bone, not gold. It was the discs' own `#c8991f`/`#e2b743`, and the mascot
+ * spends its whole act rolling along the foot of a board covered in gold discs
+ * — so the one recurring character in the game was camouflaged against the
+ * scenery it performs in front of. Same character, hue moved off the board's
+ * palette and given the shared ink ring, which is what makes it pop off both
+ * the gold and the void. Everything downstream (the cherub, the stare, the
+ * washer, the cannon) inherits it, which is the point: one cast, one skin.
  */
 export function mascotFace(mood: "up" | "down" | "shades"): THREE.CanvasTexture {
   const tex = propCanvas((g) => {
-    g.fillStyle = "#c8991f";
+    g.fillStyle = INK;
     g.beginPath();
-    g.arc(32, 32, 31, 0, Math.PI * 2);
+    g.arc(32, 32, 32, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = "#e2b743";
+    g.fillStyle = "#d8ccb4";
     g.beginPath();
-    g.arc(32, 32, 24, 0, Math.PI * 2);
+    g.arc(32, 32, 27, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#f6efdd";
+    g.beginPath();
+    g.arc(32, 32, 22, 0, Math.PI * 2);
     g.fill();
 
     if (mood === "shades") {
@@ -145,7 +287,7 @@ export function mascotFace(mood: "up" | "down" | "shades"): THREE.CanvasTexture 
       g.fillStyle = "#17111c";
       g.fillRect(12, 22, 40, 11);
       g.fillRect(28, 20, 8, 3);
-      g.fillStyle = "#e2b743";
+      g.fillStyle = "#f6efdd";
       g.fillRect(30, 31, 4, 2);
       // The glint — one hard white notch on one lens, never both. A specular
       // line is the whole vocabulary of cheap 3D chrome and it costs 12 texels.
@@ -244,30 +386,39 @@ export function mowerFace(): THREE.CanvasTexture {
 }
 
 /**
- * A planet nobody ordered: two bands and a terminator, in the void's own
- * colours so the interlude reads as somewhere else rather than as a bug.
+ * A planet nobody ordered: four bands and a storm, in teal and gold.
  *
- * Bands rather than a gradient. A sphere this cheap has eight facets around, so
+ * It used to be painted in the void's own violets, on the theory that the
+ * interlude should look like it belonged to the same world. It doesn't have to
+ * belong to the same world — it is explicitly somewhere else — and what it
+ * actually did was disappear: a lavender sphere on a lavender void lost its
+ * whole lower half and read as a smear. Teal is in the oil-slick ramp, so it is
+ * house colour, and it is the one part of that ramp the void never uses.
+ *
+ * Bands rather than a gradient. A sphere this cheap has ten facets around, so
  * a smooth ramp lands one shade per facet and comes back looking like a shading
  * error — hard bands at least look like a decision somebody made in 1997.
  */
 export function planetSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {
-    g.fillStyle = "#6b48ad";
+    g.fillStyle = "#1f8f96";
     g.fillRect(0, 0, 64, 64);
-    g.fillStyle = "#a884e0";
-    g.fillRect(0, 12, 64, 9);
-    g.fillStyle = "#4a2f7a";
-    g.fillRect(0, 30, 64, 6);
-    g.fillStyle = "#e4d2ff";
-    g.fillRect(0, 44, 64, 3);
-    // The terminator: the right third is simply darker, with a hard edge. No
-    // light in this scene is responsible for it.
-    g.fillStyle = "rgba(10, 6, 18, 0.55)";
-    g.fillRect(42, 0, 22, 64);
+    g.fillStyle = "#5fd6cf";
+    g.fillRect(0, 10, 64, 10);
+    g.fillStyle = "#0e5a63";
+    g.fillRect(0, 28, 64, 8);
+    g.fillStyle = "#e8b93f";
+    g.fillRect(0, 42, 64, 5);
+    g.fillStyle = "#9ceee4";
+    g.fillRect(0, 54, 64, 4);
+    // The terminator: a hard edge down one side, and narrow. At a third of the
+    // tile it bit a chunk out of the silhouette and the planet read as a
+    // potato with a flat side. No light in this scene is responsible for it.
+    g.fillStyle = "rgba(10, 6, 18, 0.42)";
+    g.fillRect(52, 0, 12, 64);
     // The one storm. It is a rectangle.
-    g.fillStyle = "#c9a2f5";
-    g.fillRect(12, 22, 11, 6);
+    g.fillStyle = "#ffd97a";
+    g.fillRect(12, 20, 11, 6);
   });
 }
 
@@ -275,6 +426,9 @@ export function planetSkin(): THREE.CanvasTexture {
  * The ring, as a cut-out annulus on one tile. Drawn flat and mapped to a quad
  * rather than built as geometry: a torus is 400 triangles of a shape that is
  * two triangles of texture, and the law is the law.
+ *
+ * Gold, and thicker than it was. Pale violet bands one texel wide over a violet
+ * void are a ring you can only find if you already know where it is.
  */
 export function ringSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {
@@ -285,9 +439,10 @@ export function ringSkin(): THREE.CanvasTexture {
       g.ellipse(32, 32, radius, radius * 0.3, 0, 0, Math.PI * 2);
       g.stroke();
     };
-    band(30, 5, "#9d8ec2");
-    band(24, 3, "#e4d2ff");
-    band(19, 2, "#6b48ad");
+    band(30, 7, "#8a6a1c");
+    band(30, 4, "#e8b93f");
+    band(23, 4, "#fff3d0");
+    band(17, 3, "#5fd6cf");
   });
 }
 
@@ -318,6 +473,219 @@ export function sparkTexture(big: boolean): THREE.CanvasTexture {
   });
 }
 
+/**
+ * The cherub's wing, cut out of nothing: a scalloped trailing edge, three
+ * feather divisions and an ink outline.
+ *
+ * It was an untextured yellow rectangle on each shoulder — the head and the
+ * halo did all the work and the wings actively argued against them, because a
+ * plain quad next to a modelled face reads as a placeholder somebody forgot.
+ * The scallop is the entire fix and it is two arcs and a stroke: what makes a
+ * shape a wing is its trailing edge, and nothing else about it has to be true.
+ *
+ * `mirrored` because the two wings are the same quad at ±x, so one of them
+ * needs its root on the other side. Turning the texture rather than the mesh —
+ * the mesh's own rotation is the flap.
+ */
+export function wingSkin(mirrored: boolean): THREE.CanvasTexture {
+  const tex = propCanvas((g) => {
+    if (mirrored) {
+      g.translate(64, 0);
+      g.scale(-1, 1);
+    }
+    // The wing body: root at the left, sweeping out and down to the right.
+    const feathers = 4;
+    const path = () => {
+      g.beginPath();
+      g.moveTo(2, 8);
+      g.lineTo(50, 4);
+      // Scallops along the trailing edge, big enough to survive 64px.
+      for (let i = 0; i < feathers; i++) {
+        const x = 56 - i * 14;
+        g.arc(x - 7, 34, 8.5, -Math.PI / 2 + 0.2, Math.PI / 2 - 0.2);
+        g.lineTo(x - 14, 34);
+      }
+      g.lineTo(2, 34);
+      g.closePath();
+    };
+    g.lineJoin = "round";
+    g.strokeStyle = INK;
+    g.lineWidth = 7;
+    path();
+    g.stroke();
+    g.fillStyle = "#f0d97a";
+    path();
+    g.fill();
+    // Feather divisions: three hard lines, no shading.
+    g.strokeStyle = "#b8964a";
+    g.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      g.beginPath();
+      g.moveTo(8, 12 + i * 6);
+      g.lineTo(48 - i * 10, 30);
+      g.stroke();
+    }
+  });
+  return tex;
+}
+
+/**
+ * A firework tube for the win rack: candy stripes, ink bands, a green fuse.
+ *
+ * The pyro used to be five identical smooth orange cones and, on the biggest
+ * beat in the game, five identical smooth orange cones are traffic cones. What
+ * a cheap firework looks like is a *striped cardboard tube* with something
+ * coming out of it, and the tube is the part that says which of the two this is
+ * — it is there before the jet lights and after it goes out.
+ */
+export function pyroTube(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#f4f2fa";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#a3164e";
+    for (let i = -64; i < 64; i += 26) {
+      g.beginPath();
+      g.moveTo(i, 64);
+      g.lineTo(i + 13, 64);
+      g.lineTo(i + 77, 0);
+      g.lineTo(i + 64, 0);
+      g.closePath();
+      g.fill();
+    }
+    g.fillStyle = INK;
+    g.fillRect(0, 0, 64, 7);
+    g.fillRect(0, 57, 64, 7);
+    g.fillStyle = "#7fe018";
+    g.fillRect(26, 7, 12, 6);
+    inkEdge(g, 3);
+  });
+}
+
+/**
+ * The jet: a tapering column of hard chevrons, cut out of nothing.
+ *
+ * A sprite rather than a cone, because the cone was the problem. Scaled in y by
+ * the act, which stretches the tile — affine warp is on-brand and a firework
+ * that grows by smearing is exactly what a 1997 particle looked like.
+ */
+export function pyroFlame(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    // Rows, widest at the base, in three heat steps and one acid one. Hard
+    // rectangles: a flame drawn as a gradient is a light, and this is a decal.
+    const rows: [y: number, h: number, w: number, color: string][] = [
+      [52, 12, 30, "#ffd97a"],
+      [40, 12, 26, "#ffa41a"],
+      [28, 12, 20, "#ed5705"],
+      [18, 10, 14, "#ffa41a"],
+      [9, 9, 9, "#ffd97a"],
+      [2, 7, 5, "#ffffff"],
+    ];
+    for (const [y, h, w, color] of rows) {
+      g.fillStyle = color;
+      g.fillRect(32 - w / 2, y, w, h);
+    }
+    // Two acid flecks, always the same two.
+    g.fillStyle = "#7fe018";
+    g.fillRect(10, 44, 5, 5);
+    g.fillRect(50, 32, 4, 4);
+  });
+}
+
+/**
+ * A starburst: eight rays, a ring of dots, a white core.
+ *
+ * The thing a canned firework is *for*, and the part the old rack had none of.
+ * Two cels' worth of the same shape swapped by scale, never by fade — a
+ * sparkle that fades is a light and a sparkle that snaps is a sticker.
+ */
+export function pyroBurst(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.translate(32, 32);
+    for (let i = 0; i < 8; i++) {
+      g.save();
+      g.rotate((i / 8) * Math.PI * 2);
+      g.fillStyle = i % 2 === 0 ? "#ffd97a" : "#a3164e";
+      g.beginPath();
+      g.moveTo(0, -30);
+      g.lineTo(4, -6);
+      g.lineTo(-4, -6);
+      g.closePath();
+      g.fill();
+      // The dot on the end of the ray, which is the whole vocabulary.
+      g.fillStyle = "#ffffff";
+      g.fillRect(-2, -30, 4, 4);
+      g.restore();
+    }
+    g.fillStyle = "#7fe018";
+    g.beginPath();
+    g.arc(0, 0, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.arc(0, 0, 5, 0, Math.PI * 2);
+    g.fill();
+  });
+}
+
+/**
+ * The beacon's glass: amber, ribbed, with one hot sector.
+ *
+ * Wrapped around the housing so the ribs go round it, which is the one thing
+ * that says this lamp turns even on the frames where nothing has moved.
+ */
+export function beaconGlass(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#c4460a";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#ff8a2a";
+    for (let i = 0; i < 8; i++) g.fillRect(i * 8, 0, 4, 64);
+    // The hot sector: a quarter of the lamp is brighter than the rest and stays
+    // that quarter, so the spin reads as a thing going past rather than as the
+    // whole housing pulsing.
+    g.fillStyle = "#ffd97a";
+    g.fillRect(6, 0, 12, 64);
+    g.fillStyle = INK;
+    g.fillRect(0, 0, 64, 4);
+    g.fillRect(0, 60, 64, 4);
+  });
+}
+
+/**
+ * The strobe's flare: a hard four-point star with a stepped corona.
+ *
+ * A cheap 3D lens flare, drawn as concentric rings rather than as a gradient,
+ * on one quad behind the lamp. It is what gives a small object at the edge of
+ * the frame the presence a threat cue needs without giving it more geometry.
+ */
+export function flareStar(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.translate(32, 32);
+    // Four long rays and four short ones.
+    for (let i = 0; i < 8; i++) {
+      g.save();
+      g.rotate((i / 8) * Math.PI * 2);
+      const arm = i % 2 === 0 ? 31 : 17;
+      g.fillStyle = i % 2 === 0 ? "#ffb14a" : "#ed5705";
+      g.beginPath();
+      g.moveTo(0, -arm);
+      g.lineTo(5, -4);
+      g.lineTo(-5, -4);
+      g.closePath();
+      g.fill();
+      g.restore();
+    }
+    const ring = (r: number, color: string) => {
+      g.fillStyle = color;
+      g.beginPath();
+      g.arc(0, 0, r, 0, Math.PI * 2);
+      g.fill();
+    };
+    ring(13, "#ed5705");
+    ring(9, "#ffb14a");
+    ring(5, "#fff3d0");
+  });
+}
+
 /** Hazard stripes, for the threat beacon. The heat family means fever. */
 export function hazardSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {
@@ -339,31 +707,32 @@ export function hazardSkin(): THREE.CanvasTexture {
 /**
  * Acorn's bumper: foam, in chevrons, in a colour nobody would choose.
  *
- * Tiled along the rail's length. A box's faces each get the whole 0..1 tile,
- * so on a rail fifteen units long and half a unit thick the chevrons came out
- * as four smeared streaks — the wrong kind of cheap, because it reads as a
- * stretched texture rather than as painted foam.
+ * Tiled along the rail's length — but only three times, and with two chevrons
+ * per tile. It was nine repeats of a five-chevron tile, which is fifty stripes
+ * across a rail that recedes to a point, and the result was moiré: at the far
+ * end the stripe period fell under a pixel and the rail shimmered instead of
+ * sitting still. Fine detail on a prop that runs *into* the frame is not detail,
+ * it is aliasing, and the nearest filter has no mip chain to save it. Fat
+ * stripes at a low repeat are the only version of this that holds still.
  */
 export function bumperSkin(): THREE.CanvasTexture {
   const tex = propCanvas((g) => {
-    g.fillStyle = "#c9a227";
+    g.fillStyle = "#f0ece0";
     g.fillRect(0, 0, 64, 64);
-    g.fillStyle = "#e8e4f0";
-    for (let i = -64; i < 64; i += 20) {
+    g.fillStyle = "#a3164e";
+    for (let i = -64; i < 64; i += 32) {
       g.beginPath();
       g.moveTo(i, 64);
-      g.lineTo(i + 9, 64);
-      g.lineTo(i + 73, 0);
+      g.lineTo(i + 16, 64);
+      g.lineTo(i + 80, 0);
       g.lineTo(i + 64, 0);
       g.closePath();
       g.fill();
     }
-    // The seam where two lengths of foam were pushed together and left.
-    g.fillStyle = "#8f6f14";
-    g.fillRect(0, 30, 64, 3);
+    inkEdge(g, 4);
   });
   tex.wrapS = THREE.RepeatWrapping;
-  tex.repeat.set(9, 1);
+  tex.repeat.set(3, 1);
   return tex;
 }
 
@@ -561,18 +930,25 @@ export function pianoFace(): THREE.CanvasTexture {
  * Lighter than iron is, because a dark sphere against a near-black void is a
  * silhouette — the harness handed back a hole in the picture with two eyes in
  * it. The facets have to catch something for the shape to read as round.
+ *
+ * Lighter again, and for the second time for the same reason. The mid-grey it
+ * was still lost to the *board*, which is a dark plate the ball swings across
+ * for the whole act: only the eyes came through. This is chrome now rather than
+ * iron, which the prop's name doesn't mind and its silhouette needs.
  */
 export function ironSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {
-    g.fillStyle = "#59606b";
+    g.fillStyle = "#b3bac8";
     g.fillRect(0, 0, 64, 64);
-    g.fillStyle = "#464c56";
+    g.fillStyle = "#8a92a2";
     g.fillRect(0, 26, 64, 14);
-    g.fillStyle = "#767e8b";
-    g.fillRect(0, 8, 64, 4);
+    g.fillStyle = "#e6ebf4";
+    g.fillRect(0, 8, 64, 6);
+    g.fillStyle = "#6b7382";
+    g.fillRect(0, 54, 64, 10);
     // Rust, in three blocks, same as the mower's — the alley has one weather.
-    g.fillStyle = "#8a5a2b";
-    g.fillRect(10, 46, 9, 6);
+    g.fillStyle = "#b0713a";
+    g.fillRect(10, 44, 9, 6);
     g.fillRect(44, 18, 7, 5);
   });
 }
@@ -584,13 +960,18 @@ export function ironSkin(): THREE.CanvasTexture {
  */
 export function ironFace(): THREE.CanvasTexture {
   return propCanvas((g) => {
-    g.fillStyle = "#e8e4f0";
+    // An ink socket under the whites, so the face survives the ball going
+    // chrome — white eyes on a white sphere are no eyes at all.
+    g.fillStyle = INK;
+    g.fillRect(5, 15, 24, 26);
+    g.fillRect(35, 15, 24, 26);
+    g.fillStyle = "#ffffff";
     g.fillRect(8, 18, 18, 20);
     g.fillRect(38, 18, 18, 20);
     // The lids: a hard bar across the top half of each, which is the whole of
-    // the expression. The iron's own mid tone, so it reads as the ball's
-    // surface coming down over the eye rather than as a second colour.
-    g.fillStyle = "#464c56";
+    // the expression. The ball's own mid tone, so it reads as its surface
+    // coming down over the eye rather than as a second colour.
+    g.fillStyle = "#8a92a2";
     g.fillRect(8, 18, 18, 9);
     g.fillRect(38, 18, 18, 9);
     g.fillStyle = "#17111c";
@@ -622,20 +1003,103 @@ export function mirrorFacets(): THREE.CanvasTexture {
 }
 
 /**
- * The foam finger. A number, a word, and a colour that was chosen from a list
- * of two — the sponsor decal the truck wears, moved onto merchandise.
+ * The foam finger's foam. Acid green, an ink outline, and nothing else.
  *
- * `NO. 1` rather than `#1`: the hash sets narrow and closed up at this size and
- * came back from the harness as a smudge over the numeral.
+ * The word used to be baked in here and box-mapped onto every part, which put
+ * `NO. 1` on the palm, the finger and the thumb at three different sizes — and
+ * because the tile is the whole of each face, what came back was three green
+ * boxes with writing on them rather than a hand. The livery is now plain and
+ * outlined; the word is a decal on one quad (`foamNumber`), sized once.
  */
 export function foamSkin(): THREE.CanvasTexture {
   return propCanvas((g) => {
     g.fillStyle = "#7fe018";
     g.fillRect(0, 0, 64, 64);
+    // Foam has a nap. Two blocks of a lighter green, fixed, because wrongness
+    // repeats — and because a completely flat fill on a box this big reads as
+    // an untextured primitive, which is the accidental kind of bad.
+    g.fillStyle = "#9bec3f";
+    g.fillRect(6, 8, 22, 12);
+    g.fillRect(36, 40, 20, 10);
     g.fillStyle = "#5fae10";
-    g.fillRect(0, 0, 64, 6);
-    g.fillRect(0, 58, 64, 6);
-    shout(g, "NO. 1", "#17111c", 40, 30);
+    g.fillRect(0, 50, 64, 8);
+    inkEdge(g, 3);
+  });
+}
+
+/** The finger's cuff: the wristband, in the disc crimson, outlined. */
+export function foamCuff(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = "#a3164e";
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = "#7a0f3a";
+    g.fillRect(0, 26, 64, 12);
+    g.fillStyle = "#e6d0dc";
+    g.fillRect(0, 22, 64, 4);
+    inkEdge(g, 3);
+  });
+}
+
+/**
+ * `NO. 1`, as a decal cut out of nothing rather than as text on a panel.
+ *
+ * Outlined in ink and shadowed a texel, which is the difference between a
+ * printed decal and a system font: the old version was `fillText` straight onto
+ * the livery, and at prop scale that is unmistakably Arial on a green box.
+ *
+ * `NO. 1` rather than `#1`: the hash sets narrow and closed up at this size and
+ * came back from the harness as a smudge over the numeral.
+ */
+export function foamNumber(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    // A rosette behind the word, so the decal has a shape of its own and the
+    // quad isn't just floating letters.
+    g.fillStyle = INK;
+    g.fillRect(2, 12, 60, 40);
+    g.fillStyle = "#f4f2fa";
+    g.fillRect(5, 15, 54, 34);
+    g.fillStyle = "#a3164e";
+    g.fillRect(5, 15, 54, 5);
+    g.fillRect(5, 44, 54, 5);
+
+    g.save();
+    g.font = 'bold 26px "Arial Black", monospace';
+    g.textAlign = "center";
+    const width = g.measureText("NO. 1").width;
+    const squeeze = Math.min(1, 48 / width);
+    g.translate(32, 40);
+    g.scale(squeeze, 1);
+    g.lineJoin = "round";
+    g.lineWidth = 6;
+    g.strokeStyle = INK;
+    g.strokeText("NO. 1", 0, 0);
+    g.fillStyle = "#a3164e";
+    g.fillText("NO. 1", 0, 0);
+    g.restore();
+  });
+}
+
+/**
+ * Two eyes for the fingertip.
+ *
+ * The finger is the one act that turns round and points at the camera, and it
+ * held that frame for a quarter of the act with nothing on it. Eyes on the tip
+ * mean the thing pointing at you is also looking at you, which is the second
+ * trait exactly — and it costs one quad.
+ */
+export function foamEyes(): THREE.CanvasTexture {
+  return propCanvas((g) => {
+    g.fillStyle = INK;
+    g.fillRect(6, 16, 22, 30);
+    g.fillRect(36, 16, 22, 30);
+    g.fillStyle = "#ffffff";
+    g.fillRect(9, 19, 16, 24);
+    g.fillRect(39, 19, 16, 24);
+    g.fillStyle = INK;
+    // Both pupils hard to one side. It is not looking at you; it is looking
+    // slightly past you, and it has been doing that the whole time.
+    g.fillRect(16, 26, 8, 12);
+    g.fillRect(46, 26, 8, 12);
   });
 }
 

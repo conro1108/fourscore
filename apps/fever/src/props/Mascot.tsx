@@ -36,7 +36,12 @@ export function makeMascot(mood: MascotMood) {
     const body = useRef<THREE.Group>(null);
 
     const face = usePropTexture(() => mascotFace(mood === "cheer" ? "up" : "down"));
-    const faceMat = usePropMaterial({ map: face, glow: 0.45 });
+    // 0.18, down from 0.45. The face was gold and needed the lift to be seen at
+    // all; it is bone now, and bone is what the bloom pass finds first — at the
+    // old value the mascot arrived as a featureless glowing circle, which is
+    // the same problem it had before, solved in the opposite direction. The
+    // piano's note says this in its own words: eye-whites are a lamp at 0.4.
+    const faceMat = usePropMaterial({ map: face, glow: 0.18 });
     const rimMat = usePropMaterial({ color: "#a3164e", glow: 0.15 });
 
     // Its lane is the floor, well below the board, running the whole width and

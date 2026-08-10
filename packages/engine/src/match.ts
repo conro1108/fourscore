@@ -15,7 +15,7 @@
  */
 
 import { CONNECT4, Position, type Cell, type Player, type Variant } from "./board.js";
-import { BALANCED_WEIGHTS, isDecisive, searchHeuristic } from "./evaluate.js";
+import { BALANCED_WEIGHTS, WIN_SCORE, isDecisive, searchHeuristic } from "./evaluate.js";
 import { SearchAborted, TranspositionTable, analyze, maxScoreOf } from "./solver.js";
 
 export type MatchStatus = "playing" | "won" | "draw";
@@ -158,6 +158,44 @@ const REVIEW_DEPTH = 6;
 export const estimateDepth = (ply: number): number => REVIEW_DEPTH + (ply % 2);
 
 /**
+ * The three bands of the advantage axis.
+ *
+ * Reading up from level: quiet estimates fill `0 .. ESTIMATE_CEILING`, a forced
+ * win the evaluator can see but hasn't proved sits just above them, and proven
+ * results own everything from `PROVEN_FLOOR` up. Keeping proven strictly above
+ * estimated is the product rule (CLAUDE.md); the *size* of the gap between them
+ * is not, and it used to be enormous — nothing an estimate produced ever cleared
+ * 0.08, so 44% of each half of the chart was empty and the curve read as
+ * win/lose/draw with nothing in between.
+ *
+ * `ESTIMATE_SCALE` is the evaluator's actual dynamic range, measured over bot
+ * games at `estimateDepth`: |score| runs p50 24, p75 50, p90 106, max ~194.
+ * Dividing by 260 put the median ply at 0.046 — under 2px of a 92px chart —
+ * and never reached the part of tanh that curves. At 80 the median ply is 0.15,
+ * p90 is 0.40, and the compression is doing its job at the top instead of
+ * flattening everything.
+ */
+const ESTIMATE_SCALE = 80;
+const ESTIMATE_CEILING = 0.5;
+const DECISIVE_FLOOR = 0.5;
+const DECISIVE_SPAN = 0.06;
+const PROVEN_FLOOR = 0.6;
+
+/**
+ * Estimated-drop bands, on that same axis — the units of `PlyRecord.drop`.
+ *
+ * They have to be the same units, and once weren't: `gradeEstimate` read `tanh`
+ * with no ceiling applied while `drop` went through `advantageOf`, so the grade
+ * was describing a number twice the size of the one printed beside it. Both
+ * come off `dropOf` now, which is what keeps "inaccuracy" and the number next
+ * to it the same claim.
+ *
+ * Measured over bot games at `estimateDepth`, these produce roughly
+ * best 76% / good 12% / inaccuracy 6% / mistake 4% / blunder 2%.
+ */
+const ESTIMATE_DROP = { good: 0.06, inaccuracy: 0.15, mistake: 0.32 };
+
+/**
  * Advantage from red's point of view, in -1..1.
  *
  * Both scales collapse to the same axis so one curve can run the whole game:
@@ -187,13 +225,24 @@ export function advantageOf(
       scoreForMover === 0
         ? 0
         : Math.sign(scoreForMover) *
-          (0.6 + 0.4 * Math.min(1, Math.abs(scoreForMover) / maxScoreOf(v)));
+          (PROVEN_FLOOR +
+            (1 - PROVEN_FLOOR) * Math.min(1, Math.abs(scoreForMover) / maxScoreOf(v)));
   } else if (isDecisive(scoreForMover, v)) {
     // A forced win the evaluator can see is decisive, but it stays below the
     // proven band: the solver has the last word on this axis.
-    a = Math.sign(scoreForMover) * 0.55;
+    //
+    // Not one constant, though. A mate score is `WIN_SCORE - discs`, so it says
+    // *when* the win lands, and a win that lands with most of the board still
+    // empty is a harder read than one that lands as the board fills — the same
+    // discs-to-spare idea the proven band is built on. That turns what was a
+    // flat plateau from the first forced win to the end of the game into a line
+    // that still moves. It is a narrow ramp on purpose: the honest content here
+    // is "this is over", and the timing is a detail inside that.
+    const winsAt = WIN_SCORE - Math.abs(scoreForMover);
+    const spare = Math.min(1, Math.max(0, (v.cells - winsAt) / v.cells));
+    a = Math.sign(scoreForMover) * (DECISIVE_FLOOR + DECISIVE_SPAN * spare);
   } else {
-    a = Math.tanh(scoreForMover / 260) * 0.5;
+    a = Math.tanh(scoreForMover / ESTIMATE_SCALE) * ESTIMATE_CEILING;
   }
   return moverIsRed ? a : -a;
 }
@@ -385,7 +434,13 @@ export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}
   // A lead for when nothing was proven. Deliberately the largest drop rather
   // than the earliest: with no proof of what changed the result, "where did most
   // of your advantage go" is the honest question this can answer.
-  const swings = plies.filter((p) => p.source === "estimated" && p.drop > 0.25);
+  // "At least a mistake" — the same threshold the grade uses, so the lead can't
+  // point at a move the list calls an inaccuracy. The old gate was 0.25 on an
+  // axis where an estimated drop could only clear it by crossing the
+  // decisive boundary, which made this unreachable in an ordinary game.
+  const swings = plies.filter(
+    (p) => p.source === "estimated" && p.drop > ESTIMATE_DROP.inaccuracy,
+  );
   const biggestSwing =
     swings.length > 0 ? swings.reduce((m, p) => (p.drop > m.drop ? p : m)) : null;
 
@@ -418,10 +473,12 @@ function gradeEstimate(best: number, played: number, v: Variant): Grade {
   if (played === best) return "best";
   if (isDecisive(best, v) && !isDecisive(played, v)) return "blunder";
 
-  const drop = Math.abs(Math.tanh(best / 260) - Math.tanh(played / 260));
-  if (drop <= 0.05) return "good";
-  if (drop <= 0.15) return "inaccuracy";
-  if (drop <= 0.35) return "mistake";
+  // Point of view doesn't matter: both ends flip together, and the drop is a
+  // magnitude.
+  const drop = dropOf(best, played, true, "estimated", v);
+  if (drop <= ESTIMATE_DROP.good) return "good";
+  if (drop <= ESTIMATE_DROP.inaccuracy) return "inaccuracy";
+  if (drop <= ESTIMATE_DROP.mistake) return "mistake";
   return "blunder";
 }
 

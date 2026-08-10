@@ -45,7 +45,7 @@ export function Washer({ layout, phase }: { layout: StageLayout; phase: () => nu
   const plankMat = usePropMaterial({ map: plank, glow: 0.15 });
   const ropeMat = usePropMaterial({ color: "#8a7f6b" });
   const rimMat = usePropMaterial({ color: "#a3164e", glow: 0.15 });
-  const faceMat = usePropMaterial({ map: face, glow: 0.35 });
+  const faceMat = usePropMaterial({ map: face, glow: 0.18 });
   const rubberMat = usePropMaterial({ color: "#2c2733" });
   // Dim, because bloom finds it. At 1.6 the stripe came back from the harness
   // as a blown-out white bar over the top of the frame — brighter than the

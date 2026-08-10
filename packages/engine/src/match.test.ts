@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CONNECT5, HEIGHT, Position, WIDTH } from "./board.js";
-import { Match, findWinningLine, gradeMove, reviewMatch } from "./match.js";
-import { analyze } from "./solver.js";
+import { CONNECT4, CONNECT5, HEIGHT, Position, WIDTH } from "./board.js";
+import { WIN_SCORE } from "./evaluate.js";
+import { Match, advantageOf, findWinningLine, gradeMove, reviewMatch } from "./match.js";
+import { analyze, maxScoreOf } from "./solver.js";
 
 describe("Connect 5", () => {
   it("needs five in a row, not four", () => {
@@ -120,6 +121,52 @@ describe("gradeMove", () => {
   it("never calls a result-preserving move a blunder", () => {
     // Losing eleven points while still winning is bad play, not a lost game.
     expect(gradeMove(12, 1)).not.toBe("blunder");
+  });
+});
+
+describe("advantageOf", () => {
+  const est = (s: number, v = CONNECT4) => advantageOf(s, true, "estimated", v);
+  const prv = (s: number, v = CONNECT4) => advantageOf(s, true, "proven", v);
+  /** A mate score for a win landing once `discs` are on the board. */
+  const mate = (discs: number) => WIN_SCORE - discs;
+
+  it("keeps proven strictly above anything an estimate can reach", () => {
+    for (const v of [CONNECT4, CONNECT5]) {
+      // The widest an estimate can go: a huge positional score, and the most
+      // emphatic forced win the evaluator can see (one landing on disc 1).
+      const ceiling = Math.max(est(10_000, v), est(mate(1), v));
+      const floor = prv(1, v);
+      expect(ceiling).toBeLessThan(floor);
+      expect(prv(maxScoreOf(v), v)).toBeCloseTo(1, 10);
+    }
+  });
+
+  it("spends the midgame on the part of the scale that moves", () => {
+    // The evaluator's real per-ply magnitudes, measured over bot games: p50 24,
+    // p75 50, p90 106. All three have to be visibly apart — this used to squash
+    // the whole midgame into ±0.08, under 4px of a 92px chart.
+    const [a, b, c] = [est(24), est(50), est(106)];
+    expect(a).toBeGreaterThan(0.1);
+    expect(b - a).toBeGreaterThan(0.05);
+    expect(c - b).toBeGreaterThan(0.05);
+    expect(c).toBeLessThan(0.5);
+  });
+
+  it("ramps the estimated-decisive band instead of plateauing on it", () => {
+    // A forced win the evaluator can see, landing early vs. late. Both say "this
+    // is over"; the earlier one says it harder, and the line still moves.
+    expect(est(mate(8))).toBeGreaterThan(est(mate(34)));
+    expect(est(mate(34))).toBeGreaterThan(est(10_000));
+    expect(est(mate(1))).toBeLessThan(0.6);
+  });
+
+  it("is antisymmetric in the mover's colour", () => {
+    for (const s of [0, 7, -40, 300, mate(12), -mate(12)]) {
+      expect(advantageOf(s, false, "estimated")).toBeCloseTo(
+        -advantageOf(s, true, "estimated"),
+        12,
+      );
+    }
   });
 });
 
@@ -252,7 +299,9 @@ describe("reviewMatch", () => {
       // moves — never from a proven one, which would have its own headline.
       expect(review.biggestSwing.player).toBe("red");
       expect(review.biggestSwing.source).toBe("estimated");
-      expect(review.biggestSwing.drop).toBeGreaterThan(0.25);
+      // The gate is `ESTIMATE_DROP.inaccuracy` — a lead is only offered for a
+      // move the review would already call at least a mistake.
+      expect(review.biggestSwing.drop).toBeGreaterThan(0.15);
     }
   });
 });

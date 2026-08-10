@@ -61,11 +61,19 @@ const ATTRACT_IDLE: Candidate[] = [
   // The full-frame acts are the best things in the roster and the menu is where
   // they are the *content* rather than punctuation, so they carry real weight
   // here. Two at a time, in two different berths, is what the attract loop is.
+  //
+  // All six of them, and that took a fix: `window-washer` shipped into the
+  // blunder pool only, which made it the one full-frame act the menu never
+  // played — an act that exists to fill the frame, shown only to a player who
+  // has just lost ground. It joins at the lower tier because `cannon-shot`
+  // already holds `left` at 3 and two acts in one berth is what the berth rule
+  // is for; the veto would eat the draw more often than it is worth.
   w("cannon-shot", 3),
   w("wrecking-ball", 3),
   w("foam-finger", 2),
   w("mirror-ball", 2),
   w("piano-drop", 2),
+  w("window-washer", 2),
 ];
 
 /**
@@ -95,11 +103,24 @@ const MATCH_IDLE: readonly Candidate[] = [];
  * That is the opposite of the reference. A lane screen reacts to *throws*, not
  * to quality; it has no idea whether what you did was good and it goes off
  * anyway. So an ordinary move now draws from a pool that is mostly silence and
- * is otherwise the two acts that cannot be read as a verdict — an interlude
- * about nothing and a word that is enthusiastic about nothing.
+ * is otherwise the acts that cannot be read as a verdict — an interlude about
+ * nothing, and words that are enthusiastic, bored and self-regarding about
+ * nothing.
  *
  * The weights are the tuning: `fine` is ~85% of moves in a real game, so the
- * silence weight is what keeps this a surprise rather than a metronome.
+ * silence weight is what keeps this a surprise rather than a metronome. It was
+ * 26 of 31 — 84% — and a whole match went by with the stage empty, which is the
+ * *other* failure of the readout: a screen that only reacts when it is
+ * impressed and a screen that never reacts are both screens you stop watching.
+ * 60% is the number now, and the band it has to stay inside (55-65%) is in
+ * `gags.test.ts` rather than the literal weights, because what matters is the
+ * share. Not lower: an act every move is exhausting and the stage's 1.6s quiet
+ * window is already throttling on top of this.
+ *
+ * The totals are kept around 30 rather than reduced to the smallest integers
+ * that hit 60%, because Moss's signature hangs off `fine` at `SIGNATURE_WEIGHT`
+ * and a smaller pool would silently make the mower twice as frequent. Shrinking
+ * a pool is a change to every signature riding it.
  */
 const MOVES: Record<"brilliant" | "fine" | "dubious" | "blunder", Candidate[]> = {
   brilliant: [
@@ -124,7 +145,25 @@ const MOVES: Record<"brilliant" | "fine" | "dubious" | "blunder", Candidate[]> =
   // The cherub sits here with the stare: both are something arriving to
   // consider what you did and declining to say. Neither claims a result.
   dubious: [w("stare-down", 2), w("callout-huh", 2), w("mirror-ball", 2), w("cherub-visit", 2)],
-  fine: [w(null, 26), w("deep-space", 2), w("callout-incredible", 2), w("callout-a-move", 1)],
+  // `deep-space` leads the acts because it is the only one of them that is a
+  // clip rather than a comment — VISION.md's fourth trait, the screen leaving
+  // the venue for no reason, which cannot be misread as an opinion about a move
+  // because it does not know you made one.
+  //
+  // `callout-still-here` was stranded: it only sat in the attract pool, and a
+  // match emits no idle beats, so the best deadpan line in the callout gallery
+  // could never fire in a game. It answers an ordinary move honestly — the
+  // software volunteering that it has not gone anywhere is exactly a screen
+  // reacting to the fact that you moved and nothing else. Lowest weight of the
+  // four: it is the one that is about the software rather than the game, and
+  // that joke thins out fast.
+  fine: [
+    w(null, 18),
+    w("deep-space", 4),
+    w("callout-incredible", 3),
+    w("callout-a-move", 3),
+    w("callout-still-here", 2),
+  ],
 };
 
 /** Every act that may answer this event, with how often it should. */
@@ -135,17 +174,37 @@ export function candidatesFor(
   switch (event.kind) {
     case "move":
       return MOVES[event.quality];
+    // The busiest cue on the bus, and three of the eight opponents also hang
+    // their signature here — so a weight of 1 in this pool is not "rare", it is
+    // roughly never. `callout-heat` was that 1 (one in sixteen on Pebble,
+    // Bramble, Quill and the Oracle), which is a strange thing to do to the one
+    // act in the roster whose actual words are HEATING UP. It sits in the pool's
+    // band now rather than at the bottom of it. Not 4: `beacon-drop` and
+    // `wrecking-ball` are what a threat *looks* like, and the word is
+    // punctuation on them.
     case "threat":
       return [
         w("beacon-drop", 4),
         w("stare-down", 2),
-        w("callout-heat", 1),
+        w("callout-heat", 3),
         w("wrecking-ball", 4),
       ];
+    // A collapse is the rarest thing the Director says, and it used to be a pool
+    // of one — so the only time you ever saw it, you saw the same word, and on
+    // Vane's stage you mostly didn't see it at all: `score-lie` hangs off
+    // `tension-shift` at `SIGNATURE_WEIGHT`, which made it 5:1 over the entire
+    // rest of the pool. Three answers now, at 8 against the signature's 5.
+    //
+    // The two additions are honest about a collapse in the way a lane screen is
+    // honest — neither claims a result, and both read as the tension leaving the
+    // room rather than as a verdict on it. The mascot going over is the cast
+    // deflating; the rocket failing to get up is the beat that was building and
+    // then wasn't. `NEVERMIND` still leads by a clear margin because it is the
+    // best line in the game and this is the only event that plays it.
     case "tension-shift":
       return event.direction === "rising"
         ? [w("callout-heat", 2), w("callout-happening", 2), w("mirror-ball", 3)]
-        : [w("callout-nevermind", 1)];
+        : [w("callout-nevermind", 4), w("mascot-flop", 2), w("rocket-fizzle", 2)];
     case "win":
       return [w("win-detonation", 1)];
     case "draw":
@@ -158,11 +217,16 @@ export function candidatesFor(
 /**
  * How heavily an opponent's signature outweighs the general library.
  *
- * A pool sums to 4-8, so at 5 the signature is the likely answer without being
- * the only one — which is the balance the whole file is about. Make it
- * exclusive and the opponent's clip becomes a status light again; leave it at
- * parity and nobody can tell whose stage they are standing on, which is this
- * phase's accept criterion.
+ * The pools a signature can land in sum to 8-13, so at 5 the signature is the
+ * most likely single answer without being the only one — which is the balance
+ * the whole file is about. Make it exclusive and the opponent's clip becomes a
+ * status light again; leave it at parity and nobody can tell whose stage they
+ * are standing on, which is this phase's accept criterion.
+ *
+ * `fine` is the exception at 30, and it is not one: three fifths of that pool is
+ * silence, so Moss's mower is still the likeliest *act* on an ordinary move.
+ * This is also why rebalancing `fine` held its total near 30 — a pool's sum is
+ * a shared constant with every signature hanging off it.
  *
  * A signature also joins the *menu's* idle pool at a smaller weight, so the
  * opponent under the cursor is already dressing the stage behind the roster

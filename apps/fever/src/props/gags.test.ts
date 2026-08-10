@@ -63,29 +63,44 @@ describe("the gag pools", () => {
   /**
    * The ordinary move, which is ~85% of them. It has a pool now — a lane screen
    * reacts to throws and not to quality — but the pool is mostly silence, and
-   * these two numbers are the whole of the tuning: a screen that answers every
-   * move is a screen with no spikes left for the moves that matter.
+   * this share is the whole of the tuning, held as a band because the weights
+   * are relative and only the share means anything.
+   *
+   * Both edges are real failures, not slack. Above the band the stage is empty
+   * for a whole match and the props go back to being a readout — the thing that
+   * only appears when the engine has an opinion about you. Below it the screen
+   * answers every other move, which spends the spikes that the moves that
+   * *matter* need, and fights the stage's 1.6s quiet window as well.
    */
   it("leaves most ordinary moves alone", () => {
     const pool = candidatesFor(FINE);
     const total = pool.reduce((sum, c) => sum + c.weight, 0);
     const silence = pool.find((c) => c.name === null)!.weight;
-    expect(silence / total).toBeGreaterThan(0.7);
-    expect(silence / total).toBeLessThan(0.95);
+    expect(silence / total).toBeGreaterThanOrEqual(0.55);
+    expect(silence / total).toBeLessThanOrEqual(0.65);
   });
 
   /**
    * And what it does answer with may not read as a verdict. The grade is this
    * engine's estimate either way, but `fine` is the one grade where the screen
-   * is reacting to the *fact* that you moved — so its acts are the two that
+   * is reacting to the *fact* that you moved — so its acts are the ones that
    * cannot be mistaken for an opinion about the move: an interlude that has
-   * nothing to do with the game and a word with nothing in it.
+   * nothing to do with the game, and words with nothing in them.
+   *
+   * The allowlist is the point of the test. It is easy to widen this pool with
+   * something that reads as praise or as a wince while chasing the silence
+   * share, and that puts a verdict on a move the engine had no opinion about.
    */
   it("answers an ordinary move only with acts that claim nothing", () => {
     for (const c of candidatesFor(FINE)) {
       if (c.name === null) continue;
       expect(PROP_ACTS[c.name]!.declares, c.name).toBeFalsy();
-      expect(["deep-space", "callout-incredible", "callout-a-move"]).toContain(c.name);
+      expect([
+        "deep-space",
+        "callout-incredible",
+        "callout-a-move",
+        "callout-still-here",
+      ]).toContain(c.name);
     }
   });
 
@@ -126,6 +141,70 @@ describe("the gag pools", () => {
     for (const quality of ["brilliant", "dubious", "blunder"] as const) {
       const pool = candidatesFor({ kind: "move", player: "red", col: 3, quality });
       expect(pool.length, quality).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  /**
+   * The same rule for the rarest cue on the bus. A collapse was a pool of one,
+   * which meant the one beat you almost never see was also the one beat that is
+   * identical every time — and Vane's `score-lie` hangs off `tension-shift`, so
+   * on that stage the single answer was outweighed 5:1 and the collapse read as
+   * Vane's clip rather than as the tension leaving.
+   *
+   * Both halves are asserted, because a wider pool that a signature still
+   * swamps has fixed nothing.
+   */
+  it("has more than one honest answer to a collapse, even on Vane's stage", () => {
+    const collapsing: SpectacleEvent = { kind: "tension-shift", direction: "collapsing" };
+    const pool = candidatesFor(collapsing);
+    expect(pool.length).toBeGreaterThanOrEqual(3);
+
+    const nevermind = pool.find((c) => c.name === "callout-nevermind")!.weight;
+    const others = pool.filter((c) => c.name !== "callout-nevermind");
+    // Still the line the collapse is about: no other act in the pool comes
+    // close to it, so widening the pool didn't demote the best line in the game.
+    expect(nevermind).toBeGreaterThan(Math.max(...others.map((c) => c.weight)));
+
+    // And it survives the signature. `pickGag` maps the roll linearly onto the
+    // pool, so an even sweep of rolls *is* the distribution — no sampling error
+    // and no duplicated copy of `SIGNATURE_WEIGHT` in the test. On Vane's stage
+    // NEVERMIND used to be one draw in six; the bar is a quarter, so a player
+    // watching a collapse mostly hears the line rather than watching the
+    // scoreboard lie about it.
+    const sweep = Array.from({ length: 200 }, (_, i) =>
+      pickGag(collapsing, () => i / 200, { bot: IDENTITIES.vane! }),
+    );
+    const share = sweep.filter((n) => n === "callout-nevermind").length / sweep.length;
+    expect(share).toBeGreaterThan(0.25);
+
+    const drawn = new Set(
+      [0.05, 0.2, 0.4, 0.55, 0.7, 0.85, 0.97].map((r) =>
+        pickGag(collapsing, () => r, { bot: IDENTITIES.vane! }),
+      ),
+    );
+    expect(drawn.has("callout-nevermind")).toBe(true);
+    expect(drawn.has("score-lie")).toBe(true);
+    expect(drawn.size).toBeGreaterThanOrEqual(3);
+  });
+
+  /**
+   * The six full-frame acts exist because the roster had grown up along one
+   * edge of the stage (`registry.ts`, phase 9), and the menu is where they are
+   * the content rather than punctuation. `window-washer` shipped into the
+   * blunder pool alone and so was the one of the six the attract loop never
+   * played — visible only to a player who had just lost ground.
+   */
+  it("plays every full-frame act on the menu", () => {
+    const attract = candidatesFor({ kind: "idle-beat" }, "attract").map((c) => c.name);
+    for (const name of [
+      "cannon-shot",
+      "piano-drop",
+      "wrecking-ball",
+      "mirror-ball",
+      "window-washer",
+      "foam-finger",
+    ]) {
+      expect(attract, name).toContain(name);
     }
   });
 
@@ -187,10 +266,17 @@ describe("drawing a gag", () => {
     expect(second).not.toBe(first);
   });
 
+  /**
+   * `avoid` is a preference, not a filter. This used to be checked on the
+   * collapsing tension shift, which was a pool of one until the collapse got
+   * more than one honest answer; the pools of one now are the two that are
+   * *supposed* to be — a game does not end with a draw from a hat.
+   */
   it("plays a repeat rather than nothing when the pool is one deep", () => {
-    const collapsing: SpectacleEvent = { kind: "tension-shift", direction: "collapsing" };
-    const only = pickGag(collapsing, () => 0.5)!;
-    expect(pickGag(collapsing, () => 0.5, { avoid: only })).toBe(only);
+    const drawn: SpectacleEvent = { kind: "draw" };
+    const only = pickGag(drawn, () => 0.5)!;
+    expect(only).toBe("callout-draw");
+    expect(pickGag(drawn, () => 0.5, { avoid: only })).toBe(only);
   });
 
   /**

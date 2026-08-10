@@ -10,6 +10,14 @@
  * The ball has half-lidded eyes pointed the way it is travelling, which is the
  * whole of its opinion about the job.
  *
+ * It is chrome rather than iron, and that is a legibility call the prop's name
+ * doesn't mind. The mid-grey it wore was already the second attempt at this —
+ * the first was proper dark iron and disappeared into the void — and it still
+ * lost, because the ball spends its whole act crossing the *board*, which is a
+ * dark plate. Only the eyes came through. The rule the audit found is value
+ * contrast against whatever is behind the prop, and on this stage that is two
+ * different dark things, so the ball has to be light.
+ *
  * Budget, audited (8x5 sphere = 64, box = 12, quad = 2):
  *   ball 64 + 8 chain links x 12 = 160, + face 2 = 162 triangles.
  *   Law is <= 300.
@@ -34,9 +42,9 @@ export function Wrecking({ layout, phase }: { layout: StageLayout; phase: () => 
 
   const iron = usePropTexture(ironSkin);
   const face = usePropTexture(ironFace);
-  const ironMat = usePropMaterial({ map: iron, glow: 0.12 });
-  const faceMat = usePropMaterial({ map: face, glow: 0.18, alphaTest: 0.5 });
-  const linkMat = usePropMaterial({ color: "#6c737f", glow: 0.1 });
+  const ironMat = usePropMaterial({ map: iron, glow: 0.14 });
+  const faceMat = usePropMaterial({ map: face, glow: 0.16, alphaTest: 0.5 });
+  const linkMat = usePropMaterial({ color: "#9aa2b0", glow: 0.12 });
 
   // The pivot hangs above the top of the frame, off-screen, and the chain is
   // long enough that the ball swings through the board's own height. At the
