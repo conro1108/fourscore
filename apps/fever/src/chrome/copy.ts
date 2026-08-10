@@ -222,6 +222,8 @@ export const COPY = {
   curveCaption: "your advantage over the game",
   reviewShowAll: (n: number): string => `Show all ${n}`,
   reviewPick: "Pick a move.",
+  /** The board is the other half of this window, so say how to walk it. */
+  reviewKeys: "← and → step through your moves.",
   grade: (g: Grade): string => GRADES[g],
   /** A ply on the board, as the list writes it. */
   plyMove: (ply: number): string => `Move ${moveNo(ply)}`,

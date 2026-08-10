@@ -127,6 +127,34 @@ await page.waitForTimeout(400);
 await page.screenshot({ path: `${outDir}/live-review-scrub.png` });
 console.log("scrubbed to", scrub);
 
+// Arrow keys walk the game. Through your own moves, clamped at both ends —
+// the board is what is being scrubbed, so stepping off the end and wrapping to
+// the opening would be twenty discs of surprise.
+const plies = await page.evaluate(() =>
+  window.__fever.reviewStore.getState().review.plies.map((p) => p.ply),
+);
+const selection = () => page.evaluate(() => window.__fever.reviewStore.getState().selected);
+const at = plies.indexOf(scrub.ply);
+
+await page.keyboard.press("ArrowRight");
+if ((await selection()) !== plies[at + 1]) fail("right arrow did not step forward a move");
+await page.keyboard.press("ArrowLeft");
+await page.keyboard.press("ArrowLeft");
+if ((await selection()) !== plies[at - 1]) fail("left arrow did not step back a move");
+
+// The far end, and one past it.
+for (let i = 0; i < plies.length + 2; i++) await page.keyboard.press("ArrowRight");
+if ((await selection()) !== plies[plies.length - 1]) fail("right arrow ran off the end of the game");
+for (let i = 0; i < plies.length + 2; i++) await page.keyboard.press("ArrowLeft");
+if ((await selection()) !== plies[0]) fail("left arrow ran off the start of the game");
+console.log("arrows step and clamp across", plies.length, "moves");
+
+// The board follows the keys, not just the store.
+const landed = await page.evaluate(() => window.__fever.matchStore.getState().moves.length);
+await page.waitForTimeout(300);
+await page.screenshot({ path: `${outDir}/live-review-first.png` });
+if (landed === 0) fail("the move list emptied");
+
 // And releasing it puts the finished game back.
 await page.evaluate(() => window.__fever.reviewStore.getState().select(null));
 await page.waitForTimeout(300);

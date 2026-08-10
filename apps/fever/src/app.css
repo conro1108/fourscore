@@ -856,6 +856,14 @@ body {
   line-height: 1.45;
 }
 
+/* The key hint, at the size period software put its hints: small, grey, and
+   nowhere near the thing it describes shouting for attention. */
+.review-keys {
+  font-size: 11px;
+  color: #55524c;
+  text-align: right;
+}
+
 .review-wait p {
   margin: 0 0 8px;
 }

@@ -16,7 +16,7 @@
  * is carried entirely by how hard the sentences push.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Player, Review as ReviewData } from "@fourscore/engine";
 import { EvalCurve } from "./EvalCurve.js";
 import { Btn, Window } from "./Window.js";
@@ -56,6 +56,48 @@ export function Review({
 
   const head = review && status === "ready" ? COPY.reviewHeadline(review, lost) : null;
   const detail = record ? COPY.plyLine(record) : COPY.reviewPick;
+
+  /**
+   * Step to the next or previous move of yours.
+   *
+   * Through `mine` rather than through every ply, because that is what the rest
+   * of the window counts in: the list, the headline and the word "move" all mean
+   * one of yours. It clamps at both ends rather than wrapping — walking off the
+   * end of a game and landing back at the opening is the review losing your
+   * place, and the board jumping twenty discs to say so.
+   *
+   * A step from nothing selected enters at the end the key points at.
+   */
+  const step = (dir: 1 | -1) => {
+    if (mine.length === 0) return;
+    if (selected === null) return onSelect((dir === 1 ? mine[0]! : mine[mine.length - 1]!).ply);
+    const next =
+      dir === 1
+        ? mine.find((p) => p.ply > selected)
+        : [...mine].reverse().find((p) => p.ply < selected);
+    if (next) onSelect(next.ply);
+  };
+
+  // Window-level, because the thing being scrubbed is the board and there is
+  // nothing sensible to focus first. Only while a review is actually on screen:
+  // this component unmounts with the window, so the listener goes with it.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      // Not while somebody is typing — the lobby's join field is the only text
+      // input in the game, but a review that eats arrow keys globally is the
+      // kind of thing that only shows up later.
+      if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
+      e.preventDefault();
+      step(e.key === "ArrowRight" ? 1 : -1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // No dependency list on purpose: the handler closes over the current
+    // selection, and rebinding one listener per render is cheaper and clearer
+    // than keeping it in a ref.
+  });
 
   return (
     <Window
@@ -100,6 +142,13 @@ export function Review({
                 key={rec.ply}
                 type="button"
                 className={`review-item ${selected === rec.ply ? "review-item--on" : ""}`}
+                // Keep the selected row visible: arrow keys walk past the bottom
+                // of a scrolling list box, and a highlight you can't see reads
+                // as the keys doing nothing. `nearest` so it never scrolls the
+                // page behind the window.
+                ref={(el) => {
+                  if (el && selected === rec.ply) el.scrollIntoView({ block: "nearest" });
+                }}
                 onClick={() => onSelect(selected === rec.ply ? null : rec.ply)}
               >
                 <b>{COPY.plyMove(rec.ply)}</b>
@@ -115,11 +164,13 @@ export function Review({
               height as you click down a list is a window that moves under you. */}
           <p className="review-detail">{detail === head?.body ? "" : detail}</p>
 
-          {mine.length > shown.length && (
-            <div className="row">
+          <div className="row">
+            {mine.length > shown.length && (
               <Btn onClick={() => setShowAll(true)}>{COPY.reviewShowAll(mine.length)}</Btn>
-            </div>
-          )}
+            )}
+            <span className="spacer" />
+            {mine.length > 1 && <span className="review-keys">{COPY.reviewKeys}</span>}
+          </div>
         </>
       )}
     </Window>
