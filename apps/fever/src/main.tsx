@@ -10,6 +10,7 @@ import { useShellStore } from "./chrome/store.js";
 import { joinMatch, openLobby, startOnline } from "./online/runtime.js";
 import { pendingJoin } from "./online/session.js";
 import { useOnlineStore } from "./online/store.js";
+import { useReviewStore } from "./review/store.js";
 import { supabase } from "./online/supabase.js";
 import { stageFx } from "./stage/fx.js";
 import { bedLoops, installAudio, masterLevel, playSpike, rigState } from "./audio/index.js";
@@ -49,6 +50,10 @@ if (import.meta.env.DEV) {
     evalFeed: useEvalFeed,
     subscribeEvents,
     shellStore: useShellStore,
+    // The review runs on the analysis worker and takes seconds, so the only way
+    // to check that a real game reaches a real verdict is to wait on this from
+    // outside (`tools/live-review.mjs`).
+    reviewStore: useReviewStore,
     // Two browsers playing each other is the one thing in the game no unit
     // test and no screenshot can see; `tools/online.mjs` drives both through
     // here (and through the real lobby buttons).

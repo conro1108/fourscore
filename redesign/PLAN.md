@@ -69,7 +69,7 @@ phase 9, not a reason to keep polishing blind.
 - [x] 6½ — **The Lane Screen Audit** ⚑ *(Opus, with Connor's eye on the
       roster)* — runs before 7, because it changes what everything after it is
       written against
-- [ ] 7 — Review, reimagined *(Opus)*
+- [x] 7 — Review, reimagined *(Opus)* — taken after 8
 - [x] 8 — Online *(Opus)* — taken before 7 at Connor's call ("i need
       multiplayer back")
 - [ ] 9 — **The Polish Lap** ⚑ *(Fable, with Connor)*
@@ -883,6 +883,65 @@ thesis artifacts, and what they couldn't fix.
   `chrome-online-loss`, and from the live run `online-waiting`,
   `online-host-end`, `online-guest-end`, `online-opponent-left`, `online-c5`.
 
+- **Phase 7 — Review, reimagined** *(Opus, 2026-08-09, taken last of the Opus
+  phases)*. The engine's review was never the problem — `reviewMatch` and its
+  confidence rules came through the reskin untouched — so this phase is a window,
+  a chart and a seam to the stage.
+  **The entry point is a third button on the outcome window**, `READ IT BACK.`,
+  in both the bot and the online outcome (a review needs no opponent, so a game
+  against a stranger gets one too). Pressing it dismisses the outcome the same
+  way the X does and opens the review in its place, so the two never stack.
+  **The window is docked to the right rather than centred, and it is the only
+  window in the game with no veil under it.** Both follow from the one idea worth
+  keeping from this phase: selecting a move winds the board *behind* the window
+  back to the position that mover was looking at, and marks two columns on it —
+  what would have held, as a ghost coin in the mover's colour, and what they
+  played instead, as the same coin in the void's lilac. The sentence says
+  "column 5" and the board shows column 5. A centred window under a veil would
+  have made all of that invisible, which is what a review in a panel is.
+  **`review/store.ts` runs on the analysis worker** (phase 1's second worker,
+  which its own comment promised to this phase) and everything in it is guarded
+  by `generation`: a review is about one finished game, the player can start
+  another while it is still solving, and `useScrub(generation)` is what stops a
+  verdict about a dead board reaching the stage. Starting a game clears it —
+  from `Chrome.tsx`, because the match store has no business knowing this screen
+  exists.
+  **Every string is in `chrome/copy.ts`**, per phase 6, including `plyLine` and
+  `reviewHeadline` — they are pure functions of a `PlyRecord`/`Review` and the
+  confidence law is *in* them, so `copy.test.ts` tests it as a property: an
+  estimated ply must hedge and must not contain a claim verb; only a proven one
+  may say a move lost the game. That test is the guard on phase 9's copy pass
+  tightening a hedge out of a sentence for rhythm.
+  **What phase 9 gets:** `preview/reviewFixture.ts` is a real review of a real
+  losing game, captured twice — once solved, once with a node budget of one so
+  nothing is proven. States `review-proven` / `review-estimated` render the same
+  blunder on the same board with the copy at both confidences, which is the row
+  to read if anyone touches this copy again. `review-reading` is the state the
+  window opens into and sits in for ~5s.
+  **Deviations / inventions:** `Window.tsx` now writes its drag as `--dx`/`--dy`
+  custom properties instead of a whole `transform`, because a window that isn't
+  centred would otherwise snap to the middle the first time you took hold of it —
+  where a window *sits* is the stylesheet's business now. `GhostDisc` grew a
+  `dim` flag rather than the review getting its own marker geometry. And the ply
+  detail is suppressed when it is word for word the headline's own sentence,
+  which is what selecting the turning point does.
+  **Verified:** `npm test` 221 green (7 new), typecheck and `npm run build`
+  clean, `npm run acceptance` unaffected at 120fps on both variants, all three
+  preview states screenshotted and looked at, and **`npm run review` (new)** —
+  it plays a full game through the real chrome, presses the real button, waits
+  for the analysis worker (4.6s on a 16-ply game), asserts the review is about
+  the current generation, that the curve covers the whole game and that no
+  estimated ply claimed a turning point, then scrubs to a move and proves the
+  board moved. Shots: `review-proven`, `review-estimated`, `review-reading`,
+  `live-review`, `live-review-scrub`, `live-review-reading`.
+  **Against the phase-2 artifacts:** the window is the same beige furniture as
+  everything else and the only new surface is the chart, which is deliberately
+  the one thing in the chrome that isn't beige — a white ruled charting control
+  sunk into the window, because that is what period software would have shipped.
+  The screenshot that mattered was the mark on the board: the played column was
+  first drawn in the mud a losing disc dims to, which against a dark void is a
+  marker nobody can see. It typechecked, and it was invisible.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
@@ -1119,3 +1178,31 @@ thesis artifacts, and what they couldn't fix.
 - **Open (phase 8):** the app now creates an anonymous auth user the first time
   anyone opens the lobby, and nothing ever deletes them. Cheap and invisible at
   this scale; worth a sweep if the toybox database ever grows a bill.
+- **Decision (phase 7):** the review is a dialog, not a screen, and the only one
+  with no veil under it. The board behind it is the thing it is talking about —
+  it winds back as you select moves, and you can still take hold of the void and
+  turn it while you read. Every other window in the game floats over something
+  you shouldn't be clicking; this one floats over the point.
+- **Decision (phase 7):** `review-estimated` in the preview harness is a real
+  review run with `nodeLimit: 1`, not invented numbers. The two states exist to
+  judge whether the copy's confidence matches the number's, and hand-writing
+  plausible plies would have made that judgment a fiction. Recapture instructions
+  are in `preview/reviewFixture.ts`.
+- **Open (phase 7):** picking a point off the curve can select a ply that isn't
+  in the shortlist below it, so the list shows nothing highlighted while the
+  detail line talks about a move. It reads fine (the sentence names the move) and
+  the fix — auto-expanding to the full list — trades a quiet window for a
+  scrolling one. Worth a look in phase 9 with real games in front of it.
+- **Open (phase 7):** the Director keeps running under the review. In-match idle
+  beats are 16s apart and the pool holds nothing loud, so what happens is a
+  mascot wandering past while you read a verdict, which is either the best thing
+  in the phase or the worst. It was left alone deliberately: silencing the stage
+  for the review would make the review the one screen the world stops for, and
+  that is a feel call for ten games, not for a screenshot.
+- **Open (phase 7):** a review of a Connect 5 game has never been looked at. It
+  works by construction — the variant crosses through `variantId` and the curve
+  is per-ply — but Connect 5 crosses over to proof at 44 discs of 72, so most
+  Connect 5 reviews will be the *estimated* headline with `skipped` large, which
+  is the branch with the least mileage on it. The `review-estimated` state is
+  that branch on a Connect 4 board; a real one on the big board is a phase-9
+  five-minute check.

@@ -27,6 +27,13 @@ export type Dialog =
   | { kind: "about" }
   | { kind: "quit" }
   | { kind: "error"; detail: string }
+  /**
+   * The review is a dialog and not a screen for one reason: it floats over the
+   * finished board and closing it puts you back on that board, which is exactly
+   * what this field is for. It is the only dialog with no veil under it — the
+   * board behind it is the thing it is talking about.
+   */
+  | { kind: "review" }
   | null;
 
 interface ShellStore {

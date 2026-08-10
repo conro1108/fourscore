@@ -8,6 +8,7 @@
 import { CONNECT4, CONNECT5, type Player, type Variant } from "@fourscore/engine";
 import type { PinnedAct } from "../director/scope.js";
 import type { ChromeState } from "./chrome.js";
+import { REVIEW_MOVES } from "./reviewFixture.js";
 
 export interface PreviewCase {
   id: string;
@@ -16,6 +17,9 @@ export interface PreviewCase {
   moves: number[];
   hoverCol?: number;
   ghostPlayer?: Player;
+  /** Review marks on a wound-back board (see `StageModel.marks`). */
+  marks?: { col: number; kind: "best" | "played" }[];
+  markPlayer?: Player;
   fever?: number;
   /** Freeze one act, or several at once, at a phase each (see ScenePin). */
   prop?: PinnedAct | PinnedAct[];
@@ -377,6 +381,51 @@ export const PREVIEW_STATES: PreviewCase[] = [
     // No status line: with the outcome window up, the real HUD has nothing to
     // say until you dismiss it.
     chrome: { state: "outcome-win", status: "" },
+  },
+  /*
+   * The review, over the game it is reviewing (`preview/reviewFixture.ts` is
+   * that game's real move list and its real numbers). The board is wound back
+   * to the move the window is pointing at, which is what these states are for:
+   * the sentence says a column and the board has to be showing it.
+   *
+   * Read `review-proven` and `review-estimated` as a pair — same game, same
+   * blunder, one solved and one not — and check that nothing in either window
+   * says which is which.
+   */
+  {
+    id: "review-proven",
+    caption: "review — the move that lost it, proven, so the copy is flat",
+    variant: CONNECT4,
+    // Wound back to ply 18: the position that mover was looking at.
+    moves: REVIEW_MOVES.slice(0, 18),
+    marks: [
+      { col: 0, kind: "best" },
+      { col: 1, kind: "played" },
+    ],
+    markPlayer: "red",
+    fever: 0.8,
+    chrome: { state: "review-proven", status: "" },
+  },
+  {
+    id: "review-estimated",
+    caption: "review — the same game with nothing proven, so every line hedges",
+    variant: CONNECT4,
+    moves: REVIEW_MOVES.slice(0, 18),
+    marks: [
+      { col: 0, kind: "best" },
+      { col: 1, kind: "played" },
+    ],
+    markPlayer: "red",
+    fever: 0.8,
+    chrome: { state: "review-estimated", status: "" },
+  },
+  {
+    id: "review-reading",
+    caption: "review — reading it back, which takes seconds and says so",
+    variant: CONNECT4,
+    moves: REVIEW_MOVES,
+    fever: 0.8,
+    chrome: { state: "review-reading", status: "" },
   },
   {
     id: "chrome-loss",

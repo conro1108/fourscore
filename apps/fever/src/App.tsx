@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { playSpike } from "./audio/index.js";
 import { canHumanPlay, humanPlayer, useMatchStore } from "./match/store.js";
+import { useScrub } from "./review/store.js";
 import { StageView, type StageModel } from "./stage/Stage.js";
 import { Chrome } from "./chrome/Chrome.js";
 import { useShellStore } from "./chrome/store.js";
@@ -24,12 +25,24 @@ export function App() {
   const debug = useShellStore((x) => x.debug);
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const myTurn = canHumanPlay(s);
+  // The review pointing at a move winds the board back to it. `landed` matches
+  // the shortened list exactly, so nothing re-drops: rewinding is not replaying,
+  // and a disc falling every time you click a row in a list would be theater
+  // about theater.
+  const scrub = useScrub(s.generation);
 
   const model: StageModel = {
     variant: s.variant,
-    moves: s.moves,
-    landed: s.landed,
-    winningCells: s.match.winningCells,
+    moves: scrub ? s.moves.slice(0, scrub.ply) : s.moves,
+    landed: scrub ? scrub.ply : s.landed,
+    // Nothing is won in a position that hasn't been reached yet, so the win
+    // blink is off while the board is wound back.
+    winningCells: scrub ? [] : s.match.winningCells,
+    marks: scrub?.marks,
+    // Red opens, so the mover at ply n is red on even plies. The same parity
+    // `placements` uses, and for the same reason: colour is never about who the
+    // human is.
+    markPlayer: scrub && scrub.ply % 2 === 0 ? "red" : "yellow",
     hoverCol: myTurn ? hoverCol : null,
     ghostPlayer: myTurn ? humanPlayer(s) : null,
     // A click on a full column is the software's fault as far as the software

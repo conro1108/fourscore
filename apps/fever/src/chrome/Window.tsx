@@ -13,7 +13,7 @@
  * detail.
  */
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { playSpike } from "../audio/index.js";
 
 export interface WindowProps {
@@ -64,10 +64,12 @@ export function Window({ title, children, buttons, onClose, className, label }: 
       className={`win ${className ?? ""}`}
       role="dialog"
       aria-label={label ?? title}
+      /* The drag is two custom properties, not a transform, because where a
+         window *sits* is the stylesheet's business — the review docks to the
+         right rather than centring — and writing a whole transform here would
+         yank it back to the middle the first time you took hold of it. */
       style={
-        offset
-          ? { transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))` }
-          : undefined
+        offset ? ({ "--dx": `${offset.x}px`, "--dy": `${offset.y}px` } as CSSProperties) : undefined
       }
     >
       <div

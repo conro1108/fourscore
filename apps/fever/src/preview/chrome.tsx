@@ -20,9 +20,11 @@ import { About, ErrorBox, OnlineOutcome, Outcome, Quit } from "../chrome/Dialogs
 import { Hud } from "../chrome/Hud.js";
 import { Menu } from "../chrome/Menu.js";
 import { Online } from "../chrome/Online.js";
+import { Review } from "../chrome/Review.js";
 import { Roster } from "../chrome/Roster.js";
 import { Settings } from "../chrome/Settings.js";
 import { COPY } from "../chrome/copy.js";
+import { ESTIMATED, PROVEN } from "./reviewFixture.js";
 
 /** Same threshold the container uses; see `chrome/Chrome.tsx`. */
 const HOT = 0.66;
@@ -40,7 +42,10 @@ export type ChromeState =
   | "error"
   | "hud"
   | "outcome-win"
-  | "outcome-loss";
+  | "outcome-loss"
+  | "review-proven"
+  | "review-estimated"
+  | "review-reading";
 
 const noop = () => {};
 
@@ -118,7 +123,7 @@ function Surface({
         />
       );
     case "online-outcome":
-      return <OnlineOutcome result="loss" onRematch={noop} onLobby={noop} onClose={noop} />;
+      return <OnlineOutcome result="loss" onRematch={noop} onLobby={noop} onReview={noop} onClose={noop} />;
     // The desync report: the same error window with nothing to retry, which is
     // most of what makes it read as final rather than as a hiccup.
     case "desync":
@@ -133,7 +138,15 @@ function Surface({
       return <ErrorBox detail="The opponent stopped answering." onRetry={noop} onLeave={noop} />;
     case "outcome-win":
       return (
-        <Outcome bot={bot} result="win" botStarts onAgain={noop} onSwap={noop} onClose={noop} />
+        <Outcome
+          bot={bot}
+          result="win"
+          botStarts
+          onAgain={noop}
+          onSwap={noop}
+          onReview={noop}
+          onClose={noop}
+        />
       );
     case "outcome-loss":
       return (
@@ -143,6 +156,54 @@ function Surface({
           botStarts={false}
           onAgain={noop}
           onSwap={noop}
+          onReview={noop}
+          onClose={noop}
+        />
+      );
+    /*
+     * The two halves of the confidence law, on the same game (see
+     * `reviewFixture.ts`). Read them side by side: the proven one says a move
+     * lost it, the estimated one says the ground went somewhere, and nothing in
+     * either window tells the player which kind of number it is looking at.
+     */
+    case "review-proven":
+      return (
+        <Review
+          status="ready"
+          review={PROVEN}
+          humanPlayer="red"
+          lost
+          selected={PROVEN.turningPoint?.ply ?? null}
+          onSelect={noop}
+          onAgain={noop}
+          onClose={noop}
+        />
+      );
+    case "review-estimated":
+      return (
+        <Review
+          status="ready"
+          review={ESTIMATED}
+          humanPlayer="red"
+          lost
+          selected={ESTIMATED.biggestSwing?.ply ?? null}
+          onSelect={noop}
+          onAgain={noop}
+          onClose={noop}
+        />
+      );
+    // The window opens into this and sits in it for seconds, so it is a state
+    // the player really sees rather than a flash.
+    case "review-reading":
+      return (
+        <Review
+          status="running"
+          review={null}
+          humanPlayer="red"
+          lost
+          selected={null}
+          onSelect={noop}
+          onAgain={noop}
           onClose={noop}
         />
       );
@@ -171,7 +232,9 @@ export function ChromeFixture({
   // the HUD rather than covering it.
   const inMatch = !(["menu", "roster", "online", "online-waiting"] as ChromeState[]).includes(state);
   const wire = state === "desync" || state === "online-outcome";
-  const veiled = state !== "menu" && state !== "hud";
+  // No veil under the review, same as the container: the board it is talking
+  // about is behind it and has to read clearly.
+  const veiled = state !== "menu" && state !== "hud" && !state.startsWith("review");
 
   return (
     <div

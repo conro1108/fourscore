@@ -64,12 +64,23 @@ export function GhostDisc({
   layout,
   col,
   player,
+  dim = false,
 }: {
   layout: StageLayout;
   col: number;
   player: Player;
+  /**
+   * Spent rather than offered. The review marks two columns at once — what
+   * would have held, in the mover's colour, and what they actually played, in
+   * the same mud a losing disc is dimmed to. One shape, two readings, and no
+   * new palette: the ghost already means "a disc could go here".
+   */
+  dim?: boolean;
 }) {
-  const color = player === "red" ? "#a3164e" : "#c8991f";
+  // The spent mark is the void's own lilac, not the mud a losing disc dims to:
+  // mud against a dark void is a mark nobody can see, which was exactly how the
+  // first version of this shipped to a screenshot.
+  const color = dim ? "#7a6899" : player === "red" ? "#a3164e" : "#c8991f";
   // The ghost is the same coin, not a stand-in cylinder — a preview whose
   // silhouette differs from the thing it previews is a lie about the shape.
   const geometry = useMemo(
@@ -83,7 +94,12 @@ export function GhostDisc({
       position={[layout.xOf(col), layout.dropY, 0]}
       rotation-x={Math.PI / 2}
     >
-      <meshStandardMaterial color={color} transparent opacity={0.4} depthWrite={false} />
+      <meshStandardMaterial
+        color={color}
+        transparent
+        opacity={dim ? 0.34 : 0.44}
+        depthWrite={false}
+      />
     </mesh>
   );
 }

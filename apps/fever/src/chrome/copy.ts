@@ -17,9 +17,27 @@
  * a finished board is a fact.
  */
 
-import type { BotProfile } from "@fourscore/engine";
+import type { BotProfile, Grade, PlyRecord, Review } from "@fourscore/engine";
 
 const shout = (bot: BotProfile): string => bot.name.toUpperCase();
+
+/** Columns are 1-indexed on screen; the engine counts from zero. */
+const colName = (col: number): string => String(col + 1);
+/** Plies are engine-side; a player counts their own moves. */
+const moveNo = (ply: number): number => Math.floor(ply / 2) + 1;
+
+/**
+ * The grade words. Chess's vocabulary with the pretension filed off — this is
+ * bowling-centre scoring software, and it would have said "loose".
+ */
+const GRADES: Record<Grade, string> = {
+  best: "best",
+  good: "fine",
+  inaccuracy: "loose",
+  mistake: "mistake",
+  blunder: "blunder",
+  unknown: "unreadable",
+};
 
 /**
  * Lines a specific opponent gets instead of the generic one — the chrome half
@@ -63,6 +81,38 @@ const DEFEAT: Record<string, string> = {
   quill: "QUILL WINS. QUILL SAW THE END OF IT.",
   oracle: "THE ORACLE WINS. IT DOES NOT SAY WHEN IT KNEW.",
 };
+
+/**
+ * The sentence for one ply of the review.
+ *
+ * Estimated plies hedge — "looks", "looks expensive" — because the numbers
+ * behind them are this engine's read and a better one could disagree. Proven
+ * plies are flat, and a turning point is the only sentence in the whole game
+ * allowed to say a move lost it. Nothing here names which pass produced the
+ * number; the hedge is the tell (PLAN.md product truth 1).
+ *
+ * A standalone function rather than a member of the table below because the
+ * headline calls it, and a table that references itself has no inferrable type.
+ */
+function plyLine(rec: PlyRecord): string {
+  if (rec.grade === "unknown") return "Nothing readable here.";
+  const best = rec.bestCols.map(colName).join(" or ");
+
+  if (rec.source === "estimated") {
+    if (rec.grade === "best") return `Column ${colName(rec.col)} looks like the pick.`;
+    if (rec.grade === "good" || rec.grade === "inaccuracy")
+      return `Column ${best} looks stronger.`;
+    return `That one looks expensive. Column ${best} looks stronger.`;
+  }
+
+  if (rec.grade === "best") return `Column ${colName(rec.col)} was the best there was.`;
+  if (rec.turningPoint) {
+    const was = (rec.bestScore ?? 0) > 0 ? "a won game" : "a drawn game";
+    const now = (rec.playedScore ?? 0) < 0 ? "a lost one" : "a drawn one";
+    return `This turned ${was} into ${now}. Column ${best} held it.`;
+  }
+  return `Still fine. Column ${best} was stronger.`;
+}
 
 export const COPY = {
   title: "FOURSCORE",
@@ -151,6 +201,82 @@ export const COPY = {
   again: "AGAIN.",
   swap: (bot: BotProfile, botStarts: boolean): string =>
     botStarts ? `Rematch, ${bot.name} starts` : "Rematch, you start",
+
+  /*
+   * The review.
+   *
+   * This is where the confidence law does its actual work, so it is worth being
+   * blunt about the mechanism: nothing here reads `source` to *label* a ply, and
+   * everything here reads it to choose how hard the sentence pushes. An
+   * estimated ply looks, seems and appears; a proven one simply is. The player
+   * is never told which kind they are reading, and never has to be — the hedge
+   * carries it (PLAN.md product truth 1).
+   */
+  reviewOpen: "READ IT BACK.",
+  reviewTitle: (n: number): string => `Game review — ${n} of your moves`,
+  reviewBusyTitle: "Game review — reading it back",
+  reviewBusy: "Reading the game back.",
+  reviewBusyTail: "It is going over every move you made. This takes a few seconds.",
+  reviewFailed: "The game could not be read back.",
+  /** Under the curve. No legend, no key, one line: see product truth 1. */
+  curveCaption: "your advantage over the game",
+  reviewShowAll: (n: number): string => `Show all ${n}`,
+  reviewPick: "Pick a move.",
+  grade: (g: Grade): string => GRADES[g],
+  /** A ply on the board, as the list writes it. */
+  plyMove: (ply: number): string => `Move ${moveNo(ply)}`,
+  plyCol: (col: number): string => `col ${colName(col)}`,
+
+  /** The sentence for one ply; see `plyLine` above the table. */
+  plyLine,
+
+  /**
+   * The headline: one shouted verdict and one sentence under it.
+   *
+   * Four cases, and the split between them is entirely about what the engine
+   * has earned the right to say. Only the first names a losing move, because
+   * only the first is proven. `lost` is passed in because "no turning point"
+   * means something different when you lost anyway — the losing move is real,
+   * it's just further back than the engine could reach, and reporting that as
+   * "you played fine" would be the software lying to be nice.
+   */
+  reviewHeadline: (review: Review, lost: boolean): { title: string; body: string } => {
+    const proven = review.plies.filter((p) => p.source === "proven").length;
+    const swing = review.biggestSwing;
+
+    if (review.turningPoint) {
+      return {
+        title: `MOVE ${moveNo(review.turningPoint.ply)} LOST IT.`,
+        body: plyLine(review.turningPoint),
+      };
+    }
+    if (proven === 0 && swing) {
+      return {
+        title: `MOVE ${moveNo(swing.ply)} IS WHERE IT SLIPPED.`,
+        body: `That move gave up more ground than any other you played. Column ${swing.bestCols
+          .map(colName)
+          .join(" or ")} looks stronger there.`,
+      };
+    }
+    if (proven === 0) {
+      return {
+        title: "NOTHING TURNED ON ONE MOVE.",
+        body: "Short game, and no move gave up much ground. Reviews get sharper the longer you last.",
+      };
+    }
+    if (lost && review.skipped > 0) {
+      return {
+        title: "IT WAS LOST IN THE OPENING.",
+        body: swing
+          ? `Nothing you played later changed the result. Move ${moveNo(swing.ply)} is where the ground went.`
+          : "Nothing you played later changed the result. The loose moves are the best lead there is.",
+      };
+    }
+    return {
+      title: "NO SINGLE LOSING MOVE.",
+      body: "Nothing you played turned a won or drawn game into a lost one. The result came from the position.",
+    };
+  },
 
   // System dialogs. Period chrome telling a small lie calmly.
   windowTitle: "FOURSCORE.EXE — not responding (it is)",

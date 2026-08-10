@@ -89,11 +89,14 @@ export function OnlineOutcome({
   result,
   onRematch,
   onLobby,
+  onReview,
   onClose,
 }: {
   result: "win" | "loss" | "draw";
   onRematch: () => void;
   onLobby: () => void;
+  /** Read the game back. A review needs no opponent, so a stranger's game gets one. */
+  onReview: () => void;
   onClose: () => void;
 }) {
   const line = result === "draw" ? COPY.drew : result === "win" ? COPY.won : COPY.lostOnline;
@@ -106,6 +109,7 @@ export function OnlineOutcome({
       buttons={
         <>
           <Btn onClick={onLobby}>{COPY.lobby}</Btn>
+          <Btn onClick={onReview}>{COPY.reviewOpen}</Btn>
           <Btn onClick={onRematch}>{COPY.again}</Btn>
         </>
       }
@@ -121,6 +125,7 @@ export function Outcome({
   botStarts,
   onAgain,
   onSwap,
+  onReview,
   onClose,
 }: {
   bot: BotProfile;
@@ -129,6 +134,8 @@ export function Outcome({
   botStarts: boolean;
   onAgain: () => void;
   onSwap: () => void;
+  /** Read the game back, in place of this window. */
+  onReview: () => void;
   onClose: () => void;
 }) {
   const line = result === "draw" ? COPY.drew : result === "win" ? COPY.won : COPY.lost(bot);
@@ -140,6 +147,7 @@ export function Outcome({
       onClose={onClose}
       buttons={
         <>
+          <Btn onClick={onReview}>{COPY.reviewOpen}</Btn>
           <Btn onClick={onAgain}>{COPY.again}</Btn>
           <Btn onClick={onSwap}>{COPY.swap(bot, botStarts)}</Btn>
         </>

@@ -43,6 +43,14 @@ export interface StageModel {
   hoverCol: number | null;
   /** Who the hover ghost belongs to; null hides input affordances entirely. */
   ghostPlayer: Player | null;
+  /**
+   * Columns the review is pointing at, over a board wound back to that move:
+   * `best` is what would have held, `played` is what was played instead. Empty
+   * during a game — nothing in a live match marks a column.
+   */
+  marks?: readonly { col: number; kind: "best" | "played" }[];
+  /** Whose move the marks belong to, so `best` reads in the mover's colour. */
+  markPlayer?: Player;
   onColumn?: (col: number) => void;
   onHover?: (col: number | null) => void;
   onDiscLanded?: () => void;
@@ -257,6 +265,15 @@ export function StageView({ model }: { model: StageModel }) {
           {model.ghostPlayer !== null && model.hoverCol !== null && (
             <GhostDisc layout={layout} col={model.hoverCol} player={model.ghostPlayer} />
           )}
+          {model.marks?.map((mark) => (
+            <GhostDisc
+              key={`${mark.kind}:${mark.col}`}
+              layout={layout}
+              col={mark.col}
+              player={model.markPlayer ?? "red"}
+              dim={mark.kind === "played"}
+            />
+          ))}
         </Levitate>
         <PropStage layout={layout} />
         {interactive && (

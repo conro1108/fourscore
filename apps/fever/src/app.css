@@ -310,7 +310,11 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  /* Dragging writes `--dx`/`--dy` (see `Window.tsx`); the placement stays here,
+     so a window that isn't centred stays where its rule put it. */
+  --dx: 0px;
+  --dy: 0px;
+  transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)));
   min-width: 300px;
   max-width: min(94vw, 720px);
   background: var(--sys);
@@ -672,6 +676,194 @@ body {
   letter-spacing: 0.06em;
 }
 
+/* -- the review ------------------------------------------------------------ */
+/*
+ * Docked to the right rather than centred, which is the one layout decision in
+ * this file that isn't taste: selecting a move winds the board back to that
+ * position, and a window sitting on top of the board is a review that can't
+ * show you anything. Below the breakpoint there is no room to dock, so it goes
+ * back to the middle and the scrub becomes something you drag the window to see.
+ */
+.win--review {
+  width: min(430px, 94vw);
+  left: auto;
+  right: 3vw;
+  transform: translate(var(--dx), calc(-50% + var(--dy)));
+}
+
+/* The chart: a period charting control, white and ruled, sunk into the beige. */
+.curve {
+  margin: 0;
+  height: 92px;
+  background: #ffffff;
+  border: 2px solid;
+  border-color: var(--sys-dark) var(--sys-lit) var(--sys-lit) var(--sys-dark);
+}
+
+.curve-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Whose half of the chart is whose, at the faintest strength that still reads.
+   This is the only thing on here that isn't the line, and it must never argue
+   with it. */
+.curve-half--you {
+  fill: #eef6ea;
+}
+
+.curve-half--them {
+  fill: #f4eef7;
+}
+
+.curve-axis {
+  stroke: #a8a49c;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* One line. No dashes, no second series, no key — see the component. */
+.curve-line {
+  fill: none;
+  stroke: #2a0a4a;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.curve-mark {
+  stroke: var(--heat);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.curve-dot {
+  fill: var(--heat);
+}
+
+.curve-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.review-caption {
+  margin: 4px 0 10px;
+  font-size: 11px;
+  color: #55524c;
+  letter-spacing: 0.06em;
+}
+
+.review-head h2 {
+  margin: 0;
+  font-family: var(--face-shout);
+  font-size: 25px;
+  font-weight: normal;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: #1a1a1a;
+}
+
+.review-head p {
+  margin: 6px 0 12px;
+  line-height: 1.45;
+}
+
+/* The same sunken list box the roster uses, one row per move. */
+.review-list {
+  max-height: 150px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 2px solid;
+  border-color: var(--sys-dark) var(--sys-lit) var(--sys-lit) var(--sys-dark);
+}
+
+.review-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  font-family: var(--face-system);
+  font-size: 12px;
+  color: var(--sys-ink);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.review-item--on {
+  background: #2a0a4a;
+  color: #ffffff;
+}
+
+.review-item b {
+  font-weight: 700;
+  min-width: 62px;
+}
+
+.review-item span {
+  color: #55524c;
+  flex: 1;
+}
+
+.review-item--on span {
+  color: #c9b6e8;
+}
+
+/* The grade word. Period software would have colour-coded this and been proud
+   of it; the heat family stays out of it, because heat means fever. */
+.review-item em {
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.grade--best {
+  color: #2f7a1f;
+}
+
+.grade--good {
+  color: #55524c;
+}
+
+.grade--inaccuracy {
+  color: #8a6d1f;
+}
+
+.grade--mistake,
+.grade--blunder {
+  color: #a3164e;
+}
+
+.grade--unknown {
+  color: #87837c;
+}
+
+.review-item--on .grade--best,
+.review-item--on .grade--good,
+.review-item--on .grade--inaccuracy,
+.review-item--on .grade--mistake,
+.review-item--on .grade--blunder,
+.review-item--on .grade--unknown {
+  color: #ffffff;
+}
+
+.review-detail {
+  margin: 10px 0 0;
+  min-height: 34px;
+  line-height: 1.45;
+}
+
+.review-wait p {
+  margin: 0 0 8px;
+}
+
+.review-quiet {
+  color: #55524c;
+}
+
 /* -- the HUD --------------------------------------------------------------- */
 
 .hud-top {
@@ -813,6 +1005,17 @@ body {
   .roster-list {
     width: 100%;
     max-height: 148px;
+  }
+
+  /* No room to dock beside the board, so the review comes back to the middle. */
+  .win--review {
+    left: 50%;
+    right: auto;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)));
+  }
+
+  .review-list {
+    max-height: 120px;
   }
 }
 

@@ -13,6 +13,7 @@
     "acceptance": "node tools/acceptance.mjs",
     "bots": "node tools/live-bots.mjs",
     "online": "node tools/online.mjs",
+    "review": "node tools/live-review.mjs",
     "audio": "node tools/audio-check.mjs"
   },
   "dependencies": {

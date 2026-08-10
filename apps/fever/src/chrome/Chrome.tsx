@@ -18,8 +18,10 @@ import { humanPlayer, useMatchStore } from "../match/store.js";
 import { hostMatch, joinMatch, leaveOnline, openLobby } from "../online/runtime.js";
 import { joinLink } from "../online/session.js";
 import { useOnlineStore } from "../online/store.js";
+import { useReviewStore } from "../review/store.js";
 import { recordKey, useRecordStore } from "../settings/records.js";
 import { About, ErrorBox, OnlineOutcome, Outcome, Quit } from "./Dialogs.js";
+import { Review } from "./Review.js";
 import { Hud } from "./Hud.js";
 import { Menu } from "./Menu.js";
 import { Online } from "./Online.js";
@@ -45,6 +47,7 @@ export function Chrome() {
   const records = useRecordStore((x) => x.records);
   const record = useRecordStore((x) => x.record);
   const online = useOnlineStore();
+  const review = useReviewStore();
   const [copied, setCopied] = useState(false);
   // Stepped, not raw: this component is most of the DOM and it must not
   // re-render sixty times a second.
@@ -77,6 +80,34 @@ export function Chrome() {
   useEffect(() => {
     if (dialog) playSpike(dialog.kind === "error" ? "error-ding" : "dialog-open", 0.8);
   }, [dialog]);
+
+  // A review is about one finished game. Starting another one throws it away
+  // here rather than in the match store, because the match store has no business
+  // knowing this screen exists — and because the same clear has to take the
+  // window down with it.
+  useEffect(() => {
+    review.clear();
+    if (useShellStore.getState().dialog?.kind === "review") close();
+    // Deliberately keyed on the generation alone: `review` is a whole store
+    // slice and re-running this whenever it changed would clear the review the
+    // moment it arrived.
+  }, [s.generation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Read the game back. Dismissing the outcome window is part of it: the review
+   * replaces that window rather than stacking on it, and closing the review
+   * leaves you on the finished board the way the X always has.
+   */
+  const openReview = () => {
+    setDismissedGen(s.generation);
+    open({ kind: "review" });
+    void review.run({
+      generation: s.generation,
+      variantId: s.variant.id,
+      moves: s.moves,
+      forPlayer: human,
+    });
+  };
 
   // The record is written once per finished game, identified by its moves.
   // Bot games only: the record is your standing against a rung of the ladder,
@@ -169,9 +200,13 @@ export function Chrome() {
         />
       )}
 
-      {(screen === "roster" || screen === "online" || dialog !== null || showOutcome) && (
-        <div className="veil" />
-      )}
+      {/* The review gets no veil: the board behind it is what it is talking
+          about, and you can still take hold of the void and turn it while you
+          read. Every other window is over something you shouldn't be clicking. */}
+      {(screen === "roster" ||
+        screen === "online" ||
+        (dialog !== null && dialog.kind !== "review") ||
+        showOutcome) && <div className="veil" />}
 
       {screen === "online" && (
         <Online
@@ -240,9 +275,31 @@ export function Chrome() {
         />
       )}
 
+      {dialog?.kind === "review" && (
+        <Review
+          status={review.status}
+          review={review.review}
+          humanPlayer={human}
+          lost={result === "loss"}
+          selected={review.selected}
+          onSelect={review.select}
+          // "Again" from in here means the same thing it means in the outcome
+          // window — which online is a fresh row with a fresh code, because
+          // there is no "same opponent, one more" without asking them again.
+          onAgain={() => {
+            close();
+            if (!wire) return s.newGame();
+            leaveOnline();
+            void openLobby().then(() => hostMatch());
+          }}
+          onClose={close}
+        />
+      )}
+
       {showOutcome && wire && (
         <OnlineOutcome
           result={result}
+          onReview={openReview}
           // A rematch is a fresh row with a fresh code — there is no "same
           // opponent, one more" without asking them again, so it says so by
           // putting you back in front of the code.
@@ -260,6 +317,7 @@ export function Chrome() {
           bot={bot}
           result={result}
           botStarts={s.humanFirst}
+          onReview={openReview}
           onAgain={() => s.newGame()}
           onSwap={() => s.newGame({ humanFirst: !s.humanFirst })}
           onClose={() => setDismissedGen(s.generation)}
