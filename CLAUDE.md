@@ -7,6 +7,9 @@ owns only rendering and the match runtime.
 
 `npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
 
+`apps/fever` is the primary target — that's where active work should go.
+`apps/web` is the legacy app; only touch it when explicitly asked to.
+
 ## Geometry is a value, not a constant
 
 Board size and run length live in a `Variant` object (`board.ts`), and everything
