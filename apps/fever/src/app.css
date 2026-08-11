@@ -955,13 +955,48 @@ body {
   line-height: 1.45;
 }
 
+/* Prev/Next and the key hint on one line: the two ways to walk the game, in the
+   order of how much room they need. The hint takes the slack so it stays hard
+   right, where it was before it had company. */
+.review-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 /* The key hint, at the size period software put its hints: small, grey, and
    nowhere near the thing it describes shouting for attention. */
 .review-keys {
-  margin: 8px 0 0;
+  flex: 1;
+  margin: 0;
   font-size: 11px;
   color: #55524c;
   text-align: right;
+}
+
+/* No hover means no pointer, which here means no arrow keys either — a phone
+   reading "← and → step through your moves" is the software describing a
+   machine you aren't holding. The buttons say the same thing and work. */
+@media (hover: none) {
+  .review-keys {
+    display: none;
+  }
+
+  /* And the buttons become something a thumb can hit. 44px is the one number in
+     this file that comes from outside the period. */
+  .review-step .btn {
+    flex: 1;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* The rows are the other way to pick a move, and a 20px row is a row you
+     mis-tap. Taller, so the list stays worth touching — fewer visible at once
+     is the trade, and the buttons are what you walk it with anyway. */
+  .review-item {
+    padding: 9px 8px;
+  }
 }
 
 .review-wait p {

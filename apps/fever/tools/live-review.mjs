@@ -155,6 +155,24 @@ await page.waitForTimeout(300);
 await page.screenshot({ path: `${outDir}/live-review-first.png` });
 if (landed === 0) fail("the move list emptied");
 
+// The same walk without a keyboard. A phone has no arrow keys, so Prev/Next are
+// the only way through the game there, and they have to clamp where the keys
+// clamp — including saying so, by going grey at the ends.
+const prev = page.getByRole("button", { name: /Prev/ });
+const next = page.getByRole("button", { name: /Next/ });
+if (!(await prev.isDisabled())) fail("Prev is live at the first move");
+await next.click();
+if ((await selection()) !== plies[1]) fail("Next did not step forward a move");
+await prev.click();
+if ((await selection()) !== plies[0]) fail("Prev did not step back a move");
+
+for (let i = 0; i < plies.length + 2 && !(await next.isDisabled()); i++) await next.click();
+if ((await selection()) !== plies[plies.length - 1]) fail("Next stopped short of the last move");
+if (!(await next.isDisabled())) fail("Next is live at the last move");
+for (let i = 0; i < plies.length + 2 && !(await prev.isDisabled()); i++) await prev.click();
+if ((await selection()) !== plies[0]) fail("Prev stopped short of the first move");
+console.log("prev/next step and clamp across", plies.length, "moves");
+
 // And releasing it puts the finished game back.
 await page.evaluate(() => window.__fever.reviewStore.getState().select(null));
 await page.waitForTimeout(300);

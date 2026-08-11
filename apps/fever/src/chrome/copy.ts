@@ -234,6 +234,10 @@ export const COPY = {
   reviewPick: "Pick a move.",
   /** The board is the other half of this window, so say how to walk it. */
   reviewKeys: "← and → step through your moves.",
+  /* The same walk as a pair of buttons, for the machines that have no arrow
+     keys. Period software wrote its pagination exactly like this. */
+  reviewPrev: "◀ Prev",
+  reviewNext: "Next ▶",
   grade: (g: Grade): string => GRADES[g],
   /** A ply on the board, as the list writes it. */
   plyMove: (ply: number): string => `Move ${moveNo(ply)}`,

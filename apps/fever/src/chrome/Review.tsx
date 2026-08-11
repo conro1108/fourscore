@@ -176,7 +176,21 @@ export function Review({
               height as you click down a list is a window that moves under you. */}
           <p className="review-detail">{detail === head?.body ? "" : detail}</p>
 
-          {mine.length > 1 && <p className="review-keys">{COPY.reviewKeys}</p>}
+          {/* The same walk the arrow keys do, as buttons — a phone has no arrow
+              keys, and stepping by tapping rows in a 120px scroll box is not
+              stepping. The hint stays for the machines the keys work on and is
+              hidden on the ones they don't (see the stylesheet). */}
+          {mine.length > 1 && (
+            <div className="review-step">
+              <Btn onClick={() => step(-1)} disabled={selected === mine[0]!.ply}>
+                {COPY.reviewPrev}
+              </Btn>
+              <Btn onClick={() => step(1)} disabled={selected === mine[mine.length - 1]!.ply}>
+                {COPY.reviewNext}
+              </Btn>
+              <p className="review-keys">{COPY.reviewKeys}</p>
+            </div>
+          )}
         </>
       )}
     </Window>
