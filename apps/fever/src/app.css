@@ -490,6 +490,9 @@ body {
 
 .win-buttons {
   display: flex;
+  /* Buttons never shrink (`nowrap` labels); on a phone a row that doesn't fit
+     wraps instead of poking through the bevel. */
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
   padding: 0 16px 14px;
@@ -580,6 +583,9 @@ body {
 
 .menu-pair {
   display: flex;
+  /* A variant label too long for a phone-width window takes the whole next row
+     (the buttons are `flex: 1`) rather than leaving the bevel. */
+  flex-wrap: wrap;
   gap: 6px;
 }
 
