@@ -10,6 +10,10 @@ than just a deeper search, and then one that solves the position exactly and
 does not make mistakes. After a loss it will tell you which move actually lost
 it — usually about eight plies before the position looked bad.
 
+**Play it: [fourscore-fever-beta.vercel.app](https://fourscore-fever-beta.vercel.app)**
+
+![Mid-game against Moss](shots/board.png)
+
 ## The four games
 
 |  | board | to win | cells | lines per cell |
