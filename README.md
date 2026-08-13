@@ -12,7 +12,11 @@ it — usually about eight plies before the position looked bad.
 
 **Play it: [fourscore-fever-beta.vercel.app](https://fourscore-fever-beta.vercel.app)**
 
-![Mid-game against Moss](shots/board.png)
+![Game over, with candles](shots/detonation.png)
+
+| The roster | The review |
+|---|---|
+| ![The Oracle's bio](shots/roster.png) | ![Move 10 lost it](shots/review.png) |
 
 ## The four games
 
