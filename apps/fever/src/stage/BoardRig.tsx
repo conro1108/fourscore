@@ -1,18 +1,24 @@
 /**
  * The board as a real object: two extruded plates with actual circular holes,
- * a slot between them for the discs, and rails closing the sides and floor.
- * It floats in the void — this is not a room, and the board does not need a
- * table.
+ * a slot between them for the discs, and rails closing the sides. It floats in
+ * the void — this is not a room, and the board does not need a table.
+ *
+ * The floor is not here: the bottom of the sandwich is the release tray
+ * (`ReleaseTray.tsx`), the sliding Connect 4 floor the discs rest on and fall
+ * through. This file owns everything that never moves.
  *
  * Board geometry is on the expensive side of the budget law (it lives with the
  * void, not with the props), so smooth shading and real hole geometry are
  * correct here. Everything is derived from `StageLayout`; no dimension in this
- * file may mention 7 or 6.
+ * file may mention 7 or 6. Materials come from the theme — the fever theme is
+ * lacquered obsidian with a thin-film sheen, the parlor is walnut and brass —
+ * but the *shape* is the same object in every direction.
  */
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { StageLayout } from "./layout.js";
+import { useTheme, type MaterialSpec } from "./theme.js";
 
 function plateGeometry(layout: StageLayout): THREE.ExtrudeGeometry {
   const { frameW, frameH, holeRadius, variant } = layout;
@@ -43,66 +49,55 @@ function plateGeometry(layout: StageLayout): THREE.ExtrudeGeometry {
   return geometry;
 }
 
+/** A physical material from a theme spec. Callers own disposal. */
+export function materialFrom(spec: MaterialSpec): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color: spec.color,
+    roughness: spec.roughness,
+    metalness: spec.metalness,
+    iridescence: spec.iridescence,
+    iridescenceIOR: spec.iridescenceIOR,
+    clearcoat: spec.clearcoat,
+    clearcoatRoughness: spec.clearcoatRoughness,
+    envMapIntensity: spec.envMapIntensity,
+  });
+}
+
+/** How thick the rails (and the tray) are. Shared with ReleaseTray. */
+export const RAIL_T = 0.16;
+
+/** The full depth of the board sandwich — slot plus both plates. */
+export const sandwichDepth = (layout: StageLayout): number =>
+  layout.slotHalf * 2 + layout.plateDepth * 2;
+
 export function BoardRig({ layout }: { layout: StageLayout }) {
+  const theme = useTheme();
   // Geometry per variant, disposed when the variant changes — R3F only
   // auto-disposes what it created itself.
   const plate = useMemo(() => plateGeometry(layout), [layout]);
   useEffect(() => () => plate.dispose(), [plate]);
 
-  // Physical, not standard: the board is lacquered obsidian with a thin-film
-  // sheen, so the VoidSky's magenta/teal/gold shows up as an oil-slick crawl
-  // across the plates as the camera sways. The board lives on the expensive
-  // side of the budget law with the void — this is where "chrome that reflects
-  // a sky that isn't there" happens.
-  //
-  // Retuned in phase 9 (Connor: the board read as "a bland solidworks render").
-  // The plum is brighter and wears a clearcoat, so there are two speculars —
-  // the body's broad iridescent sheen and a tight wet gloss over it — which is
-  // what makes lacquer read as lacquer instead of as tinted plastic.
-  const plum = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        color: "#33204a",
-        roughness: 0.34,
-        metalness: 0.35,
-        iridescence: 0.85,
-        iridescenceIOR: 1.6,
-        clearcoat: 1,
-        clearcoatRoughness: 0.18,
-        envMapIntensity: 2.1,
-      }),
-    [],
-  );
-  // The rails go full mirror: the board's edges are the one place "chrome that
-  // reflects a sky that isn't there" is allowed to be literal, and a bright
-  // seam around a dark face is what separates an object from an extrusion.
-  const railMat = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        color: "#8f84a8",
-        roughness: 0.18,
-        metalness: 1,
-        iridescence: 0.5,
-        iridescenceIOR: 1.6,
-        envMapIntensity: 1.9,
-      }),
-    [],
-  );
-  // Every hole gets a steel eyelet, seated on the front plate. Seventy-two
-  // small mirrors catching seventy-two different slices of the sky is most of
-  // what "not a CAD slab" means here — and they ring the discs the way an
-  // arcade machine would have actually been built.
-  const ringMat = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        color: "#a99cc0",
-        roughness: 0.14,
-        metalness: 1,
-        iridescence: 0.4,
-        iridescenceIOR: 1.6,
-        envMapIntensity: 1.7,
-      }),
-    [],
+  // In the fever theme this is the phase-9 lacquer: a bright plum body under a
+  // clearcoat, so there are two speculars — the broad iridescent sheen and a
+  // tight wet gloss — which is what makes lacquer read as lacquer instead of
+  // tinted plastic. Other themes trade the whole material, not just the color.
+  const plum = useMemo(() => materialFrom(theme.board.plate), [theme]);
+  // The rails: in the fever theme, full mirror — the one place "chrome that
+  // reflects a sky that isn't there" is allowed to be literal. A bright seam
+  // around a dark face is what separates an object from an extrusion.
+  const railMat = useMemo(() => materialFrom(theme.board.rail), [theme]);
+  // Every hole gets an eyelet, seated on the front plate. Seventy-two small
+  // mirrors catching seventy-two different slices of the sky is most of what
+  // "not a CAD slab" means here — and they ring the discs the way an arcade
+  // machine would have actually been built.
+  const ringMat = useMemo(() => materialFrom(theme.board.eyelet), [theme]);
+  useEffect(
+    () => () => {
+      plum.dispose();
+      railMat.dispose();
+      ringMat.dispose();
+    },
+    [plum, railMat, ringMat],
   );
 
   // One instanced draw for all the eyelets; matrices set once per variant.
@@ -123,31 +118,28 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
   }, [layout, ringMat]);
   useEffect(() => () => rings.geometry.dispose(), [rings]);
 
-  const { frameW, frameH, slotHalf, plateDepth } = layout;
+  const { frameW, frameH, slotHalf } = layout;
   // The whole sandwich, not just the slot: the plates' own thickness is part
   // of the seam, and a rail that only spans the gap leaves a lit hairline down
   // the board's edge. Invisible head-on, obvious the moment the camera orbits.
-  const gap = slotHalf * 2 + plateDepth * 2;
-  const railT = 0.16;
+  const gap = sandwichDepth(layout);
 
   return (
     <group>
       {/* Front and back plates share one geometry with real holes. */}
       <mesh geometry={plate} material={plum} position={[0, 0, slotHalf]} />
-      <mesh geometry={plate} material={plum} position={[0, 0, -slotHalf - plateDepth]} />
+      <mesh geometry={plate} material={plum} position={[0, 0, -slotHalf - layout.plateDepth]} />
 
       {/* The eyelets, seated proud of the front face. */}
       <primitive object={rings} />
 
-      {/* Rails close the sandwich so light can't leak through the seams. */}
-      <mesh material={railMat} position={[-(frameW - railT) / 2, 0, 0]}>
-        <boxGeometry args={[railT, frameH, gap]} />
+      {/* Side rails close the sandwich so light can't leak through the seams.
+          The floor is the release tray, mounted by the stage. */}
+      <mesh material={railMat} position={[-(frameW - RAIL_T) / 2, 0, 0]}>
+        <boxGeometry args={[RAIL_T, frameH, gap]} />
       </mesh>
-      <mesh material={railMat} position={[(frameW - railT) / 2, 0, 0]}>
-        <boxGeometry args={[railT, frameH, gap]} />
-      </mesh>
-      <mesh material={railMat} position={[0, -(frameH - railT) / 2, 0]}>
-        <boxGeometry args={[frameW, railT, gap]} />
+      <mesh material={railMat} position={[(frameW - RAIL_T) / 2, 0, 0]}>
+        <boxGeometry args={[RAIL_T, frameH, gap]} />
       </mesh>
     </group>
   );

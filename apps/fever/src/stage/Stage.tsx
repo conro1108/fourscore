@@ -31,6 +31,9 @@ import { stageFx } from "./fx.js";
 import { CAMERA_TARGET, fitDistance, layoutFor, type StageLayout } from "./layout.js";
 import { createOrbit, type Orbit } from "./orbit.js";
 import { PostStack } from "./Post.js";
+import { createTray } from "./release.js";
+import { ReleaseTray } from "./ReleaseTray.js";
+import { ThemeContext, themeById, useTheme, useThemeStore, type ThemeId } from "./theme.js";
 import { VoidBackdrop } from "./VoidBackdrop.js";
 
 export interface StageModel {
@@ -55,10 +58,19 @@ export interface StageModel {
   onHover?: (col: number | null) => void;
   onDiscLanded?: () => void;
   /**
+   * The release tray (the Connect 4 slider under the board). `ready` arms the
+   * handle; `auto` makes the software pull it itself (the AGAIN button routes
+   * through the same animation the hand gets); `onDone` fires once every disc
+   * is out the bottom — that's where the next game starts.
+   */
+  release?: { ready: boolean; auto: boolean; onDone: () => void };
+  /**
    * Pin this scene's fever and/or a prop act. Harness-only: the app leaves it
    * undefined so the scene follows the Director. See `director/scope.tsx`.
    */
   pin?: ScenePin;
+  /** Pin a theme. Harness-only; the app follows the theme store. */
+  theme?: ThemeId;
 }
 
 const FOV = 38;
@@ -106,14 +118,19 @@ function CameraRig({ layout, orbit }: { layout: StageLayout; orbit: Orbit }) {
 }
 
 function Lights() {
+  const { lights } = useTheme();
   return (
     <>
-      <ambientLight intensity={0.5} color="#8f7bb0" />
-      <directionalLight position={[6, 9, 8]} intensity={1.6} color="#ffeeda" />
-      {/* Violet rim from behind-left, teal breath from below — the void's
-          light, not a studio's. */}
-      <pointLight position={[-7, 3, -5]} intensity={60} color="#7a2bd0" />
-      <pointLight position={[3, -7, 7]} intensity={9} color="#1d5a6e" />
+      <ambientLight intensity={lights.ambient.intensity} color={lights.ambient.color} />
+      <directionalLight
+        position={lights.key.position}
+        intensity={lights.key.intensity}
+        color={lights.key.color}
+      />
+      {/* A rim from behind-left, a breath from below — the void's light, not a
+          studio's. Each theme picks the colors; the rig is the rig. */}
+      <pointLight position={lights.rim.position} intensity={lights.rim.intensity} color={lights.rim.color} />
+      <pointLight position={lights.fill.position} intensity={lights.fill.intensity} color={lights.fill.color} />
     </>
   );
 }
@@ -129,35 +146,25 @@ function Lights() {
 function VoidSky() {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
+  const theme = useTheme();
 
   useEffect(() => {
     const sky = new THREE.Scene();
-    sky.background = new THREE.Color("#07040e");
-    const panel = (
-      color: [number, number, number],
-      position: [number, number, number],
-      scale: [number, number],
-      lookAtOrigin = true,
-    ) => {
+    sky.background = new THREE.Color(theme.sky.bg);
+    // The theme's panels — the fever theme's are a magenta horizon, a teal
+    // underlight, a gold slash, a violet pool. The last two sit behind the
+    // camera, wide and dim: that's what the board's flat front face actually
+    // reflects. Without them the lacquer reads as matte black — a face
+    // mirrored at the viewer samples the sky *behind* the viewer.
+    for (const p of theme.sky.panels) {
       const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(scale[0], scale[1]),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(...color), side: THREE.DoubleSide }),
+        new THREE.PlaneGeometry(p.scale[0], p.scale[1]),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(...p.color), side: THREE.DoubleSide }),
       );
-      mesh.position.set(...position);
-      if (lookAtOrigin) mesh.lookAt(0, 0, 0);
+      mesh.position.set(...p.position);
+      mesh.lookAt(0, 0, 0);
       sky.add(mesh);
-    };
-    // Magenta horizon behind, teal underlight, a gold slash high right, a
-    // violet pool below — the iridescence family, nothing else.
-    panel([2.6, 0.5, 1.9], [0, 3, -9], [16, 3]);
-    panel([0.2, 1.5, 1.4], [-5, -6, 5], [12, 4]);
-    panel([2.4, 1.7, 0.5], [7, 6, 3], [2, 9]);
-    panel([0.9, 0.3, 1.9], [0, -9, -3], [10, 6]);
-    // Behind the camera, wide and dim: this is what the board's flat front
-    // face actually reflects. Without it the lacquer reads as matte black —
-    // a face mirrored at the viewer samples the sky *behind* the viewer.
-    panel([0.55, 0.2, 0.8], [3, 2, 10], [18, 10]);
-    panel([0.25, 0.45, 0.5], [-6, -2, 9], [8, 8]);
+    }
 
     const pmrem = new THREE.PMREMGenerator(gl);
     const env = pmrem.fromScene(sky, 0.06);
@@ -167,7 +174,7 @@ function VoidSky() {
       env.dispose();
       pmrem.dispose();
     };
-  }, [gl, scene]);
+  }, [gl, scene, theme]);
 
   return null;
 }
@@ -188,9 +195,15 @@ export function StageView({ model }: { model: StageModel }) {
   // debugging a slow laptop and to an agent debugging a shader.
   const postEnabled = useSettingsStore((s) => s.effects);
   const interactive = model.onColumn !== undefined;
+  // The model's pin wins so a harness tile can show a theme the store isn't
+  // on; the app never pins, so it follows the store live.
+  const storeThemeId = useThemeStore((s) => s.themeId);
+  const theme = themeById(model.theme ?? storeThemeId);
   // One orbit per stage, not a module singleton: the preview harness mounts
   // several of these at once and dragging one tile must not turn the others.
   const orbit = useMemo(() => createOrbit(), []);
+  // Same story for the release tray — its pull is this stage's, not the app's.
+  const tray = useMemo(() => createTray(), []);
 
   /**
    * Live pointers, so two fingers can be told from one. Only the ones that
@@ -238,6 +251,10 @@ export function StageView({ model }: { model: StageModel }) {
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: FOV, near: 0.1, far: 80, position: [0, 0.4, 14] }}
       onPointerDown={(e) => {
+        // The tray's handle claims its pointer before this bubbles up (R3F
+        // dispatches mesh events from the canvas, a child of this div) — a
+        // hand on the slider is not a hand on the camera.
+        if (tray.grabbed) return;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (pointers.size === 1) orbit.press(e.clientX, e.clientY);
         else orbit.pinch(span());
@@ -248,44 +265,55 @@ export function StageView({ model }: { model: StageModel }) {
          taking either of them for a page zoom. */
       onWheel={(e) => orbit.zoomBy(Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)))}
     >
-      <ScenePinProvider pin={model.pin}>
-        <CameraRig layout={layout} orbit={orbit} />
-        <Lights />
-        <VoidSky />
-        <VoidBackdrop />
-        <Levitate>
-          <BoardRig layout={layout} />
-          <Discs
-            layout={layout}
-            moves={model.moves}
-            landed={model.landed}
-            winningCells={model.winningCells}
-            onDiscLanded={model.onDiscLanded}
-          />
-          {model.ghostPlayer !== null && model.hoverCol !== null && (
-            <GhostDisc layout={layout} col={model.hoverCol} player={model.ghostPlayer} />
-          )}
-          {model.marks?.map((mark) => (
-            <GhostDisc
-              key={`${mark.kind}:${mark.col}`}
+      <ThemeContext.Provider value={theme}>
+        <ScenePinProvider pin={model.pin}>
+          <CameraRig layout={layout} orbit={orbit} />
+          <Lights />
+          <VoidSky />
+          <VoidBackdrop />
+          <Levitate>
+            <BoardRig layout={layout} />
+            <ReleaseTray
               layout={layout}
-              col={mark.col}
-              player={model.markPlayer ?? "red"}
-              dim={mark.kind === "played"}
+              tray={tray}
+              moves={model.moves}
+              ready={model.release?.ready ?? false}
+              auto={model.release?.auto ?? false}
             />
-          ))}
-        </Levitate>
-        <PropStage layout={layout} />
-        {interactive && (
-          <ColumnInput
-            layout={layout}
-            orbit={orbit}
-            onColumn={model.onColumn!}
-            onHover={model.onHover ?? (() => {})}
-          />
-        )}
-        {postEnabled && <PostStack />}
-      </ScenePinProvider>
+            <Discs
+              layout={layout}
+              moves={model.moves}
+              landed={model.landed}
+              winningCells={model.winningCells}
+              onDiscLanded={model.onDiscLanded}
+              tray={tray}
+              onReleased={model.release?.onDone}
+            />
+            {model.ghostPlayer !== null && model.hoverCol !== null && (
+              <GhostDisc layout={layout} col={model.hoverCol} player={model.ghostPlayer} />
+            )}
+            {model.marks?.map((mark) => (
+              <GhostDisc
+                key={`${mark.kind}:${mark.col}`}
+                layout={layout}
+                col={mark.col}
+                player={model.markPlayer ?? "red"}
+                dim={mark.kind === "played"}
+              />
+            ))}
+          </Levitate>
+          <PropStage layout={layout} />
+          {interactive && (
+            <ColumnInput
+              layout={layout}
+              orbit={orbit}
+              onColumn={model.onColumn!}
+              onHover={model.onHover ?? (() => {})}
+            />
+          )}
+          {postEnabled && <PostStack />}
+        </ScenePinProvider>
+      </ThemeContext.Provider>
     </Canvas>
   );
 }

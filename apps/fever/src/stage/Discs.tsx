@@ -3,6 +3,12 @@
  * disc is `placements[i]` for i < landed; the disc at index `landed` (if any)
  * is mid-drop, and reports in when it stops. Clicks never reach this file —
  * that's what makes a wire move indistinguishable from a local one.
+ *
+ * The one exception to "settled" is the release tray: when its pull clears a
+ * disc's column, the disc stops being furniture and falls out the bottom
+ * (same heavy gravity as the drop, plus a lazy spin). When the last one is
+ * gone `onReleased` fires — that's the moment the empty board belongs to the
+ * next game.
  */
 
 import { useEffect, useMemo, useRef } from "react";
@@ -15,17 +21,18 @@ import { planDrop, squashAt } from "../match/timing.js";
 import { coinGeometry } from "./coin.js";
 import { stageFx } from "./fx.js";
 import type { StageLayout } from "./layout.js";
+import { EXIT_DEPTH, EXIT_GRAVITY, pullToFree, type Tray } from "./release.js";
+import { useTheme, type Theme } from "./theme.js";
 
 /**
- * Player colors, restyled for the void. The engine's "red" is a lacquered
- * garnet-magenta and "yellow" is tarnished gold — both from the iridescence
- * family, leaving arterial red / hazard orange unclaimed so the fever's heat
- * accent stays legible when phase 2 brings it (palette law in VISION.md).
+ * Player colors come from the theme. In the fever theme the engine's "red" is
+ * a lacquered garnet-magenta and "yellow" is tarnished gold — both from the
+ * iridescence family, leaving arterial red / hazard orange unclaimed so the
+ * fever's heat accent stays legible (palette law in VISION.md). Other themes
+ * make other trades; the heat family stays off-limits in all of them.
  */
-const DISC_STYLE: Record<Player, { color: string; emissive: string }> = {
-  red: { color: "#a3164e", emissive: "#5c0b2a" },
-  yellow: { color: "#c8991f", emissive: "#6e510d" },
-};
+const styleOf = (theme: Theme, player: Player) =>
+  player === "red" ? theme.discs.red : theme.discs.yellow;
 
 interface WinKeys {
   has(colRow: string): boolean;
@@ -39,43 +46,80 @@ function SettledDisc({
   geometry,
   disc,
   win,
+  tray,
+  onExit,
 }: {
   layout: StageLayout;
   geometry: THREE.BufferGeometry;
   disc: DiscPlacement;
   win: WinKeys;
+  tray: Tray;
+  onExit: (ply: number) => void;
 }) {
+  const mesh = useRef<THREE.Mesh>(null);
   const material = useRef<THREE.MeshPhysicalMaterial>(null);
-  const style = DISC_STYLE[disc.player];
+  /** performance.now() when the tray let this disc go; null while seated. */
+  const fellAt = useRef<number | null>(null);
+  const exited = useRef(false);
+  const theme = useTheme();
+  const style = styleOf(theme, disc.player);
   const winning = win.has(keyOf(disc.col, disc.row));
   const dimmed = win.any && !winning;
 
-  // The winning line blinks as a hard square wave — bright, dark, bright —
-  // not a breathing pulse. Deadpan alarm, per the timing rule. It glows in
-  // its own body color so the bloom pass picks it up.
+  const homeY = layout.yOf(disc.row);
+  const freeAt = pullToFree(layout, disc.col);
+
   useFrame(({ clock }) => {
-    if (!material.current) return;
+    if (!mesh.current || !material.current) return;
+
+    // The tray's opening reached this column: let go. Every disc in the
+    // column starts together and they fall as a stack, which is exactly what
+    // the real toy does.
+    if (fellAt.current === null && tray.committed && tray.pull >= freeAt) {
+      fellAt.current = performance.now();
+    }
+
+    if (fellAt.current !== null) {
+      const t = (performance.now() - fellAt.current) / 1000;
+      mesh.current.position.y = homeY - 0.5 * EXIT_GRAVITY * t * t;
+      // A lazy tumble on the way down — direction by column parity, because
+      // randomness never gets to pick how a thing looks.
+      mesh.current.rotation.z = (disc.col % 2 === 0 ? 1 : -1) * t * 2.4;
+      if (!exited.current && mesh.current.position.y < -(layout.frameH / 2 + EXIT_DEPTH)) {
+        exited.current = true;
+        onExit(disc.ply);
+      }
+      return;
+    }
+    mesh.current.position.y = homeY;
+    mesh.current.rotation.z = 0;
+
+    // The winning line blinks as a hard square wave — bright, dark, bright —
+    // not a breathing pulse. Deadpan alarm, per the timing rule. It glows in
+    // its own body color so the bloom pass picks it up.
     if (winning) {
       material.current.emissiveIntensity = clock.elapsedTime % 0.7 < 0.35 ? 2.6 : 0.5;
     }
   });
 
+  const finish = theme.discs.finish;
   return (
     <mesh
+      ref={mesh}
       geometry={geometry}
-      position={[layout.xOf(disc.col), layout.yOf(disc.row), 0]}
+      position={[layout.xOf(disc.col), homeY, 0]}
       rotation-x={Math.PI / 2}
     >
       <meshPhysicalMaterial
         ref={material}
-        color={dimmed ? "#3a2f42" : style.color}
+        color={dimmed ? theme.discs.dimmed : style.color}
         emissive={winning ? style.color : style.emissive}
-        emissiveIntensity={winning ? 2.6 : 0.25}
-        roughness={0.18}
-        metalness={0.4}
-        iridescence={dimmed ? 0 : 0.7}
-        iridescenceIOR={1.4}
-        envMapIntensity={dimmed ? 0.2 : 1.0}
+        emissiveIntensity={winning ? 2.6 : theme.discs.emissiveIntensity}
+        roughness={finish.roughness}
+        metalness={finish.metalness}
+        iridescence={dimmed ? 0 : finish.iridescence}
+        iridescenceIOR={finish.iridescenceIOR}
+        envMapIntensity={dimmed ? 0.2 : finish.envMapIntensity}
       />
     </mesh>
   );
@@ -96,7 +140,8 @@ function FallingDisc({
   const startedAt = useRef<number | null>(null);
   const impacted = useRef(false);
   const done = useRef(false);
-  const style = DISC_STYLE[disc.player];
+  const theme = useTheme();
+  const style = styleOf(theme, disc.player);
 
   const plan = useMemo(
     () => planDrop(layout.dropY, layout.yOf(disc.row)),
@@ -130,17 +175,18 @@ function FallingDisc({
     }
   });
 
+  const finish = theme.discs.finish;
   return (
     <group ref={group} position={[layout.xOf(disc.col), layout.dropY, 0]}>
       <mesh geometry={geometry} rotation-x={Math.PI / 2}>
         <meshPhysicalMaterial
           color={style.color}
           emissive={style.emissive}
-          emissiveIntensity={0.25}
-          roughness={0.18}
-          metalness={0.4}
-          iridescence={0.7}
-          iridescenceIOR={1.4}
+          emissiveIntensity={theme.discs.emissiveIntensity}
+          roughness={finish.roughness}
+          metalness={finish.metalness}
+          iridescence={finish.iridescence}
+          iridescenceIOR={finish.iridescenceIOR}
         />
       </mesh>
     </group>
@@ -153,14 +199,34 @@ export function Discs({
   landed,
   winningCells,
   onDiscLanded,
+  tray,
+  onReleased,
 }: {
   layout: StageLayout;
   moves: readonly number[];
   landed: number;
   winningCells: readonly { row: number; col: number }[];
   onDiscLanded?: () => void;
+  tray: Tray;
+  onReleased?: () => void;
 }) {
   const all = useMemo(() => placements(moves, layout.variant), [moves, layout.variant]);
+
+  // Which plies have fallen out the bottom of the open tray. Rebuilt when the
+  // move list changes, because a new game's ply 3 is not the old game's.
+  const exited = useRef(new Set<number>());
+  const reported = useRef(false);
+  useEffect(() => {
+    exited.current = new Set();
+    reported.current = false;
+  }, [moves]);
+  const onExit = (ply: number) => {
+    exited.current.add(ply);
+    if (!reported.current && exited.current.size >= all.length && all.length > 0) {
+      reported.current = true;
+      onReleased?.();
+    }
+  };
 
   // One coin, forty-two meshes. Built here rather than per disc: the reeded
   // lathe is ~1.7k triangles, which is nothing once but real money times a
@@ -187,7 +253,15 @@ export function Discs({
   return (
     <group>
       {all.slice(0, landed).map((disc) => (
-        <SettledDisc key={disc.ply} layout={layout} geometry={geometry} disc={disc} win={win} />
+        <SettledDisc
+          key={disc.ply}
+          layout={layout}
+          geometry={geometry}
+          disc={disc}
+          win={win}
+          tray={tray}
+          onExit={onExit}
+        />
       ))}
       {falling && (
         <FallingDisc

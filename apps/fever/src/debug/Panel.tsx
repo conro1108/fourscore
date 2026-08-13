@@ -38,6 +38,7 @@ import { requestAct } from "../props/bench.js";
 import { PROP_ACTS } from "../props/registry.js";
 import { useSettingsStore } from "../settings/store.js";
 import { stageFx } from "../stage/fx.js";
+import { THEMES, THEME_IDS, useThemeStore } from "../stage/theme.js";
 
 /**
  * One representative payload per event kind. Fixed, not random: the taste law
@@ -266,10 +267,28 @@ function WorldTab() {
   const botId = useMatchStore((s) => s.botId);
   const variantId = useMatchStore((s) => s.variant.id);
   const newGame = useMatchStore((s) => s.newGame);
+  const themeId = useThemeStore((s) => s.themeId);
+  const setTheme = useThemeStore((s) => s.setTheme);
   const [sound, setSound] = useState<SoundName>(SOUND_NAMES[0]!);
 
   return (
     <>
+      <p className="debug-note">
+        Art direction (stage/theme.ts) — five candidate looks, live-switchable. Persists.
+      </p>
+      <div className="debug-row debug-events">
+        {THEME_IDS.map((id) => (
+          <button
+            key={id}
+            className={themeId === id ? "debug-on" : undefined}
+            title={THEMES[id].blurb}
+            onClick={() => setTheme(id)}
+          >
+            {THEMES[id].name}
+          </button>
+        ))}
+      </div>
+
       <label className="debug-row">
         intensity {fever.toFixed(2)}
         <input

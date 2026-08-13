@@ -23,6 +23,7 @@ export function App() {
   // Free on the dev server, and behind a long press on the wordmark everywhere
   // else — playtesting the fever curve on a phone means a real build.
   const debug = useShellStore((x) => x.debug);
+  const screen = useShellStore((x) => x.screen);
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const myTurn = canHumanPlay(s);
   // The review pointing at a move winds the board back to it. `landed` matches
@@ -30,6 +31,18 @@ export function App() {
   // and a disc falling every time you click a row in a list would be theater
   // about theater.
   const scrub = useScrub(s.generation);
+
+  // The release tray arms on a finished, settled bot game on the match screen
+  // — the state you're left in after closing the outcome window. Not online
+  // (a rematch there is a fresh code, not a fresh board), and not while the
+  // review has the board wound back to somewhere mid-game.
+  const releaseReady =
+    screen === "match" &&
+    s.mode === "bot" &&
+    s.match.status !== "playing" &&
+    s.landed === s.moves.length &&
+    s.moves.length > 0 &&
+    !scrub;
 
   const model: StageModel = {
     variant: s.variant,
@@ -58,6 +71,11 @@ export function App() {
       setHoverCol(col);
     },
     onDiscLanded: s.discLanded,
+    // The last chip out the bottom is what starts the next game — the tray is
+    // the AGAIN button you can hold.
+    release: releaseReady
+      ? { ready: true, auto: s.releasePending, onDone: () => s.newGame() }
+      : undefined,
   };
 
   return (

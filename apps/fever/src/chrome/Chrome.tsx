@@ -325,7 +325,13 @@ export function Chrome() {
           result={result}
           botStarts={s.humanFirst}
           onReview={openReview}
-          onAgain={() => s.newGame()}
+          // AGAIN. doesn't cut to a fresh board — it closes the window and
+          // pulls the release tray itself, so the button and the hand on the
+          // slider are the same gesture: chips out the bottom, then the deal.
+          onAgain={() => {
+            setDismissedGen(s.generation);
+            s.requestRelease();
+          }}
           onSwap={() => s.newGame({ humanFirst: !s.humanFirst })}
           onClose={() => setDismissedGen(s.generation)}
         />

@@ -37,6 +37,7 @@ import * as THREE from "three";
 import { voidOf } from "../bots/identity.js";
 import { useBotSource, useFeverSource } from "../director/scope.js";
 import { CAMERA_TARGET } from "./layout.js";
+import { useTheme } from "./theme.js";
 
 const vertex = /* glsl */ `
   varying vec2 vUv;
@@ -57,6 +58,19 @@ const fragment = /* glsl */ `
   uniform float uGrain;
   /* Signed: magnitude is the slick's strength, sign is which way it crawls. */
   uniform float uSlick;
+  /* The theme's palette (stage/theme.ts) — the fever theme is the constants
+     this shader was originally authored with, to the digit. The heat family
+     is deliberately not a uniform: fever is arterial red in every theme. */
+  uniform vec3 uWell;
+  uniform vec3 uEdge;
+  uniform vec3 uWeatherA;
+  uniform vec3 uWeatherB;
+  uniform float uWeatherGain;
+  uniform vec3 uSlickA;
+  uniform vec3 uSlickB;
+  uniform vec3 uSlickC;
+  uniform float uSlickGain;
+  uniform vec3 uGrade;
 
   // Cheap value noise; the void wants soft weather, not detail.
   float hash(vec2 p) {
@@ -73,14 +87,11 @@ const fragment = /* glsl */ `
     );
   }
 
-  // The oil-slick ramp: magenta into teal into gold. Mirrored so it cycles
-  // without a seam. Authored at screen values like everything here.
+  // The oil-slick ramp — magenta into teal into gold in the fever theme; the
+  // theme picks the three stops. Mirrored so it cycles without a seam.
   vec3 slickRamp(float x) {
-    vec3 magenta = vec3(0.72, 0.10, 0.55);
-    vec3 teal    = vec3(0.05, 0.46, 0.47);
-    vec3 gold    = vec3(0.80, 0.58, 0.16);
-    vec3 c = mix(magenta, teal, smoothstep(0.12, 0.52, x));
-    return mix(c, gold, smoothstep(0.58, 0.92, x));
+    vec3 c = mix(uSlickA, uSlickB, smoothstep(0.12, 0.52, x));
+    return mix(c, uSlickC, smoothstep(0.58, 0.92, x));
   }
 
   void main() {
@@ -104,8 +115,8 @@ const fragment = /* glsl */ `
     // becoming a coloured room.
     // Lifted for the polish lap (Connor: "the background is a bit dark") —
     // still bruised purple falling toward black, but the room has lights now.
-    vec3 center = mix(vec3(0.118, 0.066, 0.196), uTint * 0.55, uTintAmount * 0.5);
-    vec3 edge   = vec3(0.043, 0.026, 0.084);
+    vec3 center = mix(uWell, uTint * 0.55, uTintAmount * 0.5);
+    vec3 edge   = uEdge;
     vec3 col = mix(center, edge, smoothstep(0.11 + 0.07 * breath, 0.88 + 0.14 * breath, r));
 
     // Weather, drifting in two directions at two scales. The two fields move at
@@ -118,15 +129,15 @@ const fragment = /* glsl */ `
 
     // Soft bruises at rest, defined blotches at full fever.
     float sharpen = mix(2.0, 1.15, f);
-    vec3 bruise = mix(vec3(0.141, 0.063, 0.200), uTint, uTintAmount);
-    vec3 tealNight = mix(vec3(0.031, 0.110, 0.129), uTint * 0.5, uTintAmount * 0.7);
+    vec3 bruise = mix(uWeatherA, uTint, uTintAmount);
+    vec3 tealNight = mix(uWeatherB, uTint * 0.5, uTintAmount * 0.7);
     // The two constants below are pivoted around mid-fever on purpose: the
     // idle end got livelier (a void that only wakes up when the game does has
     // nothing to escalate from) while the value at the thesis frame's 0.55
     // barely moves. Re-pivoted brighter again in phase 9 — same trick, more
     // light at rest.
-    col += bruise * pow(n1, sharpen) * (0.92 + 0.55 * f);
-    col += tealNight * pow(n2, sharpen) * (0.44 + 0.27 * f);
+    col += bruise * pow(n1, sharpen) * (0.92 + 0.55 * f) * uWeatherGain;
+    col += tealNight * pow(n2, sharpen) * (0.44 + 0.27 * f) * uWeatherGain;
     // Trimmed with the phase-9 brightening: the base is lighter now, so the
     // full-fever central wash needs less gain to read as "gone hot" without
     // flooding the board's holes to lavender (the phase-3 open question).
@@ -144,7 +155,7 @@ const fragment = /* glsl */ `
     // the weather, and nothing else about their void is wrong at all.
     float film = abs(fract(slick * 1.35 + t * 0.055 * sign(uSlick)) * 2.0 - 1.0);
     float sheenMask = pow(n1, 1.6) * smoothstep(0.10, 0.55, r);
-    col += slickRamp(film) * sheenMask * (0.23 + 0.17 * f) * abs(uSlick);
+    col += slickRamp(film) * sheenMask * (0.23 + 0.17 * f) * abs(uSlick) * uSlickGain;
 
     // The heat family, entering with fever and only with fever: embers low in
     // the frame, arterial red banking into hazard orange where they burn
@@ -160,7 +171,7 @@ const fragment = /* glsl */ `
     col += arterial * heat * 0.10 * low;
 
     // A faint vertical grade so "up" exists in the nothing.
-    col += vec3(0.045, 0.020, 0.062) * smoothstep(0.15, 0.85, vUv.y) * 0.55;
+    col += uGrade * smoothstep(0.15, 0.85, vUv.y) * 0.55;
 
     // The colors above are authored as what should reach the screen, but the
     // post chain treats this output as linear and applies linear-to-sRGB at
@@ -218,6 +229,24 @@ export function VoidBackdrop() {
   const settled = useRef(false);
   const feverOf = useFeverSource();
   const botOf = useBotSource();
+  const theme = useTheme();
+  // The theme's palette as shader-space vectors, once per theme change rather
+  // than sixty times a second.
+  const palette = useMemo(() => {
+    const v = theme.void;
+    return {
+      well: srgb(v.well),
+      edge: srgb(v.edge),
+      weatherA: srgb(v.weatherA),
+      weatherB: srgb(v.weatherB),
+      slickA: srgb(v.slick[0]),
+      slickB: srgb(v.slick[1]),
+      slickC: srgb(v.slick[2]),
+      grade: srgb(v.grade),
+      weatherGain: v.weatherGain,
+      slickGain: v.slickGain,
+    };
+  }, [theme]);
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -226,6 +255,17 @@ export function VoidBackdrop() {
       uTintAmount: { value: 0 },
       uGrain: { value: 1 },
       uSlick: { value: 1 },
+      // Fever-theme defaults; the frame loop below keeps them at the theme.
+      uWell: { value: new THREE.Vector3(0.118, 0.066, 0.196) },
+      uEdge: { value: new THREE.Vector3(0.043, 0.026, 0.084) },
+      uWeatherA: { value: new THREE.Vector3(0.141, 0.063, 0.2) },
+      uWeatherB: { value: new THREE.Vector3(0.031, 0.11, 0.129) },
+      uWeatherGain: { value: 1 },
+      uSlickA: { value: new THREE.Vector3(0.72, 0.1, 0.55) },
+      uSlickB: { value: new THREE.Vector3(0.05, 0.46, 0.47) },
+      uSlickC: { value: new THREE.Vector3(0.8, 0.58, 0.16) },
+      uSlickGain: { value: 1 },
+      uGrade: { value: new THREE.Vector3(0.045, 0.02, 0.062) },
     }),
     [],
   );
@@ -271,6 +311,23 @@ export function VoidBackdrop() {
     u.uTintAmount!.value += (weather.tintAmount - u.uTintAmount!.value) * k;
     u.uGrain!.value += (weather.grain - u.uGrain!.value) * k;
     u.uSlick!.value += (weather.slick - u.uSlick!.value) * k;
+
+    // The theme rides the same half-second ease as the opponent's weather, and
+    // for the same reason: a palette that snaps on the expensive side of the
+    // frame reads as a rendering fault, and a theme switch should look like
+    // the weather changing its mind.
+    const vec = (uniform: { value: THREE.Vector3 }, [r, g, b]: [number, number, number]) =>
+      uniform.value.lerp(TINT.set(r, g, b), k);
+    vec(u.uWell as { value: THREE.Vector3 }, palette.well);
+    vec(u.uEdge as { value: THREE.Vector3 }, palette.edge);
+    vec(u.uWeatherA as { value: THREE.Vector3 }, palette.weatherA);
+    vec(u.uWeatherB as { value: THREE.Vector3 }, palette.weatherB);
+    vec(u.uSlickA as { value: THREE.Vector3 }, palette.slickA);
+    vec(u.uSlickB as { value: THREE.Vector3 }, palette.slickB);
+    vec(u.uSlickC as { value: THREE.Vector3 }, palette.slickC);
+    vec(u.uGrade as { value: THREE.Vector3 }, palette.grade);
+    u.uWeatherGain!.value += (palette.weatherGain - u.uWeatherGain!.value) * k;
+    u.uSlickGain!.value += (palette.slickGain - u.uSlickGain!.value) * k;
   });
 
   return (

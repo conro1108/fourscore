@@ -32,6 +32,11 @@ function modelFor(c: PreviewCase, override: number | null): StageModel {
     ghostPlayer: c.ghostPlayer ?? null,
     marks: c.marks,
     markPlayer: c.markPlayer,
+    theme: c.theme,
+    // The harness has no next game to start; a released board just stays empty.
+    release: c.release
+      ? { ready: true, auto: c.release.auto ?? false, onDone: () => {} }
+      : undefined,
     pin: { fever: override ?? c.fever ?? 0, prop: c.prop, bot: c.bot },
   };
 }

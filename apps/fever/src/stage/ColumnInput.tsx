@@ -17,6 +17,7 @@ import type { Player } from "@fourscore/engine";
 import { coinGeometry } from "./coin.js";
 import type { StageLayout } from "./layout.js";
 import type { Orbit } from "./orbit.js";
+import { useTheme } from "./theme.js";
 
 export function ColumnInput({
   layout,
@@ -77,10 +78,15 @@ export function GhostDisc({
    */
   dim?: boolean;
 }) {
-  // The spent mark is the void's own lilac, not the mud a losing disc dims to:
-  // mud against a dark void is a mark nobody can see, which was exactly how the
-  // first version of this shipped to a screenshot.
-  const color = dim ? "#7a6899" : player === "red" ? "#a3164e" : "#c8991f";
+  // The spent mark is the theme's own pale accent, not the mud a losing disc
+  // dims to: mud against a dark void is a mark nobody can see, which was
+  // exactly how the first version of this shipped to a screenshot.
+  const theme = useTheme();
+  const color = dim
+    ? theme.discs.ghostSpent
+    : player === "red"
+      ? theme.discs.red.color
+      : theme.discs.yellow.color;
   // The ghost is the same coin, not a stand-in cylinder — a preview whose
   // silhouette differs from the thing it previews is a lie about the shape.
   const geometry = useMemo(

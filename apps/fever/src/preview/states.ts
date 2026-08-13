@@ -7,6 +7,7 @@
 
 import { CONNECT4, CONNECT5, CONNECT6, CONNECT7, type Player, type Variant } from "@fourscore/engine";
 import type { PinnedAct } from "../director/scope.js";
+import { THEME_IDS, THEMES, type ThemeId } from "../stage/theme.js";
 import type { ChromeState } from "./chrome.js";
 import { REVIEW_MOVES } from "./reviewFixture.js";
 
@@ -31,6 +32,13 @@ export interface PreviewCase {
   bot?: string;
   /** Lay a chrome surface over the scene (see `preview/chrome.tsx`). */
   chrome?: { state: ChromeState; botId?: string; status?: string };
+  /** Pin an art direction (stage/theme.ts). Undefined is the fever dream. */
+  theme?: ThemeId;
+  /**
+   * Arm the release tray. `auto` pulls it on mount, so by screenshot time the
+   * chips are out and the tray is standing open.
+   */
+  release?: { auto?: boolean };
 }
 
 /**
@@ -213,6 +221,49 @@ export const PREVIEW_STATES: PreviewCase[] = [
     caption: "win moment — Connect 4 (red, vertical)",
     variant: CONNECT4,
     moves: [3, 0, 3, 1, 3, 2, 3],
+  },
+  // THE ART DIRECTIONS. Five candidate looks, each shot twice: the thesis
+  // frame (both budgets, truck at apex — the props stay identical across
+  // themes on purpose, that's the control) and a lit win. Read a column of
+  // these against the fever pair above it; the question each pair asks is
+  // "is this a direction or a palette swap".
+  ...THEME_IDS.filter((t) => t !== "fever").flatMap((t) => [
+    {
+      id: `theme-${t}`,
+      caption: `${THEMES[t].name} — the thesis frame restaged`,
+      variant: CONNECT4,
+      moves: [3, 3, 4, 2, 4, 4, 5, 3, 2, 1],
+      fever: 0.55,
+      prop: { name: "truck-lap", phase: 0.48 },
+      theme: t,
+    },
+    {
+      id: `theme-${t}-win`,
+      caption: `${THEMES[t].name} — the win blink`,
+      variant: CONNECT4,
+      moves: [3, 0, 3, 1, 3, 2, 3],
+      fever: 0.8,
+      theme: t,
+    },
+  ]),
+  // THE RELEASE TRAY. Armed: the handle blinking on a finished board — the
+  // state you're left in after closing the outcome window. Open: the same
+  // board after an auto-pull, chips gone, floor standing out to the right.
+  {
+    id: "tray-armed",
+    caption: "release tray armed — finished game, handle asking",
+    variant: CONNECT4,
+    moves: [3, 0, 3, 1, 3, 2, 3],
+    fever: 0.5,
+    release: {},
+  },
+  {
+    id: "tray-open",
+    caption: "release tray pulled — chips out the bottom, floor standing open",
+    variant: CONNECT4,
+    moves: [3, 0, 3, 1, 3, 2, 3],
+    fever: 0.5,
+    release: { auto: true },
   },
   {
     id: "win-c5",

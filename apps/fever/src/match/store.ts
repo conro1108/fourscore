@@ -50,6 +50,14 @@ export interface MatchStore {
    */
   live: boolean;
   /**
+   * The software wants the release tray pulled (the outcome window's AGAIN.
+   * routes through the same chip-dump the hand gets). The stage reads it as
+   * the tray's `auto`; `newGame` clears it, because the release *ends* in a
+   * new game and a flag that survived would pull the next board's floor out.
+   */
+  releasePending: boolean;
+  requestRelease(): void;
+  /**
    * How a move gets off this machine, in online mode.
    *
    * Registered by `online/runtime.ts` while a wire match is up and cleared when
@@ -118,7 +126,10 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   match: new Match(CONNECT4),
   thinking: false,
   live: false,
+  releasePending: false,
   sendMove: null,
+
+  requestRelease: () => set({ releasePending: true }),
 
   newGame: (opts = {}) => {
     const s = get();
@@ -142,6 +153,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       match: new Match(variant),
       thinking: false,
       live: opts.live ?? true,
+      releasePending: false,
     });
   },
 

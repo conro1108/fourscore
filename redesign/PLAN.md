@@ -1003,6 +1003,43 @@ thesis artifacts, and what they couldn't fix.
   running (fever pinned at 0.32 by the floor, board scenery visible behind
   the window) — all looked at.
 
+- **Art-direction exploration + the release tray** *(Fable, 2026-08-12)*.
+  Connor asked for five candidate looks — explicitly *not* five remixes of this
+  plan's aesthetic ("you're a design firm brought in to explore directions") —
+  switchable live from the dev panel, plus a Connect 4-style slider that dumps
+  the chips out the bottom as the main way from a finished board into the next
+  game. Shipped both. `stage/theme.ts` is a `Theme` object covering the void
+  shader's palette (now uniforms; fever-theme defaults are the old constants to
+  the digit), the VoidSky env panels, the light rig, board/rail/eyelet
+  materials, disc styles and two post knobs (bloom threshold, vignette);
+  `ThemeContext` is provided by StageView so harness tiles pin themes while the
+  app follows the persisted `useThemeStore` (dev panel → world tab). The five:
+  **Fever Dream** (incumbent, the control), **Heirloom Parlor** (walnut/brass
+  lamplight), **Porcelain Gallery** (light-theme ceramic in a gray gallery),
+  **Midnight Arcade** (piano black + self-lit neon discs), **The Abyss**
+  (verdigris bronze, lantern discs). Props deliberately unthemed — the cheap
+  half of the budget law is the constant across all directions. Preview states
+  `theme-*`/`theme-*-win` and `tray-armed`/`tray-open` are in the harness; all
+  screenshotted and iterated (two tuning laps). Traps found the hard way: a
+  light void *or a light board* above `bloomThreshold` minus the smoothing band
+  whites the whole frame out (porcelain ships at 1.15); board and void at the
+  same hue+value merge into mush (parlor/abyss both needed the room darkened
+  around the object). The tray: `stage/release.ts` (pure math + shared mutable
+  `Tray`, unit-tested), `stage/ReleaseTray.tsx` (the floor is now the tray;
+  BoardRig keeps only side rails). Columns release left-to-right as the opening
+  passes them, discs fall at drop gravity with a parity-signed tumble, passing
+  the first occupied column commits (no un-spilling; let go and it finishes
+  itself), short of that it snaps shut. `DRAG_GAIN = 1.6` so a full pull fits a
+  thumb. The outcome window's AGAIN. now routes through the same auto-pull
+  (`match/store.releasePending`) instead of cutting to a fresh board; online
+  keeps its lobby flow and the tray never arms there. Verified live by scripted
+  drag (grab → commit → pour → new generation dealt → tray reset); acceptance
+  still passes, 243 tests, fever-theme thesis frame regression-shot. What the
+  next session needs: **the five looks are candidates, not a shipped feature**
+  — when Connor picks one, fold it into VISION.md's palette law (or retire the
+  losers), and note the DOM chrome is untouched by themes on purpose (it's a
+  pillar, and re-skinning it per direction was out of scope for the pitch).
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta

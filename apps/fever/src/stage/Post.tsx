@@ -26,12 +26,18 @@ import { BlendFunction } from "postprocessing";
 import type { BloomEffect, ChromaticAberrationEffect, NoiseEffect } from "postprocessing";
 import { useRef } from "react";
 import { useFeverSource } from "../director/scope.js";
+import { useTheme } from "./theme.js";
 
 export function PostStack() {
   const bloom = useRef<BloomEffect>(null);
   const aberration = useRef<ChromaticAberrationEffect>(null);
   const grain = useRef<NoiseEffect>(null);
   const feverOf = useFeverSource();
+  // Two knobs are the theme's: the bloom threshold (a light theme blooms at
+  // the fever threshold and whites out) and how hard the vignette seats the
+  // frame. Keyed remount below — a theme switch is rare and the effects read
+  // these once at construction.
+  const theme = useTheme();
 
   useFrame(() => {
     const fever = feverOf();
@@ -50,12 +56,12 @@ export function PostStack() {
   });
 
   return (
-    <EffectComposer multisampling={0}>
+    <EffectComposer key={theme.id} multisampling={0}>
       <Bloom
         ref={bloom as never}
         mipmapBlur
         intensity={0.75}
-        luminanceThreshold={0.32}
+        luminanceThreshold={theme.post.bloomThreshold}
         luminanceSmoothing={0.22}
       />
       <ChromaticAberration
@@ -64,7 +70,7 @@ export function PostStack() {
         modulationOffset={0.28}
       />
       <Noise ref={grain as never} premultiply blendFunction={BlendFunction.OVERLAY} opacity={0.035} />
-      <Vignette eskil={false} offset={0.18} darkness={0.55} />
+      <Vignette eskil={false} offset={0.18} darkness={theme.post.vignette} />
     </EffectComposer>
   );
 }
