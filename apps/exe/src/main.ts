@@ -29,6 +29,7 @@ import { BIN_TEXT, DIALOG, HELP_TEXT, TITLES } from "./copy.js";
 import { openMines } from "./games/mines.js";
 import { openSnake } from "./games/snake.js";
 import { openSol } from "./games/sol.js";
+import { openCheckers } from "./games/checkers.js";
 
 const stage = q("#stage");
 fitStage(stage);
@@ -195,6 +196,8 @@ if (state === "midgame") {
   openUntitled(wm);
 } else if (state === "sol") {
   openSol(wm, param("rig") ?? undefined);
+} else if (state === "checkers") {
+  openCheckers(wm);
 }
 
 /* ---- FEVER.CTL — dev chrome; does not ship in the fiction ---- */

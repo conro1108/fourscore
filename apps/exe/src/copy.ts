@@ -273,8 +273,9 @@ export const GAMES_COPY = {
     mustCapture: "A capture is available. It is not optional.",
     yourMove: "YOUR MOVE.",
     thinking: "The computer is moving its men.",
-    win: { title: "CHECKERS.EXE", body: "You have no men left, or nowhere to put them.<br>The computer does not gloat. Visibly." },
-    lose: { title: "CHECKERS.EXE", body: "The computer has no men left.<br>It has filed this under draughts." },
+    machineWins: { title: "CHECKERS.EXE", body: "You have nowhere to go.<br>The computer does not gloat. Visibly." },
+    youWin: { title: "CHECKERS.EXE", body: "The computer has nowhere to go.<br>It has filed this under draughts." },
+    stale: { title: "CHECKERS.EXE", body: "Nothing has been captured for some time.<br>The men have agreed to stop." },
     help: { title: "CHECKERS.EXE", body: "Diagonal moves only. Captures are compulsory.<br>Kings come back down the board." },
   },
   notepad: {
