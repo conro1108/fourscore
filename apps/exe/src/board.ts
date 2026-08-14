@@ -96,6 +96,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     icon: ICONS.board,
     x: 296,
     y: 64,
+    ax: "center",
     w: windowWidth(),
     cls: `chips-${chips}`,
     body,

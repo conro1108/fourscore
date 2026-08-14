@@ -7,7 +7,7 @@
 import { el } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { TITLES } from "./copy.js";
-import type { WM, Win } from "./wm.js";
+import type { AnchorX, WM, Win } from "./wm.js";
 
 export interface MovesPad {
   open(): void;
@@ -44,6 +44,7 @@ export function makeMovesPad(wm: WM): MovesPad {
       icon: ICONS.moves,
       x: 920,
       y: 110,
+      ax: "right",
       w: 240,
       body,
       buttons: ["close"],
@@ -86,6 +87,7 @@ export function textWindow(
   x: number,
   y: number,
   w = 230,
+  ax: AnchorX = "left",
 ): void {
   const existing = wm.get(id);
   if (existing?.isOpen()) {
@@ -96,5 +98,5 @@ export function textWindow(
   const pad = el(`<div class="sunken notepad" style="max-height:420px;overflow:auto"></div>`);
   pad.textContent = text;
   body.appendChild(pad);
-  wm.open({ id, title, icon: ICONS.moves, x, y, w, body, buttons: ["close"] });
+  wm.open({ id, title, icon: ICONS.moves, x, y, ax, w, body, buttons: ["close"] });
 }

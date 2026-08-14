@@ -7,7 +7,7 @@
 import { el, q } from "./dom.js";
 import { ICONS, ROCKET, iconCanvas, px } from "./icons.js";
 import { START_MENU } from "./copy.js";
-import { stageScale } from "./wm.js";
+import { anchorX, onDeskResize, stageScale } from "./wm.js";
 
 export interface DesktopApps {
   openBoard(): void;
@@ -76,11 +76,19 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   /* ---- the rocket: a pixel sprite that has escaped a window. Nobody
      comments, but it is real enough to drag around. ---- */
   const rocket = el(
-    `<canvas class="pix" width="12" height="18" style="position:absolute;left:1010px;top:40px;width:60px;height:90px;transform:rotate(30deg);z-index:20"></canvas>`,
+    `<canvas class="pix" width="12" height="18" style="position:absolute;top:40px;width:60px;height:90px;transform:rotate(30deg);z-index:20"></canvas>`,
   ) as HTMLCanvasElement;
   px(rocket, ROCKET);
+  // it escaped toward the right edge, so that is the edge it keeps to
+  let rocketPlaced = false;
+  const placeRocket = (): void => {
+    if (!rocketPlaced) rocket.style.left = `${anchorX(1010, "right")}px`;
+  };
+  placeRocket();
+  onDeskResize(placeRocket);
   rocket.addEventListener("mousedown", (e) => {
     e.preventDefault();
+    rocketPlaced = true;
     const k = stageScale();
     const sx = e.clientX / k - rocket.offsetLeft;
     const sy = e.clientY / k - rocket.offsetTop;

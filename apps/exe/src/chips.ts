@@ -112,5 +112,5 @@ export function openPieces(wm: WM, current: () => string, apply: (style: string)
   const note = el(`<div style="padding:4px 10px 8px;color:#404040"></div>`);
   note.textContent = PIECES_NOTE;
   body.appendChild(note);
-  wm.open({ id: "pieces", title: TITLES.pieces, x: 920, y: 430, w: 240, body, buttons: ["close"] });
+  wm.open({ id: "pieces", title: TITLES.pieces, x: 920, y: 430, ax: "right", w: 240, body, buttons: ["close"] });
 }

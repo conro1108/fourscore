@@ -28,7 +28,7 @@ import {
 import { DIALOG, TITLES } from "./copy.js";
 import type { DirectorSnapshot } from "./director.js";
 import type { Shell } from "./desktop.js";
-import type { WM, Win } from "./wm.js";
+import { stageScale, type AnchorX, type WM, type Win } from "./wm.js";
 import type { EndResult } from "./board.js";
 
 type Personality = "classic" | "coals" | "pillar" | "rain";
@@ -36,6 +36,9 @@ type Personality = "classic" | "coals" | "pillar" | "rain";
 interface FireWindowGeom {
   x: number;
   y: number;
+  /** Which edge of the desk x is measured from. Defaults right — the
+      flames live in the desk's right margin, not at a fixed 1280 offset. */
+  ax?: AnchorX;
   cw: number;
   ch: number;
   rw: number;
@@ -52,6 +55,8 @@ const MAIN_GEOM: readonly FireWindowGeom[] = [
 
 /** The win's fireplace (02-win's finale beat). */
 const WIN_GEOM: FireWindowGeom = { x: 772, y: 330, cw: 436, ch: 292, rw: 145, rh: 97 };
+
+const ROAM_ANCHOR: readonly AnchorX[] = ["left", "center", "right"];
 
 const ICON_SHIFT_T3 = [[3, -2], [-2, 3], [1, 2], [-3, -1]] as const;
 const ICON_SHIFT_T4 = [[6, -4], [-5, 6], [3, 5], [-7, -2]] as const;
@@ -102,6 +107,7 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
       title,
       x: geom.x,
       y: geom.y,
+      ax: geom.ax ?? "right",
       w: geom.cw + 12,
       body,
       buttons: ["close"],
@@ -163,8 +169,7 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
   function applyGeometry(): void {
     if (!mainWin?.isOpen() || !mainCanvas || !mainFire) return;
     const g = wonGeom ? WIN_GEOM : MAIN_GEOM[Math.min(tier, 3)]!;
-    mainWin.el.style.left = `${g.x}px`;
-    mainWin.el.style.top = `${g.y}px`;
+    mainWin.moveTo(g.x, g.y);
     mainWin.el.style.width = `${g.cw + 12}px`;
     mainCanvas.style.width = `${g.cw}px`;
     mainCanvas.style.height = `${g.ch}px`;
@@ -209,6 +214,8 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
         title: TITLES.roamN(i + 1),
         x: 116 + i * 324,
         y: 566,
+        ax: ROAM_ANCHOR[i]!,
+        ay: "bottom",
         body,
         w: 308,
         buttons: ["close"],
@@ -249,7 +256,7 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
   const cursorPast: [number, number][] = [];
   addEventListener("mousemove", (e) => {
     const r = stage.getBoundingClientRect();
-    const k = r.width / 1280;
+    const k = stageScale();
     cursorPast.push([(e.clientX - r.left) / k, (e.clientY - r.top) / k]);
     if (cursorPast.length > 24) cursorPast.shift();
   });
@@ -323,20 +330,20 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
   function crossInto(t: number): void {
     ensureMain(); // windows open on their own
     if (t === 1 && !gameOver)
-      crossingDialogs.push(wm.dialog({ ...NOT_RESPONDING, x: 750, y: 140, w: 372 }));
+      crossingDialogs.push(wm.dialog({ ...NOT_RESPONDING, x: 750, y: 140, ax: "center", w: 372 }));
     if (t === 2) {
       if (!gameOver)
         crossingDialogs.push(
-          wm.dialog({ title: "Display", body: "Something is warm behind this window.", x: 806, y: 210 }),
+          wm.dialog({ title: "Display", body: "Something is warm behind this window.", x: 806, y: 210, ax: "center" }),
         );
       openExtra(2, { x: 986, y: 48, cw: 240, ch: 150, rw: 80, rh: 50 }, { wind: (t2) => Math.sin(t2 * 0.06) * 1.4 }, { dBase: -4, dInt: 0, dCool: 0.4 });
     }
     if (t === 3) {
       if (!gameOver)
         crossingDialogs.push(
-          wm.dialog({ title: "System", icon: "!", body: DIALOG.screensaverEarly.body, buttons: ["OK", "OK"], x: 780, y: 330 }),
+          wm.dialog({ title: "System", icon: "!", body: DIALOG.screensaverEarly.body, buttons: ["OK", "OK"], x: 780, y: 330, ax: "center" }),
         );
-      openExtra(3, { x: 26, y: 436, cw: 200, ch: 132, rw: 67, rh: 44 }, {}, { dBase: -8, dInt: 15, dCool: 0.7 });
+      openExtra(3, { x: 26, y: 436, ax: "left", cw: 200, ch: 132, rw: 67, rh: 44 }, {}, { dBase: -8, dInt: 15, dCool: 0.7 });
       openRoam();
     }
   }

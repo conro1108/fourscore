@@ -16,6 +16,9 @@ export interface WindowSpec {
   icon?: readonly string[];
   x: number;
   y: number;
+  /** Which edge of the desk x/y are measured from. Defaults left/top. */
+  ax?: AnchorX;
+  ay?: AnchorY;
   w?: number;
   /** Extra classes on the .win element (e.g. chips-flat). */
   cls?: string;
@@ -36,6 +39,8 @@ export interface Win {
   minimize(): void;
   setTitle(title: string): void;
   isOpen(): boolean;
+  /** Re-place against the desk, in authored (1280x800) coordinates. */
+  moveTo(x: number, y: number): void;
 }
 
 export interface DialogSpec {
@@ -46,6 +51,8 @@ export interface DialogSpec {
   defIdx?: number;
   x: number;
   y: number;
+  ax?: AnchorX;
+  ay?: AnchorY;
   w?: number;
   taskbar?: boolean;
   /** Called with the button index; the dialog closes itself first. */
@@ -64,15 +71,48 @@ export interface WM {
   focusWin(win: Win): void;
 }
 
-/* ---- stage scaling ---- */
+/* ---- the desk ----
+   The desktop IS the screen (DIRECTION.md), so the stage fills the browser
+   window instead of sitting inside it as a letterboxed card: the taskbar
+   reaches both edges, the icons sit in the true corner, the clock is in the
+   real right corner. It scales by whichever axis is tighter and then grows to
+   cover the rest, so a wider window is a wider desk, not a bigger picture of
+   one. At exactly 1280x800 the scale is 1 and every authored number lands
+   where it was authored. */
+const DESIGN_W = 1280;
+const DESIGN_H = 800;
 let scale = 1;
-export const stageScale = (): number => scale;
+let deskW = DESIGN_W;
+let deskH = DESIGN_H;
+const resizeCbs: (() => void)[] = [];
 
-export function fitStage(stage: HTMLElement, w = 1280, h = 800): void {
+export const stageScale = (): number => scale;
+export const deskWidth = (): number => deskW;
+export const deskHeight = (): number => deskH;
+/** Fires after the desk changes size, so placed things can re-anchor. */
+export const onDeskResize = (cb: () => void): void => void resizeCbs.push(cb);
+
+/** Where a coordinate authored against a 1280x800 desk goes on this one. */
+export type AnchorX = "left" | "center" | "right";
+export type AnchorY = "top" | "bottom";
+export function anchorX(x: number, a: AnchorX = "left"): number {
+  const slack = deskW - DESIGN_W;
+  return a === "left" ? x : a === "right" ? x + slack : Math.round(x + slack / 2);
+}
+export function anchorY(y: number, a: AnchorY = "top"): number {
+  return a === "top" ? y : y + (deskH - DESIGN_H);
+}
+
+export function fitStage(stage: HTMLElement, w = DESIGN_W, h = DESIGN_H): void {
   const fit = (): void => {
     scale = Math.min(innerWidth / w, innerHeight / h);
+    deskW = Math.round(innerWidth / scale);
+    deskH = Math.round(innerHeight / scale);
     stage.style.transformOrigin = "top left";
-    stage.style.transform = `scale(${scale}) translateX(${(innerWidth / scale - w) / 2}px)`;
+    stage.style.transform = `scale(${scale})`;
+    stage.style.width = `${deskW}px`;
+    stage.style.height = `${deskH}px`;
+    for (const cb of resizeCbs) cb();
   };
   fit();
   addEventListener("resize", fit);
@@ -98,7 +138,19 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
 
   function open(spec: WindowSpec): Win {
     const buttons = spec.buttons ?? ["min", "max", "close"];
-    const w = el(`<div class="win bevel${spec.cls ? " " + spec.cls : ""}" style="left:${spec.x}px;top:${spec.y}px${spec.w ? `;width:${spec.w}px` : ""}"></div>`);
+    const w = el(`<div class="win bevel${spec.cls ? " " + spec.cls : ""}"${spec.w ? ` style="width:${spec.w}px"` : ""}></div>`);
+    let maximized: { left: string; top: string; width: string } | null = null;
+    // authored coordinates, kept so the window can re-anchor if the desk resizes
+    const authored: [number, number] = [spec.x, spec.y];
+    let dragged = false;
+    const place = (): void => {
+      w.style.left = `${anchorX(authored[0], spec.ax)}px`;
+      w.style.top = `${anchorY(authored[1], spec.ay)}px`;
+    };
+    place();
+    onDeskResize(() => {
+      if (!dragged && !maximized && w.isConnected) place();
+    });
     const bar = el(`<div class="titlebar inactive"><span class="t"></span></div>`);
     bar.querySelector(".t")!.textContent = spec.title;
     if (spec.icon) bar.prepend(iconCanvas(spec.icon, 16));
@@ -110,8 +162,6 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     w.appendChild(bar);
     w.appendChild(spec.body);
     stage.appendChild(w);
-
-    let maximized: { left: string; top: string; width: string } | null = null;
 
     const win: Win = {
       id: spec.id,
@@ -141,6 +191,11 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         if (task) task.textContent = title;
       },
       isOpen: () => w.isConnected,
+      moveTo(x, y) {
+        authored[0] = x;
+        authored[1] = y;
+        place();
+      },
     };
 
     bar.addEventListener("click", (e) => {
@@ -154,7 +209,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
           maximized = null;
         } else {
           maximized = { left: w.style.left, top: w.style.top, width: w.style.width };
-          Object.assign(w.style, { left: "0px", top: "0px", width: "1280px" });
+          Object.assign(w.style, { left: "0px", top: "0px", width: `${deskW}px` });
         }
       }
     });
@@ -167,6 +222,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       if ((e.target as HTMLElement).closest(".tbtn")) return;
       if (maximized) return;
       e.preventDefault();
+      dragged = true; // you put it there; a resize doesn't get to move it back
       const startX = e.clientX / scale - w.offsetLeft;
       const startY = e.clientY / scale - w.offsetTop;
       const move = (ev: MouseEvent): void => {
@@ -224,6 +280,8 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       title: spec.title,
       x: spec.x,
       y: spec.y,
+      ax: spec.ax,
+      ay: spec.ay,
       w: spec.w ?? 340,
       body,
       buttons: ["close"],

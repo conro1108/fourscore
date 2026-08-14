@@ -85,7 +85,7 @@ const effects = makeEffects({ wm, shell, stage, boardWin: () => wm.get("board") 
 
 board.onMenu("help", () => desktopApps.openHelp());
 board.onMenu("about", () =>
-  wm.dialog({ title: DIALOG.about.title, body: DIALOG.about.body, x: 470, y: 300, w: 340 }),
+  wm.dialog({ title: DIALOG.about.title, body: DIALOG.about.body, x: 470, y: 300, ax: "center", w: 340 }),
 );
 
 const desktopApps: DesktopApps = {
@@ -97,13 +97,13 @@ const desktopApps: DesktopApps = {
     board = makeBoard(boardDeps);
     board.onMenu("help", () => desktopApps.openHelp());
     board.onMenu("about", () =>
-      wm.dialog({ title: DIALOG.about.title, body: DIALOG.about.body, x: 470, y: 300, w: 340 }),
+      wm.dialog({ title: DIALOG.about.title, body: DIALOG.about.body, x: 470, y: 300, ax: "center", w: 340 }),
     );
     board.newGame();
   },
   openFlames: () => effects.openFlames(),
   openMoves: () => movesPad.open(),
-  openBin: () => textWindow(wm, "bin", TITLES.bin, BIN_TEXT, 480, 180, 230),
+  openBin: () => textWindow(wm, "bin", TITLES.bin, BIN_TEXT, 480, 180, 230, "center"),
   openHelp: () => textWindow(wm, "help", TITLES.help, HELP_TEXT, 180, 120, 230),
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
@@ -115,6 +115,7 @@ const desktopApps: DesktopApps = {
       buttons: ["OK", "OK"],
       x: 450,
       y: 310,
+      ax: "center",
       w: 360,
     });
   },

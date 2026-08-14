@@ -93,6 +93,12 @@ hesitated"), `flames.scr`, a clock reading 6:66 PM, dialogs whose buttons are
 `OK` and `OK`. The rocket is a pixel sprite that has escaped a window and
 nobody comments.
 
+The desk fills the browser window — the taskbar reaches both edges, the icons
+sit in the true corner. 1280x800 is what positions are *authored* against, not
+what ships, so every window spec carries an anchor (`ax`/`ay`) naming the edge
+its coordinates are measured from. A window placed on the right half without
+`ax: "right"` strands itself mid-desk on a wide screen.
+
 Voice: sincere period software, deadpan. The software believes it is fine.
 All strings in one `copy.ts` (fever's pattern — it made the copy pass
 possible).

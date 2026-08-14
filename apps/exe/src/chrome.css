@@ -5,7 +5,9 @@
 html,body{margin:0;height:100%;overflow:hidden}
 body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-size:11px;color:#000;
      cursor:default;user-select:none;-webkit-user-select:none}
-#stage{position:relative;width:1280px;height:800px;margin:0 auto;background:#0e8078;overflow:hidden}
+/* the desk. fitStage() sizes it to the browser window; these are the
+   authored 1280x800 it composes against. */
+#stage{position:relative;width:1280px;height:800px;background:#0e8078;overflow:hidden}
 
 .bevel{background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .sunken{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
@@ -161,7 +163,7 @@ canvas.pix{image-rendering:pixelated;display:block}
 #smears{position:absolute;inset:0;pointer-events:none;z-index:35}
 #trail{position:absolute;inset:0;pointer-events:none;z-index:150}
 #saver{position:absolute;inset:0;z-index:240;display:none;background:#000}
-#saver canvas{width:1280px;height:800px}
+#saver canvas{width:100%;height:100%}
 
 /* ---- the win ---- */
 #fx{position:absolute;inset:0;pointer-events:none;z-index:30}

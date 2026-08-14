@@ -57,7 +57,8 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
   }
 
   const dialog = (spec: Parameters<WM["dialog"]>[0]): Win => {
-    const d = deps.wm.dialog(spec);
+    // the endgame talks over the board, so it travels with it
+    const d = deps.wm.dialog({ ax: "center", ...spec });
     openDialogs.push(d);
     return d;
   };
