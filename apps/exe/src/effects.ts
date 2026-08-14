@@ -58,8 +58,8 @@ const WIN_GEOM: FireWindowGeom = { x: 772, y: 330, cw: 436, ch: 292, rw: 145, rh
 
 const ROAM_ANCHOR: readonly AnchorX[] = ["left", "center", "right"];
 
-const ICON_SHIFT_T3 = [[3, -2], [-2, 3], [1, 2], [-3, -1]] as const;
-const ICON_SHIFT_T4 = [[6, -4], [-5, 6], [3, 5], [-7, -2]] as const;
+const ICON_SHIFT_T3 = [[3, -2], [-2, 3], [1, 2], [-3, -1], [2, -3]] as const;
+const ICON_SHIFT_T4 = [[6, -4], [-5, 6], [3, 5], [-7, -2], [5, 4]] as const;
 const CLOCK_DRIFT = [0, 1, 5, 22, -1] as const;
 
 export interface Effects {
@@ -382,7 +382,7 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
     const prev = tier;
     tier = t;
     shell.setClockDrift(CLOCK_DRIFT[t]!);
-    shell.shiftIcons(t >= 4 ? ICON_SHIFT_T4 : t >= 3 ? ICON_SHIFT_T3 : [[0, 0], [0, 0], [0, 0], [0, 0]]);
+    shell.shiftIcons(t >= 4 ? ICON_SHIFT_T4 : t >= 3 ? ICON_SHIFT_T3 : [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]);
     if (t > prev) for (let c = prev + 1; c <= t; c++) crossInto(c);
     // Coming down after a game the desktop keeps its litter — the windows the
     // fever opened stay open, and the next game is what clears them. Only the

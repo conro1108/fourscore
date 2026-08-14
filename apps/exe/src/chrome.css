@@ -175,6 +175,13 @@ canvas.pix{image-rendering:pixelated;display:block}
 .solghost{position:absolute;width:62px;z-index:500;pointer-events:none}
 .solbounce{position:absolute;inset:0;z-index:210}
 
+/* the games folder */
+.folderpane{margin:3px;background:#fff;display:flex;gap:8px;padding:12px 8px;min-height:76px;align-items:flex-start}
+.fic{width:74px;text-align:center;color:#000}
+.fic .pix{width:32px;height:32px;margin:0 auto 4px}
+.fic .lbl{display:inline-block;padding:1px 2px;font-size:10px}
+.fic.sel .lbl{background:#000080;color:#fff;outline:1px dotted #fff}
+
 /* CHECKERS.EXE — the machine's own boardgame, played with the chips */
 .ckgrid{display:grid;grid-template-columns:repeat(8,40px)}
 .cksq{width:40px;height:40px;display:grid;place-items:center}

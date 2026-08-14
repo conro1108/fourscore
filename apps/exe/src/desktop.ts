@@ -16,6 +16,9 @@ export interface DesktopApps {
   openBin(): void;
   openHelp(): void;
   openPieces(): void;
+  openGames(): void;
+  openUntitled(): void;
+  openGame(id: "mines" | "sol" | "snake" | "checkers"): void;
   shutdown(): void;
 }
 
@@ -52,6 +55,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     { rows: ICONS.flame, label: "flames.scr", top: 122, launch: () => apps().openFlames() },
     { rows: ICONS.moves, label: "moves.txt", top: 222, launch: () => apps().openMoves() },
     { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin() },
+    { rows: ICONS.folder, label: "games", top: 422, launch: () => apps().openGames() },
   ];
   const iconEls: HTMLElement[] = [];
   for (const def of iconDefs) {
@@ -165,9 +169,14 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     item(START_MENU.programs, undefined, [
       ["BOARD.EXE", () => apps().openBoard()],
       ["flames.scr", () => apps().openFlames()],
+      ["MINES.EXE", () => apps().openGame("mines")],
+      ["SOL.EXE", () => apps().openGame("sol")],
+      ["SNAKE.EXE", () => apps().openGame("snake")],
+      ["CHECKERS.EXE", () => apps().openGame("checkers")],
     ]),
     item(START_MENU.documents, undefined, [
       ["moves.txt", () => apps().openMoves()],
+      ["untitled.txt", () => apps().openUntitled()],
       ["help.txt", () => apps().openHelp()],
     ]),
     item(START_MENU.settings, undefined, [["pieces.ctl", () => apps().openPieces()]]),

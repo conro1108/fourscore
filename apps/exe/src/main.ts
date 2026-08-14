@@ -8,6 +8,8 @@
  *   ?state=loss&beat=N    the coals parade held at a beat (2..10)
  *   ?state=pieces         pieces.ctl open
  *   ?state=saver          the screensaver has won the desktop
+ *   ?state=mines|sol|snake|checkers|notepad|games   the other software
+ *   ?state=sol&rig=won    a double-click from the card bounce
  *   ?fever=0.85           walk the fever up to a value and pin it
  *   ?chips=pixel          preselect a chip style
  *   ?bot=quill ?variant=connect5
@@ -30,6 +32,7 @@ import { openMines } from "./games/mines.js";
 import { openSnake } from "./games/snake.js";
 import { openSol } from "./games/sol.js";
 import { openCheckers } from "./games/checkers.js";
+import { openGamesFolder } from "./games/folder.js";
 
 const stage = q("#stage");
 fitStage(stage);
@@ -92,6 +95,13 @@ board.onMenu("about", () =>
   wm.dialog({ title: DIALOG.about.title, body: DIALOG.about.body, x: 470, y: 300, ax: "center", w: 340 }),
 );
 
+const gameLaunchers = {
+  mines: () => openMines(wm),
+  sol: () => openSol(wm),
+  snake: () => openSnake(wm),
+  checkers: () => openCheckers(wm),
+};
+
 const desktopApps: DesktopApps = {
   openBoard() {
     if (board.win.isOpen()) {
@@ -111,6 +121,9 @@ const desktopApps: DesktopApps = {
   openHelp: () => textWindow(wm, "help", TITLES.help, HELP_TEXT, 180, 120, 230),
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
+  openGames: () => openGamesFolder(wm, gameLaunchers),
+  openUntitled: () => openUntitled(wm),
+  openGame: (id) => gameLaunchers[id](),
   shutdown() {
     wm.dialog({
       title: DIALOG.shutdown.title,
@@ -198,6 +211,8 @@ if (state === "midgame") {
   openSol(wm, param("rig") ?? undefined);
 } else if (state === "checkers") {
   openCheckers(wm);
+} else if (state === "games") {
+  desktopApps.openGames();
 }
 
 /* ---- FEVER.CTL — dev chrome; does not ship in the fiction ---- */

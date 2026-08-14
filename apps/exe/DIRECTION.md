@@ -7,6 +7,14 @@
 > (in apps/exe) screenshots every named state through its own dev server;
 > `node tools/live.mjs` click-drives a real game. Everything below remains
 > the law.
+>
+> A loss now gets the coals parade (endgame.ts): the line smolders, the OS
+> files condolence paperwork, Condolences arrives in the win's own type —
+> still quieter than the win on purpose. And the machine grew other software,
+> all genuinely running (src/games/): MINES.EXE, SOL.EXE (with the card
+> bounce), SNAKE.EXE, CHECKERS.EXE (real alpha-beta draughts), an editable
+> untitled.txt, and a games folder; everything reachable from the desk and
+> the Start menu, each with a `?state=` pose.
 
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.

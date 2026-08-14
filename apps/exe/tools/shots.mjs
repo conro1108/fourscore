@@ -38,6 +38,11 @@ const STATES = [
   ["midgame-c6", "?state=midgame&variant=connect6"],
   ["oracle", "?state=midgame&bot=oracle"],
   ["mines", "?state=mines"],
+  ["snake", "?state=snake"],
+  ["sol", "?state=sol"],
+  ["checkers", "?state=checkers"],
+  ["notepad", "?state=notepad"],
+  ["games", "?state=games"],
 ];
 
 let BASE = process.env.BASE ?? null;
