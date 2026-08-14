@@ -41,6 +41,7 @@ const STATES = [
   ["snake", "?state=snake"],
   ["sol", "?state=sol"],
   ["checkers", "?state=checkers"],
+  ["chess", "?state=chess"],
   ["notepad", "?state=notepad"],
   ["games", "?state=games"],
 ];

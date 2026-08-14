@@ -18,7 +18,7 @@ export interface DesktopApps {
   openPieces(): void;
   openGames(): void;
   openUntitled(): void;
-  openGame(id: "mines" | "sol" | "snake" | "checkers"): void;
+  openGame(id: "mines" | "sol" | "snake" | "checkers" | "chess"): void;
   shutdown(): void;
 }
 
@@ -32,12 +32,28 @@ export function clockText(elapsedMin: number, drift: number): string {
   return `6:${m} PM`;
 }
 
+export interface DeskIconSpec {
+  rows: readonly string[];
+  label: string;
+  x: number;
+  y: number;
+  launch(): void;
+  /** Fires when the user drops the icon somewhere new. */
+  onMove?(x: number, y: number): void;
+}
+
+export interface DeskIcon {
+  moveTo(x: number, y: number): void;
+}
+
 export interface Shell {
   tasksEl: HTMLElement;
   /** Set added clock minutes (fever's grip loosening). Negative hides the time. */
   setClockDrift(drift: number): void;
   /** Nudge desktop icons off-grid; an empty list restores them all. */
   shiftIcons(shifts: readonly (readonly [number, number])[]): void;
+  /** Grow a new icon on the desk (things dragged out of folders land here). */
+  addIcon(spec: DeskIconSpec): DeskIcon;
   onIdle(seconds: number, cb: () => void): void;
   onWake(cb: () => void): void;
   /** Any user input counts as activity — the idle watch reads this. */
@@ -59,14 +75,14 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     { rows: ICONS.moves, label: "untitled.txt", top: 522, launch: () => apps().openUntitled() },
   ];
   const iconEls: HTMLElement[] = [];
-  for (const def of iconDefs) {
-    const icon = el(`<div class="icon" style="left:20px;top:${def.top}px"></div>`);
-    icon.appendChild(iconCanvas(def.rows, 32));
+  function makeIcon(spec: DeskIconSpec): DeskIcon {
+    const icon = el(`<div class="icon" style="left:${spec.x}px;top:${spec.y}px"></div>`);
+    icon.appendChild(iconCanvas(spec.rows, 32));
     const lbl = el(`<span class="lbl"></span>`);
-    lbl.textContent = def.label;
+    lbl.textContent = spec.label;
     icon.appendChild(lbl);
     icon.addEventListener("click", (e) => e.stopPropagation());
-    icon.addEventListener("dblclick", () => def.launch());
+    icon.addEventListener("dblclick", () => spec.launch());
     // icons drag like anything else on a real desktop
     icon.addEventListener("mousedown", (e) => {
       e.preventDefault();
@@ -82,13 +98,22 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       const up = (): void => {
         removeEventListener("mousemove", move);
         removeEventListener("mouseup", up);
+        spec.onMove?.(icon.offsetLeft, icon.offsetTop);
       };
       addEventListener("mousemove", move);
       addEventListener("mouseup", up);
     });
     stage.appendChild(icon);
     iconEls.push(icon);
+    return {
+      moveTo(x, y) {
+        icon.style.left = `${x}px`;
+        icon.style.top = `${y}px`;
+      },
+    };
   }
+  for (const def of iconDefs)
+    makeIcon({ rows: def.rows, label: def.label, x: 20, y: def.top, launch: def.launch });
   stage.addEventListener("click", (e) => {
     if (e.target === stage) iconEls.forEach((i) => i.classList.remove("sel"));
   });
@@ -174,6 +199,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       ["SOL.EXE", () => apps().openGame("sol")],
       ["SNAKE.EXE", () => apps().openGame("snake")],
       ["CHECKERS.EXE", () => apps().openGame("checkers")],
+      ["CHESS.EXE", () => apps().openGame("chess")],
     ]),
     item(START_MENU.documents, undefined, [
       ["moves.txt", () => apps().openMoves()],
@@ -236,6 +262,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
 
   return {
     tasksEl,
+    addIcon: makeIcon,
     setClockDrift(d: number) {
       drift = d;
       renderClock();

@@ -32,7 +32,10 @@ import { openMines } from "./games/mines.js";
 import { openSnake } from "./games/snake.js";
 import { openSol } from "./games/sol.js";
 import { openCheckers } from "./games/checkers.js";
-import { openGamesFolder } from "./games/folder.js";
+import { openChess } from "./games/chess.js";
+import { GAME_ITEMS, openGamesFolder, type GameId } from "./games/folder.js";
+import { deskHeight, deskWidth } from "./wm.js";
+import type { DeskIcon } from "./desktop.js";
 
 const stage = q("#stage");
 fitStage(stage);
@@ -100,7 +103,51 @@ const gameLaunchers = {
   sol: () => openSol(wm),
   snake: () => openSnake(wm),
   checkers: () => openCheckers(wm),
+  chess: () => openChess(wm),
 };
+
+/* ---- games dragged out of the folder live on the desk, and remember it ---- */
+const DESK_GAMES = "exe.deskgames";
+const deskGameIcons = new Map<GameId, DeskIcon>();
+const deskGamePos = new Map<GameId, [number, number]>();
+const saveDeskGames = (): void => {
+  localStorage.setItem(
+    DESK_GAMES,
+    JSON.stringify([...deskGamePos].map(([id, [x, y]]) => ({ id, x, y }))),
+  );
+};
+function placeGameOnDesk(id: GameId, x: number, y: number, persist = true): void {
+  const cx = Math.max(0, Math.min(deskWidth() - 80, Math.round(x)));
+  const cy = Math.max(0, Math.min(deskHeight() - 36 - 90, Math.round(y)));
+  deskGamePos.set(id, [cx, cy]);
+  const already = deskGameIcons.get(id);
+  if (already) already.moveTo(cx, cy);
+  else {
+    const item = GAME_ITEMS.find((g) => g.id === id);
+    if (!item) return;
+    deskGameIcons.set(
+      id,
+      shell.addIcon({
+        rows: item.rows,
+        label: item.label,
+        x: cx,
+        y: cy,
+        launch: () => gameLaunchers[id](),
+        onMove(nx, ny) {
+          deskGamePos.set(id, [nx, ny]);
+          saveDeskGames();
+        },
+      }),
+    );
+  }
+  if (persist) saveDeskGames();
+}
+try {
+  for (const g of JSON.parse(localStorage.getItem(DESK_GAMES) ?? "[]") as { id: GameId; x: number; y: number }[])
+    placeGameOnDesk(g.id, g.x, g.y, false);
+} catch {
+  /* a corrupt list is an empty desk, not a crash */
+}
 
 const desktopApps: DesktopApps = {
   openBoard() {
@@ -121,7 +168,7 @@ const desktopApps: DesktopApps = {
   openHelp: () => textWindow(wm, "help", TITLES.help, HELP_TEXT, 180, 120, 230),
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
-  openGames: () => openGamesFolder(wm, gameLaunchers),
+  openGames: () => openGamesFolder(wm, gameLaunchers, placeGameOnDesk),
   openUntitled: () => openUntitled(wm),
   openGame: (id) => gameLaunchers[id](),
   shutdown() {
@@ -211,6 +258,8 @@ if (state === "midgame") {
   openSol(wm, param("rig") ?? undefined);
 } else if (state === "checkers") {
   openCheckers(wm);
+} else if (state === "chess") {
+  openChess(wm, param("fen") ?? undefined);
 } else if (state === "games") {
   desktopApps.openGames();
 }
