@@ -116,6 +116,30 @@ export function openSol(wm: WM, rig?: string): void {
   }
   let won = false;
 
+  /* undo: a snapshot before every real move. Klondike without takebacks is
+     mostly a lecture about the one card you buried three moves ago. */
+  const hist: SolState[] = [];
+  const snap = (): void => {
+    hist.push({
+      stock: [...s.stock],
+      waste: [...s.waste],
+      found: s.found.map((p) => [...p]),
+      tab: s.tab.map((t) => ({ down: [...t.down], up: [...t.up] })),
+    });
+    if (hist.length > 300) hist.shift();
+  };
+  const undo = (): void => {
+    if (won) return;
+    const prev = hist.pop();
+    if (!prev) {
+      statusEl.textContent = GAMES_COPY.sol.nothingToUndo;
+      return;
+    }
+    s = prev;
+    statusEl.textContent = "";
+    render();
+  };
+
   const body = el(`<div></div>`);
   const felt = el(`<div class="sunken felt"></div>`);
 
@@ -215,6 +239,7 @@ export function openSol(wm: WM, rig?: string): void {
       if (cards.length !== 1) return false;
       if (!canFoundation(cards[0]!, s.found[cards[0]!.suit]!)) return false;
       // foundations are one per suit; any foundation slot accepts the card home
+      snap();
       takeFrom(from, 1);
       s.found[cards[0]!.suit]!.push(cards[0]!);
       if (from.kind === "tab") afterTableauLift(from.i);
@@ -226,6 +251,7 @@ export function openSol(wm: WM, rig?: string): void {
       const onto = pile.up.length ? pile.up[pile.up.length - 1]! : null;
       if (onto === null && pile.down.length) return false;
       if (!canStackTableau(cards[0]!, onto)) return false;
+      snap();
       takeFrom(from, cards.length);
       pile.up.push(...cards);
       if (from.kind === "tab") afterTableauLift(from.i);
@@ -236,6 +262,7 @@ export function openSol(wm: WM, rig?: string): void {
 
   function sendHome(ref: PileRef, card: Card): boolean {
     if (!canFoundation(card, s.found[card.suit]!)) return false;
+    snap();
     takeFrom(ref, 1);
     s.found[card.suit]!.push(card);
     if (ref.kind === "tab") afterTableauLift(ref.i);
@@ -247,6 +274,7 @@ export function openSol(wm: WM, rig?: string): void {
     if (won || e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (pileAt(e.clientX, e.clientY) === "stock") {
+      if (s.stock.length || s.waste.length) snap();
       const recycled = drawFromStock(s);
       if (recycled) statusEl.textContent = GAMES_COPY.sol.stuckDeal;
       render();
@@ -463,12 +491,13 @@ export function openSol(wm: WM, rig?: string): void {
     wm.stage.querySelectorAll(".solbounce").forEach((c) => c.remove());
     s = deal();
     won = false;
+    hist.length = 0;
     statusEl.textContent = "";
     render();
   }
 
   const bar = menubar([
-    { label: "Game", items: [["Deal", newDeal], ["-", () => {}], ["Exit", () => win.close()]] },
+    { label: "Game", items: [["Deal", newDeal], ["Undo", undo], ["-", () => {}], ["Exit", () => win.close()]] },
     {
       label: "Help",
       items: [[
@@ -496,12 +525,37 @@ export function openSol(wm: WM, rig?: string): void {
       bounceStop = null;
     },
   });
+
+  const onKey = (e: KeyboardEvent): void => {
+    if (!win.isOpen()) {
+      removeEventListener("keydown", onKey);
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && wm.focused()?.id === "sol") {
+      e.preventDefault();
+      undo();
+    }
+  };
+  addEventListener("keydown", onKey);
+
   render();
 }
 
 export const SOL_ICON = [
-  "................", "..www...........", ".wwwww..........", ".wkwkw.wwww.....",
-  ".wwwwwwwwwww....", ".wwrwwwwkwww....", ".wwwwwwwwwww....", ".wwwwwrwwwww....",
-  ".wwwwwwwwwww....", "..wwwwwwkwww....", "...wwwwwwwww....", "...wwwwwwwww....",
-  "....wwwwwww.....", "................", "................", "................",
+  "................",
+  "..kkkkkkk.......",
+  "..kwwwwwk.......",
+  "..kwkwwwk.......",
+  "..kwwwwkkkkkkk..",
+  "..kwwwwkwwwwwk..",
+  "..kwwwwkwrwrwk..",
+  "..kwwwwkwrrrwk..",
+  "..kwwwwkwwrwwk..",
+  "..kwwwwkwwwwwk..",
+  "..kkkkkkwwwwwk..",
+  ".......kwwwwwk..",
+  ".......kwwwwwk..",
+  ".......kkkkkkk..",
+  "................",
+  "................",
 ] as const;

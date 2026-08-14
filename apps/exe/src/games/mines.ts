@@ -1,8 +1,8 @@
 /**
- * MINES.EXE — real minesweeper, not a picture of one (the law). 9x9, ten
- * mines, first click always safe, right-click flags, the face watches you
- * play. The timer counts honestly until 666 and then stays; it is
- * comfortable there.
+ * MINES.EXE — real minesweeper, not a picture of one (the law). Three
+ * classic sizes, first click always safe, right-click flags, the face
+ * watches you play. The timer counts honestly until 666 and then stays;
+ * it is comfortable there.
  */
 
 import { el } from "../dom.js";
@@ -11,9 +11,18 @@ import { GAMES_COPY, TITLES } from "../copy.js";
 import type { WM } from "../wm.js";
 import { lcd, menubar } from "./ui.js";
 
-export const MINES_W = 9;
-export const MINES_H = 9;
-export const MINES_COUNT = 10;
+interface Level {
+  id: string;
+  label: string;
+  w: number;
+  h: number;
+  count: number;
+}
+const LEVELS: readonly Level[] = [
+  { id: "beginner", label: "Beginner", w: 9, h: 9, count: 10 },
+  { id: "intermediate", label: "Intermediate", w: 16, h: 16, count: 40 },
+  { id: "expert", label: "Expert", w: 30, h: 16, count: 99 },
+];
 
 /* ---- the pure part (the tests live on this) ---- */
 
@@ -130,6 +139,7 @@ export function openMines(wm: WM): void {
     return;
   }
 
+  let level: Level = LEVELS.find((l) => l.id === localStorage.getItem("exe.mines")) ?? LEVELS[0]!;
   let board: MinesBoard | null = null; // laid on the first click
   let open = new Set<number>();
   let flags = new Set<number>();
@@ -137,6 +147,7 @@ export function openMines(wm: WM): void {
   let won = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let seconds = 0;
+  let cells: HTMLElement[] = [];
 
   const body = el(`<div></div>`);
   const counter = lcd();
@@ -148,18 +159,7 @@ export function openMines(wm: WM): void {
     faceCanvas.getContext("2d")!.clearRect(0, 0, 16, 16);
     px(faceCanvas, FACES[which]);
   };
-  setFace("happy");
-
-  const top = el(`<div class="sunken minestop"></div>`);
-  top.append(counter.el, face, clock.el);
-
-  const gridEl = el(`<div class="minesgrid sunken"></div>`);
-  const cells: HTMLElement[] = [];
-  for (let i = 0; i < MINES_W * MINES_H; i++) {
-    const c = el(`<div class="mcell" data-i="${i}"></div>`);
-    gridEl.appendChild(c);
-    cells.push(c);
-  }
+  face.addEventListener("click", () => reset());
 
   const stopClock = (): void => {
     if (timer) clearInterval(timer);
@@ -182,12 +182,18 @@ export function openMines(wm: WM): void {
     seconds = 0;
     stopClock();
     clock.set(0);
-    counter.set(MINES_COUNT);
+    counter.set(level.count);
     setFace("happy");
     for (const c of cells) {
       c.className = "mcell";
       c.innerHTML = "";
     }
+  }
+
+  function setLevel(l: Level): void {
+    level = l;
+    localStorage.setItem("exe.mines", l.id);
+    build();
   }
 
   function paintOpen(i: number): void {
@@ -219,7 +225,7 @@ export function openMines(wm: WM): void {
   }
 
   function checkWin(): void {
-    if (open.size !== MINES_W * MINES_H - MINES_COUNT) return;
+    if (open.size !== level.w * level.h - level.count) return;
     won = true;
     alive = false;
     stopClock();
@@ -229,70 +235,108 @@ export function openMines(wm: WM): void {
     }, 400);
   }
 
-  gridEl.addEventListener("contextmenu", (e) => e.preventDefault());
-  gridEl.addEventListener("mousedown", (e) => {
-    if (alive && !won && e.button === 0 && (e.target as HTMLElement).closest(".mcell")) setFace("o");
-  });
-  addEventListener("mouseup", () => {
-    if (alive && !won) setFace("happy");
-  });
-  gridEl.addEventListener("mouseup", (e) => {
-    const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
-    if (!cell || !alive) return;
-    const i = Number(cell.dataset.i);
-    if (e.button === 2) {
-      if (open.has(i)) return;
-      if (flags.has(i)) {
-        flags.delete(i);
-        cell.innerHTML = "";
-      } else {
-        flags.add(i);
-        const cv = el(`<canvas class="pix" width="12" height="12"></canvas>`) as HTMLCanvasElement;
-        px(cv, FLAG);
-        cell.appendChild(cv);
+  /** Rebuild the window for the current level — menus and field both. */
+  function build(): void {
+    body.innerHTML = "";
+
+    const top = el(`<div class="sunken minestop"></div>`);
+    top.append(counter.el, face, clock.el);
+
+    const gridEl = el(
+      `<div class="minesgrid sunken" style="grid-template-columns:repeat(${level.w},24px)"></div>`,
+    );
+    cells = [];
+    for (let i = 0; i < level.w * level.h; i++) {
+      const c = el(`<div class="mcell" data-i="${i}"></div>`);
+      gridEl.appendChild(c);
+      cells.push(c);
+    }
+
+    gridEl.addEventListener("contextmenu", (e) => e.preventDefault());
+    gridEl.addEventListener("mousedown", (e) => {
+      if (alive && !won && e.button === 0 && (e.target as HTMLElement).closest(".mcell")) setFace("o");
+    });
+    gridEl.addEventListener("mouseup", (e) => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
+      if (!cell || !alive) return;
+      const i = Number(cell.dataset.i);
+      if (e.button === 2) {
+        if (open.has(i)) return;
+        if (flags.has(i)) {
+          flags.delete(i);
+          cell.innerHTML = "";
+        } else {
+          flags.add(i);
+          const cv = el(`<canvas class="pix" width="12" height="12"></canvas>`) as HTMLCanvasElement;
+          px(cv, FLAG);
+          cell.appendChild(cv);
+        }
+        counter.set(level.count - flags.size);
+        return;
       }
-      counter.set(MINES_COUNT - flags.size);
-      return;
-    }
-    if (e.button !== 0 || flags.has(i) || open.has(i)) return;
-    if (!board) board = makeMinesBoard(MINES_W, MINES_H, MINES_COUNT, i);
-    startClock();
-    if (board.mines[i]) {
-      lose(i);
-      return;
-    }
-    for (const j of floodReveal(board, i, open)) {
-      open.add(j);
-      paintOpen(j);
-    }
-    checkWin();
-  });
-  face.addEventListener("click", reset);
+      if (e.button !== 0 || flags.has(i) || open.has(i)) return;
+      if (!board) board = makeMinesBoard(level.w, level.h, level.count, i);
+      startClock();
+      if (board.mines[i]) {
+        lose(i);
+        return;
+      }
+      for (const j of floodReveal(board, i, open)) {
+        open.add(j);
+        paintOpen(j);
+      }
+      checkWin();
+    });
 
-  const bar = menubar([
-    { label: "Game", items: [["New", reset], ["-", () => {}], ["Exit", () => win.close()]] },
-    {
-      label: "Help",
-      items: [[
-        "Contents",
-        () => wm.dialog({ ...GAMES_COPY.mines.help, x: 260, y: 300, w: 330 }),
-      ]],
-    },
-  ]);
+    const bar = menubar([
+      {
+        label: "Game",
+        items: [
+          ["New", () => reset()],
+          ["-", () => {}],
+          ...LEVELS.map(
+            (l) => [l.label, () => setLevel(l), l.id === level.id] as const,
+          ),
+          ["-", () => {}],
+          ["Exit", () => win.close()],
+        ],
+      },
+      {
+        label: "Help",
+        items: [[
+          "Contents",
+          () => wm.dialog({ ...GAMES_COPY.mines.help, x: 260, y: 300, w: 330 }),
+        ]],
+      },
+    ]);
 
-  body.append(bar, top, gridEl);
+    body.append(bar, top, gridEl);
+    win.el.style.width = `${level.w * 24 + 32}px`;
+    reset();
+  }
+
   const win = wm.open({
     id: "mines",
     title: TITLES.mines,
     icon: GAME_ICON_MINE,
     x: 96,
     y: 92,
-    w: MINES_W * 24 + 32,
+    w: level.w * 24 + 32,
     body,
     buttons: ["min", "close"],
     onClose: stopClock,
   });
-  counter.set(MINES_COUNT);
+
+  const onUp = (): void => {
+    if (!win.isOpen()) {
+      removeEventListener("mouseup", onUp);
+      return;
+    }
+    if (alive && !won) setFace("happy");
+  };
+  addEventListener("mouseup", onUp);
+
+  build();
 }
 
 /** 16x16 titlebar/desktop icon: a mine on gray. */

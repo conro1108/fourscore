@@ -262,12 +262,13 @@ export const GAMES_COPY = {
     wall: { title: "SNAKE.EXE", body: "The snake has reached the edge.<br>There was nothing out there." },
     score: (n: number): string => `LENGTH: ${n}. The snake is being reasonable about it.`,
     idle: "Press an arrow key. The snake is waiting.",
-    help: { title: "SNAKE.EXE", body: "The snake goes where you point it.<br>It cannot stop. Neither can you." },
+    help: { title: "SNAKE.EXE", body: "The snake goes where you point it. It cannot stop.<br>The sides go around. The top and the bottom are final." },
   },
   sol: {
     win: { title: "SOL.EXE", body: "The cards have been freed.<br>They will be recaptured." },
     stuckDeal: "The deck has started over. It does this.",
-    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first." },
+    nothingToUndo: "Nothing to take back.",
+    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back." },
   },
   checkers: {
     mustCapture: "A capture is available. It is not optional.",

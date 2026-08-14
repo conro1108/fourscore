@@ -8,7 +8,8 @@ import { el } from "../dom.js";
 
 export interface Menu {
   label: string;
-  items: readonly (readonly [string, () => void])[];
+  /** [label, action, checked?] — "-" for a separator. */
+  items: readonly (readonly [string, () => void, boolean?])[];
 }
 
 export function menubar(menus: readonly Menu[]): HTMLElement {
@@ -23,13 +24,14 @@ export function menubar(menus: readonly Menu[]): HTMLElement {
   menus.forEach((m, mi) => {
     const btn = el(`<span><u>${m.label.charAt(0)}</u>${m.label.slice(1)}</span>`);
     const popup = el(`<div class="popup" style="left:${4 + mi * 48}px;display:none"></div>`);
-    for (const [label, act] of m.items) {
+    for (const [label, act, checked] of m.items) {
       if (label === "-") {
         popup.appendChild(el(`<hr>`));
         continue;
       }
       const it = el(`<div></div>`);
       it.textContent = label;
+      if (checked) it.appendChild(el(`<span class="check">·</span>`));
       it.addEventListener("click", (e) => {
         e.stopPropagation();
         closeAll();

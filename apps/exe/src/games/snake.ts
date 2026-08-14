@@ -91,7 +91,9 @@ export function openSnake(wm: WM): void {
       pending = null;
     }
     const head: [number, number] = [snake[0]![0] + dir[0], snake[0]![1] + dir[1]];
-    if (head[0] < 0 || head[0] >= COLS || head[1] < 0 || head[1] >= ROWS) {
+    // the sides go around; the top and the bottom are final
+    head[0] = (head[0] + COLS) % COLS;
+    if (head[1] < 0 || head[1] >= ROWS) {
       die("wall");
       return;
     }

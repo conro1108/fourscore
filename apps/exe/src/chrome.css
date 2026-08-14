@@ -152,7 +152,7 @@ canvas.pix{image-rendering:pixelated;display:block}
      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .mface:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff}
 .mface .pix{width:22px;height:22px}
-.minesgrid{display:grid;grid-template-columns:repeat(9,24px);margin:0 auto 10px;padding:3px;width:max-content}
+.minesgrid{display:grid;margin:0 auto 10px;padding:3px;width:max-content}
 .mcell{width:24px;height:24px;display:grid;place-items:center;font:bold 14px Tahoma,sans-serif;background:#c0c0c0;position:relative;
      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .mcell.open{box-shadow:inset 1px 0 #808080,inset 0 1px #808080}

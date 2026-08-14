@@ -36,7 +36,7 @@ export interface Shell {
   tasksEl: HTMLElement;
   /** Set added clock minutes (fever's grip loosening). Negative hides the time. */
   setClockDrift(drift: number): void;
-  /** Nudge desktop icons off-grid; [0,0]x4 restores. */
+  /** Nudge desktop icons off-grid; an empty list restores them all. */
   shiftIcons(shifts: readonly (readonly [number, number])[]): void;
   onIdle(seconds: number, cb: () => void): void;
   onWake(cb: () => void): void;
@@ -56,6 +56,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     { rows: ICONS.moves, label: "moves.txt", top: 222, launch: () => apps().openMoves() },
     { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin() },
     { rows: ICONS.folder, label: "games", top: 422, launch: () => apps().openGames() },
+    { rows: ICONS.moves, label: "untitled.txt", top: 522, launch: () => apps().openUntitled() },
   ];
   const iconEls: HTMLElement[] = [];
   for (const def of iconDefs) {
