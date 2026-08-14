@@ -81,6 +81,26 @@ const dlg = await page.getByText("not ready to shut down").count();
 if (!dlg) fail("shutdown dialog missing");
 await page.screenshot({ path: here("../shots/live-shutdown.png") });
 
+// at high fever, dragging a dialog must leave un-repainted copies of itself
+await page.goto(`${BASE}/?state=midgame&fever=0.85`);
+await page.waitForTimeout(1000);
+const bar = page.locator(".win", { hasText: "Something is warm" }).locator(".titlebar");
+const box = await bar.first().boundingBox();
+if (!box) fail("no Display dialog to drag at fever 0.85");
+else {
+  await page.mouse.move(box.x + 60, box.y + 10);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) {
+    await page.mouse.move(box.x + 60 - i * 25, box.y + 10 + i * 18);
+    await page.waitForTimeout(30);
+  }
+  await page.mouse.up();
+  const smears = await page.locator("#smears > *").count();
+  console.log("smears after drag:", smears);
+  if (smears < 2) fail(`expected smears from the drag, got ${smears}`);
+  await page.screenshot({ path: here("../shots/live-smear.png") });
+}
+
 console.log(process.exitCode ? "live run FAILED" : "live run ok");
 await browser.close();
 server?.kill();

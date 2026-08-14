@@ -30,7 +30,11 @@ const STATES = [
   ["loss", "?state=loss"],
   ["pieces", "?state=pieces"],
   ["chips-pixel", "?state=midgame&chips=pixel"],
+  ["chips-faces", "?state=midgame&chips=faces"],
   ["ctl", "?state=midgame&ctl=1"],
+  ["saver", "?state=saver"],
+  ["midgame-c6", "?state=midgame&variant=connect6"],
+  ["oracle", "?state=midgame&bot=oracle"],
 ];
 
 let BASE = process.env.BASE ?? null;
