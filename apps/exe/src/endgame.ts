@@ -10,12 +10,18 @@
  * slivers, and finally the biggest thing the machine has ever announced:
  * Congratulations — YOU WIN.
  *
- * A loss gets the same honest selection and no parade.
+ * A loss gets the same honest selection — and then the machine quietly sides
+ * with the winner. The line doesn't blaze, it smolders (coals: the loss
+ * fire), the OS files a short stack of sincere paperwork about it — one
+ * notice tucked behind the board where you find it later — and the finale is
+ * a Condolences dialog set in the same big type as the win's. Quieter than
+ * the win on purpose: no taskbar crush, half the dialogs. The win stays the
+ * biggest thing the machine has ever announced.
  */
 
 import { el } from "./dom.js";
-import { makeFire, type Fire } from "./fire.js";
-import { cascadeFor, DIALOG, NOTES, STATUS, voiceOf } from "./copy.js";
+import { makeFire, PALETTES, type Fire } from "./fire.js";
+import { cascadeFor, DIALOG, LOSS_CASCADE, NOTES, STATUS, voiceOf } from "./copy.js";
 import type { BoardApp, EndResult } from "./board.js";
 import type { MovesPad } from "./notepad.js";
 import type { WM, Win } from "./wm.js";
@@ -95,8 +101,32 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     }
   }
 
-  /* ---- the line catches ---- */
-  function igniteSeam(end: EndResult): { setProgress(p: number): void } {
+  /* ---- the step machinery both sequences run on: hand-tuned beats,
+     frozen-to-a-beat for the harness, timed for real play ---- */
+  interface Step {
+    run(): void;
+    dwell: number;
+  }
+  function runSteps(steps: Step[], beats: Record<number, number>, frozenBeat?: number): void {
+    if (frozenBeat !== undefined) {
+      const endIdx = beats[frozenBeat] ?? steps.length - 1;
+      for (let i = 0; i <= endIdx; i++) steps[i]!.run();
+      return;
+    }
+    let i = 0;
+    const tick = (): void => {
+      steps[i]!.run();
+      const dwell = steps[i]!.dwell;
+      i++;
+      if (i < steps.length) later(tick, dwell);
+    };
+    later(tick, 500);
+  }
+
+  /* ---- the line catches ----
+     Two registers: the win blazes; the loss smolders — same fire, the coals
+     ramp, slower and lower, and it does not go out. ---- */
+  function igniteSeam(end: EndResult, smolder = false): { setProgress(p: number): void } {
     const wrap = deps.board().gridwrap();
     const ordered = [...end.cells].sort((a, b) => a.col - b.col || a.row - b.row);
     const pts = ordered.map((c) => deps.board().cellCenter(c.col, c.row));
@@ -121,10 +151,13 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     wrap.appendChild(cv);
 
     let progress = 0;
+    const heatLo = smolder ? 30 : 42;
+    const heatVar = smolder ? 10 : 14;
     seamFire = makeFire(cv, {
       transparent: true,
-      cool: 4.2,
-      interval: 70,
+      cool: smolder ? 5 : 4.2,
+      interval: smolder ? 115 : 70,
+      palette: smolder ? PALETTES.coals : PALETTES.classic,
       stoke(heat, W, H) {
         const reach = progress * Math.max(t0, 1 - t0);
         for (let t = 0; t <= 1.0001; t += 0.02) {
@@ -135,7 +168,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
             const x = gx + dx;
             const y = gy + dy;
             if (x >= 0 && x < W && y >= 0 && y < H)
-              heat[y * W + x] = Math.min(63, 42 + ((Math.random() * 14) | 0));
+              heat[y * W + x] = Math.min(63, heatLo + ((Math.random() * heatVar) | 0));
           }
         }
       },
@@ -154,7 +187,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     const botName = deps.board().botName();
     deps.notepad.lines([NOTES.youWon, NOTES.youWonTail]);
 
-    type Step = { run(): void; dwell: number };
     const steps: Step[] = [];
     const beats: Record<number, number> = {};
     const step = (run: () => void, dwell: number): void => {
@@ -218,42 +250,86 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
           }
         },
       });
-      d.el.id = "final";
+      d.el.classList.add("finale");
       deps.board().setStatus(STATUS.youWin, STATUS.crowd);
     }, 3400);
     beat(11);
 
-    if (frozen) {
-      const endIdx = beats[frozenBeat] ?? steps.length - 1;
-      for (let i = 0; i <= endIdx; i++) steps[i]!.run();
-      return;
-    }
-    let i = 0;
-    const tick = (): void => {
-      steps[i]!.run();
-      const dwell = steps[i]!.dwell;
-      i++;
-      if (i < steps.length) later(tick, dwell);
-    };
-    later(tick, 500);
+    runSteps(steps, beats, frozenBeat);
   }
 
+  /**
+   * The coals parade. Beats (the harness freezes on them, ?state=loss&beat=N):
+   *   2  the selection — ants around the opponent's line
+   *   3  the line starts to smolder
+   *   4  the smolder reaches both ends
+   *   5  the bot gets its say
+   *   6-9  the paperwork, one dialog per beat (8 is the one behind the board)
+   *   10 Condolences — {NAME} WINS.
+   */
   function runLoss(end: EndResult, frozenBeat?: number): void {
     const frozen = frozenBeat !== undefined;
     const v = voiceOf(end.botId);
     const botName = deps.board().botName();
-    deps.onFeverEvent("loss");
-    deps.notepad.lines([NOTES.theyWon(botName)]);
-    deps.board().setStatus(`${botName} WINS.`, v.winStatus);
-    showAnts(end.cells, frozen);
-    later(() => {
-      dialog({
-        title: "BOARD.EXE",
-        body: v.winBody,
-        buttons: ["OK", "Again"],
+
+    const steps: Step[] = [];
+    const beats: Record<number, number> = {};
+    const step = (run: () => void, dwell: number): void => {
+      steps.push({ run, dwell });
+    };
+    const beat = (n: number): void => {
+      beats[n] = steps.length - 1;
+    };
+
+    // the selection — same honest ants as the win; the flames go coals now
+    step(() => {
+      deps.onFeverEvent("loss");
+      deps.notepad.lines([NOTES.theyWon(botName), NOTES.theyWonTail]);
+      deps.board().setStatus(`${botName} WINS.`, v.winStatus);
+      showAnts(end.cells, frozen);
+    }, 900);
+    beat(2);
+
+    // the line smolders, from the finishing disc outward — and doesn't go out
+    let seam: { setProgress(p: number): void } | null = null;
+    [0.35, 0.7, 1].forEach((p, i) => {
+      step(() => {
+        if (!seam) seam = igniteSeam(end, true);
+        seam.setProgress(p);
+      }, i === 2 ? 900 : 340);
+      if (i === 0) beat(3);
+    });
+    beat(4);
+
+    // the paperwork: the bot gets its say, then the OS files the loss
+    step(() => {
+      dialog({ title: "BOARD.EXE", body: v.winBody(end.run), x: 380, y: 100, w: 336 });
+    }, 700);
+    beat(5);
+    LOSS_CASCADE.forEach((spec, i) => {
+      step(() => {
+        const d = dialog({ title: spec.title, body: spec.body, icon: spec.icon, x: spec.x, y: spec.y, w: spec.w });
+        // one notice is filed underneath the board, where you find it later —
+        // slid below the board's z, not by raising the board over the others
+        if (spec.behind) {
+          const boardZ = Number(deps.board().win.el.style.zIndex || 40);
+          d.el.style.zIndex = String(boardZ - 1);
+        }
+      }, spec.dwell);
+      beat(6 + i);
+    });
+
+    // the finale: the win's big type, the other name in it
+    step(() => {
+      const spec = DIALOG.condolences(botName);
+      const d = dialog({
+        title: spec.title,
+        body: spec.body,
         x: 470,
-        y: 320,
-        w: 360,
+        y: 330,
+        w: 368,
+        buttons: ["OK", "Again"],
+        taskbar: true,
         onButton(i) {
           if (i === 1) {
             clear();
@@ -261,7 +337,11 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
           }
         },
       });
-    }, frozen ? 0 : 900);
+      d.el.classList.add("finale");
+    }, 3000);
+    beat(10);
+
+    runSteps(steps, beats, frozenBeat);
   }
 
   function runDraw(): void {

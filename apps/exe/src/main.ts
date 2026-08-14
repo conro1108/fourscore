@@ -5,7 +5,7 @@
  * claim):
  *   ?state=midgame        a scripted opening, frozen mid-deliberation
  *   ?state=win&beat=N     the win sequence held at a beat (2..11)
- *   ?state=loss           the opponent's line, selected
+ *   ?state=loss&beat=N    the coals parade held at a beat (2..10)
  *   ?state=pieces         pieces.ctl open
  *   ?state=saver          the screensaver has won the desktop
  *   ?fever=0.85           walk the fever up to a value and pin it
@@ -176,7 +176,7 @@ if (state === "midgame") {
   board.script([3, 4, 4, 3, 5, 2, 3, 2, 2, 4, 2]);
   if (frozenBeat === undefined) frozenBeat = 11;
 } else if (state === "loss") {
-  frozenBeat = 0;
+  frozenBeat = param("beat") !== null ? Number(param("beat")) : 10;
   // yellow stacks the far column while red builds a useless block — a
   // vertical line, which also exercises the ants capsule's rotation
   board.script([0, 6, 1, 6, 0, 6, 1, 6]);

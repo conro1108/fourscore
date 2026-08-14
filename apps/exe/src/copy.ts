@@ -12,68 +12,72 @@ export interface BotVoice {
   waiting: string;
   /** Statusbar while it deliberates. */
   thinking: string;
-  /** Dialog body when it wins. */
-  winBody: string;
+  /** Dialog body when it wins — a function of the run, so a bot can't claim
+      "four" on a Connect 5 board (the claim is generated, never written). */
+  winBody: (run: number) => string;
   /** Statusbar after it wins. */
   winStatus: string;
   /** Statusbar after you beat it. */
   lostStatus: string;
 }
 
+/** "connected four" / "connected five" — the claim, generated from the run. */
+const connected = (run: number): string => `connected ${numberWord(run).toLowerCase()}`;
+
 export const BOT_VOICE: Record<string, BotVoice> = {
   acorn: {
     waiting: "ACORN is waiting to see what happens.",
     thinking: "ACORN is guessing.",
-    winBody: "ACORN has connected four.<br>ACORN is as surprised as you are.",
+    winBody: (r) => `ACORN has ${connected(r)}.<br>ACORN is as surprised as you are.`,
     winStatus: "ACORN did not plan this.",
     lostStatus: "ACORN never saw it. ACORN never sees it.",
   },
   pebble: {
     waiting: "PEBBLE is sitting there.",
     thinking: "PEBBLE is being moved by larger forces.",
-    winBody: "PEBBLE has connected four.<br>PEBBLE remains a pebble about it.",
+    winBody: (r) => `PEBBLE has ${connected(r)}.<br>PEBBLE remains a pebble about it.`,
     winStatus: "PEBBLE has not noticed winning.",
     lostStatus: "PEBBLE accepts this, as it accepts everything.",
   },
   moss: {
     waiting: "MOSS is waiting.",
     thinking: "MOSS is thinking about dirt.",
-    winBody: "MOSS has connected four.<br>MOSS does not celebrate.",
+    winBody: (r) => `MOSS has ${connected(r)}.<br>MOSS does not celebrate.`,
     winStatus: "MOSS is already thinking about dirt.",
     lostStatus: "MOSS will grow over this eventually.",
   },
   bramble: {
     waiting: "BRAMBLE is coiled.",
     thinking: "BRAMBLE is feeling for something to grab.",
-    winBody: "BRAMBLE has connected four.<br>It was holding them the whole time.",
+    winBody: (r) => `BRAMBLE has ${connected(r)}.<br>It was holding them the whole time.`,
     winStatus: "BRAMBLE tightens slightly.",
     lostStatus: "BRAMBLE has been pruned.",
   },
   cinder: {
     waiting: "CINDER is smoldering.",
     thinking: "CINDER is getting warmer.",
-    winBody: "CINDER has connected four.<br>The room was already warm.",
+    winBody: (r) => `CINDER has ${connected(r)}.<br>The room was already warm.`,
     winStatus: "CINDER glows about it.",
     lostStatus: "CINDER has been put out. For now.",
   },
   vane: {
     waiting: "VANE is pointing somewhere.",
     thinking: "VANE is checking the wind.",
-    winBody: "VANE has connected four.<br>The wind was going that way.",
+    winBody: (r) => `VANE has ${connected(r)}.<br>The wind was going that way.`,
     winStatus: "VANE points at the result.",
     lostStatus: "VANE blames the weather.",
   },
   quill: {
     waiting: "QUILL is taking notes.",
     thinking: "QUILL is writing something down about you.",
-    winBody: "QUILL has connected four.<br>It had this drafted several moves ago.",
+    winBody: (r) => `QUILL has ${connected(r)}.<br>It had this drafted several moves ago.`,
     winStatus: "QUILL is writing the ending down.",
     lostStatus: "QUILL is revising.",
   },
   oracle: {
     waiting: "THE ORACLE already knows.",
     thinking: "THE ORACLE is confirming what it knew.",
-    winBody: "THE ORACLE has connected four.<br>This was always going to happen.",
+    winBody: (r) => `THE ORACLE has ${connected(r)}.<br>This was always going to happen.`,
     winStatus: "THE ORACLE knew.",
     lostStatus: "THE ORACLE did not know. This is a problem.",
   },
@@ -82,7 +86,7 @@ export const BOT_VOICE: Record<string, BotVoice> = {
 export const FALLBACK_VOICE: BotVoice = {
   waiting: "The opponent is waiting.",
   thinking: "The opponent is thinking.",
-  winBody: "The opponent has connected four.",
+  winBody: (r) => `The opponent has ${connected(r)}.`,
   winStatus: "The opponent has won.",
   lostStatus: "The opponent has lost.",
 };
@@ -122,6 +126,10 @@ export const DIALOG = {
     body: `You have surrendered.<br>${name} accepts, in its way.`,
   }),
   finale: { title: "Congratulations", body: "YOU WIN." },
+  condolences: (name: string): { title: string; body: string } => ({
+    title: "Condolences",
+    body: `${name} WINS.`,
+  }),
   about: {
     title: "About BOARD.EXE",
     body: "BOARD.EXE<br>Version 4.0 (of 4)<br><br>This computer is functioning normally.",
@@ -173,6 +181,19 @@ export const cascadeFor = (run: number): CascadeSpec[] =>
     i === 0 ? { ...c, body: `${numberWord(run).charAt(0)}${numberWord(run).slice(1).toLowerCase()} have been connected.` } : c,
   );
 
+/**
+ * The loss cascade: the same sincere furniture, the opposite register. The
+ * win multiplies announcements; the loss files paperwork. Quiet, no taskbar
+ * crush — the crushed taskbar is the win's signature. `behind` puts a dialog
+ * underneath the board window, where you find it later.
+ */
+export const LOSS_CASCADE: readonly (CascadeSpec & { behind?: boolean })[] = [
+  { title: "Sound", body: "No fanfare has played.", x: 175, y: 265, w: 310, dwell: 620 },
+  { title: "moves.txt", body: "The file now says you lost.<br>It will keep saying it.", x: 924, y: 292, w: 306, dwell: 900 },
+  { title: "Information", body: "This is not being celebrated.", x: 560, y: 300, w: 320, dwell: 420, behind: true },
+  { title: "flames.scr", body: "The fire has gone low.<br>It is not for you.", x: 1080, y: 540, w: 300, dwell: 760 },
+] as const;
+
 export const NOTES = {
   hesitated: ["and then you", "hesitated"],
   sameColumn: (col: number): string => `column ${col + 1} again.`,
@@ -180,6 +201,7 @@ export const NOTES = {
   youWon: "you won. it is",
   youWonTail: "written down now.",
   theyWon: (name: string): string => `${name.toLowerCase()} won. noted.`,
+  theyWonTail: "no further notes.",
   draw: "nobody won. noted.",
 } as const;
 
