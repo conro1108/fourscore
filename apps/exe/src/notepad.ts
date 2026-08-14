@@ -6,7 +6,8 @@
 
 import { el } from "./dom.js";
 import { ICONS } from "./icons.js";
-import { TITLES } from "./copy.js";
+import { GAMES_COPY, TITLES } from "./copy.js";
+import { menubar } from "./games/ui.js";
 import type { AnchorX, WM, Win } from "./wm.js";
 
 export interface MovesPad {
@@ -76,6 +77,72 @@ export function makeMovesPad(wm: WM): MovesPad {
       render();
     },
   };
+}
+
+/**
+ * untitled.txt — a Notepad you can actually type in, because a text editor
+ * that doesn't edit would break the fiction harder than any flame. File
+ * genuinely News, Saves (to the only disk this machine has: localStorage)
+ * and Exits; Edit does what period Notepad's Edit did, including inserting
+ * the time and date, both of which are wrong in the usual direction.
+ */
+export function openUntitled(wm: WM): void {
+  const existing = wm.get("untitled");
+  if (existing?.isOpen()) {
+    existing.focus();
+    return;
+  }
+  const body = el(`<div></div>`);
+  const ta = el(
+    `<textarea class="notepad notepad-edit" spellcheck="false"></textarea>`,
+  ) as HTMLTextAreaElement;
+  ta.value = localStorage.getItem("exe.untitled") ?? "";
+  const wrap = el(`<div class="sunken" style="margin:3px;background:#fff"></div>`);
+  wrap.appendChild(ta);
+
+  const bar = menubar([
+    {
+      label: "File",
+      items: [
+        ["New", () => {
+          if (!ta.value) return;
+          ta.value = "";
+          wm.dialog({ ...GAMES_COPY.notepad.cleared, x: 320, y: 300, w: 330 });
+        }],
+        ["Save", () => {
+          localStorage.setItem("exe.untitled", ta.value);
+          wm.dialog({ ...GAMES_COPY.notepad.saved, x: 320, y: 300, w: 330 });
+        }],
+        ["-", () => {}],
+        ["Exit", () => win.close()],
+      ],
+    },
+    {
+      label: "Edit",
+      items: [
+        ["Select All", () => {
+          ta.focus();
+          ta.select();
+        }],
+        ["Time/Date", () => {
+          ta.setRangeText("6:66 PM 8/14/1996", ta.selectionStart, ta.selectionEnd, "end");
+          ta.focus();
+        }],
+      ],
+    },
+  ]);
+  body.append(bar, wrap);
+  const win = wm.open({
+    id: "untitled",
+    title: TITLES.untitled,
+    icon: ICONS.moves,
+    x: 214,
+    y: 138,
+    w: 300,
+    body,
+    buttons: ["min", "close"],
+  });
+  ta.focus();
 }
 
 /** A read-only Notepad window (help.txt, the rest). */

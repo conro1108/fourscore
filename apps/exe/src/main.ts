@@ -20,7 +20,7 @@ import { fitStage, makeWM } from "./wm.js";
 import { buildShell, type DesktopApps } from "./desktop.js";
 import { analysisClient, engineClient } from "./engine/client.js";
 import { makeBoard, type BoardApp, type BoardDeps } from "./board.js";
-import { makeMovesPad, textWindow } from "./notepad.js";
+import { makeMovesPad, openUntitled, textWindow } from "./notepad.js";
 import { installGeneratedChips, openPieces } from "./chips.js";
 import { makeDirector, tierOf } from "./director.js";
 import { makeEffects } from "./effects.js";
@@ -190,6 +190,8 @@ if (state === "midgame") {
   openMines(wm);
 } else if (state === "snake") {
   openSnake(wm);
+} else if (state === "notepad") {
+  openUntitled(wm);
 }
 
 /* ---- FEVER.CTL — dev chrome; does not ship in the fiction ---- */

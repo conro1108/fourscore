@@ -162,6 +162,9 @@ canvas.pix{image-rendering:pixelated;display:block}
 /* notepad bodies */
 .notepad{margin:3px;background:#fff;padding:5px;min-height:110px;white-space:pre-wrap;
       font-family:"Courier New",monospace;font-size:12px;line-height:1.45}
+/* the one you can type in */
+textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;width:100%;height:280px;
+      box-sizing:border-box;user-select:text;-webkit-user-select:text;cursor:text}
 
 /* cursor ghosts — the trail follows the real cursor at high fever */
 .cur{position:absolute;width:14px;height:22px;background:#fff;z-index:150;pointer-events:none;
