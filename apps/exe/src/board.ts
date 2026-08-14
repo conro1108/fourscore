@@ -80,7 +80,14 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   /** Kills the previous build's document-level listeners on rebuild. */
   let buildAbort: AbortController | null = null;
 
-  const windowWidth = (): number => variant.width * CELL + 120;
+  // The grid sits at x=16 inside the window (frame margin 10 + padding 6) and
+  // the same 16 has to come back on the right, or the sunken well shows a dead
+  // column of gray. A tall variant that scrolls needs the scrollbar's 16 too.
+  const CHROME_W = 32;
+  const chromeH = 22 + 6 + 20 + 60 + 26 + 6; // titlebar+margins+menu+picker+status
+  const maxFrame = 800 - 36 - 8 - chromeH;
+  const scrolls = (): boolean => variant.height * CELL + 12 > maxFrame;
+  const windowWidth = (): number => variant.width * CELL + CHROME_W + (scrolls() ? 16 : 0);
 
   const body = el(`<div></div>`);
   const win = deps.wm.open({
@@ -198,10 +205,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
     // Connect 6 on a 800-tall desktop doesn't fit; the frame gets a real
     // scrollbar, which is funny and free (DIRECTION.md).
-    const chromeH = 22 + 6 + 20 + 60 + 26 + 6; // titlebar+margins+menu+picker+status
-    const maxFrame = 800 - 36 - 8 - chromeH;
-    const gridH = variant.height * CELL + 12;
-    if (gridH > maxFrame) {
+    if (scrolls()) {
       frame.style.height = `${maxFrame}px`;
       win.el.style.top = "4px";
     }
