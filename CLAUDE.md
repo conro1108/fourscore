@@ -8,8 +8,9 @@ the match runtime.
 
 The repo is growing more clients of the same engine (the clickers-repo
 pattern): `apps/exe` (BOARD.EXE — the game never leaves a possessed Win95) is
-the greenlit second app, with a `DIRECTION.md` and approved reference art in
-`reference/`. Read it before building there; the full pitch set (including
+the greenlit second app, with a `DIRECTION.md`, approved reference art in
+`reference/`, and an approved live proposal set in `proposals/` whose code is
+meant to be ported. Read DIRECTION.md before building there; the full pitch set (including
 dropped directions) lives in `redesign/proposals/index.html`. Fever's
 VISION.md/PLAN.md govern `apps/fever` only.
 

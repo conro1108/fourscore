@@ -25,9 +25,55 @@ becomes a poster of a desktop.
 
 `reference/mock.html` — the fire automaton in it is the exemplar and the bar.
 `reference/mock.png` is the frame Connor approved. `proposals/index.html` is
-the live iteration set built from it — escalation, the win, fire
+the approved live iteration set built from it — escalation, the win, fire
 personalities, and the playable board, all genuinely executing; `node
 proposals/shots.mjs` screenshots every named state.
+
+## The second law: nothing is dead
+
+Everything on the desktop is interactible, like a real OS (Connor,
+2026-08-13). Every menu opens, every button does something, every icon
+launches, both `OK`s click. Joke content is fine — Help is allowed to be
+unhelpful, the Recycle Bin is allowed to contain "the rest" — but inert
+chrome is not. A dead control breaks the fiction harder than a wrong one.
+
+## Settled by the proposal rounds (Connor, 2026-08-13)
+
+The mocks in `proposals/` are the approved answers to these; port their code
+(`lib.js`'s fire automaton with stoke/wind/flip/transparency hooks,
+`chrome.css`'s bevel kit) rather than re-deriving it. Deep-linkable states
+(`?fever=`, `?beat=`, `?demo=`, `?chips=`) are the harness pattern to keep.
+
+- **Fire personalities are dynamics, not recolors.** Approved set: classic
+  (the original, untouched — the bar), coals (the loss fire: low bed that
+  flares when you look away), pillar (a swaying candle), rain (teal, hangs
+  from the top of the window), and roam — one heat field spanning three
+  windows, the flame wanders between them, and *focus follows the fire*.
+  Never let a palette ramp read full-white across the flame body — it turns
+  to butter; blend toward the white-hot ramp at most halfway.
+- **Escalation multiplies windows.** The fever doesn't grow one corner: at
+  higher tiers more `flames.scr` previews open across the whole desktop,
+  every fire's heat/speed scales continuously, a dragged dialog leaves
+  un-repainted copies of itself, the clock loses its grip, icons drift
+  off-grid; at 1.0 the screensaver wins the desktop and the board stays
+  playable on top of it. `FEVER.CTL` is dev-only chrome and does not ship.
+- **The win.** The drop is real gravity (v += g per frame, one cheap frame
+  of overshoot, no easing curve). The win line is highlighted continuously,
+  not per-cell: a rotated marching-ants capsule hugging the whole line, then
+  one fire stoked along the line itself, growing from the new disc toward
+  the old. Then the cascade: sincere dialogs scattered across the desktop at
+  hand-tuned positions on irregular beats (tuned, not random — wrongness
+  repeats), taskbar buttons crushing to slivers, one dialog half off-screen,
+  finale `Congratulations — YOU WIN.` with `OK` / `Again`.
+- **The board feel.** The hover disc *is* your piece and falls from where it
+  hovers; there is no aiming arrow. The opponent deliberates visibly — a
+  mirrored hover disc that wanders a few columns before committing, then
+  falls with the same physics. `moves.txt` is a live Notepad annotating the
+  game, including `and then you hesitated` after a real pause of ~5s.
+- **Chips: flat 16 for now.** Flat fill, hard dark outline, nothing else;
+  the mocks default to it and it's cheap to revisit. The 11-style
+  `pieces.ctl` lab in `04-board.html` is the place to iterate later, and a
+  pieces picker like it should exist in the real app (see the second law).
 
 ## The world
 
