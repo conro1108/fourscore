@@ -1,0 +1,267 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>05 · THE BREAK ROOM</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;display:grid;place-items:center;overflow:hidden}
+  svg{width:100vw;height:100vh;max-width:calc(100vh*1.6);max-height:calc(100vw/1.6);display:block}
+</style>
+<svg id="s" viewBox="0 0 1280 800" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="panelwood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5c3c22"/>
+      <stop offset=".12" stop-color="#7a5230"/>
+      <stop offset=".5" stop-color="#6e4a2c"/>
+      <stop offset=".88" stop-color="#7c5432"/>
+      <stop offset="1" stop-color="#54371f"/>
+    </linearGradient>
+    <filter id="woodgrain" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".004 .09" numOctaves="4" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .28  0 0 0 0 .17  0 0 0 0 .08  0 0 0 .4 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <filter id="tablegrain" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".006 .05" numOctaves="4" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .45  0 0 0 0 .3  0 0 0 0 .14  0 0 0 .35 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <filter id="carpetnoise" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="2" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .22  0 0 0 0 .07  0 0 0 0 .09  0 0 0 .6 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <radialGradient id="flash" cx=".5" cy=".52" r=".75">
+      <stop offset="0" stop-color="#fff" stop-opacity=".18"/>
+      <stop offset=".38" stop-color="#fff" stop-opacity=".05"/>
+      <stop offset=".7" stop-color="#000" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".62"/>
+    </radialGradient>
+    <linearGradient id="voidsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0518"/>
+      <stop offset=".7" stop-color="#2c1048"/>
+      <stop offset="1" stop-color="#4a1a44"/>
+    </linearGradient>
+    <radialGradient id="discRg" cx=".36" cy=".3" r=".85">
+      <stop offset="0" stop-color="#ff8a80"/>
+      <stop offset=".4" stop-color="#d82430"/>
+      <stop offset="1" stop-color="#7a0e18"/>
+    </radialGradient>
+    <radialGradient id="discYg" cx=".36" cy=".3" r=".85">
+      <stop offset="0" stop-color="#ffe9a8"/>
+      <stop offset=".4" stop-color="#f2b21c"/>
+      <stop offset="1" stop-color="#95650a"/>
+    </radialGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a6cf0"/>
+      <stop offset=".5" stop-color="#2456d8"/>
+      <stop offset="1" stop-color="#16368f"/>
+    </linearGradient>
+    <radialGradient id="holePl" cx=".5" cy=".44" r=".6">
+      <stop offset="0" stop-color="#0c1430"/>
+      <stop offset=".85" stop-color="#122050"/>
+      <stop offset="1" stop-color="#4a78e8"/>
+    </radialGradient>
+    <filter id="soft3"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="soft8"><feGaussianBlur stdDeviation="8"/></filter>
+  </defs>
+
+  <!-- wood panel wall -->
+  <g id="wall"></g>
+
+  <!-- window onto the void -->
+  <g>
+    <rect x="838" y="66" width="310" height="240" fill="#e8ddc8"/>
+    <rect x="852" y="80" width="282" height="212" fill="url(#voidsky)"/>
+    <g id="stars"></g>
+    <!-- something far away out there -->
+    <polygon points="1032,292 1064,292 1060,182 1036,182" fill="#0a0618"/>
+    <circle cx="1092" cy="140" r="22" fill="#02010a" stroke="#ff9a4c" stroke-width="1.6"/>
+    <rect x="988" y="80" width="10" height="212" fill="#e8ddc8"/>
+    <rect x="852" y="180" width="282" height="10" fill="#e8ddc8"/>
+    <rect x="838" y="66" width="310" height="240" fill="none" stroke="#b09a72" stroke-width="3"/>
+    <rect x="832" y="302" width="322" height="12" fill="#d8c9a8"/>
+  </g>
+
+  <!-- wall clock -->
+  <g transform="translate(196,150)">
+    <circle r="52" fill="#20160c"/><circle r="47" fill="#f4efe2"/>
+    <g stroke="#222" stroke-width="2.5">
+      <line y1="-38" y2="-42"/><line x1="38" x2="42"/><line y1="38" y2="42"/><line x1="-38" x2="-42"/>
+    </g>
+    <line x1="0" y1="6" x2="0" y2="-26" stroke="#222" stroke-width="4"/>
+    <line x1="0" y1="4" x2="22" y2="14" stroke="#222" stroke-width="3"/>
+    <circle r="3.5" fill="#222"/>
+    <ellipse cx="-14" cy="-18" rx="12" ry="7" fill="#fff" opacity=".55" transform="rotate(-24)"/>
+  </g>
+
+  <!-- taped paper sign -->
+  <g transform="translate(400,120) rotate(-2.5)">
+    <rect x="0" y="0" width="176" height="120" fill="#f7f2e4"/>
+    <rect x="0" y="0" width="176" height="120" fill="none" stroke="#c9bfa4" stroke-width="1"/>
+    <rect x="66" y="-8" width="44" height="16" fill="#d8d4c4" opacity=".8"/>
+    <text x="88" y="46" text-anchor="middle" font-family="'Comic Sans MS','Chalkboard SE',cursive" font-size="21" fill="#333">NO GAMBLING</text>
+    <text x="88" y="76" text-anchor="middle" font-family="'Comic Sans MS','Chalkboard SE',cursive" font-size="13" fill="#666">the board sees you</text>
+    <text x="88" y="100" text-anchor="middle" font-family="'Comic Sans MS','Chalkboard SE',cursive" font-size="13" fill="#666">– mgmt</text>
+  </g>
+
+  <!-- carpet -->
+  <rect y="695" width="1280" height="105" fill="#3a1016"/>
+  <rect y="695" width="1280" height="105" filter="url(#carpetnoise)"/>
+  <g id="flecks"></g>
+  <rect y="695" width="1280" height="6" fill="#1c0a10"/>
+
+  <!-- CRT on a stand, playing the chrome -->
+  <g>
+    <rect x="900" y="640" width="230" height="14" fill="#2a1a10"/>
+    <rect x="920" y="654" width="14" height="46" fill="#1c110a"/>
+    <rect x="1096" y="654" width="14" height="46" fill="#1c110a"/>
+    <ellipse cx="1015" cy="702" rx="130" ry="10" fill="#000" opacity=".5" filter="url(#soft8)"/>
+    <g id="tvshadow"><ellipse cx="1060" cy="520" rx="150" ry="130" fill="#000" opacity=".28" filter="url(#soft8)"/></g>
+    <rect x="890" y="392" width="250" height="250" rx="14" fill="url(#panelwood)"/>
+    <rect x="890" y="392" width="250" height="250" rx="14" filter="url(#woodgrain)"/>
+    <rect x="890" y="392" width="250" height="250" rx="14" fill="none" stroke="#241408" stroke-width="3"/>
+    <rect x="908" y="410" width="186" height="176" rx="10" fill="#0a0a0a"/>
+    <rect x="914" y="416" width="174" height="164" rx="8" fill="#0e8078"/>
+    <!-- tiny possessed window on screen -->
+    <g font-family="Tahoma,sans-serif">
+      <rect x="932" y="452" width="120" height="76" fill="#c0c0c0"/>
+      <rect x="935" y="455" width="114" height="13" fill="#000080"/>
+      <text x="939" y="465" fill="#fff" font-size="8.5" font-weight="bold">FOURSCORE.EXE</text>
+      <text x="941" y="486" font-size="8.5" fill="#111">It is your turn.</text>
+      <text x="941" y="498" font-size="8.5" fill="#111">It is always your turn.</text>
+      <rect x="962" y="506" width="56" height="14" fill="#c0c0c0" stroke="#0a0a0a" stroke-width=".8"/>
+      <text x="983" y="516" font-size="8.5" text-anchor="middle" fill="#111">OK</text>
+    </g>
+    <g opacity=".16"><g id="scan"></g></g>
+    <path d="M918,420 L1010,416 L942,580 L920,578 Z" fill="#fff" opacity=".14"/>
+    <!-- knobs -->
+    <circle cx="1116" cy="440" r="9" fill="#1c110a"/><circle cx="1116" cy="470" r="9" fill="#1c110a"/>
+    <rect x="1106" y="500" width="22" height="60" rx="4" fill="#241408"/>
+  </g>
+
+  <!-- folding table -->
+  <g>
+    <ellipse cx="470" cy="740" rx="340" ry="16" fill="#000" opacity=".55" filter="url(#soft8)"/>
+    <!-- legs -->
+    <g stroke="#4c4c56" stroke-width="11" stroke-linecap="round">
+      <line x1="238" y1="664" x2="308" y2="738"/><line x1="316" y1="664" x2="246" y2="738"/>
+      <line x1="636" y1="664" x2="704" y2="738"/><line x1="712" y1="664" x2="644" y2="738"/>
+    </g>
+    <g stroke="#9a9aa6" stroke-width="3" opacity=".8">
+      <line x1="240" y1="662" x2="310" y2="736"/><line x1="638" y1="662" x2="706" y2="736"/>
+    </g>
+    <!-- top -->
+    <polygon points="150,586 790,586 832,658 108,658" fill="#b58448"/>
+    <polygon points="150,586 790,586 832,658 108,658" filter="url(#tablegrain)"/>
+    <polygon points="108,658 832,658 832,670 108,670" fill="#6e4520"/>
+    <rect x="106" y="656" width="728" height="7" rx="3.5" fill="#b8b8c0"/>
+    <rect x="106" y="661" width="728" height="2" fill="#70707c"/>
+    <polygon points="150,586 790,586 786,592 154,592" fill="#fff" opacity=".22"/>
+  </g>
+
+  <!-- the toy -->
+  <g id="toy"></g>
+
+  <!-- spare checkers on the table -->
+  <g id="spare"></g>
+
+  <!-- flash vignette over everything -->
+  <rect width="1280" height="800" fill="url(#flash)"/>
+
+  <text x="1268" y="26" text-anchor="end" font-family="monospace" font-size="13" fill="#fff" opacity=".6">05 · THE BREAK ROOM</text>
+</svg>
+<script>
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, at, parent) => {
+    const e = document.createElementNS(NS, n);
+    for (const k in at) e.setAttribute(k, at[k]);
+    parent.appendChild(e); return e;
+  };
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  // wall panels
+  const wall = document.getElementById("wall");
+  el("rect", { width: 1280, height: 700, fill: "#54371f" }, wall);
+  for (let x = 0; x < 1280; x += 160) {
+    el("rect", { x, y: 0, width: 156, height: 700, fill: "url(#panelwood)" }, wall);
+    el("rect", { x, y: 0, width: 156, height: 700, filter: "url(#woodgrain)" }, wall);
+    el("rect", { x: x + 156, y: 0, width: 4, height: 700, fill: "#33200f" }, wall);
+    el("rect", { x: x + 1, y: 0, width: 2, height: 700, fill: "#8f6238", opacity: .6 }, wall);
+  }
+
+  // stars out the window
+  const stars = document.getElementById("stars");
+  for (let i = 0; i < 40; i++) {
+    el("circle", { cx: 852 + rnd() * 282, cy: 80 + rnd() * 212, r: .8 + rnd(),
+                   fill: "#fff", opacity: .3 + rnd() * .6 }, stars);
+  }
+
+  // carpet flecks
+  const fl = document.getElementById("flecks");
+  const fcols = ["#6a3a8f", "#2a6a5a", "#8f8a3a", "#7a3038"];
+  for (let i = 0; i < 130; i++) {
+    el("rect", { x: rnd() * 1280, y: 700 + rnd() * 96, width: 3 + rnd() * 5, height: 2,
+                 fill: fcols[i % 4], opacity: .5, transform: `rotate(${(rnd() - .5) * 60} ${rnd() * 1280} ${700 + rnd() * 96})` }, fl);
+  }
+
+  // CRT scanlines
+  const scan = document.getElementById("scan");
+  for (let y = 418; y < 580; y += 4) el("rect", { x: 914, y, width: 174, height: 1.4, fill: "#000" }, scan);
+
+  // ---- the toy ----
+  const toy = document.getElementById("toy");
+  const TL = 220, TT = 268, TW = 430, TH = 318, BASE = 596;
+  // legs (the yellow feet)
+  for (const lx of [TL - 14, TL + TW - 52]) {
+    el("path", { d: `M${lx},${BASE} L${lx + 66},${BASE} L${lx + 50},${BASE - 46} L${lx + 16},${BASE - 46} Z`,
+                 fill: "#f2b21c", stroke: "#a87508", "stroke-width": 2.5 }, toy);
+    el("ellipse", { cx: lx + 33, cy: BASE + 2, rx: 38, ry: 5, fill: "#000", opacity: .35, filter: "url(#soft3)" }, toy);
+  }
+  // shadow on the wall behind (flash throws it outward)
+  el("rect", { x: TL + 18, y: TT + 14, width: TW, height: TH, rx: 20, fill: "#000",
+               opacity: .3, filter: "url(#soft8)" }, toy);
+  // frame
+  el("rect", { x: TL, y: TT, width: TW, height: TH, rx: 20, fill: "url(#blue)",
+               stroke: "#10307a", "stroke-width": 4 }, toy);
+  el("rect", { x: TL, y: TT, width: TW, height: TH, rx: 20, fill: "none",
+               stroke: "#7a9cf8", "stroke-width": 2, opacity: .8,
+               transform: "translate(-2,-2)" }, toy);
+  // the slot lip on top
+  el("rect", { x: TL + 26, y: TT - 10, width: TW - 52, height: 12, rx: 6, fill: "#16368f" }, toy);
+  // grid
+  const state = ["", "ry", "yrr", "ryry", "yr", "r", ""];
+  const cw = TW / 7, ch = TH / 6, hr = Math.min(cw, ch) * .37;
+  for (let c = 0; c < 7; c++) for (let row = 0; row < 6; row++) {
+    const cx = TL + cw * (c + .5), cy = TT + TH - ch * (row + .5);
+    el("circle", { cx, cy, r: hr, fill: "url(#holePl)" }, toy);
+    const d = state[c][row];
+    if (d) {
+      el("circle", { cx, cy, r: hr * .9, fill: d === "r" ? "url(#discRg)" : "url(#discYg)" }, toy);
+      el("circle", { cx, cy, r: hr * .9, fill: "none", stroke: "#000", "stroke-width": 1, opacity: .25 }, toy);
+      el("ellipse", { cx: cx - hr * .3, cy: cy - hr * .34, rx: hr * .22, ry: hr * .13,
+                      fill: "#fff", opacity: .9 }, toy);
+    }
+  }
+  // plastic sheen: two hot flash speculars + a soft diagonal
+  el("polygon", { points: `${TL + 26},${TT + 6} ${TL + 96},${TT + 6} ${TL + 40},${TT + TH - 8} ${TL + 8},${TT + TH - 40}`,
+                  fill: "#fff", opacity: .1 }, toy);
+  el("ellipse", { cx: TL + 74, cy: TT + 30, rx: 40, ry: 10, fill: "#fff", opacity: .55, filter: "url(#soft3)",
+                  transform: `rotate(-12 ${TL + 74} ${TT + 30})` }, toy);
+  el("ellipse", { cx: TL + TW - 60, cy: TT + 18, rx: 20, ry: 6, fill: "#fff", opacity: .4, filter: "url(#soft3)" }, toy);
+
+  // ---- spare checkers ----
+  const sp = document.getElementById("spare");
+  const coin = (x, y, kind, rot = 0) => {
+    const g = el("g", { transform: `translate(${x},${y}) rotate(${rot})` }, sp);
+    el("ellipse", { cx: 0, cy: 3, rx: 26, ry: 9, fill: "#000", opacity: .35, filter: "url(#soft3)" }, g);
+    el("ellipse", { cx: 0, cy: 0, rx: 25, ry: 8.5, fill: kind === "r" ? "#8f1420" : "#a87508" }, g);
+    el("ellipse", { cx: 0, cy: -3, rx: 25, ry: 8.5, fill: kind === "r" ? "url(#discRg)" : "url(#discYg)" }, g);
+    el("ellipse", { cx: -7, cy: -5.5, rx: 8, ry: 2.6, fill: "#fff", opacity: .8 }, g);
+  };
+  coin(748, 628, "r", -4);
+  coin(716, 642, "y", 3);
+  // a short stack
+  coin(168, 646, "y"); coin(168, 637, "r"); coin(168, 628, "y");
+  // one on the floor
+  coin(864, 756, "r", -8);
+</script>

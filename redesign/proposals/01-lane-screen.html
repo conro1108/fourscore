@@ -1,0 +1,246 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>01 · THE LANE SCREEN</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;display:grid;place-items:center;overflow:hidden}
+  svg{width:100vw;height:100vh;max-width:calc(100vh*1.6);max-height:calc(100vw/1.6);display:block}
+</style>
+<svg id="s" viewBox="0 0 1280 800" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <!-- sky -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#0b0520"/>
+      <stop offset=".45" stop-color="#3c1057"/>
+      <stop offset=".8"  stop-color="#a12468"/>
+      <stop offset="1"   stop-color="#ff7a3c"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe95c"/>
+      <stop offset=".55" stop-color="#ffb03a"/>
+      <stop offset="1" stop-color="#ff4d7e"/>
+    </linearGradient>
+    <!-- floor haze: hot at horizon fading down to darkness -->
+    <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8a4c" stop-opacity=".85"/>
+      <stop offset=".18" stop-color="#c23a72" stop-opacity=".35"/>
+      <stop offset=".55" stop-color="#1c0d38" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sunstreak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb03a" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffb03a" stop-opacity="0"/>
+    </linearGradient>
+    <!-- board faces -->
+    <linearGradient id="boardFront" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6a3fc4"/>
+      <stop offset=".5" stop-color="#4a2c8f"/>
+      <stop offset="1" stop-color="#341f68"/>
+    </linearGradient>
+    <linearGradient id="boardSide" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#241448"/>
+      <stop offset="1" stop-color="#180d33"/>
+    </linearGradient>
+    <linearGradient id="boardTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a678ff"/>
+      <stop offset="1" stop-color="#5c38a8"/>
+    </linearGradient>
+    <!-- specular sweep across the front face -->
+    <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset=".25" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".42" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset=".5"  stop-color="#fff" stop-opacity=".05"/>
+      <stop offset=".62" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="hole" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#05030e"/>
+      <stop offset=".75" stop-color="#0a0618"/>
+      <stop offset=".92" stop-color="#241245"/>
+      <stop offset="1" stop-color="#7a55d6"/>
+    </radialGradient>
+    <radialGradient id="discR" cx=".38" cy=".32" r=".8">
+      <stop offset="0" stop-color="#ff8f9c"/>
+      <stop offset=".35" stop-color="#e33b52"/>
+      <stop offset="1" stop-color="#8f1430"/>
+    </radialGradient>
+    <radialGradient id="discY" cx=".38" cy=".32" r=".8">
+      <stop offset="0" stop-color="#ffe9a0"/>
+      <stop offset=".35" stop-color="#f5b62e"/>
+      <stop offset="1" stop-color="#a86a08"/>
+    </radialGradient>
+    <!-- chrome type -->
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4fbff"/>
+      <stop offset=".38" stop-color="#79c4f2"/>
+      <stop offset=".49" stop-color="#12295e"/>
+      <stop offset=".52" stop-color="#f8f4d8"/>
+      <stop offset=".75" stop-color="#c98a2e"/>
+      <stop offset="1" stop-color="#fff8e0"/>
+    </linearGradient>
+    <linearGradient id="reflFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".38"/>
+      <stop offset=".7" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="reflMask"><rect x="0" y="680" width="1280" height="200" fill="url(#reflFade)"/></mask>
+    <filter id="soft"><feGaussianBlur stdDeviation="2.2"/></filter>
+    <filter id="soft6"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1280" height="310" fill="url(#sky)"/>
+  <!-- slatted sun -->
+  <g>
+    <clipPath id="sunclip"><circle cx="985" cy="268" r="118"/></clipPath>
+    <g clip-path="url(#sunclip)">
+      <circle cx="985" cy="268" r="118" fill="url(#sun)"/>
+      <g fill="#a12468">
+        <rect x="850" y="252" width="280" height="7"/>
+        <rect x="850" y="271" width="280" height="9"/>
+        <rect x="850" y="292" width="280" height="12"/>
+      </g>
+    </g>
+    <circle cx="985" cy="268" r="118" fill="none" stroke="#ffd94a" stroke-opacity=".5" stroke-width="2"/>
+  </g>
+
+  <!-- floor (generated) -->
+  <g id="floor"></g>
+  <rect x="0" y="300" width="1280" height="500" fill="url(#haze)"/>
+  <rect x="905" y="302" width="160" height="360" fill="url(#sunstreak)" filter="url(#soft6)"/>
+  <!-- horizon line -->
+  <rect x="0" y="298" width="1280" height="3" fill="#ffd08a" opacity=".8"/>
+
+  <!-- board shadow -->
+  <ellipse cx="545" cy="690" rx="300" ry="26" fill="#06030f" opacity=".65" filter="url(#soft6)"/>
+
+  <!-- reflection -->
+  <g mask="url(#reflMask)" opacity=".9">
+    <g transform="translate(0,1360) scale(1,-1)" filter="url(#soft)">
+      <g id="boardRefl"></g>
+    </g>
+  </g>
+
+  <!-- the board itself (generated) -->
+  <g id="board"></g>
+
+  <!-- rocket flyby -->
+  <g transform="translate(1148,108) rotate(18) scale(1.15)">
+    <g stroke="#ffd94a" stroke-width="2" opacity=".7">
+      <line x1="-8"  y1="86" x2="-26" y2="150"/>
+      <line x1="10"  y1="90" x2="0"   y2="164"/>
+      <line x1="26"  y1="84" x2="30"  y2="140"/>
+    </g>
+    <path d="M0,-52 C16,-30 20,-6 20,18 L-20,18 C-20,-6 -16,-30 0,-52 Z" fill="#e8e4f4"/>
+    <path d="M0,-52 C-16,-30 -20,-6 -20,18 L-6,18 C-6,-8 -6,-30 0,-52 Z" fill="#fff" opacity=".7"/>
+    <path d="M0,-52 C10,-38 14,-26 15,-14 L-15,-14 C-14,-26 -10,-38 0,-52 Z" fill="#e33b52"/>
+    <circle cx="0" cy="0" r="9" fill="#1a2c5e" stroke="#9db8e8" stroke-width="3"/>
+    <path d="M-20,4 L-38,30 L-20,24 Z" fill="#e33b52"/>
+    <path d="M20,4 L38,30 L20,24 Z" fill="#b0243c"/>
+    <path d="M-12,20 L0,58 L12,20 Z" fill="#ffb03a"/>
+    <path d="M-6,20 L0,42 L6,20 Z" fill="#ffe95c"/>
+    <circle cx="-16" cy="64" r="7" fill="#d8cfe8" opacity=".8"/>
+    <circle cx="4"  cy="76" r="9" fill="#c4b8dd" opacity=".6"/>
+    <circle cx="18" cy="60" r="5" fill="#e8e0f2" opacity=".7"/>
+  </g>
+
+  <!-- lens flare off the sun -->
+  <g opacity=".8" pointer-events="none">
+    <line x1="985" y1="268" x2="1235" y2="690" stroke="#fff" stroke-opacity=".14" stroke-width="3"/>
+    <circle cx="1075" cy="420" r="12" fill="#ffd94a" opacity=".2"/>
+    <circle cx="1145" cy="538" r="8"  fill="#79c4f2" opacity=".26"/>
+    <circle cx="1205" cy="640" r="16" fill="#ff7a3c" opacity=".15"/>
+    <circle cx="985" cy="268" r="34" fill="#fff" opacity=".22" filter="url(#soft6)"/>
+  </g>
+
+  <!-- flying chrome wordmark -->
+  <g transform="translate(74,160) rotate(-8)" font-family="'Arial Black','Impact',sans-serif" font-weight="900" font-size="94" font-style="italic">
+    <g opacity=".8">
+      <line x1="-30" y1="-38" x2="240" y2="-38" stroke="#79c4f2" stroke-width="3" opacity=".5"/>
+      <line x1="-52" y1="-18" x2="150" y2="-18" stroke="#79c4f2" stroke-width="2" opacity=".35"/>
+      <line x1="-40" y1="16"  x2="120" y2="16"  stroke="#79c4f2" stroke-width="2" opacity=".25"/>
+    </g>
+    <g fill="#140b30">
+      <text x="18" y="18">FOURSCORE</text><text x="15" y="15">FOURSCORE</text>
+      <text x="12" y="12">FOURSCORE</text><text x="9" y="9">FOURSCORE</text>
+      <text x="6" y="6">FOURSCORE</text><text x="3" y="3">FOURSCORE</text>
+    </g>
+    <text x="0" y="0" fill="url(#chrome)" stroke="#0d1c42" stroke-width="1.5">FOURSCORE</text>
+  </g>
+
+  <!-- lane scoring strip -->
+  <g font-family="'Courier New',monospace" font-weight="bold">
+    <rect x="0" y="742" width="1280" height="58" fill="#101a4a"/>
+    <rect x="0" y="742" width="1280" height="3" fill="#3c56b0"/>
+    <rect x="0" y="797" width="1280" height="3" fill="#060b24"/>
+    <g fill="#ffd94a" font-size="20" letter-spacing="3">
+      <text x="48"  y="778">YOU 3</text>
+      <text x="238" y="778">MOSS 2</text>
+      <text x="1020" y="778">FRAME 5</text>
+    </g>
+    <text x="520" y="778" fill="#79c4f2" font-size="20" letter-spacing="3">INCREDIBLE.</text>
+    <g fill="#233573"><circle cx="200" cy="771" r="4"/><circle cx="420" cy="771" r="4"/><circle cx="980" cy="771" r="4"/></g>
+  </g>
+
+  <!-- placard -->
+  <text x="1268" y="26" text-anchor="end" font-family="monospace" font-size="13" fill="#fff" opacity=".55">01 · THE LANE SCREEN</text>
+</svg>
+<script>
+  const svg = document.getElementById("s");
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, at, parent) => {
+    const e = document.createElementNS(NS, n);
+    for (const k in at) e.setAttribute(k, at[k]);
+    parent.appendChild(e); return e;
+  };
+
+  // ---- perspective checkerboard floor ----
+  const VP = { x: 985, y: 300 };
+  const floor = document.getElementById("floor");
+  const ROWS = 9, COLS = 14, SPACING = 330, HORIZON = 300, BOTTOM = 800;
+  // row edge y positions, geometric spacing toward the horizon
+  const rowY = i => HORIZON + (BOTTOM - HORIZON) * Math.pow(i / ROWS, 2.1);
+  // column edges: even spacing along the bottom of the frame, converging at VP
+  const colXBottom = j => VP.x + (j - COLS / 2) * SPACING;
+  const xAt = (xb, y) => VP.x + (xb - VP.x) * (y - VP.y) / (BOTTOM - VP.y);
+  for (let i = 0; i < ROWS; i++) {
+    const y0 = rowY(i), y1 = rowY(i + 1);
+    for (let j = 0; j < COLS; j++) {
+      const a = colXBottom(j), b = colXBottom(j + 1);
+      const pts = [
+        [xAt(a, y0), y0], [xAt(b, y0), y0],
+        [xAt(b, y1), y1], [xAt(a, y1), y1],
+      ].map(p => p.join(",")).join(" ");
+      el("polygon", { points: pts, fill: (i + j) % 2 ? "#241249" : "#120826" }, floor);
+    }
+  }
+
+  // ---- the board, front face + side + top toward the VP ----
+  function drawBoard(g) {
+    const L = 300, R = 760, T = 330, B = 680, s = 0.15;
+    const toVP = ([x, y]) => [x + s * (VP.x - x), y + s * (VP.y - y)];
+    const fTL = [L, T], fTR = [R, T], fBR = [R, B], fBL = [L, B];
+    const bTL = toVP(fTL), bTR = toVP(fTR), bBR = toVP(fBR);
+    const poly = (pts, fill, extra = {}) =>
+      el("polygon", { points: pts.map(p => p.join(",")).join(" "), fill, ...extra }, g);
+    // side face (right, toward the VP) and top sliver
+    poly([fTR, bTR, bBR, fBR], "url(#boardSide)");
+    poly([fTL, fTR, bTR, bTL], "url(#boardTop)");
+    // front face
+    poly([fTL, fTR, fBR, fBL], "url(#boardFront)", { stroke: "#1c0f3d", "stroke-width": 3 });
+    // holes + discs
+    const board = [ // per column, bottom-up: r red, y yellow
+      "", "ry", "yrr", "ryry", "yr", "r", "",
+    ];
+    const cw = (R - L) / 7, ch = (B - T) / 6, r = Math.min(cw, ch) * 0.36;
+    for (let c = 0; c < 7; c++) for (let row = 0; row < 6; row++) {
+      const cx = L + cw * (c + 0.5), cy = B - ch * (row + 0.5);
+      el("circle", { cx, cy, r, fill: "url(#hole)" }, g);
+      const d = board[c][row];
+      if (d) {
+        el("circle", { cx, cy, r: r * 0.88, fill: d === "r" ? "url(#discR)" : "url(#discY)" }, g);
+        el("circle", { cx: cx - r * 0.3, cy: cy - r * 0.34, r: r * 0.16, fill: "#fff", opacity: .85 }, g);
+      }
+    }
+    // specular sweep on the front face
+    poly([fTL, fTR, fBR, fBL], "url(#sweep)", { "pointer-events": "none" });
+  }
+  drawBoard(document.getElementById("board"));
+  drawBoard(document.getElementById("boardRefl"));
+</script>

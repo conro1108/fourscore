@@ -1,0 +1,207 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>03 · THE MONUMENT</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;display:grid;place-items:center;overflow:hidden}
+  svg{width:100vw;height:100vh;max-width:calc(100vh*1.6);max-height:calc(100vw/1.6);display:block}
+</style>
+<svg id="s" viewBox="0 0 1280 800" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"  stop-color="#05030f"/>
+      <stop offset=".5" stop-color="#150b2e"/>
+      <stop offset=".78" stop-color="#3a1440"/>
+      <stop offset="1"  stop-color="#5c1e38"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1028"/>
+      <stop offset=".25" stop-color="#140818"/>
+      <stop offset="1" stop-color="#020108"/>
+    </linearGradient>
+    <radialGradient id="corona" cx=".5" cy=".5" r=".5">
+      <stop offset=".62" stop-color="#ffb03a" stop-opacity="0"/>
+      <stop offset=".72" stop-color="#ffd08a" stop-opacity=".9"/>
+      <stop offset=".78" stop-color="#ff8a3c" stop-opacity=".5"/>
+      <stop offset="1"  stop-color="#ff5c2e" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="coronaWide" cx=".5" cy=".5" r=".5">
+      <stop offset=".3" stop-color="#a8503c" stop-opacity=".5"/>
+      <stop offset="1"  stop-color="#a8503c" stop-opacity="0"/>
+    </radialGradient>
+    <!-- slab -->
+    <linearGradient id="slab" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"  stop-color="#0a0712"/>
+      <stop offset=".55" stop-color="#110d1c"/>
+      <stop offset=".9" stop-color="#1e1428"/>
+      <stop offset="1"  stop-color="#4a2c34"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffb03a" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffb03a" stop-opacity=".9"/>
+    </linearGradient>
+    <radialGradient id="holeDark" cx=".5" cy=".45" r=".6">
+      <stop offset="0" stop-color="#000"/>
+      <stop offset=".8" stop-color="#050310"/>
+      <stop offset="1" stop-color="#241428"/>
+    </radialGradient>
+    <radialGradient id="moltenY" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset=".45" stop-color="#ffc23a"/>
+      <stop offset=".8" stop-color="#c4581a"/>
+      <stop offset="1" stop-color="#6e2410"/>
+    </radialGradient>
+    <radialGradient id="moltenR" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffb4a0"/>
+      <stop offset=".45" stop-color="#e8442e"/>
+      <stop offset=".8" stop-color="#8a1420"/>
+      <stop offset="1" stop-color="#40060e"/>
+    </radialGradient>
+    <radialGradient id="spill" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff9a3c" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#ff9a3c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spillR" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff4a3c" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#ff4a3c" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft4"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="soft10"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="soft18"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="grain" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .5 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <filter id="stone" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".012 .06" numOctaves="3" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .09  0 0 0 0 .07  0 0 0 0 .13  0 0 0 .5 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1280" height="620" fill="url(#sky)"/>
+
+  <!-- eclipse -->
+  <circle cx="905" cy="190" r="300" fill="url(#coronaWide)"/>
+  <circle cx="905" cy="190" r="185" fill="url(#corona)"/>
+  <circle cx="905" cy="190" r="128" fill="#02010a"/>
+  <circle cx="905" cy="190" r="128" fill="none" stroke="#ffd08a" stroke-width="2.5" opacity=".95"/>
+  <circle cx="905" cy="190" r="132" fill="none" stroke="#ff8a3c" stroke-width="5" opacity=".3" filter="url(#soft4)"/>
+
+  <!-- ground -->
+  <rect y="560" width="1280" height="240" fill="url(#ground)"/>
+  <rect y="552" width="1280" height="16" fill="#6e2a3c" opacity=".5" filter="url(#soft4)"/>
+  <!-- dune silhouettes -->
+  <path d="M0,600 Q240,572 520,596 T1280,588 L1280,800 L0,800 Z" fill="#0a0512"/>
+  <path d="M0,650 Q360,620 720,648 T1280,640 L1280,800 L0,800 Z" fill="#060310"/>
+
+  <!-- monolith long shadow toward camera -->
+  <polygon points="235,700 735,700 940,800 -60,800" fill="#010007" opacity=".85" filter="url(#soft10)"/>
+
+  <!-- backlit haze so the slab silhouettes against the sky -->
+  <polygon points="195,706 775,706 716,14 254,14" fill="#8a5c8a" opacity=".32" filter="url(#soft18)"/>
+  <polygon points="225,702 745,702 700,24 270,24" fill="#b8788a" opacity=".18" filter="url(#soft10)"/>
+
+  <!-- THE MONUMENT (generated) -->
+  <g id="slabG"></g>
+
+  <!-- mist crossing in front -->
+  <ellipse cx="420" cy="196" rx="290" ry="22" fill="#8a7aa8" opacity=".07" filter="url(#soft18)"/>
+  <ellipse cx="640" cy="330" rx="430" ry="26" fill="#6e5a90" opacity=".07" filter="url(#soft18)"/>
+  <ellipse cx="430" cy="700" rx="480" ry="34" fill="#5a4878" opacity=".16" filter="url(#soft18)"/>
+
+  <!-- tiny witness + candles, for scale -->
+  <g id="witness"></g>
+
+  <!-- the one beige window, small and unbothered -->
+  <g transform="translate(1010,620)" font-family="Tahoma,sans-serif">
+    <rect x="0" y="0" width="216" height="92" fill="#c0c0c0"/>
+    <rect x="0" y="0" width="216" height="92" fill="none" stroke="#0a0a0a" stroke-width="1"/>
+    <rect x="1" y="1" width="214" height="1.5" fill="#fff"/><rect x="1" y="1" width="1.5" height="90" fill="#fff"/>
+    <rect x="4" y="4" width="208" height="20" fill="#000080"/>
+    <text x="10" y="18" fill="#fff" font-size="12" font-weight="bold">FOURSCORE.EXE</text>
+    <rect x="196" y="7" width="13" height="13" fill="#c0c0c0" stroke="#0a0a0a" stroke-width=".8"/>
+    <text x="199" y="17" font-size="10" font-weight="bold">×</text>
+    <text x="12" y="46" font-size="12">Your move.</text>
+    <rect x="66" y="58" width="84" height="24" fill="#c0c0c0" stroke="#0a0a0a" stroke-width="1"/>
+    <rect x="67" y="59" width="82" height="1.5" fill="#fff"/><rect x="67" y="59" width="1.5" height="22" fill="#fff"/>
+    <rect x="70" y="62" width="76" height="17" fill="none" stroke="#000" stroke-width=".8" stroke-dasharray="1.5 1.5"/>
+    <text x="94" y="75" font-size="12">Drop</text>
+  </g>
+
+  <!-- film grain -->
+  <rect width="1280" height="800" filter="url(#grain)" opacity=".07"/>
+
+  <text x="1268" y="26" text-anchor="end" font-family="monospace" font-size="13" fill="#fff" opacity=".55">03 · THE MONUMENT</text>
+</svg>
+<script>
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, at, parent) => {
+    const e = document.createElementNS(NS, n);
+    for (const k in at) e.setAttribute(k, at[k]);
+    parent.appendChild(e); return e;
+  };
+  const g = document.getElementById("slabG");
+
+  // slab silhouette: wide at the base, converging upward, top out past the crown
+  const baseL = 235, baseR = 735, topL = 278, topR = 692, baseY = 700, topY = 30;
+  el("polygon", { points: `${baseL},${baseY} ${baseR},${baseY} ${topR},${topY} ${topL},${topY}`,
+                  fill: "url(#slab)" }, g);
+  // stone striation
+  el("polygon", { points: `${baseL},${baseY} ${baseR},${baseY} ${topR},${topY} ${topL},${topY}`,
+                  fill: "#fff", filter: "url(#stone)", opacity: ".55" }, g);
+  // rim light on the eclipse side
+  el("polygon", { points: `${baseR},${baseY} ${topR},${topY} ${topR - 14},${topY} ${baseR - 12},${baseY}`,
+                  fill: "url(#rim)", opacity: ".75" }, g);
+  // cold edge on the left
+  el("polygon", { points: `${baseL},${baseY} ${topL},${topY} ${topL + 8},${topY} ${baseL + 7},${baseY}`,
+                  fill: "#4a5a9a", opacity: ".4" }, g);
+
+  // holes: 7 columns x 6 rows, perspective-compressed upward
+  const state = ["", "ry", "yrr", "ryry", "yr", "r", ""]; // bottom-up
+  const rowYs = [640, 546, 456, 370, 288, 210];
+  const lerp = (a, b, t) => a + (b - a) * t;
+  for (let row = 0; row < 6; row++) {
+    const y = rowYs[row];
+    const t = (baseY - y) / (baseY - topY);          // 0 at base, 1 at crown
+    const L = lerp(baseL, topL, t), R = lerp(baseR, topR, t);
+    const rx = lerp(27, 20, t), ry = lerp(21, 12.5, t);
+    for (let c = 0; c < 7; c++) {
+      const cx = lerp(L, R, (c + 0.5) / 7);
+      const d = state[c][row];
+      if (d) {
+        const spill = d === "r" ? "url(#spillR)" : "url(#spill)";
+        el("circle", { cx, cy: y, r: rx * 2.4, fill: spill }, g);
+      }
+      el("ellipse", { cx, cy: y, rx, ry, fill: "url(#holeDark)" }, g);
+      el("ellipse", { cx, cy: y, rx, ry, fill: "none", stroke: "#2e2038", "stroke-width": 1.5 }, g);
+      if (d) {
+        el("ellipse", { cx, cy: y, rx: rx * .84, ry: ry * .84,
+                        fill: d === "r" ? "url(#moltenR)" : "url(#moltenY)" }, g);
+        // a crack of brighter melt
+        el("ellipse", { cx: cx - rx * .18, cy: y - ry * .1, rx: rx * .3, ry: ry * .16,
+                        fill: d === "r" ? "#ff9a80" : "#fff3c4", opacity: .8 }, g);
+      }
+    }
+  }
+
+  // the witness and the candles
+  const w = document.getElementById("witness");
+  // figure: ~44px tall against a 670px monument, rim-lit by the eclipse
+  el("ellipse", { cx: 806, cy: 724, rx: 18, ry: 4, fill: "#000", opacity: .7 }, w);
+  el("path", { d: "M806,688 C798,688 795,698 795,708 L793,723 L819,723 L817,708 C817,698 814,688 806,688 Z",
+               fill: "#08050f" }, w);
+  el("circle", { cx: 806, cy: 681, r: 6.5, fill: "#08050f" }, w);
+  el("path", { d: "M811,678 C813,681 813,684 812,687", stroke: "#e8a05c", "stroke-width": 1.4, fill: "none", opacity: .9 }, w);
+  el("path", { d: "M812,690 C815,698 816,710 815,721", stroke: "#e8a05c", "stroke-width": 1.6, fill: "none", opacity: .75 }, w);
+  // candles: little warm points scattered at the base
+  const spots = [[300, 722], [345, 730], [430, 726], [520, 733], [610, 727], [668, 734], [745, 729]];
+  for (const [x, y] of spots) {
+    el("ellipse", { cx: x, cy: y + 6, rx: 10, ry: 2.5, fill: "#000", opacity: .6 }, w);
+    el("rect", { x: x - 2.5, y: y - 8, width: 5, height: 14, rx: 1.5, fill: "#d8cbb0" }, w);
+    el("circle", { cx: x, cy: y - 12, r: 7, fill: "url(#spill)" }, w);
+    el("ellipse", { cx: x, cy: y - 11, rx: 2, ry: 3.6, fill: "#ffd98a" }, w);
+    el("ellipse", { cx: x, cy: y - 10.4, rx: .9, ry: 1.8, fill: "#fff6d8" }, w);
+  }
+</script>

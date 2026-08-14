@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>FOURSCORE — art direction proposals</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;background:#131118;color:#e8e2ee;font:15px/1.5 Georgia,serif;padding:48px 24px 80px}
+  header{max-width:1120px;margin:0 auto 40px}
+  h1{font:900 34px "Arial Black",sans-serif;margin:0 0 10px;letter-spacing:.5px}
+  header p{max-width:70ch;color:#b8aec6;margin:6px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:36px 28px;max-width:1120px;margin:0 auto}
+  a.card{display:block;color:inherit;text-decoration:none}
+  .frame{position:relative;width:100%;aspect-ratio:1.6;overflow:hidden;border:1px solid #2e2a38;background:#000}
+  .frame iframe{width:1280px;height:800px;border:0;transform-origin:top left;pointer-events:none;position:absolute}
+  a.card:hover .frame{border-color:#8a6ab8}
+  h2{font:900 19px "Arial Black",sans-serif;margin:14px 0 6px}
+  h2 small{font:13px monospace;color:#8a7fa0;margin-right:8px}
+  .card p{margin:4px 0;color:#c4bacf;font-size:14px}
+  .card b{color:#e8e2ee}
+</style>
+<header>
+  <h1>FOURSCORE — five art directions</h1>
+  <p>Each one answers four questions differently: <b>what is the board, where is it,
+  where does the camera stand, where does the Win95 chrome live.</b> Palette is a
+  consequence of the answer, never the proposal.</p>
+  <p>Every card opens fullscreen. All local, no server. They compose — 01's world
+  with 02's chrome is a legal order.</p>
+</header>
+<div class="grid">
+
+  <a class="card" href="01-lane-screen.html">
+    <div class="frame"><iframe src="01-lane-screen.html" scrolling="no"></iframe></div>
+    <h2><small>01</small>THE LANE SCREEN</h2>
+    <p>The game <b>is</b> the monitor's own animation. A place, not a void: checkered
+       floor, horizon, and the board <b>standing on the ground with a reflection</b>.
+       Chrome type flies at the lens; the HUD is a scoring strip.</p>
+    <p><b>Keeps:</b> sunset heat, rockets, shouting chrome. <b>Risk:</b> reads synthwave
+       if it drifts — it has to stay bowling-software, not outrun.</p>
+  </a>
+
+  <a class="card" href="02-board-exe.html">
+    <div class="frame"><iframe src="02-board-exe.html" scrolling="no"></iframe></div>
+    <h2><small>02</small>BOARD.EXE</h2>
+    <p>The game never leaves the operating system. The board is a window, the flames
+       are a screensaver, the rocket has escaped a window and nobody comments.
+       <b>No 3D anywhere</b> — possession is the medium.</p>
+    <p><b>Keeps:</b> Win95 as the entire world, flames, rockets. <b>Risk:</b> gives up
+       the "genuinely beautiful" half; drama must come from the OS degrading.</p>
+  </a>
+
+  <a class="card" href="03-monument.html">
+    <div class="frame"><iframe src="03-monument.html" scrolling="no"></iframe></div>
+    <h2><small>03</small>THE MONUMENT</h2>
+    <p>The goth half taken seriously: the board <b>at the scale of an eclipse</b>,
+       molten discs, camera at ankle height, and one tiny beige window that refuses
+       to be impressed.</p>
+    <p><b>Keeps:</b> Win95 as the small absurd intruder; heat lives in the discs.
+       <b>Risk:</b> solemn — if the collision stops being funny it's a metal album cover.</p>
+  </a>
+
+  <a class="card" href="04-cosmic-carpet.html">
+    <div class="frame"><iframe src="04-cosmic-carpet.html" scrolling="no"></iframe></div>
+    <h2><small>04</small>COSMIC CARPET</h2>
+    <p>Blacklight bowling carpet, dead flat. Screen-print mis-registration, halftone,
+       glow-in-the-dark everything. <b>The cheap half becomes the whole medium</b>
+       and owns it.</p>
+    <p><b>Keeps:</b> rockets, WordArt energy, a beige window floating over the print.
+       <b>Risk:</b> flat means drops are graphic motion, not physics — everything
+       animates like a sticker.</p>
+  </a>
+
+  <a class="card" href="05-break-room.html">
+    <div class="frame"><iframe src="05-break-room.html" scrolling="no"></iframe></div>
+    <h2><small>05</small>THE BREAK ROOM</h2>
+    <p>A real toy in a real room, shot with a flash. <b>The fever is environmental</b>:
+       the window doesn't look onto anywhere, the TV plays the chrome, management
+       left a note.</p>
+    <p><b>Keeps:</b> Win95 (on the TV), the toy's honest plastic. <b>Risk:</b> diorama
+       detail is expensive, and the room has to stay boring for the wrongness to read.</p>
+  </a>
+
+</div>
+<script>
+  // scale each 1280x800 iframe to its card
+  const fit = () => document.querySelectorAll(".frame").forEach(f => {
+    f.querySelector("iframe").style.transform = `scale(${f.clientWidth / 1280})`;
+  });
+  fit(); addEventListener("resize", fit);
+</script>

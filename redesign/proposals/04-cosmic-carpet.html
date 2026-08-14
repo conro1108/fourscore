@@ -1,0 +1,191 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>04 · COSMIC CARPET</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;display:grid;place-items:center;overflow:hidden}
+  svg{width:100vw;height:100vh;max-width:calc(100vh*1.6);max-height:calc(100vw/1.6);display:block}
+</style>
+<svg id="s" viewBox="0 0 1280 800" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <filter id="glow2"><feGaussianBlur stdDeviation="2.5"/></filter>
+    <filter id="glow6"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="glow12"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="fiber" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .16  0 0 0 0 .08  0 0 0 0 .24  0 0 0 .55 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <pattern id="dots" width="9" height="9" patternUnits="userSpaceOnUse">
+      <circle cx="4.5" cy="4.5" r="1.7" fill="#000" opacity=".3"/>
+    </pattern>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#221040"/>
+      <stop offset="1" stop-color="#160a2c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the carpet -->
+  <rect width="1280" height="800" fill="#0c0618"/>
+  <rect width="1280" height="800" filter="url(#fiber)"/>
+  <g id="speckle"></g>
+
+  <!-- carpet shapes (each drawn twice: blur under crisp) -->
+  <g id="shapes"></g>
+
+  <!-- the board, screen-printed flat -->
+  <g id="boardG"></g>
+
+  <!-- wordmark -->
+  <g transform="translate(150,96) rotate(-4)" font-family="'Arial Black',Impact,sans-serif" font-weight="900" font-style="italic" font-size="88">
+    <text x="4" y="4" fill="#26e0e8" opacity=".9" filter="url(#glow6)">FOURSCORE</text>
+    <text x="4" y="4" fill="none" stroke="#26e0e8" stroke-width="2">FOURSCORE</text>
+    <text x="0" y="0" fill="#ff2e9a" filter="url(#glow2)">FOURSCORE</text>
+    <text x="0" y="0" fill="#ff2e9a" stroke="#ffd0ec" stroke-width="1">FOURSCORE</text>
+    <path d="M-6,22 Q300,54 760,16" fill="none" stroke="#8aff2e" stroke-width="7" stroke-linecap="round" filter="url(#glow2)"/>
+    <path d="M700,10 L775,14 L706,34" fill="#8aff2e" filter="url(#glow2)"/>
+  </g>
+
+  <!-- printed caption under the board -->
+  <g font-family="'Arial Black',Impact,sans-serif" font-weight="900" font-size="30">
+    <text x="170" y="762" fill="#26e0e8" filter="url(#glow6)" opacity=".9">YOUR MOVE · LANE ∞</text>
+    <text x="170" y="762" fill="#26e0e8">YOUR MOVE · LANE ∞</text>
+  </g>
+
+  <!-- the one beige window, printed nowhere, floating over everything -->
+  <g transform="translate(952,560)" font-family="Tahoma,sans-serif">
+    <rect x="6" y="8" width="240" height="118" fill="#000" opacity=".5"/>
+    <rect x="0" y="0" width="240" height="118" fill="#c0c0c0"/>
+    <rect x="0" y="0" width="240" height="118" fill="none" stroke="#0a0a0a" stroke-width="1"/>
+    <rect x="1" y="1" width="238" height="1.5" fill="#fff"/><rect x="1" y="1" width="1.5" height="116" fill="#fff"/>
+    <rect x="4" y="4" width="232" height="21" fill="#000080"/>
+    <text x="11" y="19" fill="#fff" font-size="12" font-weight="bold">FOURSCORE.EXE</text>
+    <rect x="219" y="7" width="14" height="14" fill="#c0c0c0" stroke="#0a0a0a" stroke-width=".8"/>
+    <text x="222.5" y="18" font-size="11" font-weight="bold">×</text>
+    <text x="14" y="50" font-size="12">Shoes required.</text>
+    <rect x="76" y="76" width="88" height="26" fill="#c0c0c0" stroke="#0a0a0a" stroke-width="1"/>
+    <rect x="77" y="77" width="86" height="1.5" fill="#fff"/><rect x="77" y="77" width="1.5" height="24" fill="#fff"/>
+    <rect x="80" y="80" width="80" height="19" fill="none" stroke="#000" stroke-width=".8" stroke-dasharray="1.5 1.5"/>
+    <text x="108" y="94" font-size="12">OK</text>
+  </g>
+
+  <text x="1268" y="26" text-anchor="end" font-family="monospace" font-size="13" fill="#fff" opacity=".55">04 · COSMIC CARPET</text>
+</svg>
+<script>
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, at, parent) => {
+    const e = document.createElementNS(NS, n);
+    for (const k in at) e.setAttribute(k, at[k]);
+    parent.appendChild(e); return e;
+  };
+  const NEON = { m: "#ff2e9a", c: "#26e0e8", g: "#8aff2e", o: "#ff8a26", v: "#8a4aff", y: "#ffe42e" };
+
+  // ---- speckle: stray UV fibers ----
+  const sp = document.getElementById("speckle");
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const cols = Object.values(NEON);
+  for (let i = 0; i < 260; i++) {
+    el("circle", { cx: rnd() * 1280, cy: rnd() * 800, r: .7 + rnd() * 1.1,
+                   fill: cols[i % cols.length], opacity: .12 + rnd() * .25 }, sp);
+  }
+
+  // ---- carpet shapes ----
+  const sh = document.getElementById("shapes");
+  function twice(draw) { draw("url(#glow6)", .85); draw(null, 1); }
+  const zig = (x, y, w, n, amp, color, sw, rot) => twice((f, o) => {
+    let d = `M${x},${y}`;
+    for (let i = 1; i <= n; i++) d += ` L${x + (w / n) * i},${y + (i % 2 ? -amp : amp)}`;
+    el("path", { d, fill: "none", stroke: color, "stroke-width": sw, "stroke-linecap": "round",
+                 opacity: o, ...(f && { filter: f }), transform: `rotate(${rot} ${x} ${y})` }, sh);
+  });
+  const squig = (x, y, s, color, sw, rot) => twice((f, o) => {
+    el("path", { d: `M${x},${y} q${18*s},${-26*s} ${36*s},0 t${36*s},0 t${36*s},0`,
+                 fill: "none", stroke: color, "stroke-width": sw, "stroke-linecap": "round",
+                 opacity: o, ...(f && { filter: f }), transform: `rotate(${rot} ${x} ${y})` }, sh);
+  });
+  const star = (x, y, r, color) => twice((f, o) => {
+    const p = [];
+    for (let i = 0; i < 8; i++) {
+      const a = Math.PI * i / 4, rr = i % 2 ? r * .38 : r;
+      p.push(`${x + Math.cos(a) * rr},${y + Math.sin(a) * rr}`);
+    }
+    el("polygon", { points: p.join(" "), fill: color, opacity: o, ...(f && { filter: f }) }, sh);
+  });
+  const ring = (x, y, r, color, sw) => twice((f, o) =>
+    el("circle", { cx: x, cy: y, r, fill: "none", stroke: color, "stroke-width": sw,
+                   opacity: o, ...(f && { filter: f }) }, sh));
+  const tri = (x, y, r, color, rot) => twice((f, o) =>
+    el("polygon", { points: `${x},${y - r} ${x + r * .87},${y + r * .5} ${x - r * .87},${y + r * .5}`,
+                    fill: "none", stroke: color, "stroke-width": 5, opacity: o,
+                    ...(f && { filter: f }), transform: `rotate(${rot} ${x} ${y})` }, sh));
+  // saturn
+  twice((f, o) => {
+    const g = el("g", { opacity: o, ...(f && { filter: f }), transform: "translate(1050,220) rotate(-16)" }, sh);
+    el("circle", { cx: 0, cy: 0, r: 44, fill: "#8a4aff" }, g);
+    el("circle", { cx: -14, cy: -12, r: 10, fill: "#b892ff", opacity: .8 }, g);
+    el("ellipse", { cx: 0, cy: 4, rx: 78, ry: 18, fill: "none", stroke: "#26e0e8", "stroke-width": 6 }, g);
+  });
+  // flat cartoon rocket with swoosh
+  twice((f, o) => {
+    const g = el("g", { opacity: o, ...(f && { filter: f }), transform: "translate(880,120) rotate(24)" }, sh);
+    el("path", { d: "M0,-46 C14,-26 18,-4 18,16 L-18,16 C-18,-4 -14,-26 0,-46 Z", fill: "#ff2e9a" }, g);
+    el("circle", { cx: 0, cy: -6, r: 8, fill: "#0c0618", stroke: "#26e0e8", "stroke-width": 4 }, g);
+    el("path", { d: "M-18,2 L-34,26 L-18,20 Z", fill: "#8aff2e" }, g);
+    el("path", { d: "M18,2 L34,26 L18,20 Z", fill: "#8aff2e" }, g);
+    el("path", { d: "M-10,18 L0,48 L10,18 Z", fill: "#ffe42e" }, g);
+    el("path", { d: "M-4,60 Q-20,90 -6,124", stroke: "#ff8a26", "stroke-width": 5, fill: "none", "stroke-linecap": "round" }, g);
+  });
+  // bowling pin pair, outline only
+  twice((f, o) => {
+    const g = el("g", { opacity: o, ...(f && { filter: f }), transform: "translate(120,540) rotate(12)" }, sh);
+    for (const dx of [0, 34]) {
+      el("path", { d: `M${dx},0 C${dx - 12},14 ${dx - 4},26 ${dx - 4},40 C${dx - 4},58 ${dx - 14},64 ${dx - 14},80
+                       C${dx - 14},96 ${dx + 14},96 ${dx + 14},80 C${dx + 14},64 ${dx + 4},58 ${dx + 4},40
+                       C${dx + 4},26 ${dx + 12},14 ${dx},0 Z`,
+                   fill: "none", stroke: "#ffe42e", "stroke-width": 5 }, g);
+      el("path", { d: `M${dx - 8},34 L${dx + 8},34`, stroke: "#ff2e9a", "stroke-width": 5 }, g);
+    }
+  });
+  // lightning bolt
+  twice((f, o) =>
+    el("polygon", { points: "986,420 962,474 984,470 950,540 998,478 976,482 1006,424",
+                    fill: "#ffe42e", opacity: o, ...(f && { filter: f }) }, sh));
+  zig(60, 120, 200, 6, 22, NEON.c, 7, 8);
+  zig(1040, 660, 190, 6, 20, NEON.m, 7, -6);
+  zig(700, 60, 180, 6, 18, NEON.o, 6, 3);
+  squig(60, 320, 1.1, NEON.o, 6, -12);
+  squig(770, 720, 1.2, NEON.v, 6, 5);
+  squig(1130, 460, .9, NEON.g, 6, 14);
+  star(260, 210, 20, NEON.y); star(1210, 120, 15, NEON.m); star(830, 300, 13, NEON.g);
+  star(90, 690, 16, NEON.c); star(920, 760, 12, NEON.y); star(1240, 360, 11, NEON.o);
+  ring(180, 430, 26, NEON.v, 6); ring(1180, 560, 20, NEON.g, 5); ring(760, 170, 14, NEON.m, 5);
+  tri(340, 720, 26, NEON.m, 14); tri(1080, 380, 20, NEON.y, -8); tri(60, 560, 18, NEON.g, 30);
+
+  // ---- the board ----
+  const b = document.getElementById("boardG");
+  const L = 190, T = 170, W = 540, H = 500, R = 26;
+  // drop shadow of print + mis-registered outlines
+  el("rect", { x: L + 8, y: T + 9, width: W, height: H, rx: R, fill: "#000", opacity: .55 }, b);
+  el("rect", { x: L - 5, y: T - 4, width: W, height: H, rx: R, fill: "none", stroke: "#ff2e9a", "stroke-width": 3, opacity: .8 }, b);
+  el("rect", { x: L + 4, y: T + 3, width: W, height: H, rx: R, fill: "none", stroke: "#26e0e8", "stroke-width": 7, filter: "url(#glow2)" }, b);
+  el("rect", { x: L, y: T, width: W, height: H, rx: R, fill: "url(#panel)" }, b);
+  el("rect", { x: L, y: T, width: W, height: H, rx: R, fill: "url(#dots)" }, b);
+  el("rect", { x: L, y: T, width: W, height: H, rx: R, fill: "none", stroke: "#26e0e8", "stroke-width": 4 }, b);
+
+  const state = ["", "cm", "mcc", "cmcm", "mc", "c", ""]; // bottom-up: c cyan, m magenta
+  const cw = W / 7, ch = H / 6, hr = Math.min(cw, ch) * .36;
+  for (let c = 0; c < 7; c++) for (let row = 0; row < 6; row++) {
+    const cx = L + cw * (c + .5), cy = T + H - ch * (row + .5);
+    el("circle", { cx, cy, r: hr, fill: "#05030c" }, b);
+    el("circle", { cx, cy, r: hr, fill: "none", stroke: "#8a4aff", "stroke-width": 3.5, filter: "url(#glow2)" }, b);
+    el("circle", { cx, cy, r: hr, fill: "none", stroke: "#8a4aff", "stroke-width": 2 }, b);
+    const d = state[c][row];
+    if (d) {
+      const col = d === "c" ? NEON.c : NEON.m;
+      el("circle", { cx, cy, r: hr * .8, fill: col, filter: "url(#glow6)", opacity: .9 }, b);
+      el("circle", { cx, cy, r: hr * .8, fill: col }, b);
+      el("path", { d: `M${cx - hr * .45},${cy - hr * .28} a${hr * .55},${hr * .55} 0 0 1 ${hr * .75},${-hr * .28}`,
+                   fill: "none", stroke: "#fff", "stroke-width": 4, "stroke-linecap": "round", opacity: .9 }, b);
+    }
+  }
+</script>

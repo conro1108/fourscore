@@ -1077,6 +1077,26 @@ thesis artifacts, and what they couldn't fix.
   tiles a 13-wide grid. **Stale:** the committed README captures
   (`shots/*.png`) still show the old bottom rail.
 
+- **Art directions, round two: the proposal board** *(Fable, 2026-08-13)*.
+  Connor's verdict on round one: five palettes, not five directions — "the same
+  loosely fitted shiny blocky board with fluted coins and a tie-dye background."
+  `redesign/proposals/index.html` is the answer: five standalone HTML/SVG mocks
+  (no build, no server, open the file), each changing what the board *is*, where
+  it sits, where the camera stands and where the Win95 chrome lives — 01 Lane
+  Screen (the game is the monitor's own animation: grounded board, reflection,
+  scoring-strip HUD), 02 BOARD.EXE (the game never leaves the OS; no 3D
+  anywhere), 03 Monument (colossal board under an eclipse; one tiny beige
+  window for scale), 04 Cosmic Carpet (blacklight carpet print, dead flat),
+  05 Break Room (real toy, flash photo; the fever is environmental). These are
+  pitches, not code — nothing in `apps/fever` changed, and `stage/theme.ts`'s
+  five palettes are superseded as "directions" by this board. Trap for SVG
+  mocks: Chrome runs `feColorMatrix` in linearRGB by default, so dark constants
+  come back ~2× lighter (the same class of bug as phase 0's shader color-space
+  trap) — set `color-interpolation-filters="sRGB"`. And the monument repeated
+  the parlor/abyss lesson from round one in a new form: slab and sky at the
+  same value read as translucent glass until a backlit haze separated the
+  silhouette.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta
