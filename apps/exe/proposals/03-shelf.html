@@ -1,0 +1,272 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exe · 03 · the shelf — fire has personalities</title>
+<link rel="stylesheet" href="chrome.css">
+<div id="stage">
+
+  <div class="icon" style="left:16px;top:600px">
+    <canvas class="pix" id="icoBoard" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">BOARD.EXE</span>
+  </div>
+  <div class="icon sel" style="left:16px;top:690px">
+    <canvas class="pix" id="icoScr" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">the shelf</span>
+  </div>
+
+  <!-- top row: ONE fire, three windows. It goes where it wants;
+       focus follows it. -->
+  <div class="win bevel" id="trip0" style="left:112px;top:40px;width:308px">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="t0" width="100" height="57" style="width:296px;height:170px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" id="trip1" style="left:436px;top:40px;width:308px">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview (2)</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="t1" width="100" height="57" style="width:296px;height:170px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" id="trip2" style="left:760px;top:40px;width:308px">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview (3)</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="t2" width="100" height="57" style="width:296px;height:170px"></canvas>
+    </div>
+  </div>
+
+  <!-- middle row: temperaments -->
+  <div class="win bevel" style="left:112px;top:320px;width:308px">
+    <div class="titlebar inactive"><span class="t">coals.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="coals" width="100" height="50" style="width:296px;height:150px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" style="left:436px;top:320px;width:308px">
+    <div class="titlebar inactive"><span class="t">pillar.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="pillar" width="100" height="50" style="width:296px;height:150px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" style="left:760px;top:320px;width:308px">
+    <div class="titlebar inactive"><span class="t">rain.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="rain" width="100" height="50" style="width:296px;height:150px"></canvas>
+    </div>
+  </div>
+
+  <!-- bottom row: the rest of the shelf -->
+  <div class="win bevel" style="left:112px;top:572px;width:292px">
+    <div class="titlebar inactive"><span class="t">stars.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="stars" width="140" height="68" style="width:280px;height:136px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" style="left:428px;top:572px;width:292px">
+    <div class="titlebar inactive"><span class="t">mystify.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="mystify" width="140" height="68" style="width:280px;height:136px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" style="left:744px;top:572px;width:308px">
+    <div class="titlebar inactive"><span class="t">words.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="words" width="200" height="30" style="width:296px;height:44px"></canvas>
+    </div>
+  </div>
+
+  <!-- the annotation lives inside the fiction -->
+  <div class="win bevel" style="left:1084px;top:40px;width:182px">
+    <div class="titlebar inactive"><span class="t">readme.txt — Notepad</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#fff;padding:5px;font-family:'Courier New',monospace;font-size:11px;line-height:1.55">
+      what runs where:<br><br>
+      top row: one fire,<br>
+      three windows.<br>
+      focus follows it.<br><br>
+      coals — losing,<br>
+      quietly. it flares<br>
+      when you look away.<br><br>
+      pillar — a candle<br>
+      for the oracle.<br><br>
+      rain — the weather,<br>
+      indoors.<br><br>
+      stars — between<br>
+      games.<br><br>
+      mystify — moss,<br>
+      thinking.<br><br>
+      words — it has news.
+    </div>
+  </div>
+
+  <div id="taskbar">
+    <div id="start" class="btn" style="min-width:0"><canvas class="pix" id="icoStart" width="16" height="16" style="width:16px;height:16px"></canvas>Start</div>
+    <div id="tasks">
+      <div class="task down">the shelf</div>
+      <div class="task" style="color:#808080">solitaire (gone)</div>
+    </div>
+    <div id="clock">6:66 PM</div>
+  </div>
+
+  <div id="placard">exe · 03 · the shelf</div>
+</div>
+<script src="lib.js"></script>
+<script>
+const { fitStage, q, px, ICONS, PALETTES, makeFire } = EXE;
+fitStage();
+px("icoBoard", ICONS.board); px("icoScr", ICONS.scr); px("icoStart", ICONS.start);
+
+// ---- the traveling fire: one heat field, three windows ----
+// The field is 300 wide; each window renders a 100-wide slice. The heat
+// source wanders the full width, so the flame walks out of one window and
+// into the next. The active titlebar follows it — focus goes to the fire.
+{
+  const TW = 300, TH = 57, SLICE = 100;
+  const heat = new Uint8Array(TW * TH);
+  const canvases = [q("#t0"), q("#t1"), q("#t2")].map((c) => ({
+    ctx: c.getContext("2d"),
+    img: c.getContext("2d").createImageData(SLICE, TH),
+  }));
+  const pal = PALETTES.classic;
+  let tick = 0, focused = -1;
+  function stepTrip() {
+    tick++;
+    const p = TW / 2 + Math.sin(tick * 0.013) * TW * 0.42;
+    for (let x = 0; x < TW; x++) {
+      const g = Math.exp(-(((x - p) / 20) ** 2));
+      heat[(TH - 1) * TW + x] = Math.min(63, (10 + Math.random() * 8 + g * 46) | 0);
+    }
+    for (let y = 0; y < TH - 1; y++) for (let x = 0; x < TW; x++) {
+      const src = (y + 1) * TW + x;
+      const drift = x + ((Math.random() * 3 | 0) - 1);
+      const cool = Math.random() * 2.6 | 0;
+      heat[y * TW + Math.max(0, Math.min(TW - 1, drift))] = Math.max(0, heat[src] - cool);
+    }
+    canvases.forEach(({ ctx, img }, w) => {
+      for (let y = 0; y < TH; y++) for (let x = 0; x < SLICE; x++) {
+        const [r, g, b] = pal[Math.min(63, heat[y * TW + w * SLICE + x])];
+        const i = (y * SLICE + x) * 4;
+        img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+    });
+    const fw = Math.min(2, p / SLICE | 0);
+    if (fw !== focused) {
+      focused = fw;
+      [0, 1, 2].forEach((i) =>
+        q(`#trip${i} .titlebar`).className = `titlebar ${i === fw ? "active" : "inactive"}`);
+    }
+  }
+  for (let i = 0; i < 40; i++) stepTrip();
+  setInterval(stepTrip, 70);
+}
+
+// ---- coals.scr: a low bed that flares when you look away ----
+{
+  let flare = -1, flareX = 0;
+  makeFire(q("#coals"), {
+    palette: PALETTES.coals, cool: 3.4, interval: 130,
+    stoke(heat, W, H) {
+      for (let x = 0; x < W; x++)
+        heat[(H - 1) * W + x] = Math.min(63, 28 + (Math.random() * 12 | 0));
+      if (flare < 0 && Math.random() < 0.02) { flare = 20; flareX = 12 + Math.random() * (W - 24) | 0; }
+      if (flare >= 0) {
+        for (let x = flareX - 4; x <= flareX + 4; x++)
+          heat[(H - 1) * W + x] = Math.min(63, 52 + (Math.random() * 10 | 0));
+        flare--;
+      }
+    },
+  }).start();
+}
+
+// ---- pillar.scr: one column of flame, swaying ----
+makeFire(q("#pillar"), {
+  cool: 2.1, interval: 80,
+  stoke(heat, W, H, tick) {
+    const c = W / 2 + Math.sin(tick * 0.045) * 7;
+    for (let x = 0; x < W; x++) {
+      const d = Math.abs(x - c);
+      heat[(H - 1) * W + x] = d < 8
+        ? Math.min(63, (58 - d * 4 + Math.random() * 6) | 0)
+        : (Math.random() * 5 | 0);
+    }
+  },
+}).start();
+
+// ---- rain.scr: the desktop's own palette, hanging from the ceiling ----
+makeFire(q("#rain"), {
+  palette: PALETTES.desktop, flip: true,
+  baseHeat: 26, stokeVar: 14, cool: 3.4, interval: 100,
+}).start();
+
+// ---- stars.scr: the classic flight through space ----
+{
+  const c = q("#stars"), ctx = c.getContext("2d");
+  const W = c.width, H = c.height, CX = W / 2, CY = H / 2;
+  const reset = (s) => (Object.assign(s, {
+    x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: Math.random() * 0.9 + 0.1 }), s);
+  const stars = Array.from({ length: 130 }, () => reset({}));
+  setInterval(() => {
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    for (const s of stars) {
+      s.z -= 0.018;
+      const sx = CX + (s.x / s.z) * CX * 0.5;
+      const sy = CY + (s.y / s.z) * CY * 0.5;
+      if (s.z <= 0.05 || sx < 0 || sx >= W || sy < 0 || sy >= H) { reset(s); continue; }
+      const b = Math.round(255 * Math.min(1, (1 - s.z) + 0.15));
+      ctx.fillStyle = `rgb(${b},${b},${b})`;
+      ctx.fillRect(sx | 0, sy | 0, s.z < 0.3 ? 2 : 1, s.z < 0.3 ? 2 : 1);
+    }
+  }, 55);
+}
+
+// ---- mystify.scr: two polygons that have never touched a wall softly ----
+{
+  const c = q("#mystify"), ctx = c.getContext("2d");
+  const W = c.width, H = c.height;
+  const mkPoly = (hue) => ({
+    hue,
+    pts: Array.from({ length: 4 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() * 1.4 + 0.8) * (Math.random() < 0.5 ? -1 : 1),
+      vy: (Math.random() * 1.4 + 0.8) * (Math.random() < 0.5 ? -1 : 1),
+    })),
+    hist: [],
+  });
+  const polys = [mkPoly(300), mkPoly(130)];
+  setInterval(() => {
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    for (const p of polys) {
+      for (const pt of p.pts) {
+        pt.x += pt.vx; pt.y += pt.vy;
+        if (pt.x < 0 || pt.x >= W) { pt.vx *= -1; pt.x += pt.vx * 2; }
+        if (pt.y < 0 || pt.y >= H) { pt.vy *= -1; pt.y += pt.vy * 2; }
+      }
+      p.hist.push(p.pts.map((pt) => ({ x: pt.x, y: pt.y })));
+      if (p.hist.length > 6) p.hist.shift();
+      p.hue = (p.hue + 2) % 360;
+      p.hist.forEach((poly, i) => {
+        ctx.strokeStyle = `hsl(${(p.hue + i * 8) % 360} 100% ${20 + i * 6}%)`;
+        ctx.beginPath();
+        poly.forEach((pt, n) => n ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
+        ctx.closePath(); ctx.stroke();
+      });
+    }
+  }, 70);
+}
+
+// ---- words.scr: a marquee marquees ----
+{
+  const c = q("#words"), ctx = c.getContext("2d");
+  const W = c.width, H = c.height;
+  const TEXT = "IT IS 6:66 PM.   THE BOARD IS WAITING.   ";
+  ctx.font = "bold 13px 'Courier New', monospace";
+  const tw = ctx.measureText(TEXT).width;
+  let off = 0;
+  setInterval(() => {
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    ctx.font = "bold 13px 'Courier New', monospace";
+    ctx.fillStyle = "#ff40ff";
+    off = (off + 3) % tw;
+    for (let x = -off; x < W; x += tw) ctx.fillText(TEXT, x, 20);
+  }, 60);
+}
+</script>

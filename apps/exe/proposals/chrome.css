@@ -1,0 +1,94 @@
+/* BOARD.EXE proposal mocks — shared period chrome.
+   Extracted from reference/mock.html (the approved frame) and extended.
+   Timing law: nothing in here eases. Windows move instantly or in steps. */
+
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-size:11px;color:#000}
+#stage{position:relative;width:1280px;height:800px;margin:0 auto;background:#0e8078}
+
+.bevel{background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.sunken{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+.win{position:absolute}
+.titlebar{height:22px;display:flex;align-items:center;gap:4px;padding:0 3px;margin:3px;color:#fff;font-weight:bold}
+.titlebar.active{background:linear-gradient(90deg,#000080,#1084d0)}
+.titlebar.inactive{background:linear-gradient(90deg,#808080,#b5b5b5);color:#d8d8d8}
+.titlebar .t{flex:1;padding-left:2px;letter-spacing:.2px;white-space:nowrap;overflow:hidden}
+.tbtn{width:16px;height:14px;background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf;
+      font-size:9px;line-height:13px;text-align:center;color:#000;font-family:"Courier New",monospace;font-weight:bold}
+.menu{display:flex;gap:0;padding:1px 4px;position:relative}
+.menu span{padding:2px 7px}
+.menu span u{text-decoration:underline}
+.menu span.open{background:#000080;color:#fff}
+.menu span.gray{color:#808080}
+.popup{position:absolute;top:100%;background:#c0c0c0;padding:2px;min-width:150px;z-index:90;
+       box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.popup div{padding:3px 20px 3px 22px;white-space:nowrap}
+.popup div:hover{background:#000080;color:#fff}
+.popup div.gray,.popup div.gray:hover{color:#808080;background:transparent}
+.popup hr{border:0;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:2px 1px}
+
+/* desktop icons */
+.icon{position:absolute;width:76px;text-align:center;color:#fff}
+.icon .pix{width:32px;height:32px;margin:0 auto 5px;image-rendering:pixelated}
+.icon .lbl{display:inline-block;padding:1px 3px;background:transparent}
+.icon.sel .lbl{background:#000080;outline:1px dotted #fff}
+
+/* the grid */
+.cellrow{display:flex}
+.cell{width:64px;height:64px;background:#c0c0c0;display:grid;place-items:center;
+      box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+.hole{width:48px;height:48px;border-radius:50%;background:#1c1c1c;
+      box-shadow:inset 3px 3px 6px #000,inset -2px -2px 3px #5a5a5a,0 1px 0 #fff}
+.disc{width:48px;height:48px;border-radius:50%;position:relative}
+.disc.r{background:radial-gradient(circle at 36% 30%,#ff9d8a,#e0332e 55%,#7a0f14)}
+.disc.y{background:radial-gradient(circle at 36% 30%,#fff2b0,#f0b400 55%,#8a5c00)}
+.disc::after{content:"";position:absolute;inset:0;border-radius:50%;
+      background:repeating-conic-gradient(#000 0% 25%,transparent 0% 50%) 0 0/4px 4px;opacity:.10}
+/* the win flash: marquee-selection invert, stepped */
+.cell.hit .disc{filter:invert(1)}
+.cell.hit{background:#000080}
+
+.statusbar{display:flex;gap:2px;margin:3px}
+.statusbar div{flex:1;height:20px;line-height:20px;padding:0 6px;white-space:nowrap;overflow:hidden;
+      box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+
+/* dialog */
+.dlg-body{display:flex;gap:14px;align-items:flex-start;padding:14px 12px 10px}
+.dlg-ico{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7ab8ff,#0040c0 70%);
+      color:#fff;font-family:"Times New Roman",serif;font-style:italic;font-weight:bold;font-size:22px;
+      text-align:center;line-height:30px;flex:none}
+.dlg-ico.warn{background:radial-gradient(circle at 35% 30%,#ffe9a0,#f0b400 70%);color:#000;font-style:normal;font-family:Tahoma,sans-serif}
+.btnrow{display:flex;justify-content:center;gap:8px;padding:4px 0 12px}
+.btn{min-width:74px;height:23px;background:#c0c0c0;text-align:center;line-height:22px;
+     box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.btn.def{outline:1px solid #000;outline-offset:-5px;box-shadow:0 0 0 1px #000,inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+
+/* taskbar */
+#taskbar{position:absolute;left:0;right:0;bottom:0;height:36px;background:#c0c0c0;z-index:200;
+      box-shadow:inset 0 1px #fff,inset 0 2px #dfdfdf;display:flex;align-items:center;gap:5px;padding:0 4px}
+#start{height:26px;display:flex;align-items:center;gap:5px;padding:0 8px;font-weight:bold;font-size:12px;flex:none}
+#tasks{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}
+.task{height:26px;line-height:26px;padding:0 10px;flex:0 1 150px;min-width:0;font-size:11px;
+      white-space:nowrap;overflow:hidden;text-overflow:clip;
+      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.task.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf;
+      background:repeating-conic-gradient(#fff 0% 25%,#c0c0c0 0% 50%) 0 0/4px 4px;font-weight:bold}
+#clock{margin-left:auto;height:26px;line-height:26px;padding:0 12px;flex:none;
+      box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+
+canvas.pix{image-rendering:pixelated;display:block}
+
+/* cursor + trail */
+.cur{position:absolute;width:14px;height:22px;background:#fff;z-index:150;pointer-events:none;
+     clip-path:polygon(0 0,0 74%,21% 60%,34% 96%,50% 90%,38% 56%,64% 54%);
+     filter:drop-shadow(1px 1px 0 #000)}
+
+/* a period trackbar, for the dev fever control */
+.trackbar{position:relative;height:28px;margin:10px 12px 4px}
+.trackbar .rail{position:absolute;left:0;right:0;top:11px;height:4px;
+     box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080}
+.trackbar .thumb{position:absolute;top:2px;width:11px;height:22px;background:#c0c0c0;
+     box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.ticks{display:flex;justify-content:space-between;margin:0 12px;color:#000;font-size:10px}
+
+#placard{position:absolute;top:8px;right:10px;color:#fff;opacity:.6;font-family:monospace;font-size:13px;z-index:300}

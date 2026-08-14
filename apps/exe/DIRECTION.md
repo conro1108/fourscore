@@ -24,7 +24,10 @@ a text box. A marquee marquees. When something is fake, the whole desktop
 becomes a poster of a desktop.
 
 `reference/mock.html` — the fire automaton in it is the exemplar and the bar.
-`reference/mock.png` is the frame Connor approved.
+`reference/mock.png` is the frame Connor approved. `proposals/index.html` is
+the live iteration set built from it — escalation, the win, fire
+personalities, and the playable board, all genuinely executing; `node
+proposals/shots.mjs` screenshots every named state.
 
 ## The world
 

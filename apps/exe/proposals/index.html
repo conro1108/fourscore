@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BOARD.EXE — proposals</title>
+<link rel="stylesheet" href="chrome.css">
+<style>
+  .list{margin:3px;background:#fff;padding:2px;font-size:11px}
+  .list a{display:flex;align-items:center;gap:8px;padding:4px 6px;color:#000;text-decoration:none}
+  .list a:hover{background:#000080;color:#fff}
+  .list a:hover .desc{color:#c0c0ff}
+  .list canvas{width:24px;height:24px;flex:none}
+  .list .name{width:130px;flex:none;font-weight:bold}
+  .list .desc{color:#606060}
+  .foot{padding:4px 8px;color:#404040}
+</style>
+<div id="stage">
+
+  <div class="win bevel" style="left:340px;top:180px;width:600px">
+    <div class="titlebar active">
+      <canvas class="pix" width="16" height="16" id="icoT" style="width:16px;height:16px"></canvas>
+      <span class="t">C:\FOURSCORE\PROPOSALS</span>
+      <div class="tbtn">_</div><div class="tbtn">□</div><div class="tbtn">×</div>
+    </div>
+    <div class="menu"><span><u>F</u>ile</span><span><u>E</u>dit</span><span><u>V</u>iew</span><span class="gray"><u>L</u>eave</span></div>
+    <div class="sunken list">
+      <a href="01-inferno.html">
+        <canvas class="pix" id="i1" width="16" height="16"></canvas>
+        <span class="name">01-inferno</span>
+        <span class="desc">the fever is a fire — drag FEVER.CTL to 1; previews multiply until the screensaver wins</span>
+      </a>
+      <a href="02-win.html">
+        <canvas class="pix" id="i2" width="16" height="16"></canvas>
+        <span class="name">02-win</span>
+        <span class="desc">the win, on a loop — marching ants, the four cells ignite, dialogs everywhere</span>
+      </a>
+      <a href="03-shelf.html">
+        <canvas class="pix" id="i3" width="16" height="16"></canvas>
+        <span class="name">03-shelf</span>
+        <span class="desc">fire personalities — coals, a candle, indoor rain, one fire loose in three windows</span>
+      </a>
+      <a href="04-board.html">
+        <canvas class="pix" id="i4" width="16" height="16"></canvas>
+        <span class="name">04-board</span>
+        <span class="desc">BOARD.EXE plays — real gravity, MOSS deliberates visibly, pieces.ctl swaps chips</span>
+      </a>
+    </div>
+    <div class="foot">4 object(s). All of them are running.</div>
+  </div>
+
+  <div id="taskbar">
+    <div id="start" class="btn" style="min-width:0"><canvas class="pix" id="icoStart" width="16" height="16" style="width:16px;height:16px"></canvas>Start</div>
+    <div id="tasks"><div class="task down">PROPOSALS</div></div>
+    <div id="clock">6:66 PM</div>
+  </div>
+
+  <div id="placard">BOARD.EXE · proposal set</div>
+</div>
+<script src="lib.js"></script>
+<script>
+const { fitStage, px, ICONS } = EXE;
+fitStage();
+px("icoT", ICONS.folder); px("icoStart", ICONS.start);
+px("i1", ICONS.flame); px("i2", ICONS.board); px("i3", ICONS.scr); px("i4", ICONS.board);
+</script>

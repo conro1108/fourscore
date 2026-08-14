@@ -1,0 +1,387 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exe · 04 · BOARD.EXE — it actually plays</title>
+<link rel="stylesheet" href="chrome.css">
+<style>
+  #grid .cell{cursor:default}
+  #fx{position:absolute;inset:0;pointer-events:none;z-index:30}
+
+  /* ---- chip styles, switched live from pieces.ctl ---- */
+  /* plastic: flat plate, stamped ring, crescent highlight */
+  .chips-plastic .disc.r{background:#d8342e}
+  .chips-plastic .disc.y{background:#eab000}
+  .chips-plastic .disc::before{content:"";position:absolute;inset:7px;border-radius:50%;
+    box-shadow:inset 2px 2px 3px rgba(0,0,0,.45),inset -1px -1px 2px rgba(255,255,255,.3)}
+  .chips-plastic .disc::after{background:none;opacity:1;left:9px;top:6px;width:15px;height:8px;inset:auto;
+    border-radius:50%;background:rgba(255,255,255,.55);transform:rotate(-24deg)}
+  /* flat 16-color: solid fill, hard outline, nothing else */
+  .chips-flat .disc.r{background:#e0332e;box-shadow:inset 0 0 0 2px #7a0f14}
+  .chips-flat .disc.y{background:#f0b400;box-shadow:inset 0 0 0 2px #8a5c00}
+  .chips-flat .disc::after{content:none}
+  /* rings: counters with a hole in the middle */
+  .chips-rings .disc{background:#141414;box-sizing:border-box}
+  .chips-rings .disc.r{border:9px solid #e0332e}
+  .chips-rings .disc.y{border:9px solid #f0b400}
+  .chips-rings .disc::after{content:none}
+  /* pixel: a dithered sphere, upscaled — CSS injected at runtime */
+  .chips-pixel .disc{border-radius:0;image-rendering:pixelated}
+  .chips-pixel .disc::after{content:none}
+
+  #pieces .opt{padding:3px 10px;font-size:11px}
+  #pieces .opt:hover{background:#000080;color:#fff}
+</style>
+<div id="stage">
+
+  <div class="icon" style="left:20px;top:22px">
+    <canvas class="pix" id="icoBoard" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">BOARD.EXE</span>
+  </div>
+  <div class="icon" style="left:20px;top:122px">
+    <canvas class="pix" id="icoFlame" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">flames.scr</span>
+  </div>
+  <div class="icon" style="left:20px;top:222px">
+    <canvas class="pix" id="icoMoves" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">moves.txt</span>
+  </div>
+
+  <!-- BOARD.EXE, focused, playable -->
+  <div class="win bevel chips-glossy" id="boardWin" style="left:296px;top:64px;width:568px;z-index:50">
+    <div class="titlebar active">
+      <canvas class="pix" width="16" height="16" id="icoT" style="width:16px;height:16px"></canvas>
+      <span class="t">BOARD.EXE</span>
+      <div class="tbtn">_</div><div class="tbtn">□</div><div class="tbtn">×</div>
+    </div>
+    <div class="menu" id="menubar">
+      <span data-menu="game"><u>G</u>ame</span>
+      <span data-menu="opponent"><u>O</u>pponent</span>
+      <span><u>H</u>elp</span>
+      <span class="gray"><u>F</u>orfeit</span>
+      <div class="popup" id="menu-game" style="left:4px;display:none">
+        <div id="miNew">New game</div>
+        <hr>
+        <div class="gray">Connect 4 &nbsp;·</div>
+        <div class="gray">Connect 5 (more)</div>
+        <hr>
+        <div class="gray">Exit (not yet)</div>
+      </div>
+      <div class="popup" id="menu-opponent" style="left:52px;display:none">
+        <div class="gray">ACORN</div><div class="gray">PEBBLE</div>
+        <div>MOSS &nbsp;·</div>
+        <div class="gray">BRAMBLE</div><div class="gray">CINDER</div>
+        <div class="gray">VANE</div><div class="gray">QUILL</div>
+        <div class="gray">THE ORACLE</div>
+      </div>
+    </div>
+    <div style="position:relative;height:56px;margin:4px 10px 0" id="pickerRow">
+      <div class="disc r" id="picker" style="position:absolute;left:206px;top:4px"></div>
+      <div class="disc y" id="mossDisc" style="position:absolute;left:206px;top:4px;display:none"></div>
+    </div>
+    <div class="sunken" style="margin:0 10px;padding:6px;background:#c0c0c0">
+      <div id="grid"></div>
+    </div>
+    <div class="statusbar">
+      <div id="stYou">YOUR MOVE.</div>
+      <div style="flex:1.4" id="stBot">MOSS is waiting.</div>
+      <div style="flex:.5" id="stCount">0:0</div>
+    </div>
+    <div id="fx"></div>
+  </div>
+
+  <!-- the OS keeps minutes -->
+  <div class="win bevel" style="left:920px;top:110px;width:240px;z-index:40">
+    <div class="titlebar inactive"><span class="t">moves.txt — Notepad</span><div class="tbtn">×</div></div>
+    <div class="sunken" id="notes" style="margin:3px;background:#fff;padding:5px;min-height:110px;
+         font-family:'Courier New',monospace;font-size:12px;line-height:1.45"></div>
+  </div>
+
+  <!-- chip lab: pick a piece, the board obeys -->
+  <div class="win bevel" id="pieces" style="left:920px;top:430px;width:240px;z-index:45">
+    <div class="titlebar inactive"><span class="t">pieces.ctl</span><div class="tbtn">×</div></div>
+    <div style="padding:6px 4px 2px">
+      <div class="opt" data-s="glossy">◉ Glossy</div>
+      <div class="opt" data-s="plastic">○ Plastic</div>
+      <div class="opt" data-s="pixel">○ Pixel</div>
+      <div class="opt" data-s="flat">○ Flat 16</div>
+      <div class="opt" data-s="rings">○ Rings</div>
+    </div>
+    <div style="padding:4px 10px 8px;color:#404040">Applies immediately. No restart required, unusually.</div>
+  </div>
+
+  <div id="dialogs"></div>
+
+  <div id="taskbar">
+    <div id="start" class="btn" style="min-width:0"><canvas class="pix" id="icoStart" width="16" height="16" style="width:16px;height:16px"></canvas>Start</div>
+    <div id="tasks"><div class="task down">BOARD.EXE</div><div class="task">moves.txt</div><div class="task">pieces.ctl</div></div>
+    <div id="clock">6:66 PM</div>
+  </div>
+
+  <div id="placard">exe · 04 · it plays</div>
+</div>
+<script src="lib.js"></script>
+<script>
+const { fitStage, q, param, px, ICONS, makeDialog, gravityFall, raise } = EXE;
+fitStage();
+px("icoBoard", ICONS.board); px("icoT", ICONS.board); px("icoFlame", ICONS.flame);
+px("icoMoves", ICONS.moves); px("icoStart", ICONS.start);
+
+// ---- the pixel chips are generated, not drawn: a Bayer-dithered sphere ----
+function pixelDisc(light, base, dark, outline) {
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 16;
+  const ctx = cv.getContext("2d");
+  const B = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const dx = x - 7.5, dy = y - 7.5, r = Math.hypot(dx, dy);
+    if (r > 7.7) continue;
+    let c;
+    if (r > 6.8) c = outline;
+    else {
+      const t = ((dx + dy) / 2 + 7.5) / 15 + (r / 7) * 0.18 + (B[y % 4][x % 4] / 16 - 0.5) * 0.22;
+      c = t < 0.38 ? light : t > 0.74 ? dark : base;
+    }
+    ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1);
+  }
+  return cv.toDataURL();
+}
+const style = document.createElement("style");
+style.textContent = `
+  .chips-pixel .disc.r{background:url(${pixelDisc("#ff9d8a", "#e0332e", "#7a0f14", "#40100c")}) 0 0/48px 48px}
+  .chips-pixel .disc.y{background:url(${pixelDisc("#fff2b0", "#f0b400", "#8a5c00", "#403000")}) 0 0/48px 48px}`;
+document.head.appendChild(style);
+
+document.querySelectorAll("#pieces .opt").forEach((o) => {
+  o.addEventListener("click", () => {
+    document.querySelectorAll("#pieces .opt").forEach((x) =>
+      (x.textContent = "○ " + x.textContent.slice(2)));
+    o.textContent = "◉ " + o.textContent.slice(2);
+    q("#boardWin").className = "win bevel chips-" + o.dataset.s;
+  });
+});
+
+// ---- state ----
+// This mock plays for real, minus the engine: MOSS here is a random legal
+// column, standing in so the *feel* can be judged. The shipped app speaks the
+// worker protocol to packages/engine instead.
+let board, turn, over, busy, moveCount, hesitated, lastMoveAt, notesLines, lineBuf;
+let hoverCol = 3;
+const cellAt = (c, r) => q("#grid").children[5 - r].children[c];
+
+function newGame() {
+  board = Array.from({ length: 7 }, () => []);
+  turn = "r"; over = false; busy = false; moveCount = 0;
+  hesitated = false; lastMoveAt = Date.now();
+  notesLines = []; lineBuf = [];
+  q("#dialogs").innerHTML = "";
+  q("#fx").innerHTML = "";
+  q("#mossDisc").style.display = "none";
+  q("#picker").style.display = "block";
+  q("#stYou").textContent = "YOUR MOVE.";
+  q("#stBot").textContent = "MOSS is waiting.";
+  q("#stCount").textContent = "0:0";
+  renderNotes();
+  const grid = q("#grid");
+  grid.innerHTML = "";
+  for (let row = 5; row >= 0; row--) {
+    const rEl = document.createElement("div");
+    rEl.className = "cellrow";
+    for (let c = 0; c < 7; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.col = c;
+      cell.innerHTML = `<div class="hole"></div>`;
+      rEl.appendChild(cell);
+    }
+    grid.appendChild(rEl);
+  }
+}
+
+function renderNotes() {
+  const lines = [...notesLines];
+  if (lineBuf.length) lines.push(lineBuf.join(" "));
+  q("#notes").innerHTML = lines.join("<br>") || "&nbsp;";
+}
+function noteMove(col) {
+  lineBuf.push(col + 1);
+  if (lineBuf.length === 8) { notesLines.push(lineBuf.join(" ")); lineBuf = []; }
+  renderNotes();
+}
+function noteLine(text) { if (lineBuf.length) { notesLines.push(lineBuf.join(" ")); lineBuf = []; } notesLines.push(text); renderNotes(); }
+
+function winCells(c, r, who) {
+  const at = (x, y) => (x < 0 || x > 6 || y < 0 || y > 5) ? null : board[x][y];
+  for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+    const line = [[c, r]];
+    for (const s of [1, -1])
+      for (let i = 1; at(c + dx * i * s, r + dy * i * s) === who; i++)
+        line.push([c + dx * i * s, r + dy * i * s]);
+    if (line.length >= 4) return line;
+  }
+  return null;
+}
+
+function flash(cells, then) {
+  let i = 0;
+  const blink = () => {
+    cells.forEach(([c, r]) => cellAt(c, r).classList.toggle("hit", i % 2 === 0));
+    if (++i < 7) setTimeout(blink, 140); else then();
+  };
+  blink();
+}
+
+const pickerX = (col) => 14 + 64 * col;
+
+// A real fall: the hover disc is the piece. It drops from where it hovers.
+function drop(col, who, then) {
+  const target = board[col].length;
+  if (target > 5) return false;
+  busy = true;
+  const sourceEl = who === "r" ? q("#picker") : q("#mossDisc");
+  const fx = q("#fx");
+  const o = fx.getBoundingClientRect();
+  const k = o.width / 568;
+  const srcR = sourceEl.getBoundingClientRect();
+  const cellR = cellAt(col, target).getBoundingClientRect();
+  sourceEl.style.display = "none";
+  const d = document.createElement("div");
+  d.className = `disc ${who}`;
+  d.style.cssText = `position:absolute;left:${(srcR.left - o.left) / k}px`;
+  fx.appendChild(d);
+  gravityFall(d, (srcR.top - o.top) / k, (cellR.top - o.top) / k + 8, () => {
+    d.remove();
+    cellAt(col, target).innerHTML = `<div class="disc ${who}"></div>`;
+    board[col].push(who);
+    moveCount++;
+    q("#stCount").textContent = `${Math.ceil(moveCount / 2)}:${Math.floor(moveCount / 2)}`;
+    noteMove(col);
+    const win = winCells(col, target, who);
+    if (win) {
+      over = true;
+      flash(win, () => endDialog(who === "r"
+        ? { title: "BOARD.EXE", body: "Four have been connected.", you: "YOU WIN.", bot: "The crowd is real." }
+        : { title: "BOARD.EXE", body: "MOSS has connected four.<br>MOSS does not celebrate.", you: "MOSS WINS.", bot: "MOSS is already thinking about dirt." }));
+      return;
+    }
+    if (moveCount === 42) {
+      over = true;
+      endDialog({ title: "BOARD.EXE", body: "The board is full.", you: "A DRAW.", bot: "Nobody is pleased." });
+      return;
+    }
+    busy = false;
+    then && then();
+  });
+  return true;
+}
+
+function endDialog(spec) {
+  q("#stYou").textContent = spec.you;
+  q("#stBot").textContent = spec.bot;
+  const d = makeDialog({ title: spec.title, body: spec.body, active: true,
+                         buttons: ["OK", "Again"], x: 470, y: 320, w: 360 });
+  q("#dialogs").appendChild(d); raise(d);
+  const [ok, again] = d.querySelectorAll(".btn");
+  ok.addEventListener("click", () => d.remove());
+  again.addEventListener("click", newGame);
+}
+
+// MOSS deliberates where you can see it: the yellow disc wanders a few
+// columns, settles, and falls. Same physics as yours — that's the point.
+function mossMoves() {
+  q("#stYou").textContent = "MOSS'S MOVE.";
+  q("#stBot").textContent = "MOSS is thinking about dirt.";
+  busy = true;
+  const legal = [];
+  for (let c = 0; c < 7; c++) if (board[c].length < 6) legal.push(c);
+  const choice = legal[Math.random() * legal.length | 0];
+  const visits = [];
+  for (let i = 0; i < 2 + (Math.random() * 2 | 0); i++)
+    visits.push(legal[Math.random() * legal.length | 0]);
+  visits.push(choice);
+  const moss = q("#mossDisc");
+  moss.style.display = "block";
+  let i = 0;
+  const consider = () => {
+    moss.style.left = pickerX(visits[i]) + "px";
+    if (++i < visits.length) { setTimeout(consider, 300 + Math.random() * 320); return; }
+    setTimeout(() => drop(choice, "y", () => {
+      turn = "r"; lastMoveAt = Date.now();
+      q("#picker").style.left = pickerX(hoverCol) + "px";
+      q("#picker").style.display = "block";
+      q("#stYou").textContent = "YOUR MOVE.";
+      q("#stBot").textContent = "MOSS is waiting.";
+    }), 380);
+  };
+  setTimeout(consider, 250);
+}
+
+// ---- input ----
+q("#grid").addEventListener("mousemove", (e) => {
+  const cell = e.target.closest(".cell");
+  if (!cell || over) return;
+  hoverCol = +cell.dataset.col;
+  if (turn === "r" && !busy) q("#picker").style.left = pickerX(hoverCol) + "px";
+});
+q("#grid").addEventListener("click", (e) => {
+  const cell = e.target.closest(".cell");
+  if (!cell || over || busy || turn !== "r") return;
+  const col = +cell.dataset.col;
+  if (board[col].length > 5) return;
+  // the OS noticed you thinking
+  if (!hesitated && Date.now() - lastMoveAt > 5000) {
+    hesitated = true;
+    noteLine("and then you"); noteLine("hesitated");
+  }
+  turn = "y";
+  q("#picker").style.left = pickerX(col) + "px";
+  drop(col, "r", mossMoves);
+});
+
+// ---- menus ----
+let openMenu = null;
+document.querySelectorAll("#menubar > span[data-menu]").forEach((m) => {
+  m.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const id = "menu-" + m.dataset.menu;
+    const was = openMenu;
+    closeMenus();
+    if (was !== id) {
+      q("#" + id).style.display = "block";
+      m.classList.add("open");
+      openMenu = id;
+    }
+  });
+});
+function closeMenus() {
+  document.querySelectorAll(".popup").forEach((p) => (p.style.display = "none"));
+  document.querySelectorAll("#menubar > span").forEach((s) => s.classList.remove("open"));
+  openMenu = null;
+}
+addEventListener("click", closeMenus);
+q("#miNew").addEventListener("click", newGame);
+
+newGame();
+// ?chips=pixel etc. preselects a piece style (for the screenshot harness)
+if (param("chips")) q(`#pieces .opt[data-s="${param("chips")}"]`)?.click();
+
+// ---- ?demo=1 plays an opening so the screenshot has a midgame,
+//      frozen while MOSS deliberates ----
+if (param("demo")) {
+  const script = [[3, "r"], [2, "y"], [3, "r"], [3, "y"], [2, "r"], [4, "y"], [1, "r"]];
+  for (const [col, who] of script) {
+    const row = board[col].length;
+    board[col].push(who);
+    cellAt(col, row).innerHTML = `<div class="disc ${who}"></div>`;
+    moveCount++;
+    noteMove(col);
+  }
+  q("#stCount").textContent = "4:3";
+  q("#stYou").textContent = "MOSS'S MOVE.";
+  q("#stBot").textContent = "MOSS is thinking about dirt.";
+  noteLine("and then you"); noteLine("hesitated");
+  turn = "y"; busy = true;
+  q("#picker").style.display = "none";
+  const moss = q("#mossDisc");
+  moss.style.display = "block";
+  moss.style.left = pickerX(4) + "px";
+}
+</script>

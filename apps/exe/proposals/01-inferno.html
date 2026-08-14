@@ -1,0 +1,349 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exe · 01 · inferno — the fever is a fire</title>
+<link rel="stylesheet" href="chrome.css">
+<style>
+  /* the dialog the OS forgot to repaint */
+  #smears{position:absolute;inset:0;pointer-events:none;z-index:90}
+  #dialogs{position:absolute;inset:0;z-index:100;pointer-events:none}
+  #fireFull{position:absolute;inset:0;z-index:240;display:none}
+  #fireFull canvas{width:1280px;height:800px}
+  #feverCtl{z-index:400}
+  #feverCtl .presets{display:flex;gap:4px;margin:6px 12px 10px}
+  #feverCtl .presets .btn{min-width:0;flex:1;font-family:"Courier New",monospace}
+</style>
+<div id="stage">
+
+  <!-- desktop icons -->
+  <div class="icon" id="ico0" style="left:20px;top:22px">
+    <canvas class="pix" id="icoBoard" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">BOARD.EXE</span>
+  </div>
+  <div class="icon" id="ico1" style="left:20px;top:122px">
+    <canvas class="pix" id="icoFlame" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">flames.scr</span>
+  </div>
+  <div class="icon" id="ico2" style="left:20px;top:222px">
+    <canvas class="pix" id="icoMoves" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">moves.txt</span>
+  </div>
+  <div class="icon" id="ico3" style="left:20px;top:322px">
+    <canvas class="pix" id="icoBin" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">the rest</span>
+  </div>
+
+  <canvas class="pix" id="rocket" width="12" height="18"
+          style="position:absolute;left:912px;top:40px;width:60px;height:90px;transform:rotate(30deg)"></canvas>
+
+  <!-- BOARD.EXE -->
+  <div class="win bevel" id="boardWin" style="left:246px;top:64px;width:568px;z-index:50">
+    <div class="titlebar inactive">
+      <canvas class="pix" width="16" height="16" id="icoT" style="width:16px;height:16px"></canvas>
+      <span class="t">BOARD.EXE</span>
+      <div class="tbtn">_</div><div class="tbtn">□</div><div class="tbtn">×</div>
+    </div>
+    <div class="menu"><span><u>G</u>ame</span><span><u>E</u>dit</span><span><u>O</u>pponent</span><span><u>H</u>elp</span><span class="gray"><u>F</u>orfeit</span></div>
+    <div style="position:relative;height:56px;margin:4px 10px 0">
+      <div class="disc r" style="position:absolute;left:280px;top:4px"></div>
+      <div style="position:absolute;left:296px;top:52px;border:6px solid transparent;border-top:10px solid #000"></div>
+    </div>
+    <div class="sunken" style="margin:0 10px;padding:6px;background:#c0c0c0">
+      <div id="grid"></div>
+    </div>
+    <div class="statusbar">
+      <div id="stYou">Your move.</div>
+      <div style="flex:1.4" id="stBot">MOSS is thinking about dirt.</div>
+      <div style="flex:.5">7:4</div>
+    </div>
+  </div>
+
+  <!-- flames.scr — the fever gauge nobody installed -->
+  <div class="win bevel" id="fireWin" style="left:912px;top:428px;width:308px;z-index:60">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="fireC" width="100" height="64" style="width:296px;height:190px"></canvas>
+    </div>
+  </div>
+
+  <!-- nobody opened these -->
+  <div class="win bevel" id="fireB" style="left:986px;top:48px;width:252px;z-index:59;display:none">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview (2)</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="fireBC" width="80" height="50" style="width:240px;height:150px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" id="fireX" style="left:26px;top:436px;width:212px;z-index:59;display:none">
+    <div class="titlebar inactive"><span class="t">flames.scr (3)</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="fireXC" width="67" height="44" style="width:200px;height:132px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" id="fireD" style="left:90px;top:10px;width:152px;z-index:59;display:none">
+    <div class="titlebar inactive"><span class="t">flames.scr (4)</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="fireDC" width="47" height="30" style="width:140px;height:90px"></canvas>
+    </div>
+  </div>
+
+  <!-- at fever 1.0 the screensaver wins the desktop -->
+  <div id="fireFull"><canvas class="pix" id="fireFullC" width="320" height="200"></canvas></div>
+
+  <!-- moves.txt -->
+  <div class="win bevel" id="notepad" style="left:1040px;top:270px;width:210px;z-index:55">
+    <div class="titlebar inactive"><span class="t">moves.txt — Notepad</span><div class="tbtn">×</div></div>
+    <div class="sunken" id="notepadBody" style="margin:3px;background:#fff;padding:5px;font-family:'Courier New',monospace;font-size:12px;line-height:1.45"></div>
+  </div>
+
+  <!-- dragged dialogs leave themselves behind -->
+  <div id="smears"></div>
+  <div id="dialogs"></div>
+
+  <!-- cursor trail -->
+  <div id="trail"></div>
+
+  <!-- the dev control. This window will not ship. -->
+  <div class="win bevel" id="feverCtl" style="left:20px;top:640px;width:250px">
+    <div class="titlebar active"><span class="t">FEVER.CTL</span><div class="tbtn">×</div></div>
+    <div class="trackbar" id="track"><div class="rail"></div><div class="thumb" id="thumb"></div></div>
+    <div class="ticks"><span>0</span><span>·</span><span>·</span><span>·</span><span>1</span></div>
+    <div class="presets">
+      <div class="btn" data-f="0">0</div><div class="btn" data-f="0.35">.35</div>
+      <div class="btn" data-f="0.6">.6</div><div class="btn" data-f="0.85">.85</div>
+      <div class="btn" data-f="1">1</div>
+    </div>
+    <div style="padding:0 12px 10px;color:#404040">fever = <span id="fOut">0.00</span>. This control does not ship.</div>
+  </div>
+
+  <!-- taskbar -->
+  <div id="taskbar">
+    <div id="start" class="btn" style="min-width:0"><canvas class="pix" id="icoStart" width="16" height="16" style="width:16px;height:16px"></canvas>Start</div>
+    <div id="tasks">
+      <div class="task down">BOARD.EXE</div>
+      <div class="task">flames.scr</div>
+      <div class="task" style="color:#808080">solitaire (gone)</div>
+    </div>
+    <div id="clock">6:66 PM</div>
+  </div>
+
+  <div id="placard">exe · 01 · inferno</div>
+</div>
+<script src="lib.js"></script>
+<script>
+const { fitStage, q, param, px, ICONS, ROCKET, PALETTES, makeFire, makeDialog } = EXE;
+fitStage();
+
+// ---- board (the mock's midgame) ----
+const cols = ["", "ry", "yrr", "ryry", "yr", "r", ""];
+const grid = q("#grid");
+for (let row = 5; row >= 0; row--) {
+  const r = document.createElement("div");
+  r.className = "cellrow";
+  for (let c = 0; c < 7; c++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    const d = cols[c][row];
+    cell.innerHTML = d ? `<div class="disc ${d}"></div>` : `<div class="hole"></div>`;
+    r.appendChild(cell);
+  }
+  grid.appendChild(r);
+}
+px("icoBoard", ICONS.board); px("icoT", ICONS.board); px("icoFlame", ICONS.flame);
+px("icoMoves", ICONS.moves); px("icoBin", ICONS.bin); px("icoStart", ICONS.start);
+px("rocket", ROCKET);
+
+// ---- the ladder ----
+// One fever value drives everything. Steps, never eases: each tier is a
+// discrete state of the desktop, and crossing one is an event. The fire keeps
+// to the right-hand strip so the board is never blocked — that's the law.
+function mix(a, b, k) { return a.map((c, i) => c.map((v, n) => Math.round(v + (b[i][n] - v) * k))); }
+
+const NOT_RESPONDING = {
+  title: "FOURSCORE.EXE — not responding (it is)",
+  body: "This program is running normally.<br>Do not be concerned by the flames.",
+  buttons: ["OK", "OK"], w: 372,
+};
+const DISPLAY_WARM = { title: "Display", body: "Something is warm behind this window.", buttons: ["OK"] };
+
+const TIERS = [
+  { // 0 — merely uncanny
+    fire: { x: 912, y: 428, cw: 296, ch: 190, rw: 100, rh: 64 },
+    clock: "6:66 PM", you: "Your move.",
+    notes: ["4 4 3 5 2 6 4 3", "3 5 5 1 6 2 7"],
+    trail: 1, tasks: [],
+  },
+  { // 1 — the first dialog
+    fire: { x: 872, y: 396, cw: 336, ch: 224, rw: 112, rh: 75 },
+    clock: "6:67 PM", you: "Your move. Take your time.",
+    notes: ["4 4 3 5 2 6 4 3", "3 5 5 1 6 2 7", "and then you", "hesitated"],
+    trail: 2, tasks: [],
+    dialogs: [{ ...NOT_RESPONDING, active: true, x: 750, y: 140 }],
+  },
+  { // 2 — the preview grows, a second one opens, a dragged dialog smears
+    fire: { x: 760, y: 300, cw: 436, ch: 292, rw: 145, rh: 97 },
+    extras: { B: { x: 986, y: 48, cw: 240, ch: 150, rw: 80, rh: 50 } },
+    clock: "6:71 PM", you: "Your move. The room is warm.",
+    notes: ["4 4 3 5 2 6 4 3", "3 5 5 1 6 2 7", "and then you", "hesitated", "column 4 again."],
+    trail: 4, tasks: ["flames.scr (2)"],
+    dialogs: [{ ...NOT_RESPONDING, x: 700, y: 96 },
+              { ...DISPLAY_WARM, active: true, x: 806, y: 210 }],
+    smears: [{ ...DISPLAY_WARM, path: [[880, 420], [854, 350], [830, 280]] }],
+  },
+  { // 3 — previews everywhere. The desktop is losing on every front.
+    fire: { x: 700, y: 300, cw: 500, ch: 330, rw: 166, rh: 110 },
+    extras: {
+      B: { x: 946, y: 40, cw: 320, ch: 200, rw: 107, rh: 67 },
+      X: { x: 26, y: 436, cw: 200, ch: 132, rw: 67, rh: 44 },
+      D: { x: 90, y: 10, cw: 140, ch: 90, rw: 47, rh: 30 },
+    },
+    clock: "6:88 PM", you: "YOUR MOVE.",
+    notes: ["4 4 3 5 2 6 4 3", "3 5 5 1 6 2 7", "and then you", "hesitated", "column 4 again.",
+            "the flames are not", "a metaphor."],
+    trail: 6, tasks: ["flames.scr (2)", "flames.scr (3)", "flames.scr (4)"], shift: true,
+    dialogs: [{ ...NOT_RESPONDING, x: 660, y: 90 },
+              { ...DISPLAY_WARM, x: 720, y: 210 },
+              { title: "System", active: true, icon: "!",
+                body: "The screen saver would like to start early.",
+                buttons: ["OK", "OK"], x: 780, y: 330 }],
+    smears: [{ ...DISPLAY_WARM, path: [[880, 420], [854, 350], [830, 280]] }],
+  },
+  { // 4 — the screensaver wins. Play continues.
+    full: true, you: "YOUR MOVE. NOW.",
+    notes: [], trail: 0, tasks: [],
+  },
+];
+
+const fire = makeFire(q("#fireC"));
+fire.start();
+// the previews nobody opened: each a touch cooler and slower than the main
+// one, and (2) has caught a draught
+const EXTRAS = {
+  B: { fire: null, win: "#fireB", cv: "#fireBC", dBase: -4, dInt: 0, dCool: 0.4, opts: { wind: (t) => Math.sin(t * 0.06) * 1.4 } },
+  X: { fire: null, win: "#fireX", cv: "#fireXC", dBase: -8, dInt: 15, dCool: 0.7, opts: {} },
+  D: { fire: null, win: "#fireD", cv: "#fireDC", dBase: -10, dInt: 20, dCool: 0.9, opts: { stokeVar: 16 } },
+};
+let fireFull = null;
+let tier = 0, fever = 0;
+const ICON_SHIFT = [[3, -2], [-2, 3], [1, 2], [-3, -1]];
+const TRAIL_PATH = [[846, 276], [864, 281], [882, 287], [900, 294], [916, 303], [930, 314]];
+
+function applyFever(f) {
+  fever = Math.max(0, Math.min(1, f));
+  q("#fOut").textContent = fever.toFixed(2);
+  q("#thumb").style.left = (fever * (226 - 11)) + "px";
+  const t = fever >= 1 ? 4 : fever >= 0.75 ? 3 : fever >= 0.5 ? 2 : fever >= 0.25 ? 1 : 0;
+
+  // continuous: every fire burns hotter the whole way up. The palette only
+  // ever leans *toward* the white-hot ramp — at full lean it reads as butter,
+  // not fire, so it never arrives.
+  const params = (e = {}) => ({
+    baseHeat: Math.round(36 + fever * 12 + (e.dBase ?? 0)),
+    cool: 3 - fever * 0.5 + (e.dCool ?? 0),
+    interval: Math.round(90 - fever * 35 + (e.dInt ?? 0)),
+    palette: fever < 0.5 ? PALETTES.classic
+           : mix(PALETTES.classic, PALETTES.inferno, (fever - 0.5)),
+  });
+  fire.set(params());
+  Object.values(EXTRAS).forEach((e) => e.fire && e.fire.set(params(e)));
+
+  if (t === tier) return;
+  tier = t;
+  const T = TIERS[t];
+
+  // fire window vs fullscreen takeover
+  if (T.full) {
+    q("#fireWin").style.display = "none";
+    q("#fireFull").style.display = "block";
+    fire.stop();
+    if (!fireFull) fireFull = makeFire(q("#fireFullC"));
+    fireFull.set({ baseHeat: 56, cool: 2.2, interval: 55,
+                   palette: mix(PALETTES.classic, PALETTES.inferno, 0.5) });
+    fireFull.start();
+    q("#boardWin").style.zIndex = 250;
+    q("#boardWin").querySelector(".titlebar").className = "titlebar active";
+  } else {
+    q("#fireFull").style.display = "none";
+    if (fireFull) fireFull.stop();
+    q("#fireWin").style.display = "block";
+    const s = T.fire;
+    q("#fireWin").style.left = s.x + "px"; q("#fireWin").style.top = s.y + "px";
+    q("#fireWin").style.width = (s.cw + 12) + "px";
+    const c = q("#fireC");
+    c.style.width = s.cw + "px"; c.style.height = s.ch + "px";
+    fire.resize(s.rw, s.rh);
+    for (let i = 0; i < 20; i++) fire.step();
+    fire.start();
+    q("#boardWin").style.zIndex = 50;
+    q("#boardWin").querySelector(".titlebar").className = "titlebar inactive";
+  }
+
+  // the extra previews open and close with the tier
+  for (const [k, e] of Object.entries(EXTRAS)) {
+    const spec = T.extras?.[k], winEl = q(e.win);
+    if (!spec || T.full) {
+      winEl.style.display = "none";
+      if (e.fire) e.fire.stop();
+      continue;
+    }
+    winEl.style.display = "block";
+    winEl.style.left = spec.x + "px"; winEl.style.top = spec.y + "px";
+    winEl.style.width = (spec.cw + 12) + "px";
+    const c = q(e.cv);
+    c.style.width = spec.cw + "px"; c.style.height = spec.ch + "px";
+    if (!e.fire) e.fire = makeFire(c, e.opts);
+    e.fire.resize(spec.rw, spec.rh);
+    e.fire.set(params(e));
+    e.fire.start();
+  }
+
+  // chrome
+  q("#stYou").textContent = T.you;
+  q("#clock").textContent = T.clock ?? "—:——";
+  q("#notepadBody").innerHTML = T.notes.join("<br>");
+  q("#notepad").style.display = T.notes.length ? "block" : "none";
+
+  const tasks = ["BOARD.EXE", "flames.scr", ...(T.tasks ?? [])];
+  q("#tasks").innerHTML =
+    tasks.map((n, i) => `<div class="task${i === 0 ? " down" : ""}">${n}</div>`).join("") +
+    `<div class="task" style="color:#808080">solitaire (gone)</div>`;
+
+  q("#dialogs").innerHTML = "";
+  (T.dialogs ?? []).forEach((spec) => q("#dialogs").appendChild(makeDialog(spec)));
+
+  // a dialog someone dragged, leaving itself behind at every step
+  q("#smears").innerHTML = "";
+  (T.smears ?? []).forEach((s) =>
+    s.path.forEach(([x, y]) => q("#smears").appendChild(makeDialog({ ...s, x, y }))));
+
+  q("#trail").innerHTML = TRAIL_PATH.slice(0, T.trail).map(([x, y], i, a) =>
+    `<div class="cur" style="left:${x}px;top:${y}px;opacity:${(i + 1) / a.length};transform:scale(${0.92 + 0.08 * (i + 1) / a.length})"></div>`
+  ).join("");
+
+  for (let i = 0; i < 4; i++) {
+    const [dx, dy] = T.shift ? ICON_SHIFT[i] : [0, 0];
+    q("#ico" + i).style.transform = `translate(${dx}px,${dy}px)`;
+  }
+}
+
+// ---- the control ----
+let dragging = false;
+const track = q("#track");
+function setFromEvent(e) {
+  const r = track.getBoundingClientRect();
+  applyFever((e.clientX - r.left - 5) / (r.width - 11));
+}
+track.addEventListener("mousedown", (e) => { dragging = true; setFromEvent(e); });
+addEventListener("mousemove", (e) => dragging && setFromEvent(e));
+addEventListener("mouseup", () => (dragging = false));
+document.querySelectorAll("[data-f]").forEach((b) =>
+  b.addEventListener("click", () => applyFever(parseFloat(b.dataset.f))));
+
+// Deep-linking a fever (?fever=0.85) still walks up through the tiers, so
+// the un-repainted trail exists — the desktop got here, it didn't spawn here.
+tier = -1;
+const target = parseFloat(param("fever") ?? "0");
+for (const f of [0, 0.35, 0.6, 0.85, 1]) {
+  if (f > target) break;
+  applyFever(f);
+}
+applyFever(target);
+</script>

@@ -1,0 +1,259 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exe · 02 · the win — a cascade of sincere dialogs</title>
+<link rel="stylesheet" href="chrome.css">
+<style>
+  #final .dlg-body div{font-size:16px;font-weight:bold;letter-spacing:.5px;padding-top:8px}
+  #dialogs{position:absolute;inset:0;z-index:100;pointer-events:none}
+  #grid{position:relative}
+  .cell{position:relative}
+  /* the flames come from BEHIND the disc — the win stays visible, on fire */
+  #grid .disc{z-index:2}
+  .cellfire{position:absolute;left:4px;bottom:-2px;width:56px;height:76px;z-index:1;pointer-events:none;image-rendering:pixelated}
+  /* the OS selects your win like it selects anything: marching ants */
+  #ants{position:absolute;pointer-events:none;z-index:6;display:none}
+  #ants .a1{position:absolute;inset:0;border:1px dashed #fff}
+  #ants .a2{position:absolute;inset:0;border:1px dashed #000;border-image:none;transform:translate(1px,1px)}
+  #fx{position:absolute;inset:0;pointer-events:none;z-index:30}
+</style>
+<div id="stage">
+
+  <div class="icon" style="left:20px;top:22px">
+    <canvas class="pix" id="icoBoard" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">BOARD.EXE</span>
+  </div>
+  <div class="icon" style="left:20px;top:122px">
+    <canvas class="pix" id="icoFlame" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">flames.scr</span>
+  </div>
+  <div class="icon" style="left:20px;top:222px">
+    <canvas class="pix" id="icoMoves" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">moves.txt</span>
+  </div>
+
+  <canvas class="pix" id="rocket" width="12" height="18"
+          style="position:absolute;left:1010px;top:40px;width:60px;height:90px;transform:rotate(30deg)"></canvas>
+
+  <!-- BOARD.EXE -->
+  <div class="win bevel" id="boardWin" style="left:246px;top:64px;width:568px;z-index:50">
+    <div class="titlebar active">
+      <canvas class="pix" width="16" height="16" id="icoT" style="width:16px;height:16px"></canvas>
+      <span class="t">BOARD.EXE</span>
+      <div class="tbtn">_</div><div class="tbtn">□</div><div class="tbtn">×</div>
+    </div>
+    <div class="menu"><span><u>G</u>ame</span><span><u>E</u>dit</span><span><u>O</u>pponent</span><span><u>H</u>elp</span><span class="gray"><u>F</u>orfeit</span></div>
+    <div style="position:relative;height:56px;margin:4px 10px 0" id="pickerRow">
+      <div class="disc r" id="picker" style="position:absolute;left:142px;top:4px"></div>
+    </div>
+    <div class="sunken" style="margin:0 10px;padding:6px;background:#c0c0c0">
+      <div id="grid"></div>
+    </div>
+    <div class="statusbar">
+      <div id="stYou">YOUR MOVE.</div>
+      <div style="flex:1.4" id="stBot">MOSS is thinking about dirt.</div>
+      <div style="flex:.5">6:6</div>
+    </div>
+    <div id="fx"></div>
+  </div>
+
+  <!-- flames.scr -->
+  <div class="win bevel" id="fireWin" style="left:912px;top:428px;width:308px;z-index:40">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="fireC" width="100" height="64" style="width:296px;height:190px"></canvas>
+    </div>
+  </div>
+
+  <div id="dialogs"></div>
+
+  <!-- taskbar -->
+  <div id="taskbar">
+    <div id="start" class="btn" style="min-width:0"><canvas class="pix" id="icoStart" width="16" height="16" style="width:16px;height:16px"></canvas>Start</div>
+    <div id="tasks"><div class="task down">BOARD.EXE</div><div class="task">flames.scr</div></div>
+    <div id="clock">6:66 PM</div>
+  </div>
+
+  <div id="placard">exe · 02 · the win</div>
+</div>
+<script src="lib.js"></script>
+<script>
+const { fitStage, q, param, px, ICONS, ROCKET, PALETTES, makeFire, gravityFall, makeDialog, raise } = EXE;
+fitStage();
+px("icoBoard", ICONS.board); px("icoT", ICONS.board); px("icoFlame", ICONS.flame);
+px("icoMoves", ICONS.moves); px("icoStart", ICONS.start); px("rocket", ROCKET);
+
+const fire = makeFire(q("#fireC"));
+fire.start();
+
+// ---- board: red to move, column 3 completes the anti-diagonal ----
+const START = ["", "ry", "yrr", "yyry", "yr", "r", ""]; // bottom-up per column
+const WIN_CELLS = [[5, 0], [4, 1], [3, 2], [2, 3]];     // [col,row] once the disc lands
+const DROP_COL = 2, DROP_ROW = 3;
+const cellAt = (c, r) => q("#grid").children[5 - r].children[c];
+let cellFires = [];
+
+function buildBoard() {
+  const grid = q("#grid");
+  grid.innerHTML = `<div id="ants"><div class="a1"></div><div class="a2"></div></div>`;
+  for (let row = 5; row >= 0; row--) {
+    const rEl = document.createElement("div");
+    rEl.className = "cellrow";
+    for (let c = 0; c < 7; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const d = START[c][row];
+      cell.innerHTML = d ? `<div class="disc ${d}"></div>` : `<div class="hole"></div>`;
+      rEl.appendChild(cell);
+    }
+    grid.appendChild(rEl);
+  }
+}
+
+// ---- the cascade. Sincere, and it arrives the way real trouble arrives:
+//      all over the desktop, not in a line. Positions are tuned, not random —
+//      wrongness repeats. ----
+const CASCADE = [
+  { title: "BOARD.EXE", body: "Four have been connected.", x: 640, y: 110, w: 336, dwell: 420 },
+  { title: "Information", body: "This is being celebrated.", x: 300, y: 290, w: 320, dwell: 260 },
+  { title: "moves.txt", body: "The file now says you won.<br>It will keep saying it.", x: 924, y: 292, w: 306, dwell: 600 },
+  { title: "Sound", body: "A fanfare has played.", x: 420, y: 80, w: 310, dwell: 220 },
+  { title: "Print", body: "The result has been sent to the printer.", x: 856, y: 122, w: 348, dwell: 380 },
+  { title: "System", icon: "!", body: "Every window has been told.", x: 330, y: 470, w: 330, dwell: 520 },
+  { title: "flames.scr", body: "The fire is for you.", x: 1080, y: 540, w: 300, dwell: 260 },
+  { title: "FOURSCORE.EXE — not responding (it is)", body: "This win is running normally.", buttons: ["OK", "OK"], x: 560, y: 250, w: 372, dwell: 420 },
+];
+
+const FROZEN = param("beat") !== null;
+
+// ---- flat timeline; ?beat=N freezes at a named checkpoint ----
+const STEPS = [];
+const BEATS = {};
+const step = (run, dwell) => STEPS.push({ run, dwell });
+const beat = (n) => (BEATS[n] = STEPS.length - 1);
+
+// 0 · idle
+step(() => {
+  buildBoard();
+  cellFires.forEach((f) => f.stop()); cellFires = [];
+  q("#fx").innerHTML = "";
+  q("#dialogs").innerHTML = "";
+  q("#tasks").innerHTML = `<div class="task down">BOARD.EXE</div><div class="task">flames.scr</div>`;
+  q("#picker").style.display = "block";
+  q("#stYou").textContent = "YOUR MOVE.";
+  q("#stBot").textContent = "MOSS is thinking about dirt.";
+  q("#fireWin").style.left = "912px"; q("#fireWin").style.top = "428px";
+  q("#fireWin").style.width = "308px";
+  const c = q("#fireC"); c.style.width = "296px"; c.style.height = "190px";
+  fire.resize(100, 64); fire.set({ baseHeat: 40, cool: 3, interval: 90, palette: PALETTES.classic });
+  fire.start();
+}, 1300); beat(0);
+
+// 1 · the drop: your piece, real gravity, one frame of overshoot
+step(() => {
+  const land = () => { cellAt(DROP_COL, DROP_ROW).innerHTML = `<div class="disc r"></div>`; };
+  if (FROZEN) { q("#picker").style.display = "none"; land(); return; }
+  const fx = q("#fx");
+  const o = fx.getBoundingClientRect();
+  const k = o.width / 568; // window is 568 css px wide; rects are scaled by the stage fit
+  const target = cellAt(DROP_COL, DROP_ROW).getBoundingClientRect();
+  const pickerR = q("#picker").getBoundingClientRect();
+  q("#picker").style.display = "none";
+  const d = document.createElement("div");
+  d.className = "disc r";
+  d.style.cssText = `position:absolute;left:${(pickerR.left - o.left) / k}px`;
+  fx.appendChild(d);
+  gravityFall(d, (pickerR.top - o.top) / k, (target.top - o.top) / k + 8,
+    () => { d.remove(); land(); });
+}, 640); beat(1);
+
+// 2 · the OS selects your win the way it selects anything: marching ants
+{
+  const c0 = Math.min(...WIN_CELLS.map(([c]) => c)), c1 = Math.max(...WIN_CELLS.map(([c]) => c));
+  const r0 = Math.min(...WIN_CELLS.map(([, r]) => r)), r1 = Math.max(...WIN_CELLS.map(([, r]) => r));
+  step(() => {
+    const ants = q("#ants");
+    ants.style.display = "block";
+    ants.style.left = (c0 * 64 - 2) + "px";
+    ants.style.top = ((5 - r1) * 64 - 2) + "px";
+    ants.style.width = ((c1 - c0 + 1) * 64 + 3) + "px";
+    ants.style.height = ((r1 - r0 + 1) * 64 + 3) + "px";
+    q("#stYou").textContent = "FOUR ARE CONNECTED.";
+    q("#stBot").textContent = "MOSS has stopped thinking.";
+    if (!FROZEN) {
+      let n = 0;
+      const march = setInterval(() => {
+        const [a1, a2] = ants.children;
+        a1.style.borderColor = n % 2 ? "#000" : "#fff";
+        a2.style.borderColor = n % 2 ? "#fff" : "#000";
+        if (!document.body.contains(ants)) clearInterval(march);
+        n++;
+      }, 120);
+    }
+  }, 700);
+}
+beat(2);
+
+// then the four cells ignite, one at a time, along the line
+WIN_CELLS.forEach(([c, r], i) => {
+  step(() => {
+    const cv = document.createElement("canvas");
+    cv.width = 18; cv.height = 25;
+    cv.className = "cellfire";
+    cellAt(c, r).appendChild(cv);
+    const f = makeFire(cv, { transparent: true, baseHeat: 48, stokeVar: 12, cool: 4.4, interval: 70 });
+    f.start();
+    cellFires.push(f);
+  }, i === WIN_CELLS.length - 1 ? 700 : 190);
+});
+
+// 3.. · the cascade. One sincere dialog per beat; the taskbar pays for each.
+CASCADE.forEach((spec, i) => {
+  step(() => {
+    const d = makeDialog({ ...spec, active: true });
+    q("#dialogs").querySelectorAll(".titlebar").forEach((t) => (t.className = "titlebar inactive"));
+    q("#dialogs").appendChild(d); raise(d);
+    const t = document.createElement("div");
+    t.className = "task"; t.textContent = spec.title;
+    q("#tasks").appendChild(t);
+  }, spec.dwell);
+  beat(3 + i);
+});
+
+// 11 · YOU WIN — the biggest thing the machine has ever announced,
+//      still in the OS's own furniture. The fire gets room for this.
+step(() => {
+  const d = makeDialog({
+    title: "Congratulations", body: "YOU WIN.", active: true,
+    buttons: ["OK", "Again"], x: 470, y: 330, w: 368,
+  });
+  d.id = "final";
+  q("#dialogs").querySelectorAll(".titlebar").forEach((t) => (t.className = "titlebar inactive"));
+  q("#dialogs").appendChild(d); raise(d);
+  const t = document.createElement("div");
+  t.className = "task down"; t.textContent = "Congratulations";
+  q("#tasks").appendChild(t);
+  q("#stYou").textContent = "YOU WIN.";
+  q("#stBot").textContent = "The crowd is real.";
+  q("#fireWin").style.left = "772px"; q("#fireWin").style.top = "330px";
+  q("#fireWin").style.width = "448px";
+  const c = q("#fireC"); c.style.width = "436px"; c.style.height = "292px";
+  fire.resize(145, 97);
+  fire.set({ baseHeat: 50, cool: 2.6, interval: 65, palette: PALETTES.classic });
+  fire.start();
+}, 3400); beat(11);
+
+// ---- driver ----
+if (FROZEN) {
+  const end = BEATS[+param("beat")] ?? STEPS.length - 1;
+  for (let i = 0; i <= end; i++) STEPS[i].run();
+} else {
+  let i = 0;
+  const tick = () => {
+    STEPS[i].run();
+    const dwell = STEPS[i].dwell;
+    i = (i + 1) % STEPS.length;
+    setTimeout(tick, dwell);
+  };
+  tick();
+}
+</script>
