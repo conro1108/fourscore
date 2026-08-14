@@ -3,258 +3,320 @@
 <title>04 · COSMIC CARPET</title>
 <style>
   html,body{margin:0;height:100%;background:#000;display:grid;place-items:center;overflow:hidden}
-  svg{width:100vw;height:100vh;max-width:calc(100vh*1.6);max-height:calc(100vw/1.6);display:block}
+  #stage{position:relative;width:1280px;height:800px}
+  canvas{position:absolute;inset:0}
+  svg.overlay{position:absolute;inset:0;pointer-events:none}
+  #placard{position:absolute;top:10px;right:14px;color:#fff;opacity:.55;font:13px monospace}
 </style>
-<svg id="s" viewBox="0 0 1280 800" preserveAspectRatio="xMidYMid meet">
-  <defs>
-    <filter id="glow2"><feGaussianBlur stdDeviation="2.5"/></filter>
-    <filter id="glow6"><feGaussianBlur stdDeviation="7"/></filter>
-    <filter id="glow12"><feGaussianBlur stdDeviation="14"/></filter>
-    <filter id="fiber" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/>
-      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .16  0 0 0 0 .08  0 0 0 0 .24  0 0 0 .55 0"/>
-      <feComposite operator="in" in2="SourceGraphic"/>
-    </filter>
-    <!-- light pile catching the blacklight -->
-    <filter id="pile" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency=".55 .9" numOctaves="3" result="n"/>
-      <feColorMatrix in="n" type="matrix" values="0 0 0 0 .45  0 0 0 0 .32  0 0 0 0 .7  0 0 0 .22 0"/>
-      <feComposite operator="in" in2="SourceGraphic"/>
-    </filter>
-    <!-- hand-printed wobble: everything printed on pile goes slightly ragged -->
-    <filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
-      <feTurbulence type="fractalNoise" baseFrequency=".045" numOctaves="2" result="n"/>
-      <feDisplacementMap in="SourceGraphic" in2="n" scale="6"/>
-    </filter>
-    <filter id="rough2" x="-5%" y="-5%" width="110%" height="110%">
-      <feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="2" result="n"/>
-      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/>
-    </filter>
-    <radialGradient id="pool" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#7a4aff" stop-opacity=".34"/>
-      <stop offset=".6" stop-color="#5a2ec8" stop-opacity=".12"/>
-      <stop offset="1" stop-color="#5a2ec8" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="vig" cx=".5" cy=".5" r=".72">
-      <stop offset=".55" stop-color="#000" stop-opacity="0"/>
-      <stop offset="1" stop-color="#000" stop-opacity=".6"/>
-    </radialGradient>
-    <pattern id="dots" width="9" height="9" patternUnits="userSpaceOnUse">
-      <circle cx="4.5" cy="4.5" r="1.7" fill="#000" opacity=".3"/>
-    </pattern>
-    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2e1656"/>
-      <stop offset="1" stop-color="#1e0e3c"/>
-    </linearGradient>
-  </defs>
+<div id="stage">
+  <canvas id="c" width="1280" height="800"></canvas>
 
-  <!-- the carpet -->
-  <rect width="1280" height="800" fill="#0c0618"/>
-  <rect width="1280" height="800" filter="url(#fiber)"/>
-  <rect width="1280" height="800" filter="url(#pile)"/>
-  <!-- wear: traffic path and flattened patches -->
-  <g id="wear"></g>
-  <g id="speckle"></g>
+  <!-- the sign, mounted on the back wall -->
+  <svg class="overlay" viewBox="0 0 1280 800">
+    <defs>
+      <filter id="glow2"><feGaussianBlur stdDeviation="2.5"/></filter>
+      <filter id="glow6"><feGaussianBlur stdDeviation="7"/></filter>
+      <filter id="glow14"><feGaussianBlur stdDeviation="16"/></filter>
+    </defs>
+    <g transform="translate(120,118) skewX(-4)" font-family="'Arial Black',Impact,sans-serif" font-weight="900" font-size="74"
+       style="mix-blend-mode:screen">
+      <text x="0" y="0" fill="#ff2e9a" filter="url(#glow14)" opacity=".55">FOURSC<tspan opacity=".06">O</tspan>RE</text>
+      <text x="0" y="0" fill="none" stroke="#ff2e9a" stroke-width="10" stroke-linejoin="round" filter="url(#glow6)" opacity=".8">FOURSC<tspan stroke-opacity=".07">O</tspan>RE</text>
+      <text x="0" y="0" fill="none" stroke="#ff4aae" stroke-width="5" stroke-linejoin="round" filter="url(#glow2)">FOURSC<tspan stroke-opacity=".12">O</tspan>RE</text>
+      <text x="0" y="0" fill="none" stroke="#ffd8ec" stroke-width="2" stroke-linejoin="round">FOURSC<tspan stroke-opacity=".3">O</tspan>RE</text>
+      <path d="M-4,20 Q260,48 640,14" fill="none" stroke="#8aff2e" stroke-width="8" stroke-linecap="round" filter="url(#glow6)" opacity=".8"/>
+      <path d="M-4,20 Q260,48 640,14" fill="none" stroke="#d4ffa0" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M600,2 L662,13 L604,32 Z" fill="none" stroke="#8aff2e" stroke-width="6" stroke-linejoin="round" filter="url(#glow6)" opacity=".8"/>
+      <path d="M600,2 L662,13 L604,32 Z" fill="none" stroke="#d4ffa0" stroke-width="1.8" stroke-linejoin="round"/>
+    </g>
+    <!-- small dying tube by the door -->
+    <g transform="translate(1082,96)" font-family="'Arial Black',sans-serif" font-weight="900" font-size="30" style="mix-blend-mode:screen">
+      <text x="0" y="0" fill="none" stroke="#26e0e8" stroke-width="5" filter="url(#glow6)" opacity=".7">LANE ∞</text>
+      <text x="0" y="0" fill="none" stroke="#d8fbff" stroke-width="1.6">LANE ∞</text>
+    </g>
+  </svg>
 
-  <!-- carpet shapes (each drawn twice: blur under crisp), printed into the pile -->
-  <g id="shapes" filter="url(#rough)"></g>
+  <!-- the one beige window, ignoring the room -->
+  <svg class="overlay" viewBox="0 0 1280 800">
+    <g transform="translate(986,586)" font-family="Tahoma,sans-serif">
+      <rect x="7" y="9" width="240" height="118" fill="#000" opacity=".5"/>
+      <rect x="0" y="0" width="240" height="118" fill="#c0c0c0"/>
+      <rect x="0" y="0" width="240" height="118" fill="none" stroke="#0a0a0a" stroke-width="1"/>
+      <rect x="1" y="1" width="238" height="1.5" fill="#fff"/><rect x="1" y="1" width="1.5" height="116" fill="#fff"/>
+      <rect x="4" y="4" width="232" height="21" fill="#000080"/>
+      <text x="11" y="19" fill="#fff" font-size="12" font-weight="bold">FOURSCORE.EXE</text>
+      <rect x="219" y="7" width="14" height="14" fill="#c0c0c0" stroke="#0a0a0a" stroke-width=".8"/>
+      <text x="222.5" y="18" font-size="11" font-weight="bold">×</text>
+      <text x="14" y="50" font-size="12">Shoes required.</text>
+      <rect x="76" y="76" width="88" height="26" fill="#c0c0c0" stroke="#0a0a0a" stroke-width="1"/>
+      <rect x="77" y="77" width="86" height="1.5" fill="#fff"/><rect x="77" y="77" width="1.5" height="24" fill="#fff"/>
+      <rect x="80" y="80" width="80" height="19" fill="none" stroke="#000" stroke-width=".8" stroke-dasharray="1.5 1.5"/>
+      <text x="108" y="94" font-size="12">OK</text>
+    </g>
+  </svg>
 
-  <!-- the board, screen-printed flat -->
-  <g id="boardG" filter="url(#rough2)"></g>
-
-  <!-- the print sits IN the pile: fiber reads through it -->
-  <rect width="1280" height="800" filter="url(#pile)" opacity=".5"/>
-  <rect width="1280" height="800" filter="url(#fiber)" opacity=".3"/>
-
-  <!-- stains and scuffs: this carpet has worked here for years -->
-  <g id="stains"></g>
-
-  <!-- blacklight pools: the lighting is uneven because the fixtures are cheap -->
-  <ellipse cx="330" cy="180" rx="480" ry="330" fill="url(#pool)" style="mix-blend-mode:screen"/>
-  <ellipse cx="1020" cy="560" rx="420" ry="300" fill="url(#pool)" style="mix-blend-mode:screen" opacity=".8"/>
-  <rect width="1280" height="800" fill="url(#vig)"/>
-
-  <!-- the sign: real neon, one letter dying -->
-  <g transform="translate(150,96) rotate(-4)" font-family="'Arial Black',Impact,sans-serif" font-weight="900" font-size="88"
-     style="mix-blend-mode:screen">
-    <!-- light spilling onto the pile -->
-    <text x="0" y="0" fill="#ff2e9a" filter="url(#glow12)" opacity=".5">FOURSC<tspan opacity=".06">O</tspan>RE</text>
-    <!-- tube glow -->
-    <text x="0" y="0" fill="none" stroke="#ff2e9a" stroke-width="11" stroke-linejoin="round" filter="url(#glow6)" opacity=".8">FOURSC<tspan stroke-opacity=".07">O</tspan>RE</text>
-    <text x="0" y="0" fill="none" stroke="#ff4aae" stroke-width="5.5" stroke-linejoin="round" filter="url(#glow2)">FOURSC<tspan stroke-opacity=".12">O</tspan>RE</text>
-    <!-- tube core -->
-    <text x="0" y="0" fill="none" stroke="#ffd8ec" stroke-width="2.2" stroke-linejoin="round">FOURSC<tspan stroke-opacity=".3">O</tspan>RE</text>
-    <!-- the swoosh tube -->
-    <path d="M-6,22 Q300,54 760,16" fill="none" stroke="#8aff2e" stroke-width="9" stroke-linecap="round" filter="url(#glow6)" opacity=".8"/>
-    <path d="M-6,22 Q300,54 760,16" fill="none" stroke="#d4ffa0" stroke-width="2.4" stroke-linecap="round"/>
-    <path d="M712,4 L780,15 L716,36 Z" fill="none" stroke="#8aff2e" stroke-width="7" stroke-linejoin="round" filter="url(#glow6)" opacity=".8"/>
-    <path d="M712,4 L780,15 L716,36 Z" fill="none" stroke="#d4ffa0" stroke-width="2" stroke-linejoin="round"/>
-  </g>
-
-  <!-- printed caption under the board -->
-  <g font-family="'Arial Black',Impact,sans-serif" font-weight="900" font-size="30" filter="url(#rough2)">
-    <text x="170" y="762" fill="#26e0e8" filter="url(#glow6)" opacity=".9">YOUR MOVE · LANE ∞</text>
-    <text x="170" y="762" fill="#26e0e8">YOUR MOVE · LANE ∞</text>
-  </g>
-
-  <!-- the one beige window, printed nowhere, floating over everything -->
-  <g transform="translate(952,560)" font-family="Tahoma,sans-serif">
-    <rect x="6" y="8" width="240" height="118" fill="#000" opacity=".5"/>
-    <rect x="0" y="0" width="240" height="118" fill="#c0c0c0"/>
-    <rect x="0" y="0" width="240" height="118" fill="none" stroke="#0a0a0a" stroke-width="1"/>
-    <rect x="1" y="1" width="238" height="1.5" fill="#fff"/><rect x="1" y="1" width="1.5" height="116" fill="#fff"/>
-    <rect x="4" y="4" width="232" height="21" fill="#000080"/>
-    <text x="11" y="19" fill="#fff" font-size="12" font-weight="bold">FOURSCORE.EXE</text>
-    <rect x="219" y="7" width="14" height="14" fill="#c0c0c0" stroke="#0a0a0a" stroke-width=".8"/>
-    <text x="222.5" y="18" font-size="11" font-weight="bold">×</text>
-    <text x="14" y="50" font-size="12">Shoes required.</text>
-    <rect x="76" y="76" width="88" height="26" fill="#c0c0c0" stroke="#0a0a0a" stroke-width="1"/>
-    <rect x="77" y="77" width="86" height="1.5" fill="#fff"/><rect x="77" y="77" width="1.5" height="24" fill="#fff"/>
-    <rect x="80" y="80" width="80" height="19" fill="none" stroke="#000" stroke-width=".8" stroke-dasharray="1.5 1.5"/>
-    <text x="108" y="94" font-size="12">OK</text>
-  </g>
-
-  <text x="1268" y="26" text-anchor="end" font-family="monospace" font-size="13" fill="#fff" opacity=".55">04 · COSMIC CARPET</text>
-</svg>
+  <div id="placard">04 · COSMIC CARPET</div>
+</div>
 <script>
-  const NS = "http://www.w3.org/2000/svg";
-  const el = (n, at, parent) => {
-    const e = document.createElementNS(NS, n);
-    for (const k in at) e.setAttribute(k, at[k]);
-    parent.appendChild(e); return e;
-  };
-  const NEON = { m: "#ff2e9a", c: "#26e0e8", g: "#8aff2e", o: "#ff8a26", v: "#8a4aff", y: "#ffe42e" };
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+const NEON = { m: "#ff2e9a", c: "#26e0e8", g: "#8aff2e", o: "#ff8a26", v: "#8a4aff", y: "#ffe42e" };
+let seed = 5;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
-  // ---- wear: flattened traffic paths ----
-  const wear = document.getElementById("wear");
-  el("ellipse", { cx: 640, cy: 660, rx: 520, ry: 95, fill: "#05030c", opacity: .3, filter: "url(#glow12)" }, wear);
-  el("ellipse", { cx: 260, cy: 420, rx: 190, ry: 120, fill: "#05030c", opacity: .22, filter: "url(#glow12)" }, wear);
-  el("ellipse", { cx: 1090, cy: 220, rx: 210, ry: 130, fill: "#05030c", opacity: .2, filter: "url(#glow12)" }, wear);
-  el("ellipse", { cx: 700, cy: 90, rx: 260, ry: 70, fill: "#05030c", opacity: .18, filter: "url(#glow12)" }, wear);
+// ---- the ¾ view: affine iso basis. u → right, v → away (up-right) ----
+const O = { x: 120, y: 662 };            // world origin on screen (near-left of board)
+const EX = { x: 1, y: 0 };               // world u axis
+const EV = { x: .40, y: -.64 };          // world v axis (depth)
+const WALL_Y = 185;                      // where the floor meets the back wall
+const P = (u, v) => ({ x: O.x + u * EX.x + v * EV.x, y: O.y + u * EX.y + v * EV.y });
+const isoT = () => ctx.setTransform(EX.x, EX.y, EV.x, EV.y, O.x, O.y);
 
-  // ---- stains and scuffs ----
-  const st = document.getElementById("stains");
-  // something was spilled here once
-  el("ellipse", { cx: 985, cy: 705, rx: 46, ry: 30, fill: "#1c1008", opacity: .55, filter: "url(#rough)" }, st);
-  el("circle", { cx: 852, cy: 682, r: 26, fill: "none", stroke: "#2e1c0e", "stroke-width": 5, opacity: .6, filter: "url(#rough2)" }, st);
-  el("circle", { cx: 852, cy: 682, r: 20, fill: "none", stroke: "#2e1c0e", "stroke-width": 2, opacity: .45, filter: "url(#rough2)" }, st);
-  el("ellipse", { cx: 120, cy: 240, rx: 60, ry: 36, fill: "#160c20", opacity: .5, filter: "url(#rough)" }, st);
-  // shoe scuffs
-  for (const [x, y, w, r, o] of [[700, 640, 90, -24, .5], [760, 668, 60, -18, .4], [180, 700, 80, 12, .45]]) {
-    el("rect", { x, y, width: w, height: 5, rx: 2.5, fill: "#020108", opacity: o,
-                 transform: `rotate(${r} ${x} ${y})`, filter: "url(#rough2)" }, st);
+const img = new Image();
+img.src = "assets/carpet-color.jpg";
+img.onload = draw;
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1280, 800);
+
+  // ---------- back wall ----------
+  const wall = ctx.createLinearGradient(0, 0, 0, WALL_Y);
+  wall.addColorStop(0, "#07030f");
+  wall.addColorStop(1, "#170b28");
+  ctx.fillStyle = wall; ctx.fillRect(0, 0, 1280, WALL_Y);
+  // paneling seams
+  ctx.fillStyle = "#04020a";
+  for (let x = 40; x < 1280; x += 155) ctx.fillRect(x, 0, 3, WALL_Y);
+  // sign light on the wall
+  let g = ctx.createRadialGradient(400, 100, 20, 400, 100, 460);
+  g.addColorStop(0, "rgba(255,46,154,.30)"); g.addColorStop(1, "rgba(255,46,154,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, WALL_Y);
+  g = ctx.createRadialGradient(1130, 90, 10, 1130, 90, 220);
+  g.addColorStop(0, "rgba(38,224,232,.22)"); g.addColorStop(1, "rgba(38,224,232,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, WALL_Y);
+  // skirting
+  ctx.fillStyle = "#0e0618"; ctx.fillRect(0, WALL_Y - 10, 1280, 10);
+
+  // ---------- carpet, photo pile sheared into the floor plane ----------
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, WALL_Y, 1280, 800 - WALL_Y); ctx.clip();
+  ctx.setTransform(1, 0, -.62, 1, 0, 0);      // shear so rows of pile drift like a vacuumed lane
+  const S = .62;                               // texture scale: fibers chunky but real
+  for (let ty = -1; ty < 3; ty++) for (let tx = -1; tx < 4; tx++)
+    ctx.drawImage(img, (tx * 1024 + 520) * S, WALL_Y + ty * 1024 * S, 1024 * S, 1024 * S);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // blacklight grade
+  ctx.globalCompositeOperation = "color";
+  ctx.fillStyle = "#5a3ec4"; ctx.fillRect(0, WALL_Y, 1280, 800 - WALL_Y);
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = "#5c4a8f"; ctx.fillRect(0, WALL_Y, 1280, 800 - WALL_Y);
+  ctx.globalCompositeOperation = "overlay";
+  ctx.fillStyle = "#241348"; ctx.fillRect(0, WALL_Y, 1280, 800 - WALL_Y);
+  // depth: darker toward the wall
+  ctx.globalCompositeOperation = "multiply";
+  g = ctx.createLinearGradient(0, WALL_Y, 0, 800);
+  g.addColorStop(0, "#4a3e6a"); g.addColorStop(.4, "#8a7ab2"); g.addColorStop(1, "#b8a8d8");
+  ctx.fillStyle = g; ctx.fillRect(0, WALL_Y, 1280, 800 - WALL_Y);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.restore();
+
+  // ---------- wear, stains ----------
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.filter = "blur(18px)";
+  ctx.fillStyle = "rgba(20,12,34,.55)";
+  ellipse(640, 690, 560, 90); ellipse(280, 420, 200, 90); ellipse(1120, 330, 190, 80);
+  ctx.filter = "blur(6px)";
+  ctx.fillStyle = "rgba(26,16,8,.5)"; ellipse(918, 700, 44, 20);          // spill
+  ctx.strokeStyle = "rgba(40,26,12,.55)"; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.ellipse(206, 706, 30, 13, 0, 0, 7); ctx.stroke();  // coffee ring
+  ctx.filter = "none";
+  ctx.restore();
+
+  // ---------- the print, dyed into the pile ----------
+  const print = document.createElement("canvas");
+  print.width = 1280; print.height = 800;
+  drawPrint(print.getContext("2d"));
+  ctx.save();
+  ctx.globalCompositeOperation = "soft-light"; ctx.globalAlpha = 1; ctx.drawImage(print, 0, 0);
+  ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = .38; ctx.filter = "blur(5px)"; ctx.drawImage(print, 0, 0);
+  ctx.filter = "none"; ctx.globalAlpha = .5; ctx.drawImage(print, 0, 0);
+  ctx.restore();
+  // fibers read back through the ink
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, WALL_Y, 1280, 800 - WALL_Y); ctx.clip();
+  ctx.globalCompositeOperation = "overlay"; ctx.globalAlpha = .3;
+  ctx.setTransform(1, 0, -.62, 1, 0, 0);
+  for (let ty = -1; ty < 3; ty++) for (let tx = -1; tx < 4; tx++)
+    ctx.drawImage(img, (tx * 1024 + 520) * S, WALL_Y + ty * 1024 * S, 1024 * S, 1024 * S);
+  ctx.restore();
+
+  // ---------- chips: physical, tossed ----------
+  drawChips();
+
+  // ---------- light pools + vignette ----------
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  g = ctx.createRadialGradient(380, 300, 30, 380, 300, 420);
+  g.addColorStop(0, "rgba(110,70,220,.20)"); g.addColorStop(1, "rgba(110,70,220,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, 800);
+  g = ctx.createRadialGradient(980, 560, 30, 980, 560, 380);
+  g.addColorStop(0, "rgba(110,70,220,.14)"); g.addColorStop(1, "rgba(110,70,220,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, 800);
+  ctx.restore();
+  g = ctx.createRadialGradient(640, 420, 300, 640, 420, 780);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.62)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, 800);
+}
+
+function ellipse(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill(); }
+
+// ---------- world-space print ----------
+const U = 84, COLS = 7, ROWS = 6;               // board cell in world units
+const BW = U * COLS, BH = U * ROWS;
+const state = ["", "cm", "mcc", "cmcm", "mc", "c", ""]; // bottom-up: c cyan, m magenta
+
+function drawPrint(p) {
+  p.setTransform(EX.x, EX.y, EV.x, EV.y, O.x, O.y);
+  p.lineJoin = "round";
+  // board panel: near edge at v=0, far edge at v=BH
+  p.fillStyle = "#2a1252";
+  rr(p, 0, 0, BW, BH, 26); p.fill();
+  p.lineWidth = 9; p.strokeStyle = NEON.c; rr(p, 6, 5, BW, BH, 26); p.stroke();
+  p.lineWidth = 3; p.strokeStyle = NEON.m; rr(p, -5, -4, BW, BH, 26); p.stroke();
+  p.lineWidth = 4; p.strokeStyle = NEON.c; rr(p, 0, 0, BW, BH, 26); p.stroke();
+  // printed cells
+  for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) {
+    const x = U * (c + .5), y = U * (r + .5);
+    p.fillStyle = "#0a0522";
+    p.beginPath(); p.arc(x, y, U * .36, 0, 7); p.fill();
+    p.lineWidth = 3.5; p.strokeStyle = NEON.v;
+    p.beginPath(); p.arc(x, y, U * .36, 0, 7); p.stroke();
   }
-  // gum, ground in
-  el("ellipse", { cx: 1178, cy: 668, rx: 9, ry: 7, fill: "#3c3a44", opacity: .8, filter: "url(#rough2)" }, st);
-  el("ellipse", { cx: 452, cy: 758, rx: 8, ry: 6, fill: "#34323c", opacity: .7, filter: "url(#rough2)" }, st);
-
-  // ---- speckle: stray UV fibers ----
-  const sp = document.getElementById("speckle");
-  let seed = 7;
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const cols = Object.values(NEON);
-  for (let i = 0; i < 260; i++) {
-    el("circle", { cx: rnd() * 1280, cy: rnd() * 800, r: .7 + rnd() * 1.1,
-                   fill: cols[i % cols.length], opacity: .12 + rnd() * .25 }, sp);
-  }
-
-  // ---- carpet shapes ----
-  const sh = document.getElementById("shapes");
-  function twice(draw) { draw("url(#glow6)", .85); draw(null, 1); }
-  const zig = (x, y, w, n, amp, color, sw, rot) => twice((f, o) => {
-    let d = `M${x},${y}`;
-    for (let i = 1; i <= n; i++) d += ` L${x + (w / n) * i},${y + (i % 2 ? -amp : amp)}`;
-    el("path", { d, fill: "none", stroke: color, "stroke-width": sw, "stroke-linecap": "round",
-                 opacity: o, ...(f && { filter: f }), transform: `rotate(${rot} ${x} ${y})` }, sh);
-  });
-  const squig = (x, y, s, color, sw, rot) => twice((f, o) => {
-    el("path", { d: `M${x},${y} q${18*s},${-26*s} ${36*s},0 t${36*s},0 t${36*s},0`,
-                 fill: "none", stroke: color, "stroke-width": sw, "stroke-linecap": "round",
-                 opacity: o, ...(f && { filter: f }), transform: `rotate(${rot} ${x} ${y})` }, sh);
-  });
-  const star = (x, y, r, color) => twice((f, o) => {
-    const p = [];
-    for (let i = 0; i < 8; i++) {
-      const a = Math.PI * i / 4, rr = i % 2 ? r * .38 : r;
-      p.push(`${x + Math.cos(a) * rr},${y + Math.sin(a) * rr}`);
-    }
-    el("polygon", { points: p.join(" "), fill: color, opacity: o, ...(f && { filter: f }) }, sh);
-  });
-  const ring = (x, y, r, color, sw) => twice((f, o) =>
-    el("circle", { cx: x, cy: y, r, fill: "none", stroke: color, "stroke-width": sw,
-                   opacity: o, ...(f && { filter: f }) }, sh));
-  const tri = (x, y, r, color, rot) => twice((f, o) =>
-    el("polygon", { points: `${x},${y - r} ${x + r * .87},${y + r * .5} ${x - r * .87},${y + r * .5}`,
-                    fill: "none", stroke: color, "stroke-width": 5, opacity: o,
-                    ...(f && { filter: f }), transform: `rotate(${rot} ${x} ${y})` }, sh));
+  // cosmic shapes on the open floor (+v is away)
+  p.lineWidth = 6; p.lineCap = "round";
+  zigP(p, BW + 90, 430, 200, 6, 26, NEON.c);
+  zigP(p, -240, 420, 180, 6, 22, NEON.o);
+  squigP(p, BW + 150, 120, 1.15, NEON.v);
+  squigP(p, -180, 330, 1, NEON.g);
+  starP(p, BW + 150, 260, 26, NEON.y); starP(p, -160, 480, 20, NEON.m);
+  starP(p, BW + 340, 180, 16, NEON.g); starP(p, -140, 200, 15, NEON.c);
+  ringP(p, -120, 90, 24, NEON.g);
+  triP(p, BW + 70, -46, 30, NEON.y); triP(p, -110, 260, 24, NEON.m);
   // saturn
-  twice((f, o) => {
-    const g = el("g", { opacity: o, ...(f && { filter: f }), transform: "translate(1050,220) rotate(-16)" }, sh);
-    el("circle", { cx: 0, cy: 0, r: 44, fill: "#8a4aff" }, g);
-    el("circle", { cx: -14, cy: -12, r: 10, fill: "#b892ff", opacity: .8 }, g);
-    el("ellipse", { cx: 0, cy: 4, rx: 78, ry: 18, fill: "none", stroke: "#26e0e8", "stroke-width": 6 }, g);
-  });
-  // flat cartoon rocket with swoosh
-  twice((f, o) => {
-    const g = el("g", { opacity: o, ...(f && { filter: f }), transform: "translate(880,120) rotate(24)" }, sh);
-    el("path", { d: "M0,-46 C14,-26 18,-4 18,16 L-18,16 C-18,-4 -14,-26 0,-46 Z", fill: "#ff2e9a" }, g);
-    el("circle", { cx: 0, cy: -6, r: 8, fill: "#0c0618", stroke: "#26e0e8", "stroke-width": 4 }, g);
-    el("path", { d: "M-18,2 L-34,26 L-18,20 Z", fill: "#8aff2e" }, g);
-    el("path", { d: "M18,2 L34,26 L18,20 Z", fill: "#8aff2e" }, g);
-    el("path", { d: "M-10,18 L0,48 L10,18 Z", fill: "#ffe42e" }, g);
-    el("path", { d: "M-4,60 Q-20,90 -6,124", stroke: "#ff8a26", "stroke-width": 5, fill: "none", "stroke-linecap": "round" }, g);
-  });
-  // bowling pin pair, outline only
-  twice((f, o) => {
-    const g = el("g", { opacity: o, ...(f && { filter: f }), transform: "translate(120,540) rotate(12)" }, sh);
-    for (const dx of [0, 34]) {
-      el("path", { d: `M${dx},0 C${dx - 12},14 ${dx - 4},26 ${dx - 4},40 C${dx - 4},58 ${dx - 14},64 ${dx - 14},80
-                       C${dx - 14},96 ${dx + 14},96 ${dx + 14},80 C${dx + 14},64 ${dx + 4},58 ${dx + 4},40
-                       C${dx + 4},26 ${dx + 12},14 ${dx},0 Z`,
-                   fill: "none", stroke: "#ffe42e", "stroke-width": 5 }, g);
-      el("path", { d: `M${dx - 8},34 L${dx + 8},34`, stroke: "#ff2e9a", "stroke-width": 5 }, g);
-    }
-  });
-  // lightning bolt
-  twice((f, o) =>
-    el("polygon", { points: "986,420 962,474 984,470 950,540 998,478 976,482 1006,424",
-                    fill: "#ffe42e", opacity: o, ...(f && { filter: f }) }, sh));
-  zig(60, 120, 200, 6, 22, NEON.c, 7, 8);
-  zig(1040, 660, 190, 6, 20, NEON.m, 7, -6);
-  zig(560, 758, 170, 6, 16, NEON.o, 6, -2);
-  squig(60, 320, 1.1, NEON.o, 6, -12);
-  squig(770, 720, 1.2, NEON.v, 6, 5);
-  squig(1130, 460, .9, NEON.g, 6, 14);
-  star(260, 210, 20, NEON.y); star(1210, 120, 15, NEON.m); star(830, 300, 13, NEON.g);
-  star(90, 690, 16, NEON.c); star(920, 760, 12, NEON.y); star(1240, 360, 11, NEON.o);
-  ring(180, 430, 26, NEON.v, 6); ring(1180, 560, 20, NEON.g, 5); ring(760, 170, 14, NEON.m, 5);
-  tri(340, 720, 26, NEON.m, 14); tri(1080, 380, 20, NEON.y, -8); tri(60, 560, 18, NEON.g, 30);
-
-  // ---- the board ----
-  const b = document.getElementById("boardG");
-  const L = 190, T = 170, W = 540, H = 500, R = 26;
-  // drop shadow of print + mis-registered outlines
-  el("rect", { x: L + 8, y: T + 9, width: W, height: H, rx: R, fill: "#000", opacity: .55 }, b);
-  el("rect", { x: L - 5, y: T - 4, width: W, height: H, rx: R, fill: "none", stroke: "#ff2e9a", "stroke-width": 3, opacity: .8 }, b);
-  el("rect", { x: L + 4, y: T + 3, width: W, height: H, rx: R, fill: "none", stroke: "#26e0e8", "stroke-width": 7, filter: "url(#glow2)" }, b);
-  el("rect", { x: L, y: T, width: W, height: H, rx: R, fill: "url(#panel)" }, b);
-  el("rect", { x: L, y: T, width: W, height: H, rx: R, fill: "url(#dots)" }, b);
-  el("rect", { x: L, y: T, width: W, height: H, rx: R, fill: "none", stroke: "#26e0e8", "stroke-width": 4 }, b);
-
-  const state = ["", "cm", "mcc", "cmcm", "mc", "c", ""]; // bottom-up: c cyan, m magenta
-  const cw = W / 7, ch = H / 6, hr = Math.min(cw, ch) * .36;
-  for (let c = 0; c < 7; c++) for (let row = 0; row < 6; row++) {
-    const cx = L + cw * (c + .5), cy = T + H - ch * (row + .5);
-    el("circle", { cx, cy, r: hr, fill: "#05030c" }, b);
-    el("circle", { cx, cy, r: hr, fill: "none", stroke: "#8a4aff", "stroke-width": 3.5, filter: "url(#glow2)" }, b);
-    el("circle", { cx, cy, r: hr, fill: "none", stroke: "#8a4aff", "stroke-width": 2 }, b);
-    const d = state[c][row];
-    if (d) {
-      const col = d === "c" ? NEON.c : NEON.m;
-      el("circle", { cx, cy, r: hr * .8, fill: col, filter: "url(#glow6)", opacity: .9 }, b);
-      el("circle", { cx, cy, r: hr * .8, fill: col }, b);
-      el("path", { d: `M${cx - hr * .45},${cy - hr * .28} a${hr * .55},${hr * .55} 0 0 1 ${hr * .75},${-hr * .28}`,
-                   fill: "none", stroke: "#fff", "stroke-width": 4, "stroke-linecap": "round", opacity: .9 }, b);
-    }
+  p.save(); p.translate(BW + 300, 520);
+  p.fillStyle = NEON.v; p.beginPath(); p.arc(0, 0, 40, 0, 7); p.fill();
+  p.strokeStyle = NEON.c; p.lineWidth = 6;
+  p.beginPath(); p.ellipse(0, 4, 72, 18, -.2, 0, 7); p.stroke(); p.restore();
+  // caption, lying on the floor in its own legible shear
+  p.setTransform(1, 0, -EV.x, -EV.y, ...Object.values(P(4, -34)));
+  p.font = "900 34px 'Arial Black',sans-serif";
+  p.fillStyle = NEON.c; p.fillText("YOUR MOVE", 0, 0);
+  p.setTransform(EX.x, EX.y, EV.x, EV.y, O.x, O.y);
+  // rocket, same legible shear
+  p.save(); p.setTransform(1, 0, -EV.x, -EV.y, ...Object.values(P(BW + 320, 330))); p.rotate(.5);
+  p.fillStyle = NEON.m;
+  p.beginPath(); p.moveTo(0, -42); p.bezierCurveTo(13, -24, 16, -4, 16, 14);
+  p.lineTo(-16, 14); p.bezierCurveTo(-16, -4, -13, -24, 0, -42); p.fill();
+  p.fillStyle = NEON.g;
+  p.beginPath(); p.moveTo(-16, 2); p.lineTo(-30, 24); p.lineTo(-16, 18); p.fill();
+  p.beginPath(); p.moveTo(16, 2); p.lineTo(30, 24); p.lineTo(16, 18); p.fill();
+  p.fillStyle = NEON.y;
+  p.beginPath(); p.moveTo(-9, 16); p.lineTo(0, 44); p.lineTo(9, 16); p.fill();
+  p.strokeStyle = NEON.c; p.lineWidth = 5;
+  p.beginPath(); p.arc(0, -6, 8, 0, 7); p.stroke();
+  p.restore();
+  p.setTransform(1, 0, 0, 1, 0, 0);
+}
+function rr(p, x, y, w, h, r) {
+  p.beginPath(); p.roundRect(x, y, w, h, r);
+}
+function zigP(p, x, y, w, n, amp, c) {
+  p.strokeStyle = c; p.beginPath(); p.moveTo(x, y);
+  for (let i = 1; i <= n; i++) p.lineTo(x + w / n * i, y + (i % 2 ? -amp : amp));
+  p.stroke();
+}
+function squigP(p, x, y, s, c) {
+  p.strokeStyle = c; p.beginPath(); p.moveTo(x, y);
+  p.bezierCurveTo(x + 18 * s, y - 30 * s, x + 36 * s, y - 30 * s, x + 42 * s, y);
+  p.bezierCurveTo(x + 48 * s, y + 30 * s, x + 66 * s, y + 30 * s, x + 78 * s, y);
+  p.bezierCurveTo(x + 88 * s, y - 30 * s, x + 106 * s, y - 30 * s, x + 116 * s, y);
+  p.stroke();
+}
+function starP(p, x, y, r, c) {
+  p.fillStyle = c; p.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = Math.PI * i / 4, rr2 = i % 2 ? r * .38 : r;
+    p[i ? "lineTo" : "moveTo"](x + Math.cos(a) * rr2, y + Math.sin(a) * rr2);
   }
+  p.closePath(); p.fill();
+}
+function ringP(p, x, y, r, c) { p.strokeStyle = c; p.beginPath(); p.arc(x, y, r, 0, 7); p.stroke(); }
+function triP(p, x, y, r, c) {
+  p.strokeStyle = c; p.beginPath();
+  p.moveTo(x, y - r); p.lineTo(x + r * .87, y + r * .5); p.lineTo(x - r * .87, y + r * .5);
+  p.closePath(); p.stroke();
+}
+
+// ---------- chips ----------
+function chipAt(u, v, kind, opts = {}) {
+  const { x, y } = P(u, v);
+  const rx = U * .34, ry = rx * -EV.y, th = opts.flat ? 7 : 9;
+  // shadow
+  ctx.save(); ctx.filter = "blur(5px)";
+  ctx.fillStyle = "rgba(0,0,0,.5)";
+  ctx.beginPath(); ctx.ellipse(x + 6, y + 6, rx * 1.02, ry * .95, 0, 0, 7); ctx.fill();
+  ctx.restore();
+  const hi = kind === "c" ? "#b8fbff" : "#ffd0ec";
+  const top = kind === "c" ? NEON.c : NEON.m;
+  const dark = kind === "c" ? "#0d7a80" : "#8f1458";
+  // side
+  ctx.fillStyle = opts.down ? "#3a3444" : dark;
+  ctx.beginPath();
+  ctx.ellipse(x, y + th, rx, ry, 0, 0, Math.PI);
+  ctx.ellipse(x, y, rx, ry, 0, Math.PI, 0, true);
+  ctx.fill();
+  // top face
+  const g = ctx.createRadialGradient(x - rx * .35, y - ry * .45, rx * .1, x, y, rx * 1.1);
+  if (opts.down) { g.addColorStop(0, "#565064"); g.addColorStop(1, "#2e2a3a"); }
+  else { g.addColorStop(0, hi); g.addColorStop(.45, top); g.addColorStop(1, dark); }
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill();
+  // molded ring + star, rotated per toss
+  if (!opts.down) {
+    const a = opts.rot ?? 0;
+    ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y, rx * .68, ry * .68, 0, 0, 7); ctx.stroke();
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx); ctx.rotate(a);
+    ctx.strokeStyle = "rgba(255,255,255,.65)"; ctx.lineWidth = 2.5;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(rx * .78, 0); ctx.lineTo(rx * .95, 0); ctx.stroke();
+      ctx.rotate(Math.PI / 2);
+    }
+    ctx.restore();
+    // specular
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.beginPath(); ctx.ellipse(x - rx * .34, y - ry * .4, rx * .16, ry * .12, -.4, 0, 7); ctx.fill();
+  }
+}
+function drawChips() {
+  // seated chips, each a little off true (drawn far-to-near so overlaps stack right)
+  for (let r = ROWS - 1; r >= 0; r--) for (let c = 0; c < COLS; c++) {
+    const d = state[c][r];
+    if (!d) continue;
+    chipAt(U * (c + .5) + (rnd() - .5) * 9, U * (r + .5) + (rnd() - .5) * 9, d, { rot: rnd() * 6.3 });
+  }
+  // one just tossed: still sliding toward its cell, ghosts behind it
+  const gu = U * 5.5 + 34, gv = U * 1.5 + 26;
+  for (let i = 3; i >= 1; i--) {
+    ctx.save(); ctx.globalAlpha = .1 * i;
+    chipAt(gu + i * 38, gv - i * 22, "m", { rot: 1 + i });
+    ctx.restore();
+  }
+  chipAt(gu, gv, "m", { rot: .8 });
+  // strays on the open carpet
+  chipAt(BW + 160, -10, "c", { rot: 2 });
+  chipAt(BW + 240, -60, "m", { down: true });
+  chipAt(-60, 130, "m", { rot: 4.2 });
+}
 </script>

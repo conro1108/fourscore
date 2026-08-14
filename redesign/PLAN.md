@@ -1114,6 +1114,14 @@ thesis artifacts, and what they couldn't fix.
   approved mock + frame). No code scaffolds yet — the workspace glob already
   covers `apps/*`, and root scripts follow the clickers `dev:<app>` convention
   when scaffolds land.
+  **Postscript, same day:** carpet went through two more revisions on live
+  steers — first "gritty not cartoony" (materials pass), then "borderline
+  photorealistic carpet, ¾ iso view, toss the chips on" (rebuilt on a real CC0
+  carpet photo, canvas blend-mode blacklight grade, chips as physical pucks) —
+  and then Connor dropped it: "im continuing to lose inspo on this one."
+  `apps/carpet/` is deleted; the final iso mock is archived in
+  `redesign/proposals/` (04, marked dropped on the index) with the texture in
+  `proposals/assets/` (ambientCG CC0). **BOARD.EXE is the one being built.**
 
 ## Open Questions / Decisions log
 
