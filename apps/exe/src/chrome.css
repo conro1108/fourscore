@@ -159,6 +159,22 @@ canvas.pix{image-rendering:pixelated;display:block}
 .mcell.hit{background:#f00}
 .mcell .pix{width:24px;height:24px;position:absolute;inset:0}
 
+/* SOL.EXE — the felt and the cards */
+.felt{position:relative;margin:6px 10px 4px;height:560px;background:#008000;overflow:hidden}
+.slot{position:absolute;width:62px;height:84px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.slot .ghostpip{position:absolute;inset:0;display:grid;place-items:center;font-size:26px;color:rgba(255,255,255,.35)}
+.tabcol{position:absolute;width:62px;bottom:6px}
+.tabcol.empty{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);height:84px;bottom:auto}
+.card{position:absolute;left:0;top:0;width:62px;height:84px;background:#fff;border:1px solid #000;
+      border-radius:3px;box-sizing:border-box}
+.card .rk{position:absolute;left:4px;top:2px;font:bold 12px Tahoma,sans-serif}
+.card .pip{position:absolute;inset:0;display:grid;place-items:center;font-size:26px}
+.card.red{color:#c00000}
+.card.blk{color:#000}
+.card.back{background:#1058c8;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 2px,transparent 2px 6px)}
+.solghost{position:absolute;width:62px;z-index:500;pointer-events:none}
+.solbounce{position:absolute;inset:0;z-index:210}
+
 /* notepad bodies */
 .notepad{margin:3px;background:#fff;padding:5px;min-height:110px;white-space:pre-wrap;
       font-family:"Courier New",monospace;font-size:12px;line-height:1.45}
