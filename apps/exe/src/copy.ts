@@ -262,6 +262,7 @@ export const GAMES_COPY = {
     wall: { title: "SNAKE.EXE", body: "The snake has reached the edge.<br>There was nothing out there." },
     score: (n: number): string => `LENGTH: ${n}. The snake is being reasonable about it.`,
     idle: "Press an arrow key. The snake is waiting.",
+    help: { title: "SNAKE.EXE", body: "The snake goes where you point it.<br>It cannot stop. Neither can you." },
   },
   sol: {
     win: { title: "SOL.EXE", body: "The cards have been freed.<br>They will be recaptured." },

@@ -27,6 +27,7 @@ import { makeEffects } from "./effects.js";
 import { makeEndgame } from "./endgame.js";
 import { BIN_TEXT, DIALOG, HELP_TEXT, TITLES } from "./copy.js";
 import { openMines } from "./games/mines.js";
+import { openSnake } from "./games/snake.js";
 
 const stage = q("#stage");
 fitStage(stage);
@@ -187,6 +188,8 @@ if (state === "midgame") {
   effects.takeover(true);
 } else if (state === "mines") {
   openMines(wm);
+} else if (state === "snake") {
+  openSnake(wm);
 }
 
 /* ---- FEVER.CTL — dev chrome; does not ship in the fiction ---- */
