@@ -43,7 +43,29 @@ describe("director", () => {
     expect(d.snapshot().fever).toBeGreaterThan(0.8);
   });
 
-  it("a new game cools back down, slower than it rose", () => {
+  it("the win peaks, holds, and then lets go on its own", () => {
+    const d = makeDirector();
+    d.event("win");
+    // it gets all the way up: the screensaver is the point of the crescendo
+    for (let i = 0; i < 20; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBe(4);
+    // and it does not stay there — no new game, no input, just time
+    for (let i = 0; i < 20; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBeLessThan(4);
+    for (let i = 0; i < 80; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBe(0);
+  });
+
+  it("stewing on a loss still escalates before it lets go", () => {
+    const d = makeDirector();
+    d.event("loss");
+    for (let i = 0; i < 30; i++) d.step(0.5);
+    expect(d.snapshot().fever).toBeGreaterThan(0.75); // the stew
+    for (let i = 0; i < 60; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBe(0);
+  });
+
+  it("a new game does not inherit the last one's fever", () => {
     const d = makeDirector();
     d.event("win");
     d.step(6);
@@ -52,7 +74,18 @@ describe("director", () => {
     d.step(10);
     const cooler = d.snapshot().fever;
     expect(cooler).toBeLessThan(hot);
-    expect(cooler).toBeGreaterThan(0.5); // falling is slow by design
+    expect(cooler).toBeLessThan(0.55); // Again shouldn't deal you a tier-4 board
+  });
+
+  it("cooling stops when it gets there, so the next game rises normally", () => {
+    const d = makeDirector();
+    d.event("win");
+    for (let i = 0; i < 200; i++) d.step(0.5);
+    d.event("newGame");
+    d.feedEval(0.9, 30, 42);
+    const before = d.snapshot().fever;
+    d.step(1);
+    expect(d.snapshot().fever).toBeGreaterThan(before);
   });
 
   it("pin overrides everything until unpinned", () => {

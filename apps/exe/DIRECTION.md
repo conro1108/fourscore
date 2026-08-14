@@ -133,7 +133,9 @@ custom banner. Comic-sinister, never crash-horror: no BSOD, no fake data loss.
   match state.
 - Harness from day one: a preview page of named desktop states + the shots
   tooling pattern. Screenshot before you claim — that rule caught real bugs in
-  fever and both mocks here.
+  fever and both mocks here. `npm run shots` always looks at 1800ms, so it is
+  blind to anything that happens over seconds; `npm run timeline -- "?state=win"
+  3 8 14 18 40` is the one that can see the fever rise and let go.
 - Review/online: later phases, same product truths as the repo (proven vs
   estimated confidence law binds every string; online stays
   client-authoritative).

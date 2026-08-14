@@ -281,15 +281,46 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
   let saverEl: HTMLElement | null = null;
   let saverFire: Fire | null = null;
   let takenOver = false;
-  function takeover(on: boolean): void {
+  let fadeTimers: ReturnType<typeof setTimeout>[] = [];
+  const stopFade = (): void => {
+    for (const t of fadeTimers) clearTimeout(t);
+    fadeTimers = [];
+  };
+  /** The fever letting go is a retreat, in steps; your mouse dismissing it is
+      a cut. Neither eases — the timing law holds even here. */
+  function hideSaver(fade: boolean): void {
+    if (!saverEl) return;
+    const el2 = saverEl;
+    if (!fade) {
+      el2.style.display = "none";
+      el2.style.opacity = "1";
+      saverFire?.stop();
+      return;
+    }
+    [0.75, 0.5, 0.25, 0].forEach((o, i) => {
+      fadeTimers.push(
+        setTimeout(() => {
+          el2.style.opacity = String(o);
+          if (o === 0) {
+            el2.style.display = "none";
+            el2.style.opacity = "1";
+            saverFire?.stop();
+          }
+        }, (i + 1) * 110),
+      );
+    });
+  }
+  function takeover(on: boolean, fade = false): void {
     if (on === takenOver) return;
     takenOver = on;
+    stopFade();
     if (on) {
       if (!saverEl) {
         saverEl = el(`<div id="saver"><canvas class="pix" width="320" height="200"></canvas></div>`);
         stage.appendChild(saverEl);
       }
       saverEl.style.display = "block";
+      saverEl.style.opacity = "1";
       if (!saverFire) saverFire = makeFire(saverEl.querySelector("canvas")!);
       saverFire.set({
         baseHeat: 56,
@@ -307,8 +338,7 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
         board.el.style.zIndex = "250";
       }
     } else {
-      saverEl!.style.display = "none";
-      saverFire?.stop();
+      hideSaver(fade);
       const board = deps.boardWin();
       if (board?.isOpen()) {
         board.el.style.zIndex = "";
@@ -354,12 +384,18 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
     shell.setClockDrift(CLOCK_DRIFT[t]!);
     shell.shiftIcons(t >= 4 ? ICON_SHIFT_T4 : t >= 3 ? ICON_SHIFT_T3 : [[0, 0], [0, 0], [0, 0], [0, 0]]);
     if (t > prev) for (let c = prev + 1; c <= t; c++) crossInto(c);
-    if (t < 3) closeRoam();
-    if (t < 2 && prev >= 2) {
-      closeExtras();
-      smearsEl().innerHTML = "";
+    // Coming down after a game the desktop keeps its litter — the windows the
+    // fever opened stay open, and the next game is what clears them. Only the
+    // screensaver lets go on its own, because it's the one thing covering the
+    // board.
+    if (!gameOver) {
+      if (t < 3) closeRoam();
+      if (t < 2 && prev >= 2) {
+        closeExtras();
+        smearsEl().innerHTML = "";
+      }
     }
-    takeover(t >= 4);
+    takeover(t >= 4, true);
     if (!wonGeom) applyGeometry();
   }
 
@@ -404,6 +440,8 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
       personality = opponentId === "oracle" ? "pillar" : "classic";
       for (const d of crossingDialogs) if (d.isOpen()) d.close();
       crossingDialogs = [];
+      closeRoam();
+      closeExtras();
       smearsEl().innerHTML = "";
       lastSmearAt.clear();
       if (mainWin?.isOpen()) {
@@ -418,6 +456,6 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
         ensureMain();
       }
     },
-    takeover,
+    takeover: (on) => takeover(on),
   };
 }
