@@ -1,0 +1,274 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>02 · BOARD.EXE</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-size:11px;color:#000}
+  #stage{position:relative;width:1280px;height:800px;margin:0 auto;background:#0e8078}
+
+  .bevel{background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+  .sunken{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+  .win{position:absolute}
+  .titlebar{height:22px;display:flex;align-items:center;gap:4px;padding:0 3px;margin:3px;color:#fff;font-weight:bold}
+  .titlebar.active{background:linear-gradient(90deg,#000080,#1084d0)}
+  .titlebar.inactive{background:linear-gradient(90deg,#808080,#b5b5b5);color:#d8d8d8}
+  .titlebar .t{flex:1;padding-left:2px;letter-spacing:.2px;white-space:nowrap;overflow:hidden}
+  .tbtn{width:16px;height:14px;background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf;
+        font-size:9px;line-height:13px;text-align:center;color:#000;font-family:"Courier New",monospace;font-weight:bold}
+  .menu{display:flex;gap:0;padding:1px 4px}
+  .menu span{padding:2px 7px}
+  .menu span u{text-decoration:underline}
+
+  /* desktop icons */
+  .icon{position:absolute;width:76px;text-align:center;color:#fff}
+  .icon .pix{width:32px;height:32px;margin:0 auto 5px;image-rendering:pixelated}
+  .icon .lbl{display:inline-block;padding:1px 3px;background:transparent}
+  .icon.sel .lbl{background:#000080;outline:1px dotted #fff}
+
+  /* the grid */
+  .cellrow{display:flex}
+  .cell{width:64px;height:64px;background:#c0c0c0;display:grid;place-items:center;
+        box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+  .hole{width:48px;height:48px;border-radius:50%;background:#1c1c1c;
+        box-shadow:inset 3px 3px 6px #000,inset -2px -2px 3px #5a5a5a,0 1px 0 #fff}
+  .disc{width:48px;height:48px;border-radius:50%;position:relative}
+  .disc.r{background:radial-gradient(circle at 36% 30%,#ff9d8a,#e0332e 55%,#7a0f14)}
+  .disc.y{background:radial-gradient(circle at 36% 30%,#fff2b0,#f0b400 55%,#8a5c00)}
+  .disc::after{content:"";position:absolute;inset:0;border-radius:50%;
+        background:repeating-conic-gradient(#000 0% 25%,transparent 0% 50%) 0 0/4px 4px;opacity:.10}
+  .disc.fall{position:absolute;box-shadow:2px 3px 0 rgba(0,0,0,.35)}
+
+  .statusbar{display:flex;gap:2px;margin:3px}
+  .statusbar div{flex:1;height:20px;line-height:20px;padding:0 6px;
+        box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+
+  /* dialog */
+  .dlg-body{display:flex;gap:14px;align-items:flex-start;padding:14px 12px 10px}
+  .dlg-ico{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7ab8ff,#0040c0 70%);
+        color:#fff;font-family:"Times New Roman",serif;font-style:italic;font-weight:bold;font-size:22px;
+        text-align:center;line-height:30px;flex:none}
+  .btnrow{display:flex;justify-content:center;gap:8px;padding:4px 0 12px}
+  .btn{min-width:74px;height:23px;background:#c0c0c0;text-align:center;line-height:22px;
+       box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+  .btn.def{outline:1px solid #000;outline-offset:-5px;box-shadow:0 0 0 1px #000,inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+
+  /* taskbar */
+  #taskbar{position:absolute;left:0;right:0;bottom:0;height:36px;background:#c0c0c0;
+        box-shadow:inset 0 1px #fff,inset 0 2px #dfdfdf;display:flex;align-items:center;gap:5px;padding:0 4px}
+  #start{height:26px;display:flex;align-items:center;gap:5px;padding:0 8px;font-weight:bold;font-size:12px}
+  .task{height:26px;line-height:26px;padding:0 10px;min-width:150px;font-size:11px}
+  .task.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf;
+        background:repeating-conic-gradient(#fff 0% 25%,#c0c0c0 0% 50%) 0 0/4px 4px;font-weight:bold}
+  #clock{margin-left:auto;height:26px;line-height:26px;padding:0 12px;
+        box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+
+  canvas.pix{image-rendering:pixelated;display:block}
+
+  /* cursor + trail */
+  .cur{position:absolute;width:14px;height:22px;background:#fff;
+       clip-path:polygon(0 0,0 74%,21% 60%,34% 96%,50% 90%,38% 56%,64% 54%);
+       filter:drop-shadow(1px 1px 0 #000)}
+
+  #placard{position:absolute;top:8px;right:10px;color:#fff;opacity:.6;font-family:monospace;font-size:13px}
+</style>
+<div id="stage">
+
+  <!-- desktop icons -->
+  <div class="icon" style="left:20px;top:22px">
+    <canvas class="pix" id="icoBoard" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">BOARD.EXE</span>
+  </div>
+  <div class="icon" style="left:20px;top:122px">
+    <canvas class="pix" id="icoFlame" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">flames.scr</span>
+  </div>
+  <div class="icon sel" style="left:20px;top:222px">
+    <canvas class="pix" id="icoMoves" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">moves.txt</span>
+  </div>
+  <div class="icon" style="left:20px;top:322px">
+    <canvas class="pix" id="icoBin" width="16" height="16" style="width:32px;height:32px"></canvas>
+    <span class="lbl">the rest</span>
+  </div>
+
+  <!-- escaped pixel rocket, outside every window -->
+  <canvas class="pix" id="rocket" width="12" height="18"
+          style="position:absolute;left:1010px;top:40px;width:60px;height:90px;transform:rotate(30deg)"></canvas>
+
+  <!-- main window -->
+  <div class="win bevel" style="left:296px;top:64px;width:568px">
+    <div class="titlebar inactive">
+      <canvas class="pix" width="16" height="16" id="icoT" style="width:16px;height:16px"></canvas>
+      <span class="t">BOARD.EXE</span>
+      <div class="tbtn">_</div><div class="tbtn">□</div><div class="tbtn">×</div>
+    </div>
+    <div class="menu"><span><u>G</u>ame</span><span><u>E</u>dit</span><span><u>O</u>pponent</span><span><u>H</u>elp</span><span style="color:#808080"><u>F</u>orfeit</span></div>
+    <!-- column picker: a disc waiting above col 5 -->
+    <div style="position:relative;height:56px;margin:4px 10px 0">
+      <div class="disc r" style="position:absolute;left:280px;top:4px"></div>
+      <div style="position:absolute;left:296px;top:52px;border:6px solid transparent;border-top:10px solid #000"></div>
+    </div>
+    <div class="sunken" style="margin:0 10px;padding:6px;background:#c0c0c0">
+      <div id="grid"></div>
+    </div>
+    <div class="statusbar">
+      <div>Your move.</div>
+      <div style="flex:1.4">MOSS is thinking about dirt.</div>
+      <div style="flex:.5">7:4</div>
+    </div>
+  </div>
+
+  <!-- flames.scr -->
+  <div class="win bevel" style="left:912px;top:428px;width:308px">
+    <div class="titlebar inactive"><span class="t">flames.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="fire" width="100" height="64" style="width:296px;height:190px"></canvas>
+    </div>
+  </div>
+
+  <!-- possessed dialog, focused -->
+  <div class="win bevel" style="left:790px;top:150px;width:372px">
+    <div class="titlebar active"><span class="t">FOURSCORE.EXE — not responding (it is)</span><div class="tbtn">×</div></div>
+    <div class="dlg-body">
+      <div class="dlg-ico">i</div>
+      <div style="padding-top:6px;line-height:1.5">This program is running normally.<br>Do not be concerned by the flames.</div>
+    </div>
+    <div class="btnrow"><div class="btn def">OK</div><div class="btn">OK</div></div>
+  </div>
+
+  <!-- notepad sliver behind-ish -->
+  <div class="win bevel" style="left:1040px;top:300px;width:210px">
+    <div class="titlebar inactive"><span class="t">moves.txt — Notepad</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#fff;padding:5px;font-family:'Courier New',monospace;font-size:12px;line-height:1.45">
+      4 4 3 5 2 6 4 3<br>3 5 5 1 6 2 7<br>and then you<br>hesitated
+    </div>
+  </div>
+
+  <!-- cursor trail -->
+  <div class="cur" style="left:900px;top:294px;opacity:.18;transform:scale(.94)"></div>
+  <div class="cur" style="left:882px;top:287px;opacity:.38;transform:scale(.96)"></div>
+  <div class="cur" style="left:864px;top:281px;opacity:.62;transform:scale(.98)"></div>
+  <div class="cur" style="left:846px;top:276px"></div>
+
+  <!-- taskbar -->
+  <div id="taskbar">
+    <div id="start" class="btn" style="min-width:0"><canvas class="pix" id="icoStart" width="16" height="16" style="width:16px;height:16px"></canvas>Start</div>
+    <div class="task down">BOARD.EXE</div>
+    <div class="task">flames.scr</div>
+    <div class="task" style="color:#808080">solitaire (gone)</div>
+    <div id="clock">6:66 PM</div>
+  </div>
+
+  <div id="placard">02 · BOARD.EXE</div>
+</div>
+<script>
+  // center the stage horizontally at any window size
+  const fit = () => {
+    const s = document.getElementById("stage");
+    const k = Math.min(innerWidth / 1280, innerHeight / 800);
+    s.style.transformOrigin = "top left";
+    s.style.transform = `scale(${k}) translateX(${(innerWidth / k - 1280) / 2}px)`;
+  };
+  fit(); addEventListener("resize", fit);
+
+  // ---- the grid ----
+  const grid = document.getElementById("grid");
+  const cols = ["", "ry", "yrr", "ryry", "yr", "r", ""]; // bottom-up
+  for (let row = 5; row >= 0; row--) {
+    const r = document.createElement("div");
+    r.className = "cellrow";
+    for (let c = 0; c < 7; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const d = cols[c][row];
+      cell.innerHTML = d ? `<div class="disc ${d}"></div>` : `<div class="hole"></div>`;
+      r.appendChild(cell);
+    }
+    grid.appendChild(r);
+  }
+
+  // ---- tiny pixel icons ----
+  function px(id, rows, pal) {
+    const ctx = document.getElementById(id).getContext("2d");
+    rows.forEach((s, y) => [...s].forEach((ch, x) => {
+      if (ch !== ".") { ctx.fillStyle = pal[ch]; ctx.fillRect(x, y, 1, 1); }
+    }));
+  }
+  const P = { b: "#000080", c: "#c0c0c0", w: "#fff", r: "#e0332e", y: "#f0b400", k: "#000",
+              o: "#ff7a00", d: "#808080", g: "#0e8078", s: "#d8d8d8" };
+  const boardIco = [
+    "................","kkkkkkkkkkkkkkk.","kbbbbbbbbbbbbbk.","kbrbybrbybrbybk.",
+    "kbbbbbbbbbbbbbk.","kbybrbybrbybrbk.","kbbbbbbbbbbbbbk.","kbrbybrbybrbybk.",
+    "kbbbbbbbbbbbbbk.","kbybrbybrbybrbk.","kbbbbbbbbbbbbbk.","kkkkkkkkkkkkkkk.",
+    ".kk..........kk.","................","................","................"];
+  px("icoBoard", boardIco, P); px("icoT", boardIco, P);
+  px("icoFlame", [
+    "................","......k.........",".....kok........","....koyok.......",
+    "....koyok...k...","...koyyok..kok..","...koyyyok.kok..","..koyyyyokkoyk..",
+    "..koyywyokoyok..",".koyywwyoyyyok..",".koyywwwyyyyok..",".koywwwwwyyok...",
+    "..koywwwyyok....","...kooyyook.....","....kkkkkk......","................"], P);
+  px("icoMoves", [
+    "..wwwwwwwwww....","..w........wk...","..w.kkkkkk.wwk..","..w........wwwk.",
+    "..w.kkkkkkk...k.","..w...........k.","..w.kkkkk.kkk.k.","..w...........k.",
+    "..w.kkkkkkkk..k.","..w...........k.","..w.kkk.......k.","..w...........k.",
+    "..w.kkkkkkkkk.k.","..w...........k.","..wkkkkkkkkkkkk.","................"], P);
+  px("icoBin", [
+    "................","....kkkkkkkk....","...k........k...","..kkkkkkkkkkkk..",
+    "..k..........k..","...k.k.k.k.k....","...k.k.k.k.k....","...k.k.k.k.k....",
+    "...k.k.k.k.k....","...k.k.k.k.k....","...k.k.k.k.k....","...k.k.k.k.k....",
+    "....k......k....","....kkkkkkkk....","................","................"], P);
+  px("icoStart", [
+    "................",".rrrr..ggggg....",".rrrr..ggggg....",".rrrr..ggggg....",
+    ".rrrr..ggggg....","................",".bbbb..yyyyy....",".bbbb..yyyyy....",
+    ".bbbb..yyyyy....",".bbbb..yyyyy....","................","................",
+    "................","................","................","................"], P);
+  px("rocket", [
+    ".....rr.....",
+    "....rrrr....",
+    "....rrrr....",
+    "...swssss...",
+    "...swssss...",
+    "..sswkksss..",
+    "..sswbbkss..",
+    "..sswbbkss..",
+    "..sswkksss..",
+    ".rsswssssr..",
+    ".rrswsssrr..",
+    "rrrssssssrr.",
+    "rr.ssssss.rr",
+    "....oyyo....",
+    "...oyyyyo...",
+    "...oyyyyo...",
+    "....oyyo....",
+    ".....oo....."], P);
+
+  // ---- flames.scr: the classic fire automaton ----
+  const fc = document.getElementById("fire"), fctx = fc.getContext("2d");
+  const FW = 100, FH = 64;
+  const heat = new Uint8Array(FW * FH);
+  const pal = [];
+  for (let i = 0; i < 64; i++) {
+    const t = i / 63;
+    const r = Math.min(255, t * 3 * 255) | 0;
+    const g = Math.max(0, Math.min(255, (t - 0.33) * 3 * 255)) | 0;
+    const b = Math.max(0, Math.min(255, (t - 0.75) * 4 * 255)) | 0;
+    pal.push([r, g, b]);
+  }
+  const img = fctx.createImageData(FW, FH);
+  function stokeFire() {
+    for (let x = 0; x < FW; x++) heat[(FH - 1) * FW + x] = 40 + (Math.random() * 24 | 0);
+    for (let y = 0; y < FH - 1; y++) for (let x = 0; x < FW; x++) {
+      const src = (y + 1) * FW + x;
+      const drift = x + ((Math.random() * 3 | 0) - 1);
+      const cool = Math.random() * 3 | 0;
+      heat[y * FW + Math.max(0, Math.min(FW - 1, drift))] = Math.max(0, heat[src] - cool);
+    }
+    for (let i = 0; i < FW * FH; i++) {
+      const [r, g, b] = pal[Math.min(63, heat[i])];
+      img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = 255;
+    }
+    fctx.putImageData(img, 0, 0);
+  }
+  for (let i = 0; i < 40; i++) stokeFire();
+  setInterval(stokeFire, 90);
+</script>

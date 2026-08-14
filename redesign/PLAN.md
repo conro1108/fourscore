@@ -1097,6 +1097,24 @@ thesis artifacts, and what they couldn't fix.
   same value read as translucent glass until a backlit haze separated the
   silhouette.
 
+- **The verdict, and two new apps** *(Fable, 2026-08-13)*. Connor picked **02
+  BOARD.EXE and 04 COSMIC CARPET**, as separate apps out of this repo (the
+  clickers potato/chihuahua pattern), not as reskins of `apps/fever` — fever
+  and its VISION/PLAN are untouched and govern only themselves. Two steers
+  recorded before anything calcified: 04's "dead flat" claim is **rejected** —
+  the direction is *cartoon content, physical material* ("gritty not cartoony
+  even tho the content is cartoony"), and the mock was revved to match (neon
+  sign with a dying letter, print displacement-roughed into the pile, wear,
+  stains, uneven light pools); and 02's fire automaton is, verbatim,
+  "extremely extremely good execution of my vision" — generalized into that
+  app's law: **don't draw the OS, run it** (the fire lands because it's the
+  real demoscene algorithm executing, not a picture of fire). Shipped:
+  `apps/exe/` and `apps/carpet/`, each holding `DIRECTION.md` (the light
+  directional plan future Fable sessions execute) and `reference/` (the
+  approved mock + frame). No code scaffolds yet — the workspace glob already
+  covers `apps/*`, and root scripts follow the clickers `dev:<app>` convention
+  when scaffolds land.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta

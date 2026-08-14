@@ -6,6 +6,14 @@ workspaces: `packages/engine` is the whole game as pure logic, `apps/fever` is
 the client (R3F scene + possessed-90s DOM chrome) and owns only rendering and
 the match runtime.
 
+The repo is growing more clients of the same engine (the clickers-repo
+pattern): `apps/exe` (BOARD.EXE — the game never leaves a possessed Win95) and
+`apps/carpet` (COSMIC CARPET — blacklight bowling carpet, gritty not cartoony)
+are greenlit directions, each with a `DIRECTION.md` and approved reference art
+in `reference/`. Read the app's DIRECTION.md before building in it; the full
+pitch set lives in `redesign/proposals/index.html`. Fever's VISION.md/PLAN.md
+govern `apps/fever` only.
+
 `npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
 
 Before visual or copy work, read `redesign/VISION.md` (the aesthetic law: the
