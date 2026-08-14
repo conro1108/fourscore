@@ -28,6 +28,8 @@ export interface WindowSpec {
   /** Give the window a taskbar button. Default true. */
   taskbar?: boolean;
   onClose?: () => void;
+  /** Fires after maximize/restore, so a window can re-frame its contents. */
+  onMaximize?: (on: boolean) => void;
 }
 
 export interface Win {
@@ -139,7 +141,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
   function open(spec: WindowSpec): Win {
     const buttons = spec.buttons ?? ["min", "max", "close"];
     const w = el(`<div class="win bevel${spec.cls ? " " + spec.cls : ""}"${spec.w ? ` style="width:${spec.w}px"` : ""}></div>`);
-    let maximized: { left: string; top: string; width: string } | null = null;
+    let maximized: { left: string; top: string; width: string; height: string } | null = null;
     // authored coordinates, kept so the window can re-anchor if the desk resizes
     const authored: [number, number] = [spec.x, spec.y];
     let dragged = false;
@@ -169,7 +171,8 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       body: spec.body,
       focus() {
         if (!w.isConnected) return;
-        w.style.display = "block";
+        w.style.display = ""; // undo minimize; the class decides the display
+
         w.style.zIndex = String(++zTop);
         setFocus(win);
       },
@@ -194,7 +197,8 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       moveTo(x, y) {
         authored[0] = x;
         authored[1] = y;
-        place();
+        // you put it there; the fever's re-staging doesn't get to move it back
+        if (!dragged) place();
       },
     };
 
@@ -207,9 +211,13 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         if (maximized) {
           Object.assign(w.style, maximized);
           maximized = null;
+          w.classList.remove("max");
+          spec.onMaximize?.(false);
         } else {
-          maximized = { left: w.style.left, top: w.style.top, width: w.style.width };
-          Object.assign(w.style, { left: "0px", top: "0px", width: `${deskW}px` });
+          maximized = { left: w.style.left, top: w.style.top, width: w.style.width, height: w.style.height };
+          Object.assign(w.style, { left: "0px", top: "0px", width: `${deskW}px`, height: `${deskH - 36}px` });
+          w.classList.add("max");
+          spec.onMaximize?.(true);
         }
       }
     });

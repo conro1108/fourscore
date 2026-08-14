@@ -13,7 +13,7 @@ import { Match } from "@fourscore/engine";
 import { el, gravityFall, q } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { STATUS, voiceOf } from "./copy.js";
-import { stageScale, type WM, type Win } from "./wm.js";
+import { deskHeight, stageScale, type WM, type Win } from "./wm.js";
 import type { MovesPad } from "./notepad.js";
 
 export const CELL = 64;
@@ -69,6 +69,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   let match = new Match(variant);
   let phase: Phase = "over";
   let hoverCol = 3;
+  /** Where the opponent's disc physically is. It never teleports. */
+  let botCol = 3;
   let hesitated = false;
   let turnStartedAt = Date.now();
   let sameColStreak = 0;
@@ -100,6 +102,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     w: windowWidth(),
     cls: `chips-${chips}`,
     body,
+    onMaximize: (on) => layoutMax(on),
   });
 
   const name = (): string => byId(botId).name.toUpperCase();
@@ -184,9 +187,9 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       forfeit();
     });
 
-    const pickerRow = el(`<div style="position:relative;height:56px;margin:4px 10px 0"></div>`);
+    const pickerRow = el(`<div id="pickerRow" style="position:relative;height:56px;margin:4px 10px 0"></div>`);
     const picker = el(`<div class="disc r" id="picker" style="position:absolute;left:${pickerX(hoverCol)}px;top:4px"></div>`);
-    const botDisc = el(`<div class="disc y" id="botDisc" style="position:absolute;left:${pickerX(hoverCol)}px;top:4px;display:none"></div>`);
+    const botDisc = el(`<div class="disc y" id="botDisc" style="position:absolute;left:${pickerX(botCol)}px;top:4px;display:none"></div>`);
     pickerRow.append(picker, botDisc);
 
     const frame = el(`<div class="sunken boardframe"></div>`);
@@ -208,7 +211,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     // scrollbar, which is funny and free (DIRECTION.md).
     if (scrolls()) {
       frame.style.height = `${maxFrame}px`;
-      win.el.style.top = "4px";
+      if (!win.el.classList.contains("max")) win.el.style.top = "4px";
     }
 
     grid.addEventListener("mousemove", (e) => {
@@ -243,9 +246,46 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
     buildGrid();
     renderPosition();
+    if (win.el.classList.contains("max")) layoutMax(true);
   }
 
   const pickerX = (col: number): number => 14 + CELL * col;
+
+  /* ---- maximized, the window frames the board instead of stranding it in
+     the top-left of a desk-wide sheet of gray: frame centered, given all the
+     height there is, picker row kept over the columns, statusbar at the
+     bottom. All instant — this is layout, not animation. ---- */
+  function layoutMax(on: boolean): void {
+    const frame = q<HTMLElement>(".boardframe", body);
+    const pickerRow = q("#pickerRow", body);
+    if (on) {
+      const availFrame = deskHeight() - 36 - 8 - chromeH;
+      const naturalFrame = variant.height * CELL + 12;
+      const stillScrolls = naturalFrame > availFrame;
+      const frameW = variant.width * CELL + 12 + (stillScrolls ? 16 : 0);
+      body.style.display = "flex";
+      body.style.flexDirection = "column";
+      body.style.minHeight = "0";
+      frame.style.height = `${Math.min(naturalFrame, availFrame)}px`;
+      frame.style.width = `${frameW}px`;
+      frame.style.flex = "none";
+      frame.style.margin = "0 auto auto";
+      pickerRow.style.width = `${frameW}px`;
+      pickerRow.style.margin = "auto auto 0";
+    } else {
+      body.style.display = "";
+      body.style.flexDirection = "";
+      body.style.minHeight = "";
+      frame.style.width = "";
+      frame.style.flex = "";
+      frame.style.margin = "";
+      frame.style.height = scrolls() ? `${maxFrame}px` : "";
+      pickerRow.style.width = "";
+      pickerRow.style.margin = "";
+      // the restore size may predate a variant switch; re-assert the real one
+      win.el.style.width = `${windowWidth()}px`;
+    }
+  }
 
   function buildGrid(): void {
     const grid = q("#grid", body);
@@ -355,15 +395,19 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     setStatus(STATUS.yourMove, voice().waiting);
   }
 
-  /* ---- the opponent deliberates where you can see it ---- */
+  /* ---- the opponent deliberates where you can see it ----
+     The disc never teleports: it hovers where it was left, and once the
+     engine answers it walks column by column (stepped, no easing) to the
+     move and drops. Occasionally it is torn — it walks to a nearby
+     candidate first, pauses, then walks back to the real choice. */
   function botMove(): void {
     phase = "bot-turn";
     const seq = gameSeq;
     setStatus(STATUS.theirMove(name()), voice().thinking);
     const botDisc = q("#botDisc", body);
     botDisc.style.display = "block";
+    botDisc.style.left = `${pickerX(botCol)}px`;
 
-    const legal = [...Array(variant.width).keys()].filter((c) => match.canPlay(c));
     let decision: number | null = null;
     const started = Date.now();
 
@@ -381,26 +425,50 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       },
     );
 
-    const wander = (): void => {
+    const walkTo = (target: number, then: () => void): void => {
       if (seq !== gameSeq || phase !== "bot-turn") return;
-      // settled: it has an answer and it has looked around enough
-      if (decision !== null && Date.now() - started > 900) {
-        const col = decision;
-        botDisc.style.left = `${pickerX(col)}px`;
-        wanderTimer = setTimeout(() => {
-          if (seq !== gameSeq) return;
-          fall(col, "y", botDisc, () => {
-            if (seq !== gameSeq) return;
-            match.play(col);
-            afterPly("bot", col);
-          });
-        }, 380);
+      if (botCol === target) {
+        then();
         return;
       }
-      botDisc.style.left = `${pickerX(legal[(Math.random() * legal.length) | 0]!)}px`;
-      wanderTimer = setTimeout(wander, 300 + Math.random() * 320);
+      botCol += Math.sign(target - botCol);
+      botDisc.style.left = `${pickerX(botCol)}px`;
+      wanderTimer = setTimeout(() => walkTo(target, then), 85);
     };
-    wanderTimer = setTimeout(wander, 250);
+
+    const drop = (col: number): void => {
+      wanderTimer = setTimeout(() => {
+        if (seq !== gameSeq) return;
+        fall(col, "y", botDisc, () => {
+          if (seq !== gameSeq) return;
+          match.play(col);
+          afterPly("bot", col);
+        });
+      }, 320 + Math.random() * 160);
+    };
+
+    const settle = (): void => {
+      if (seq !== gameSeq || phase !== "bot-turn") return;
+      // hover for a touch even when the answer is instant
+      if (decision === null || Date.now() - started < 550) {
+        wanderTimer = setTimeout(settle, 120);
+        return;
+      }
+      const col = decision;
+      // sometimes torn between the move and a neighbourly second thought
+      const near = [...Array(variant.width).keys()].filter(
+        (c) => c !== col && match.canPlay(c) && Math.abs(c - col) <= 2,
+      );
+      if (near.length && Math.random() < 0.3) {
+        const alt = near[(Math.random() * near.length) | 0]!;
+        walkTo(alt, () => {
+          wanderTimer = setTimeout(() => walkTo(col, () => drop(col)), 300 + Math.random() * 260);
+        });
+      } else {
+        walkTo(col, () => drop(col));
+      }
+    };
+    wanderTimer = setTimeout(settle, 200);
   }
 
   function end(): void {
@@ -449,6 +517,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     lastHumanCol = -1;
     notedSameCol = false;
     hoverCol = Math.min(hoverCol, variant.width - 1);
+    botCol = Math.min(botCol, variant.width - 1);
     build();
     q("#botDisc", body).style.display = "none";
     setForfeitable(true);
@@ -460,7 +529,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   function setVariant(id: string): void {
     if (id === variant.id) return;
     variant = variantById(id);
-    win.el.style.width = `${windowWidth()}px`;
+    // maximized stays maximized; the new size lands on restore (layoutMax)
+    if (!win.el.classList.contains("max")) win.el.style.width = `${windowWidth()}px`;
     newGame();
   }
 
@@ -508,7 +578,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
         q("#picker", body).style.display = "none";
         const botDisc = q("#botDisc", body);
         botDisc.style.display = "block";
-        botDisc.style.left = `${pickerX(Math.min(4, variant.width - 1))}px`;
+        botCol = Math.min(4, variant.width - 1);
+        botDisc.style.left = `${pickerX(botCol)}px`;
         setStatus(STATUS.theirMove(name()), voice().thinking);
       }
     },

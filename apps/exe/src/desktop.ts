@@ -60,12 +60,27 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     const lbl = el(`<span class="lbl"></span>`);
     lbl.textContent = def.label;
     icon.appendChild(lbl);
-    icon.addEventListener("click", (e) => {
-      e.stopPropagation();
+    icon.addEventListener("click", (e) => e.stopPropagation());
+    icon.addEventListener("dblclick", () => def.launch());
+    // icons drag like anything else on a real desktop
+    icon.addEventListener("mousedown", (e) => {
+      e.preventDefault();
       iconEls.forEach((i) => i.classList.remove("sel"));
       icon.classList.add("sel");
+      const k = stageScale();
+      const sx = e.clientX / k - icon.offsetLeft;
+      const sy = e.clientY / k - icon.offsetTop;
+      const move = (ev: MouseEvent): void => {
+        icon.style.left = `${Math.round(ev.clientX / k - sx)}px`;
+        icon.style.top = `${Math.round(ev.clientY / k - sy)}px`;
+      };
+      const up = (): void => {
+        removeEventListener("mousemove", move);
+        removeEventListener("mouseup", up);
+      };
+      addEventListener("mousemove", move);
+      addEventListener("mouseup", up);
     });
-    icon.addEventListener("dblclick", () => def.launch());
     stage.appendChild(icon);
     iconEls.push(icon);
   }
