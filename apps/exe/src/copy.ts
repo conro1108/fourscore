@@ -247,6 +247,41 @@ export const BIN_TEXT = [
   "be restored.",
 ].join("\n");
 
+/**
+ * The other things the machine can run. Same voice: sincere period software,
+ * deadpan, believes it is fine.
+ */
+export const GAMES_COPY = {
+  mines: {
+    win: { title: "MINES.EXE", body: "All mines have been avoided.<br>They remain where they are." },
+    lose: { title: "MINES.EXE", body: "You have found a mine.<br>It was always there." },
+    help: { title: "MINES.EXE", body: "The numbers count the mines nearby.<br>The mines count nothing." },
+  },
+  snake: {
+    dead: { title: "SNAKE.EXE", body: "The snake has met itself.<br>It could not agree." },
+    wall: { title: "SNAKE.EXE", body: "The snake has reached the edge.<br>There was nothing out there." },
+    score: (n: number): string => `LENGTH: ${n}. The snake is being reasonable about it.`,
+    idle: "Press an arrow key. The snake is waiting.",
+  },
+  sol: {
+    win: { title: "SOL.EXE", body: "The cards have been freed.<br>They will be recaptured." },
+    stuckDeal: "The deck has started over. It does this.",
+    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first." },
+  },
+  checkers: {
+    mustCapture: "A capture is available. It is not optional.",
+    yourMove: "YOUR MOVE.",
+    thinking: "The computer is moving its men.",
+    win: { title: "CHECKERS.EXE", body: "You have no men left, or nowhere to put them.<br>The computer does not gloat. Visibly." },
+    lose: { title: "CHECKERS.EXE", body: "The computer has no men left.<br>It has filed this under draughts." },
+    help: { title: "CHECKERS.EXE", body: "Diagonal moves only. Captures are compulsory.<br>Kings come back down the board." },
+  },
+  notepad: {
+    saved: { title: "Notepad", body: "untitled.txt has been saved.<br>It is somewhere on C:\\." },
+    cleared: { title: "Notepad", body: "The page is blank again.<br>Nothing was lost that mattered." },
+  },
+} as const;
+
 export const TITLES = {
   board: "BOARD.EXE",
   moves: "moves.txt — Notepad",
@@ -257,6 +292,12 @@ export const TITLES = {
   pieces: "pieces.ctl",
   help: "help.txt — Notepad",
   bin: "the rest",
+  games: "games",
+  mines: "MINES.EXE",
+  sol: "SOL.EXE",
+  snake: "SNAKE.EXE",
+  checkers: "CHECKERS.EXE",
+  untitled: "untitled.txt — Notepad",
   feverCtl: "FEVER.CTL",
   congratulations: "Congratulations",
 } as const;

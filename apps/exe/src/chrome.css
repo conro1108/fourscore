@@ -144,6 +144,21 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 
 canvas.pix{image-rendering:pixelated;display:block}
 
+/* ---- the games shelf ---- */
+.minestop{display:flex;align-items:center;justify-content:space-between;margin:6px 10px 5px;padding:5px 7px}
+.lcd{background:#000;color:#f00;font:bold 17px "Courier New",monospace;padding:1px 4px;letter-spacing:2px;
+     box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff}
+.mface{width:28px;height:28px;background:#c0c0c0;display:grid;place-items:center;
+     box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.mface:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff}
+.mface .pix{width:22px;height:22px}
+.minesgrid{display:grid;grid-template-columns:repeat(9,24px);margin:0 auto 10px;padding:3px;width:max-content}
+.mcell{width:24px;height:24px;display:grid;place-items:center;font:bold 14px Tahoma,sans-serif;background:#c0c0c0;position:relative;
+     box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.mcell.open{box-shadow:inset 1px 0 #808080,inset 0 1px #808080}
+.mcell.hit{background:#f00}
+.mcell .pix{width:24px;height:24px;position:absolute;inset:0}
+
 /* notepad bodies */
 .notepad{margin:3px;background:#fff;padding:5px;min-height:110px;white-space:pre-wrap;
       font-family:"Courier New",monospace;font-size:12px;line-height:1.45}
