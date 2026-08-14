@@ -11,9 +11,11 @@
 > A loss now gets the coals parade (endgame.ts): the line smolders, the OS
 > files condolence paperwork, Condolences arrives in the win's own type —
 > still quieter than the win on purpose. And the machine grew other software,
-> all genuinely running (src/games/): MINES.EXE, SOL.EXE (with the card
-> bounce), SNAKE.EXE, CHECKERS.EXE (real alpha-beta draughts), an editable
-> untitled.txt, and a games folder; everything reachable from the desk and
+> all genuinely running (src/games/): MINES.EXE (three sizes), SOL.EXE
+> (card bounce, undo), SNAKE.EXE (sides wrap), CHECKERS.EXE (alpha-beta
+> draughts), CHESS.EXE (full rules, perft-verified movegen, time-boxed
+> search), an editable untitled.txt, and a games folder whose icons drag
+> out onto the desk and persist; everything reachable from the desk and
 > the Start menu, each with a `?state=` pose.
 
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
