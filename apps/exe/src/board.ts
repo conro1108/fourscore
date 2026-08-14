@@ -1,0 +1,528 @@
+/**
+ * BOARD.EXE — one real window among windows, and the match loop inside it.
+ *
+ * The board feel (DIRECTION.md, settled): the hover disc IS your piece and
+ * falls from where it hovers; no aiming arrow. The opponent deliberates
+ * visibly — a mirrored hover disc wanders a few columns before committing,
+ * then falls with the same physics. The engine is the real ladder, spoken to
+ * over the worker protocol; the deliberation walk is theatre, the move is not.
+ */
+
+import { ROSTER, VARIANTS, byId, variantById, type Variant } from "@fourscore/engine";
+import { Match } from "@fourscore/engine";
+import { el, gravityFall, q } from "./dom.js";
+import { ICONS } from "./icons.js";
+import { STATUS, voiceOf } from "./copy.js";
+import { stageScale, type WM, type Win } from "./wm.js";
+import type { MovesPad } from "./notepad.js";
+
+export const CELL = 64;
+
+export interface EndResult {
+  kind: "win" | "loss" | "draw" | "forfeit";
+  /** Winning line in display coords, ordered outward from the landing disc. */
+  cells: readonly { col: number; row: number }[];
+  run: number;
+  botId: string;
+  variant: Variant;
+}
+
+export interface BoardDeps {
+  wm: WM;
+  notepad: MovesPad;
+  decide(botId: string, variantId: string, history: readonly number[]): Promise<{ col: number }>;
+  resetBrain(botId: string, variantId: string): void;
+  onEval?(history: readonly number[]): void;
+  onEnd(end: EndResult): void;
+  onNewGame?(variant: Variant, botId: string): void;
+  onPly?(mover: "you" | "bot"): void;
+}
+
+export interface BoardApp {
+  win: Win;
+  readonly variant: Variant;
+  readonly botId: string;
+  newGame(): void;
+  setVariant(id: string): void;
+  setBot(id: string): void;
+  setChips(style: string, persist?: boolean): void;
+  /** Play a move list instantly, no animation — the harness's opening. */
+  script(moves: readonly number[]): void;
+  /** Freeze play (the harness holds a deliberation pose). */
+  freeze(): void;
+  cellAt(col: number, row: number): HTMLElement;
+  cellCenter(col: number, row: number): readonly [number, number];
+  gridwrap(): HTMLElement;
+  fx(): HTMLElement;
+  setStatus(you?: string, bot?: string): void;
+  botName(): string;
+  /** Wire menu items whose targets live outside this window (Help, About). */
+  onMenu(what: "help" | "about", cb: () => void): void;
+}
+
+type Phase = "your-turn" | "busy" | "bot-turn" | "over" | "frozen";
+
+export function makeBoard(deps: BoardDeps): BoardApp {
+  let variant = variantById("connect4");
+  let botId = "moss";
+  let chips = localStorage.getItem("exe.chips") ?? "flat";
+  let match = new Match(variant);
+  let phase: Phase = "over";
+  let hoverCol = 3;
+  let hesitated = false;
+  let turnStartedAt = Date.now();
+  let sameColStreak = 0;
+  let lastHumanCol = -1;
+  let notedSameCol = false;
+  let wanderTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Ignore engine replies from an abandoned game. */
+  let gameSeq = 0;
+  /** Kills the previous build's document-level listeners on rebuild. */
+  let buildAbort: AbortController | null = null;
+
+  const windowWidth = (): number => variant.width * CELL + 120;
+
+  const body = el(`<div></div>`);
+  const win = deps.wm.open({
+    id: "board",
+    title: "BOARD.EXE",
+    icon: ICONS.board,
+    x: 296,
+    y: 64,
+    w: windowWidth(),
+    cls: `chips-${chips}`,
+    body,
+  });
+
+  const name = (): string => byId(botId).name.toUpperCase();
+  const voice = () => voiceOf(botId);
+
+  /* ---- build the window contents (rebuilt on variant change) ---- */
+  function build(): void {
+    body.innerHTML = "";
+
+    const menubar = el(`<div class="menu" id="menubar"></div>`);
+    const gameBtn = el(`<span><u>G</u>ame</span>`);
+    const oppBtn = el(`<span><u>O</u>pponent</span>`);
+    const helpBtn = el(`<span><u>H</u>elp</span>`);
+    const forfeitBtn = el(`<span class="gray"><u>F</u>orfeit</span>`);
+    menubar.append(gameBtn, oppBtn, helpBtn, forfeitBtn);
+
+    const gamePopup = el(`<div class="popup" style="left:4px;display:none"></div>`);
+    const newItem = el(`<div>New game</div>`);
+    newItem.addEventListener("click", () => newGame());
+    gamePopup.appendChild(newItem);
+    gamePopup.appendChild(el(`<hr>`));
+    for (const v of VARIANTS) {
+      const it = el(`<div></div>`);
+      it.textContent = v.name;
+      if (v.id === variant.id) it.appendChild(el(`<span class="check">·</span>`));
+      it.addEventListener("click", () => setVariant(v.id));
+      gamePopup.appendChild(it);
+    }
+    gamePopup.appendChild(el(`<hr>`));
+    const exitItem = el(`<div>Exit</div>`);
+    exitItem.addEventListener("click", () => win.close());
+    gamePopup.appendChild(exitItem);
+
+    const oppPopup = el(`<div class="popup" style="left:52px;display:none"></div>`);
+    for (const bot of ROSTER) {
+      const it = el(`<div></div>`);
+      it.textContent = bot.name.toUpperCase();
+      if (bot.id === botId) it.appendChild(el(`<span class="check">·</span>`));
+      it.addEventListener("click", () => setBot(bot.id));
+      oppPopup.appendChild(it);
+    }
+
+    const helpPopup = el(`<div class="popup" style="left:104px;display:none"></div>`);
+    const helpItem = el(`<div>Contents</div>`);
+    helpItem.addEventListener("click", () => dispatch("help"));
+    const aboutItem = el(`<div>About BOARD.EXE</div>`);
+    aboutItem.addEventListener("click", () => dispatch("about"));
+    helpPopup.append(helpItem, aboutItem);
+
+    menubar.append(gamePopup, oppPopup, helpPopup);
+
+    let openPopup: HTMLElement | null = null;
+    const closeMenus = (): void => {
+      for (const p of [gamePopup, oppPopup, helpPopup]) p.style.display = "none";
+      for (const s of [gameBtn, oppBtn, helpBtn]) s.classList.remove("open");
+      openPopup = null;
+    };
+    const wire = (btn: HTMLElement, popup: HTMLElement): void => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const was = openPopup;
+        closeMenus();
+        if (was !== popup) {
+          popup.style.display = "block";
+          btn.classList.add("open");
+          openPopup = popup;
+        }
+      });
+    };
+    wire(gameBtn, gamePopup);
+    wire(oppBtn, oppPopup);
+    wire(helpBtn, helpPopup);
+    buildAbort?.abort();
+    buildAbort = new AbortController();
+    addEventListener("click", closeMenus, { signal: buildAbort.signal });
+    gamePopup.addEventListener("click", (e) => { e.stopPropagation(); closeMenus(); });
+    oppPopup.addEventListener("click", (e) => { e.stopPropagation(); closeMenus(); });
+    helpPopup.addEventListener("click", (e) => { e.stopPropagation(); closeMenus(); });
+
+    forfeitBtn.addEventListener("click", () => {
+      if (forfeitBtn.classList.contains("gray")) return;
+      forfeit();
+    });
+
+    const pickerRow = el(`<div style="position:relative;height:56px;margin:4px 10px 0"></div>`);
+    const picker = el(`<div class="disc r" id="picker" style="position:absolute;left:${pickerX(hoverCol)}px;top:4px"></div>`);
+    const botDisc = el(`<div class="disc y" id="botDisc" style="position:absolute;left:${pickerX(hoverCol)}px;top:4px;display:none"></div>`);
+    pickerRow.append(picker, botDisc);
+
+    const frame = el(`<div class="sunken boardframe"></div>`);
+    const wrap = el(`<div class="gridwrap"></div>`);
+    const grid = el(`<div id="grid"></div>`);
+    wrap.appendChild(grid);
+    frame.appendChild(wrap);
+
+    const statusbar = el(`<div class="statusbar">
+        <div id="stYou"></div>
+        <div style="flex:1.4" id="stBot"></div>
+        <div style="flex:.5" id="stCount">0:0</div>
+      </div>`);
+
+    const fx = el(`<div id="fx"></div>`);
+    body.append(menubar, pickerRow, frame, statusbar, fx);
+
+    // Connect 6 on a 800-tall desktop doesn't fit; the frame gets a real
+    // scrollbar, which is funny and free (DIRECTION.md).
+    const chromeH = 22 + 6 + 20 + 60 + 26 + 6; // titlebar+margins+menu+picker+status
+    const maxFrame = 800 - 36 - 8 - chromeH;
+    const gridH = variant.height * CELL + 12;
+    if (gridH > maxFrame) {
+      frame.style.height = `${maxFrame}px`;
+      win.el.style.top = "4px";
+    }
+
+    grid.addEventListener("mousemove", (e) => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
+      if (!cell || phase === "over") return;
+      hoverCol = Number(cell.dataset.col);
+      if (phase === "your-turn") picker.style.left = `${pickerX(hoverCol)}px`;
+    });
+    grid.addEventListener("click", (e) => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
+      if (!cell || phase !== "your-turn") return;
+      const col = Number(cell.dataset.col);
+      if (!match.canPlay(col)) return;
+      if (!hesitated && Date.now() - turnStartedAt > 5000) {
+        hesitated = true;
+        deps.notepad.lines(["and then you", "hesitated"]);
+      }
+      if (col === lastHumanCol) {
+        sameColStreak++;
+        if (sameColStreak >= 2 && !notedSameCol) {
+          notedSameCol = true;
+          deps.notepad.lines([`column ${col + 1} again.`]);
+        }
+      } else {
+        sameColStreak = 0;
+        notedSameCol = false;
+      }
+      lastHumanCol = col;
+      picker.style.left = `${pickerX(col)}px`;
+      humanMove(col);
+    });
+
+    buildGrid();
+    renderPosition();
+  }
+
+  const pickerX = (col: number): number => 14 + CELL * col;
+
+  function buildGrid(): void {
+    const grid = q("#grid", body);
+    grid.innerHTML = "";
+    for (let row = 0; row < variant.height; row++) {
+      const rEl = el(`<div class="cellrow"></div>`);
+      for (let c = 0; c < variant.width; c++) {
+        const cell = el(`<div class="cell" data-col="${c}"><div class="hole"></div></div>`);
+        rEl.appendChild(cell);
+      }
+      grid.appendChild(rEl);
+    }
+  }
+
+  /** Paint the whole grid from the match — the scripted-opening path. */
+  function renderPosition(): void {
+    const g = match.grid();
+    for (let row = 0; row < variant.height; row++)
+      for (let col = 0; col < variant.width; col++) {
+        const cell = cellAt(col, row);
+        const v = g[row]![col]!;
+        cell.innerHTML =
+          v === "red" ? `<div class="disc r"></div>` :
+          v === "yellow" ? `<div class="disc y"></div>` : `<div class="hole"></div>`;
+      }
+    updateCount();
+  }
+
+  const cellAt = (col: number, row: number): HTMLElement =>
+    q("#grid", body).children[row]!.children[col] as HTMLElement;
+
+  const cellCenter = (col: number, row: number): readonly [number, number] =>
+    [col * CELL + 32, row * CELL + 32] as const;
+
+  function updateCount(): void {
+    const n = match.history.length;
+    q("#stCount", body).textContent = `${Math.ceil(n / 2)}:${Math.floor(n / 2)}`;
+  }
+
+  function setStatus(you?: string, bot?: string): void {
+    if (you !== undefined) q("#stYou", body).textContent = you;
+    if (bot !== undefined) q("#stBot", body).textContent = bot;
+  }
+
+  function setForfeitable(on: boolean): void {
+    const btn = [...body.querySelectorAll("#menubar > span")].find((s) =>
+      s.textContent!.includes("orfeit"),
+    );
+    btn?.classList.toggle("gray", !on);
+  }
+
+  /* ---- the fall. The hover disc is the piece; it drops from where it
+     hovers, with real gravity and one frame of overshoot. ---- */
+  function fall(col: number, who: "r" | "y", source: HTMLElement, then: () => void): void {
+    const row = landingRow(col);
+    const fx = q("#fx", body);
+    const k = stageScale();
+    const o = fx.getBoundingClientRect();
+    const srcR = source.getBoundingClientRect();
+    const cellR = cellAt(col, row).getBoundingClientRect();
+    source.style.display = "none";
+    const d = el(`<div class="disc ${who}" style="position:absolute;left:${(srcR.left - o.left) / k}px"></div>`);
+    fx.appendChild(d);
+    gravityFall(d, (srcR.top - o.top) / k, (cellR.top - o.top) / k + 8, () => {
+      d.remove();
+      cellAt(col, row).innerHTML = `<div class="disc ${who}"></div>`;
+      then();
+    });
+  }
+
+  const landingRow = (col: number): number => {
+    const g = match.grid();
+    for (let row = variant.height - 1; row >= 0; row--)
+      if (g[row]![col] === null) return row;
+    throw new Error(`column ${col} is full`);
+  };
+
+  function humanMove(col: number): void {
+    phase = "busy";
+    const seq = gameSeq;
+    fall(col, "r", q("#picker", body), () => {
+      if (seq !== gameSeq) return;
+      match.play(col);
+      afterPly("you", col);
+    });
+  }
+
+  function afterPly(mover: "you" | "bot", col: number): void {
+    updateCount();
+    deps.notepad.move(col);
+    deps.onPly?.(mover);
+    deps.onEval?.(match.history);
+    if (match.status !== "playing") {
+      end();
+      return;
+    }
+    if (mover === "you") botMove();
+    else yourTurn();
+  }
+
+  function yourTurn(): void {
+    phase = "your-turn";
+    turnStartedAt = Date.now();
+    const picker = q("#picker", body);
+    picker.style.left = `${pickerX(hoverCol)}px`;
+    picker.style.display = "block";
+    setStatus(STATUS.yourMove, voice().waiting);
+  }
+
+  /* ---- the opponent deliberates where you can see it ---- */
+  function botMove(): void {
+    phase = "bot-turn";
+    const seq = gameSeq;
+    setStatus(STATUS.theirMove(name()), voice().thinking);
+    const botDisc = q("#botDisc", body);
+    botDisc.style.display = "block";
+
+    const legal = [...Array(variant.width).keys()].filter((c) => match.canPlay(c));
+    let decision: number | null = null;
+    const started = Date.now();
+
+    deps.decide(botId, variant.id, match.history).then(
+      (d) => { if (seq === gameSeq) decision = d.col; },
+      (err: Error) => {
+        if (seq !== gameSeq) return;
+        phase = "over";
+        deps.wm.dialog({
+          title: "BOARD.EXE",
+          icon: "!",
+          body: `${name()} has stopped thinking entirely.<br>(${err.message})`,
+          x: 460, y: 320, w: 380,
+        });
+      },
+    );
+
+    const wander = (): void => {
+      if (seq !== gameSeq || phase !== "bot-turn") return;
+      // settled: it has an answer and it has looked around enough
+      if (decision !== null && Date.now() - started > 900) {
+        const col = decision;
+        botDisc.style.left = `${pickerX(col)}px`;
+        wanderTimer = setTimeout(() => {
+          if (seq !== gameSeq) return;
+          fall(col, "y", botDisc, () => {
+            if (seq !== gameSeq) return;
+            match.play(col);
+            afterPly("bot", col);
+          });
+        }, 380);
+        return;
+      }
+      botDisc.style.left = `${pickerX(legal[(Math.random() * legal.length) | 0]!)}px`;
+      wanderTimer = setTimeout(wander, 300 + Math.random() * 320);
+    };
+    wanderTimer = setTimeout(wander, 250);
+  }
+
+  function end(): void {
+    phase = "over";
+    setForfeitable(false);
+    q("#picker", body).style.display = "none";
+    q("#botDisc", body).style.display = "none";
+    deps.resetBrain(botId, variant.id);
+
+    const kind: EndResult["kind"] =
+      match.status === "draw" ? "draw" : match.winner === "red" ? "win" : "loss";
+    // order the line outward from the disc that finished it
+    const last = match.history[match.history.length - 1]!;
+    const g = match.grid();
+    let lastRow = 0;
+    for (let row = 0; row < variant.height; row++)
+      if (g[row]![last] !== null) { lastRow = row; break; }
+    const cells = [...match.winningCells]
+      .map((c) => ({ col: c.col, row: c.row }))
+      .sort(
+        (a, b) =>
+          Math.hypot(a.col - last, a.row - lastRow) - Math.hypot(b.col - last, b.row - lastRow),
+      );
+    deps.onEnd({ kind, cells, run: variant.run, botId, variant });
+  }
+
+  function forfeit(): void {
+    if (phase === "over") return;
+    gameSeq++;
+    if (wanderTimer) clearTimeout(wanderTimer);
+    phase = "over";
+    setForfeitable(false);
+    q("#picker", body).style.display = "none";
+    q("#botDisc", body).style.display = "none";
+    deps.resetBrain(botId, variant.id);
+    deps.onEnd({ kind: "forfeit", cells: [], run: variant.run, botId, variant });
+  }
+
+  /* ---- game lifecycle ---- */
+  function newGame(): void {
+    gameSeq++;
+    if (wanderTimer) clearTimeout(wanderTimer);
+    match = new Match(variant);
+    hesitated = false;
+    sameColStreak = 0;
+    lastHumanCol = -1;
+    notedSameCol = false;
+    hoverCol = Math.min(hoverCol, variant.width - 1);
+    build();
+    q("#botDisc", body).style.display = "none";
+    setForfeitable(true);
+    deps.notepad.reset();
+    deps.onNewGame?.(variant, botId);
+    yourTurn();
+  }
+
+  function setVariant(id: string): void {
+    if (id === variant.id) return;
+    variant = variantById(id);
+    win.el.style.width = `${windowWidth()}px`;
+    newGame();
+  }
+
+  function setBot(id: string): void {
+    if (id === botId) return;
+    botId = id;
+    newGame();
+  }
+
+  function setChips(style: string, persist = true): void {
+    chips = style;
+    // deep-linked styles are a harness pose, not a preference
+    if (persist) localStorage.setItem("exe.chips", style);
+    win.el.className = win.el.className.replace(/chips-[a-z0-9]+/, `chips-${style}`);
+  }
+
+  /* ---- external hooks (menus that live outside this window) ---- */
+  const dispatchers: Record<string, () => void> = {};
+  function dispatch(what: string): void {
+    dispatchers[what]?.();
+  }
+
+  const app: BoardApp = {
+    win,
+    get variant() { return variant; },
+    get botId() { return botId; },
+    newGame,
+    setVariant,
+    setBot,
+    setChips,
+    script(moves) {
+      for (const col of moves) {
+        if (!match.play(col)) throw new Error(`script: illegal move ${col}`);
+        deps.notepad.move(col);
+      }
+      renderPosition();
+      if (match.status !== "playing") {
+        end();
+        return;
+      }
+      if (match.turn === "red") yourTurn();
+      else {
+        // freeze mid-deliberation: the pose the screenshots want
+        phase = "frozen";
+        q("#picker", body).style.display = "none";
+        const botDisc = q("#botDisc", body);
+        botDisc.style.display = "block";
+        botDisc.style.left = `${pickerX(Math.min(4, variant.width - 1))}px`;
+        setStatus(STATUS.theirMove(name()), voice().thinking);
+      }
+    },
+    freeze() {
+      gameSeq++;
+      if (wanderTimer) clearTimeout(wanderTimer);
+      phase = "frozen";
+    },
+    cellAt,
+    cellCenter,
+    gridwrap: () => q(".gridwrap", body),
+    fx: () => q("#fx", body),
+    setStatus,
+    botName: name,
+    onMenu(what, cb) {
+      dispatchers[what] = cb;
+    },
+  };
+
+  build();
+  return app;
+}

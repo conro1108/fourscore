@@ -1,5 +1,13 @@
 # BOARD.EXE — direction
 
+> **State (2026-08-14):** v1 is built and lives in `src/`. The desktop runs
+> (`npm run dev:exe`), plays the real ladder over the worker protocol, and has
+> the win cascade, fever escalation (director.ts + effects.ts), the flat-16
+> chips with the pieces.ctl lab, and the deep-link harness. `npm run shots`
+> (in apps/exe) screenshots every named state through its own dev server;
+> `node tools/live.mjs` click-drives a real game. Everything below remains
+> the law.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

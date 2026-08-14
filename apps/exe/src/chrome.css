@@ -1,0 +1,175 @@
+/* BOARD.EXE — the period chrome. Ported from proposals/chrome.css (the
+   approved bevel kit) and extended for the real app.
+   Timing law: nothing in here eases. Windows move instantly or in steps. */
+
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-size:11px;color:#000;
+     cursor:default;user-select:none;-webkit-user-select:none}
+#stage{position:relative;width:1280px;height:800px;margin:0 auto;background:#0e8078;overflow:hidden}
+
+.bevel{background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.sunken{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+.win{position:absolute}
+.titlebar{height:22px;display:flex;align-items:center;gap:4px;padding:0 3px;margin:3px;color:#fff;font-weight:bold}
+.titlebar.active{background:linear-gradient(90deg,#000080,#1084d0)}
+.titlebar.inactive{background:linear-gradient(90deg,#808080,#b5b5b5);color:#d8d8d8}
+.titlebar .t{flex:1;padding-left:2px;letter-spacing:.2px;white-space:nowrap;overflow:hidden}
+.tbtn{width:16px;height:14px;background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf;
+      font-size:9px;line-height:13px;text-align:center;color:#000;font-family:"Courier New",monospace;font-weight:bold}
+.tbtn:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+.menu{display:flex;gap:0;padding:1px 4px;position:relative}
+.menu span{padding:2px 7px}
+.menu span u{text-decoration:underline}
+.menu span.open{background:#000080;color:#fff}
+.menu span.gray{color:#808080}
+.popup{position:absolute;top:100%;background:#c0c0c0;padding:2px;min-width:150px;z-index:90;
+       box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.popup div{padding:3px 20px 3px 22px;white-space:nowrap;position:relative}
+.popup div:hover{background:#000080;color:#fff}
+.popup div.gray,.popup div.gray:hover{color:#808080;background:transparent}
+.popup hr{border:0;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:2px 1px}
+.popup div .check{position:absolute;left:8px}
+.popup div .sub{position:absolute;right:6px}
+
+/* desktop icons */
+.icon{position:absolute;width:76px;text-align:center;color:#fff}
+.icon .pix{width:32px;height:32px;margin:0 auto 5px;image-rendering:pixelated;display:block}
+.icon .lbl{display:inline-block;padding:1px 3px;background:transparent}
+.icon.sel .lbl{background:#000080;outline:1px dotted #fff}
+
+/* the grid */
+.cellrow{display:flex}
+.cell{width:64px;height:64px;background:#c0c0c0;display:grid;place-items:center;position:relative;
+      box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+.hole{width:48px;height:48px;border-radius:50%;background:#1c1c1c;
+      box-shadow:inset 3px 3px 6px #000,inset -2px -2px 3px #5a5a5a,0 1px 0 #fff}
+.disc{width:48px;height:48px;border-radius:50%;position:relative}
+.disc.r{background:radial-gradient(circle at 36% 30%,#ff9d8a,#e0332e 55%,#7a0f14)}
+.disc.y{background:radial-gradient(circle at 36% 30%,#fff2b0,#f0b400 55%,#8a5c00)}
+.disc::after{content:"";position:absolute;inset:0;border-radius:50%;
+      background:repeating-conic-gradient(#000 0% 25%,transparent 0% 50%) 0 0/4px 4px;opacity:.10}
+
+/* the board window's sunken frame. Connect 5+ is a bigger window; past what
+   the desktop can hold, it gets a real scrollbar — which is funny and free. */
+.boardframe{margin:0 10px;padding:6px;background:#c0c0c0;overflow:auto}
+.boardframe::-webkit-scrollbar{width:16px;height:16px;background:#dfdfdf}
+.boardframe::-webkit-scrollbar-thumb{background:#c0c0c0;
+      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.boardframe::-webkit-scrollbar-button{display:block;width:16px;height:16px;background:#c0c0c0;
+      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+
+/* ---- chip styles. Flat 16 is the chosen default (2026-08-13). ---- */
+.chips-flat .disc.r{background:#e0332e;box-shadow:inset 0 0 0 2px #7a0f14}
+.chips-flat .disc.y{background:#f0b400;box-shadow:inset 0 0 0 2px #8a5c00}
+.chips-flat .disc::after{content:none}
+/* glossy is the base .disc look — no extra rules */
+.chips-plastic .disc.r{background:#d8342e}
+.chips-plastic .disc.y{background:#eab000}
+.chips-plastic .disc::before{content:"";position:absolute;inset:7px;border-radius:50%;
+  box-shadow:inset 2px 2px 3px rgba(0,0,0,.45),inset -1px -1px 2px rgba(255,255,255,.3)}
+.chips-plastic .disc::after{background:none;opacity:1;left:9px;top:6px;width:15px;height:8px;inset:auto;
+  border-radius:50%;background:rgba(255,255,255,.55);transform:rotate(-24deg)}
+.chips-rings .disc{background:#141414;box-sizing:border-box}
+.chips-rings .disc.r{border:9px solid #e0332e}
+.chips-rings .disc.y{border:9px solid #f0b400}
+.chips-rings .disc::after{content:none}
+.chips-pixel .disc{border-radius:0;image-rendering:pixelated}
+.chips-pixel .disc::after{content:none}
+.chips-half .disc.r{background:linear-gradient(180deg,#ff8d7a 0 46%,#b31f1c 54% 100%)}
+.chips-half .disc.y{background:linear-gradient(180deg,#ffe08a 0 46%,#c08900 54% 100%)}
+.chips-half .disc::after{content:none}
+.chips-bevel .disc{background:#c0c0c0;box-shadow:inset -2px -2px #808080,inset 2px 2px #fff}
+.chips-bevel .disc::after{content:"";position:absolute;inset:9px;left:9px;top:9px;width:auto;height:auto;
+  border-radius:50%;opacity:1;transform:none;box-shadow:inset 1px 1px 3px rgba(0,0,0,.45)}
+.chips-bevel .disc.r::after{background:#e0332e}
+.chips-bevel .disc.y::after{background:#f0b400}
+.chips-gem .disc.r{background:conic-gradient(#ff9d8a 0 25deg,#e0332e 0 70deg,#8a1512 0 115deg,#ff6b5e 0 160deg,#c22420 0 205deg,#7a0f14 0 250deg,#ff9d8a 0 295deg,#a51b17 0 360deg)}
+.chips-gem .disc.y{background:conic-gradient(#fff2b0 0 25deg,#f0b400 0 70deg,#8a5c00 0 115deg,#ffd75e 0 160deg,#c89600 0 205deg,#6e4a00 0 250deg,#fff2b0 0 295deg,#a87e00 0 360deg)}
+.chips-gem .disc::after{background:none;opacity:1;inset:0;box-shadow:inset 0 0 0 5px rgba(255,255,255,.14);border-radius:50%}
+.chips-scan .disc::after{background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 2px,transparent 2px 4px);opacity:1}
+.chips-toon .disc.r{background:#e8443c;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 6px #fff}
+.chips-toon .disc.y{background:#f5bd1a;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 6px #fff}
+.chips-toon .disc::after{content:none}
+.chips-faces .disc{border-radius:0;image-rendering:pixelated}
+.chips-faces .disc::after{content:none}
+
+.statusbar{display:flex;gap:2px;margin:3px}
+.statusbar div{flex:1;height:20px;line-height:20px;padding:0 6px;white-space:nowrap;overflow:hidden;
+      box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+
+/* dialog */
+.dlg-body{display:flex;gap:14px;align-items:flex-start;padding:14px 12px 10px}
+.dlg-ico{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7ab8ff,#0040c0 70%);
+      color:#fff;font-family:"Times New Roman",serif;font-style:italic;font-weight:bold;font-size:22px;
+      text-align:center;line-height:30px;flex:none}
+.dlg-ico.warn{background:radial-gradient(circle at 35% 30%,#ffe9a0,#f0b400 70%);color:#000;font-style:normal;font-family:Tahoma,sans-serif}
+.btnrow{display:flex;justify-content:center;gap:8px;padding:4px 0 12px}
+.btn{min-width:74px;height:23px;background:#c0c0c0;text-align:center;line-height:22px;
+     box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.btn:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+.btn.def{outline:1px solid #000;outline-offset:-5px;box-shadow:0 0 0 1px #000,inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+#final .dlg-body div{font-size:16px;font-weight:bold;letter-spacing:.5px;padding-top:8px}
+
+/* taskbar */
+#taskbar{position:absolute;left:0;right:0;bottom:0;height:36px;background:#c0c0c0;z-index:200;
+      box-shadow:inset 0 1px #fff,inset 0 2px #dfdfdf;display:flex;align-items:center;gap:5px;padding:0 4px}
+#start{height:26px;display:flex;align-items:center;gap:5px;padding:0 8px;font-weight:bold;font-size:12px;flex:none;min-width:0}
+#start .pix{width:16px;height:16px;image-rendering:pixelated}
+#start.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+#tasks{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden}
+.task{height:26px;line-height:26px;padding:0 10px;flex:0 1 150px;min-width:0;font-size:11px;
+      white-space:nowrap;overflow:hidden;text-overflow:clip;
+      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.task.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf;
+      background:repeating-conic-gradient(#fff 0% 25%,#c0c0c0 0% 50%) 0 0/4px 4px;font-weight:bold}
+.task.gray{color:#808080}
+#clock{margin-left:auto;height:26px;line-height:26px;padding:0 12px;flex:none;
+      box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+
+/* the start menu is a popup that opens upward, with the period banner */
+#startmenu{position:absolute;left:2px;bottom:38px;z-index:300;display:none;padding-left:24px;min-width:160px}
+#startmenu .banner{position:absolute;left:2px;top:2px;bottom:2px;width:22px;background:linear-gradient(0deg,#000080,#1084d0);
+      color:#c0c0c0;font-weight:bold;font-size:13px;letter-spacing:1px;
+      writing-mode:vertical-rl;transform:rotate(180deg);text-align:left;padding:6px 0}
+#startmenu .popup{position:static;box-shadow:none;min-width:0}
+#startmenu > .inner{padding:2px}
+.submenu{position:absolute;left:100%;top:-2px;display:none}
+.popup div:hover > .submenu{display:block}
+
+canvas.pix{image-rendering:pixelated;display:block}
+
+/* notepad bodies */
+.notepad{margin:3px;background:#fff;padding:5px;min-height:110px;white-space:pre-wrap;
+      font-family:"Courier New",monospace;font-size:12px;line-height:1.45}
+
+/* cursor ghosts — the trail follows the real cursor at high fever */
+.cur{position:absolute;width:14px;height:22px;background:#fff;z-index:150;pointer-events:none;
+     clip-path:polygon(0 0,0 74%,21% 60%,34% 96%,50% 90%,38% 56%,64% 54%);
+     filter:drop-shadow(1px 1px 0 #000)}
+
+/* a period trackbar, for the dev fever control */
+.trackbar{position:relative;height:28px;margin:10px 12px 4px}
+.trackbar .rail{position:absolute;left:0;right:0;top:11px;height:4px;
+     box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080}
+.trackbar .thumb{position:absolute;top:2px;width:11px;height:22px;background:#c0c0c0;
+     box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.ticks{display:flex;justify-content:space-between;margin:0 12px;color:#000;font-size:10px}
+#feverCtl .presets{display:flex;gap:4px;margin:6px 12px 10px}
+#feverCtl .presets .btn{min-width:0;flex:1;font-family:"Courier New",monospace}
+
+/* ---- layers ---- */
+#smears{position:absolute;inset:0;pointer-events:none;z-index:35}
+#trail{position:absolute;inset:0;pointer-events:none;z-index:150}
+#saver{position:absolute;inset:0;z-index:240;display:none;background:#000}
+#saver canvas{width:1280px;height:800px}
+
+/* ---- the win ---- */
+#fx{position:absolute;inset:0;pointer-events:none;z-index:30}
+.gridwrap{position:relative}
+.gridwrap .disc{z-index:2}
+.seam{position:absolute;z-index:1;pointer-events:none;image-rendering:pixelated}
+/* the OS selects your win like it selects anything: marching ants —
+   but along the line, one capsule, not four squares */
+.ants{position:absolute;pointer-events:none;z-index:6;display:none}
+.ants .a1{position:absolute;inset:0;border:1px dashed #fff;border-radius:999px}
+.ants .a2{position:absolute;inset:0;border:1px dashed #000;border-radius:999px;transform:translate(1px,1px)}
