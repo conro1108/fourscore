@@ -1040,6 +1040,43 @@ thesis artifacts, and what they couldn't fix.
   losers), and note the DOM chrome is untouched by themes on purpose (it's a
   pillar, and re-skinning it per direction was out of scope for the pitch).
 
+- **The release slider, rebuilt as the actual mechanism** *(Opus, 2026-08-13)*.
+  Connor looked at the tray and said it wasn't the toy: the real part is a flat
+  plastic ladder with slots cut at the column pitch, and pulling the tab shifts
+  it *half a column* so the slots change places with the rungs and the whole
+  board loses its floor in one instant. The old build was a drawer — the floor
+  slid out a full board width and the columns emptied left to right, which is a
+  different machine that happens to end in the same place. Rebuilt around the
+  lattice: `BAR_TRAVEL = 0.5` (half a cell, not a knob — it's rung-centre to
+  slot-centre), `rungWidth = 1 - 2*(discRadius + play)` because rung + slot has
+  to come to exactly one cell or the ladder walks out of step with the grid,
+  and `releasePull` falls out of those two at ~0.97 for every column at once.
+  `DRAG_GAIN` is 1 now: the throw is ~40px at the resting framing, so there's
+  nothing to gear up. Detent at 0.7 (past it the bar finishes itself and can't
+  be pushed back); short of it, snaps shut. Geometry moved up to where a floor
+  belongs — the rungs' top face *is* the bottom row's resting surface — and
+  since that puts the whole mechanism behind the front plate, `plateGeometry`
+  now cuts a channel through the front plate only (back plate solid, so the
+  ladder reads against it) and the bottom of the sandwich is left open as the
+  chute. Rungs take the eyelet material rather than the rail: a flat mirror
+  face at this angle samples the dim half of the sky, and the first build's
+  pickets disappeared into the recess. Discs let go on one board-wide
+  threshold, with a 12ms-per-row stagger so the stack collapses instead of
+  descending like a lift. Preview states are `slider-locked` /
+  `slider-shifting` (a new harness-only `hold` pin — the only way to photograph
+  a bar mid-shift) / `slider-released`. New `npm run slider`
+  (`tools/live-slider.mjs`): plays a game out, collapses the dev panel, and
+  puts a real pointer on the handle — 18px snaps back with the board still up,
+  28px finds the detent, letting go finishes the pull, and `stageFx.freed`
+  proves the claim in numbers (all 20 discs let go **within 0ms** — the same
+  frame). It also catches its own mid-pour frames off the page's animation
+  frames, because a Playwright screenshot always lands on an already-empty
+  board. **Verified:** typecheck, `npm test` (release suite rewritten around
+  the lattice, all four variants), `npm run slider`, `npm run acceptance`, and
+  shots of the three slider states plus a Connect 7 board to check the ladder
+  tiles a 13-wide grid. **Stale:** the committed README captures
+  (`shots/*.png`) still show the old bottom rail.
+
 ## Open Questions / Decisions log
 
 - **Decision (phase 0):** engine `red`/`yellow` render as garnet-magenta

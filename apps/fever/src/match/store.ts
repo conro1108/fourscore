@@ -50,9 +50,9 @@ export interface MatchStore {
    */
   live: boolean;
   /**
-   * The software wants the release tray pulled (the outcome window's AGAIN.
+   * The software wants the release slider pulled (the outcome window's AGAIN.
    * routes through the same chip-dump the hand gets). The stage reads it as
-   * the tray's `auto`; `newGame` clears it, because the release *ends* in a
+   * the slider's `auto`; `newGame` clears it, because the release *ends* in a
    * new game and a flag that survived would pull the next board's floor out.
    */
   releasePending: boolean;

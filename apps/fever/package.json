@@ -11,6 +11,7 @@
     "wordart": "node tools/wordart.mjs",
     "icon": "node tools/make-icon.mjs",
     "acceptance": "node tools/acceptance.mjs",
+    "slider": "node tools/live-slider.mjs",
     "bots": "node tools/live-bots.mjs",
     "online": "node tools/online.mjs",
     "review": "node tools/live-review.mjs",

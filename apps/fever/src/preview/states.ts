@@ -35,10 +35,11 @@ export interface PreviewCase {
   /** Pin an art direction (stage/theme.ts). Undefined is the fever dream. */
   theme?: ThemeId;
   /**
-   * Arm the release tray. `auto` pulls it on mount, so by screenshot time the
-   * chips are out and the tray is standing open.
+   * Arm the release slider. `auto` pulls it on mount, so by screenshot time
+   * the chips are out and the slots are standing open; `hold` pins the pull
+   * instead, which is the only way to photograph the bar mid-shift.
    */
-  release?: { auto?: boolean };
+  release?: { auto?: boolean; hold?: number };
 }
 
 /**
@@ -246,20 +247,31 @@ export const PREVIEW_STATES: PreviewCase[] = [
       theme: t,
     },
   ]),
-  // THE RELEASE TRAY. Armed: the handle blinking on a finished board — the
-  // state you're left in after closing the outcome window. Open: the same
-  // board after an auto-pull, chips gone, floor standing out to the right.
+  // THE RELEASE SLIDER, in the three frames that are the mechanism. Locked:
+  // a rung under every column, holding the board up, handle blinking. Half a
+  // shove: the same rungs walking off the column centres, discs still sitting
+  // on what's left of them. Aligned: slots under the columns, board gone. Read
+  // the first two side by side — if the rungs don't visibly change places with
+  // the slots, the toy isn't in there.
   {
-    id: "tray-armed",
-    caption: "release tray armed — finished game, handle asking",
+    id: "slider-locked",
+    caption: "release slider locked — a rung under every column, handle asking",
     variant: CONNECT4,
     moves: [3, 0, 3, 1, 3, 2, 3],
     fever: 0.5,
     release: {},
   },
   {
-    id: "tray-open",
-    caption: "release tray pulled — chips out the bottom, floor standing open",
+    id: "slider-shifting",
+    caption: "release slider half a shove in — rungs walking off the columns",
+    variant: CONNECT4,
+    moves: [3, 0, 3, 1, 3, 2, 3],
+    fever: 0.5,
+    release: { hold: 0.55 },
+  },
+  {
+    id: "slider-released",
+    caption: "release slider aligned — slots under the columns, board on the floor",
     variant: CONNECT4,
     moves: [3, 0, 3, 1, 3, 2, 3],
     fever: 0.5,

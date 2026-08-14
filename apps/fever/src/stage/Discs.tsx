@@ -4,11 +4,11 @@
  * is mid-drop, and reports in when it stops. Clicks never reach this file —
  * that's what makes a wire move indistinguishable from a local one.
  *
- * The one exception to "settled" is the release tray: when its pull clears a
- * disc's column, the disc stops being furniture and falls out the bottom
- * (same heavy gravity as the drop, plus a lazy spin). When the last one is
- * gone `onReleased` fires — that's the moment the empty board belongs to the
- * next game.
+ * The one exception to "settled" is the release slider: when its rungs line up
+ * with the slots the whole board loses its floor in the same instant, and every
+ * disc falls out the bottom (same heavy gravity as the drop, plus a lazy spin).
+ * When the last one is gone `onReleased` fires — that's the moment the empty
+ * board belongs to the next game.
  */
 
 import { useEffect, useMemo, useRef } from "react";
@@ -21,7 +21,13 @@ import { planDrop, squashAt } from "../match/timing.js";
 import { coinGeometry } from "./coin.js";
 import { stageFx } from "./fx.js";
 import type { StageLayout } from "./layout.js";
-import { EXIT_DEPTH, EXIT_GRAVITY, pullToFree, type Tray } from "./release.js";
+import {
+  EXIT_DEPTH,
+  EXIT_GRAVITY,
+  EXIT_STAGGER,
+  releasePull,
+  type Slider,
+} from "./release.js";
 import { useTheme, type Theme } from "./theme.js";
 
 /**
@@ -46,19 +52,19 @@ function SettledDisc({
   geometry,
   disc,
   win,
-  tray,
+  slider,
   onExit,
 }: {
   layout: StageLayout;
   geometry: THREE.BufferGeometry;
   disc: DiscPlacement;
   win: WinKeys;
-  tray: Tray;
+  slider: Slider;
   onExit: (ply: number) => void;
 }) {
   const mesh = useRef<THREE.Mesh>(null);
   const material = useRef<THREE.MeshPhysicalMaterial>(null);
-  /** performance.now() when the tray let this disc go; null while seated. */
+  /** performance.now() when the floor went; null while seated. */
   const fellAt = useRef<number | null>(null);
   const exited = useRef(false);
   const theme = useTheme();
@@ -67,20 +73,25 @@ function SettledDisc({
   const dimmed = win.any && !winning;
 
   const homeY = layout.yOf(disc.row);
-  const freeAt = pullToFree(layout, disc.col);
+  const freeAt = releasePull(layout);
 
   useFrame(({ clock }) => {
     if (!mesh.current || !material.current) return;
 
-    // The tray's opening reached this column: let go. Every disc in the
-    // column starts together and they fall as a stack, which is exactly what
-    // the real toy does.
-    if (fellAt.current === null && tray.committed && tray.pull >= freeAt) {
+    // The slots came up under the columns: the floor is gone, everywhere at
+    // once. No per-column threshold — the rungs are one part and they all
+    // clear together, which is the whole point of the mechanism.
+    if (fellAt.current === null && slider.pull >= freeAt) {
       fellAt.current = performance.now();
+      stageFx.freed.push(fellAt.current);
     }
 
     if (fellAt.current !== null) {
-      const t = (performance.now() - fellAt.current) / 1000;
+      // Each row waits a beat on the one below it. They lose their floor in
+      // the same frame, but a stack that leaves in perfect lockstep reads as
+      // one rigid object being lowered rather than a board emptying.
+      const t = (performance.now() - fellAt.current) / 1000 - disc.row * EXIT_STAGGER;
+      if (t <= 0) return;
       mesh.current.position.y = homeY - 0.5 * EXIT_GRAVITY * t * t;
       // A lazy tumble on the way down — direction by column parity, because
       // randomness never gets to pick how a thing looks.
@@ -199,7 +210,7 @@ export function Discs({
   landed,
   winningCells,
   onDiscLanded,
-  tray,
+  slider,
   onReleased,
 }: {
   layout: StageLayout;
@@ -207,18 +218,19 @@ export function Discs({
   landed: number;
   winningCells: readonly { row: number; col: number }[];
   onDiscLanded?: () => void;
-  tray: Tray;
+  slider: Slider;
   onReleased?: () => void;
 }) {
   const all = useMemo(() => placements(moves, layout.variant), [moves, layout.variant]);
 
-  // Which plies have fallen out the bottom of the open tray. Rebuilt when the
+  // Which plies have fallen out the bottom of the board. Rebuilt when the
   // move list changes, because a new game's ply 3 is not the old game's.
   const exited = useRef(new Set<number>());
   const reported = useRef(false);
   useEffect(() => {
     exited.current = new Set();
     reported.current = false;
+    stageFx.freed = [];
   }, [moves]);
   const onExit = (ply: number) => {
     exited.current.add(ply);
@@ -259,7 +271,7 @@ export function Discs({
           geometry={geometry}
           disc={disc}
           win={win}
-          tray={tray}
+          slider={slider}
           onExit={onExit}
         />
       ))}

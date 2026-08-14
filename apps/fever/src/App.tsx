@@ -32,7 +32,7 @@ export function App() {
   // about theater.
   const scrub = useScrub(s.generation);
 
-  // The release tray arms on a finished, settled bot game on the match screen
+  // The release slider arms on a finished, settled bot game on the match screen
   // — the state you're left in after closing the outcome window. Not online
   // (a rematch there is a fresh code, not a fresh board), and not while the
   // review has the board wound back to somewhere mid-game.
@@ -71,7 +71,7 @@ export function App() {
       setHoverCol(col);
     },
     onDiscLanded: s.discLanded,
-    // The last chip out the bottom is what starts the next game — the tray is
+    // The last chip out the bottom is what starts the next game — the bar is
     // the AGAIN button you can hold.
     release: releaseReady
       ? { ready: true, auto: s.releasePending, onDone: () => s.newGame() }

@@ -3,9 +3,11 @@
  * a slot between them for the discs, and rails closing the sides. It floats in
  * the void — this is not a room, and the board does not need a table.
  *
- * The floor is not here: the bottom of the sandwich is the release tray
- * (`ReleaseTray.tsx`), the sliding Connect 4 floor the discs rest on and fall
- * through. This file owns everything that never moves.
+ * The floor is not here: it's the release slider (`ReleaseSlider.tsx`), the
+ * Connect 4 locking bar that the bottom row of discs stands on. This file owns
+ * everything that never moves — including the window cut through the front
+ * plate that the bar is visible through, and the open bottom below it, which is
+ * the chute a released board falls out of.
  *
  * Board geometry is on the expensive side of the budget law (it lives with the
  * void, not with the props), so smooth shading and real hole geometry are
@@ -18,9 +20,10 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { StageLayout } from "./layout.js";
+import { barWindow } from "./release.js";
 import { useTheme, type MaterialSpec } from "./theme.js";
 
-function plateGeometry(layout: StageLayout): THREE.ExtrudeGeometry {
+function plateGeometry(layout: StageLayout, channel: boolean): THREE.ExtrudeGeometry {
   const { frameW, frameH, holeRadius, variant } = layout;
   const shape = new THREE.Shape();
   shape.moveTo(-frameW / 2, -frameH / 2);
@@ -35,6 +38,21 @@ function plateGeometry(layout: StageLayout): THREE.ExtrudeGeometry {
       hole.absarc(layout.xOf(col), layout.yOf(row), holeRadius, 0, Math.PI * 2, true);
       shape.holes.push(hole);
     }
+  }
+
+  // The front plate is cut away along the release slider's channel, so the
+  // ladder the discs are standing on is visible under the bottom row and you
+  // can watch the rungs change places with the slots. Front only: the back
+  // plate is what the mechanism reads against.
+  if (channel) {
+    const w = barWindow(layout);
+    const slot = new THREE.Path();
+    slot.moveTo(-w.halfW, w.bottom);
+    slot.lineTo(-w.halfW, w.top);
+    slot.lineTo(w.halfW, w.top);
+    slot.lineTo(w.halfW, w.bottom);
+    slot.closePath();
+    shape.holes.push(slot);
   }
 
   const geometry = new THREE.ExtrudeGeometry(shape, {
@@ -63,7 +81,7 @@ export function materialFrom(spec: MaterialSpec): THREE.MeshPhysicalMaterial {
   });
 }
 
-/** How thick the rails (and the tray) are. Shared with ReleaseTray. */
+/** How thick the side rails are. */
 export const RAIL_T = 0.16;
 
 /** The full depth of the board sandwich — slot plus both plates. */
@@ -74,8 +92,15 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
   const theme = useTheme();
   // Geometry per variant, disposed when the variant changes — R3F only
   // auto-disposes what it created itself.
-  const plate = useMemo(() => plateGeometry(layout), [layout]);
-  useEffect(() => () => plate.dispose(), [plate]);
+  const front = useMemo(() => plateGeometry(layout, true), [layout]);
+  const back = useMemo(() => plateGeometry(layout, false), [layout]);
+  useEffect(
+    () => () => {
+      front.dispose();
+      back.dispose();
+    },
+    [front, back],
+  );
 
   // In the fever theme this is the phase-9 lacquer: a bright plum body under a
   // clearcoat, so there are two speculars — the broad iridescent sheen and a
@@ -126,15 +151,17 @@ export function BoardRig({ layout }: { layout: StageLayout }) {
 
   return (
     <group>
-      {/* Front and back plates share one geometry with real holes. */}
-      <mesh geometry={plate} material={plum} position={[0, 0, slotHalf]} />
-      <mesh geometry={plate} material={plum} position={[0, 0, -slotHalf - layout.plateDepth]} />
+      {/* Both plates carry real holes; only the front one is cut for the
+          slider's channel. */}
+      <mesh geometry={front} material={plum} position={[0, 0, slotHalf]} />
+      <mesh geometry={back} material={plum} position={[0, 0, -slotHalf - layout.plateDepth]} />
 
       {/* The eyelets, seated proud of the front face. */}
       <primitive object={rings} />
 
-      {/* Side rails close the sandwich so light can't leak through the seams.
-          The floor is the release tray, mounted by the stage. */}
+      {/* Side rails close the sandwich so light can't leak through the seams,
+          and the slider's ends run inside them. The bottom stays open: that's
+          where a released board goes. */}
       <mesh material={railMat} position={[-(frameW - RAIL_T) / 2, 0, 0]}>
         <boxGeometry args={[RAIL_T, frameH, gap]} />
       </mesh>

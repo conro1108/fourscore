@@ -146,7 +146,7 @@ Unit tests can't see any of the visual work; the harness is the eyes.
 `apps/fever/preview.html` renders named scene states (`?state=id` for one
 fullscreen), `npm run shots -- <ids>` screenshots them through real Chrome, and
 `npm run acceptance` / `npm run bots` / `npm run online` / `npm run review` /
-`npm run audio` drive the live app. This repo has repeatedly caught bugs this
+`npm run audio` / `npm run slider` drive the live app. This repo has repeatedly caught bugs this
 way that typechecked and passed tests — a shader composing off-screen, an
 invisible review marker, props framed at the wrong z. If you didn't look at it,
 it isn't done.

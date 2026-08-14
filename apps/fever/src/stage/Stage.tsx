@@ -31,8 +31,8 @@ import { stageFx } from "./fx.js";
 import { CAMERA_TARGET, fitDistance, layoutFor, type StageLayout } from "./layout.js";
 import { createOrbit, type Orbit } from "./orbit.js";
 import { PostStack } from "./Post.js";
-import { createTray } from "./release.js";
-import { ReleaseTray } from "./ReleaseTray.js";
+import { createSlider } from "./release.js";
+import { ReleaseSlider } from "./ReleaseSlider.js";
 import { ThemeContext, themeById, useTheme, useThemeStore, type ThemeId } from "./theme.js";
 import { VoidBackdrop } from "./VoidBackdrop.js";
 
@@ -58,12 +58,13 @@ export interface StageModel {
   onHover?: (col: number | null) => void;
   onDiscLanded?: () => void;
   /**
-   * The release tray (the Connect 4 slider under the board). `ready` arms the
-   * handle; `auto` makes the software pull it itself (the AGAIN button routes
-   * through the same animation the hand gets); `onDone` fires once every disc
-   * is out the bottom — that's where the next game starts.
+   * The release slider (the Connect 4 locking bar under the bottom row).
+   * `ready` arms the handle; `auto` makes the software pull it itself (the
+   * AGAIN button routes through the same animation the hand gets); `onDone`
+   * fires once every disc is out the bottom — that's where the next game
+   * starts.
    */
-  release?: { ready: boolean; auto: boolean; onDone: () => void };
+  release?: { ready: boolean; auto: boolean; onDone: () => void; hold?: number };
   /**
    * Pin this scene's fever and/or a prop act. Harness-only: the app leaves it
    * undefined so the scene follows the Director. See `director/scope.tsx`.
@@ -202,8 +203,9 @@ export function StageView({ model }: { model: StageModel }) {
   // One orbit per stage, not a module singleton: the preview harness mounts
   // several of these at once and dragging one tile must not turn the others.
   const orbit = useMemo(() => createOrbit(), []);
-  // Same story for the release tray — its pull is this stage's, not the app's.
-  const tray = useMemo(() => createTray(), []);
+  // Same story for the release slider — its pull is this stage's, not the
+  // app's.
+  const slider = useMemo(() => createSlider(), []);
 
   /**
    * Live pointers, so two fingers can be told from one. Only the ones that
@@ -251,10 +253,10 @@ export function StageView({ model }: { model: StageModel }) {
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: FOV, near: 0.1, far: 80, position: [0, 0.4, 14] }}
       onPointerDown={(e) => {
-        // The tray's handle claims its pointer before this bubbles up (R3F
+        // The slider's handle claims its pointer before this bubbles up (R3F
         // dispatches mesh events from the canvas, a child of this div) — a
-        // hand on the slider is not a hand on the camera.
-        if (tray.grabbed) return;
+        // hand on the bar is not a hand on the camera.
+        if (slider.grabbed) return;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (pointers.size === 1) orbit.press(e.clientX, e.clientY);
         else orbit.pinch(span());
@@ -273,12 +275,13 @@ export function StageView({ model }: { model: StageModel }) {
           <VoidBackdrop />
           <Levitate>
             <BoardRig layout={layout} />
-            <ReleaseTray
+            <ReleaseSlider
               layout={layout}
-              tray={tray}
+              slider={slider}
               moves={model.moves}
               ready={model.release?.ready ?? false}
               auto={model.release?.auto ?? false}
+              hold={model.release?.hold}
             />
             <Discs
               layout={layout}
@@ -286,7 +289,7 @@ export function StageView({ model }: { model: StageModel }) {
               landed={model.landed}
               winningCells={model.winningCells}
               onDiscLanded={model.onDiscLanded}
-              tray={tray}
+              slider={slider}
               onReleased={model.release?.onDone}
             />
             {model.ghostPlayer !== null && model.hoverCol !== null && (
