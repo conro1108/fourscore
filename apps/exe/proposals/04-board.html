@@ -26,6 +26,29 @@
   /* pixel: a dithered sphere, upscaled — CSS injected at runtime */
   .chips-pixel .disc{border-radius:0;image-rendering:pixelated}
   .chips-pixel .disc::after{content:none}
+  /* half: top-lit hemispheres, straight off an Othello set */
+  .chips-half .disc.r{background:linear-gradient(180deg,#ff8d7a 0 46%,#b31f1c 54% 100%)}
+  .chips-half .disc.y{background:linear-gradient(180deg,#ffe08a 0 46%,#c08900 54% 100%)}
+  .chips-half .disc::after{content:none}
+  /* bevel: the disc thinks it's a button */
+  .chips-bevel .disc{background:#c0c0c0;box-shadow:inset -2px -2px #808080,inset 2px 2px #fff}
+  .chips-bevel .disc::after{content:"";position:absolute;inset:9px;left:9px;top:9px;width:auto;height:auto;
+    border-radius:50%;opacity:1;transform:none;box-shadow:inset 1px 1px 3px rgba(0,0,0,.45)}
+  .chips-bevel .disc.r::after{background:#e0332e}
+  .chips-bevel .disc.y::after{background:#f0b400}
+  /* gem: faceted, catching light that isn't there */
+  .chips-gem .disc.r{background:conic-gradient(#ff9d8a 0 25deg,#e0332e 0 70deg,#8a1512 0 115deg,#ff6b5e 0 160deg,#c22420 0 205deg,#7a0f14 0 250deg,#ff9d8a 0 295deg,#a51b17 0 360deg)}
+  .chips-gem .disc.y{background:conic-gradient(#fff2b0 0 25deg,#f0b400 0 70deg,#8a5c00 0 115deg,#ffd75e 0 160deg,#c89600 0 205deg,#6e4a00 0 250deg,#fff2b0 0 295deg,#a87e00 0 360deg)}
+  .chips-gem .disc::after{background:none;opacity:1;inset:0;box-shadow:inset 0 0 0 5px rgba(255,255,255,.14);border-radius:50%}
+  /* scan: the glossy disc through a tired monitor */
+  .chips-scan .disc::after{background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 2px,transparent 2px 4px);opacity:1}
+  /* toon: flat with the shared outline ink */
+  .chips-toon .disc.r{background:#e8443c;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 6px #fff}
+  .chips-toon .disc.y{background:#f5bd1a;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 6px #fff}
+  .chips-toon .disc::after{content:none}
+  /* faces: they were always going to get faces — CSS injected at runtime */
+  .chips-faces .disc{border-radius:0;image-rendering:pixelated}
+  .chips-faces .disc::after{content:none}
 
   #pieces .opt{padding:3px 10px;font-size:11px}
   #pieces .opt:hover{background:#000080;color:#fff}
@@ -98,10 +121,16 @@
   <!-- chip lab: pick a piece, the board obeys -->
   <div class="win bevel" id="pieces" style="left:920px;top:430px;width:240px;z-index:45">
     <div class="titlebar inactive"><span class="t">pieces.ctl</span><div class="tbtn">×</div></div>
-    <div style="padding:6px 4px 2px">
+    <div style="padding:6px 4px 2px;columns:2;column-gap:0">
       <div class="opt" data-s="glossy">◉ Glossy</div>
       <div class="opt" data-s="plastic">○ Plastic</div>
+      <div class="opt" data-s="half">○ Half</div>
+      <div class="opt" data-s="toon">○ Toon</div>
       <div class="opt" data-s="pixel">○ Pixel</div>
+      <div class="opt" data-s="faces">○ Faces</div>
+      <div class="opt" data-s="bevel">○ Bevel</div>
+      <div class="opt" data-s="gem">○ Gem</div>
+      <div class="opt" data-s="scan">○ Scanline</div>
       <div class="opt" data-s="flat">○ Flat 16</div>
       <div class="opt" data-s="rings">○ Rings</div>
     </div>
@@ -144,10 +173,28 @@ function pixelDisc(light, base, dark, outline) {
   }
   return cv.toDataURL();
 }
+// ---- the faces are drawn, deadpan, and not explained ----
+function faceDisc(body, shade, outline) {
+  const rows = [
+    "....kkkkkkkk....", "..kkbbbbbbbbkk..", ".kbbbbbbbbbbbbk.", ".kbbbbbbbbbbbbk.",
+    "kbbbbbbbbbbbbbbk", "kbbbkkbbbbkkbbbk", "kbbbkkbbbbkkbbbk", "kbbbbbbbbbbbbbbk",
+    "kbbbbbbbbbbbbbbk", "kbbbbbbbbbbbbbbk", "kbbbkkkkkkkkbbbk", ".kbbbbbbbbbbbbk.",
+    ".kbsbbbbbbbbsbk.", "..kkbssbbssbkk..", "....kkkkkkkk....", "................"];
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 16;
+  const ctx = cv.getContext("2d");
+  const pal = { b: body, s: shade, k: outline };
+  rows.forEach((s, y) => [...s].forEach((ch, x) => {
+    if (ch !== ".") { ctx.fillStyle = pal[ch]; ctx.fillRect(x, y, 1, 1); }
+  }));
+  return cv.toDataURL();
+}
 const style = document.createElement("style");
 style.textContent = `
   .chips-pixel .disc.r{background:url(${pixelDisc("#ff9d8a", "#e0332e", "#7a0f14", "#40100c")}) 0 0/48px 48px}
-  .chips-pixel .disc.y{background:url(${pixelDisc("#fff2b0", "#f0b400", "#8a5c00", "#403000")}) 0 0/48px 48px}`;
+  .chips-pixel .disc.y{background:url(${pixelDisc("#fff2b0", "#f0b400", "#8a5c00", "#403000")}) 0 0/48px 48px}
+  .chips-faces .disc.r{background:url(${faceDisc("#e0332e", "#a51b17", "#402e3a")}) 0 0/48px 48px}
+  .chips-faces .disc.y{background:url(${faceDisc("#f0b400", "#c08900", "#402e3a")}) 0 0/48px 48px}`;
 document.head.appendChild(style);
 
 document.querySelectorAll("#pieces .opt").forEach((o) => {

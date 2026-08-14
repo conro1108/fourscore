@@ -16,41 +16,48 @@
   <!-- top row: ONE fire, three windows. It goes where it wants;
        focus follows it. -->
   <div class="win bevel" id="trip0" style="left:112px;top:40px;width:308px">
-    <div class="titlebar inactive"><span class="t">flames.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="titlebar inactive"><span class="t">roam.scr (1)</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#000">
       <canvas class="pix" id="t0" width="100" height="57" style="width:296px;height:170px"></canvas>
     </div>
   </div>
   <div class="win bevel" id="trip1" style="left:436px;top:40px;width:308px">
-    <div class="titlebar inactive"><span class="t">flames.scr — Preview (2)</span><div class="tbtn">×</div></div>
+    <div class="titlebar inactive"><span class="t">roam.scr (2)</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#000">
       <canvas class="pix" id="t1" width="100" height="57" style="width:296px;height:170px"></canvas>
     </div>
   </div>
   <div class="win bevel" id="trip2" style="left:760px;top:40px;width:308px">
-    <div class="titlebar inactive"><span class="t">flames.scr — Preview (3)</span><div class="tbtn">×</div></div>
+    <div class="titlebar inactive"><span class="t">roam.scr (3)</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#000">
       <canvas class="pix" id="t2" width="100" height="57" style="width:296px;height:170px"></canvas>
     </div>
   </div>
 
-  <!-- middle row: temperaments -->
-  <div class="win bevel" style="left:112px;top:320px;width:308px">
+  <!-- middle row: temperaments. flames.scr is the approved original,
+       untouched — the reference the others answer to. -->
+  <div class="win bevel" style="left:112px;top:320px;width:232px">
+    <div class="titlebar active"><span class="t">flames.scr — Preview</span><div class="tbtn">×</div></div>
+    <div class="sunken" style="margin:3px;background:#000">
+      <canvas class="pix" id="flames" width="100" height="64" style="width:220px;height:140px"></canvas>
+    </div>
+  </div>
+  <div class="win bevel" style="left:356px;top:320px;width:232px">
     <div class="titlebar inactive"><span class="t">coals.scr — Preview</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#000">
-      <canvas class="pix" id="coals" width="100" height="50" style="width:296px;height:150px"></canvas>
+      <canvas class="pix" id="coals" width="73" height="47" style="width:220px;height:140px"></canvas>
     </div>
   </div>
-  <div class="win bevel" style="left:436px;top:320px;width:308px">
+  <div class="win bevel" style="left:600px;top:320px;width:232px">
     <div class="titlebar inactive"><span class="t">pillar.scr — Preview</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#000">
-      <canvas class="pix" id="pillar" width="100" height="50" style="width:296px;height:150px"></canvas>
+      <canvas class="pix" id="pillar" width="73" height="47" style="width:220px;height:140px"></canvas>
     </div>
   </div>
-  <div class="win bevel" style="left:760px;top:320px;width:308px">
+  <div class="win bevel" style="left:844px;top:320px;width:232px">
     <div class="titlebar inactive"><span class="t">rain.scr — Preview</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#000">
-      <canvas class="pix" id="rain" width="100" height="50" style="width:296px;height:150px"></canvas>
+      <canvas class="pix" id="rain" width="73" height="47" style="width:220px;height:140px"></canvas>
     </div>
   </div>
 
@@ -79,9 +86,11 @@
     <div class="titlebar inactive"><span class="t">readme.txt — Notepad</span><div class="tbtn">×</div></div>
     <div class="sunken" style="margin:3px;background:#fff;padding:5px;font-family:'Courier New',monospace;font-size:11px;line-height:1.55">
       what runs where:<br><br>
-      top row: one fire,<br>
+      roam — one fire,<br>
       three windows.<br>
       focus follows it.<br><br>
+      flames — the fever.<br>
+      the original.<br><br>
       coals — losing,<br>
       quietly. it flares<br>
       when you look away.<br><br>
@@ -126,10 +135,13 @@ px("icoBoard", ICONS.board); px("icoScr", ICONS.scr); px("icoStart", ICONS.start
     img: c.getContext("2d").createImageData(SLICE, TH),
   }));
   const pal = PALETTES.classic;
-  let tick = 0, focused = -1;
+  let tick = 0, focused = -1, wander = 0;
   function stepTrip() {
     tick++;
-    const p = TW / 2 + Math.sin(tick * 0.013) * TW * 0.42;
+    // two incommensurate sines plus a bounded random walk — it goes where
+    // it wants, not metronome left-right
+    wander = Math.max(-30, Math.min(30, wander + (Math.random() - 0.5) * 3));
+    const p = TW * (0.5 + 0.3 * Math.sin(tick * 0.011) + 0.16 * Math.sin(tick * 0.037 + 1.7)) + wander;
     for (let x = 0; x < TW; x++) {
       const g = Math.exp(-(((x - p) / 20) ** 2));
       heat[(TH - 1) * TW + x] = Math.min(63, (10 + Math.random() * 8 + g * 46) | 0);
@@ -158,6 +170,9 @@ px("icoBoard", ICONS.board); px("icoScr", ICONS.scr); px("icoStart", ICONS.start
   for (let i = 0; i < 40; i++) stepTrip();
   setInterval(stepTrip, 70);
 }
+
+// ---- flames.scr: the approved original, exactly as the mock runs it ----
+makeFire(q("#flames")).start();
 
 // ---- coals.scr: a low bed that flares when you look away ----
 {

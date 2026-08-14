@@ -7,13 +7,14 @@
   #dialogs{position:absolute;inset:0;z-index:100;pointer-events:none}
   #grid{position:relative}
   .cell{position:relative}
-  /* the flames come from BEHIND the disc — the win stays visible, on fire */
+  /* the flames come from BEHIND the discs — the win stays visible, on fire */
   #grid .disc{z-index:2}
-  .cellfire{position:absolute;left:4px;bottom:-2px;width:56px;height:76px;z-index:1;pointer-events:none;image-rendering:pixelated}
-  /* the OS selects your win like it selects anything: marching ants */
+  #seam{position:absolute;z-index:1;pointer-events:none;image-rendering:pixelated}
+  /* the OS selects your win like it selects anything: marching ants —
+     but along the line, one capsule, not four squares */
   #ants{position:absolute;pointer-events:none;z-index:6;display:none}
-  #ants .a1{position:absolute;inset:0;border:1px dashed #fff}
-  #ants .a2{position:absolute;inset:0;border:1px dashed #000;border-image:none;transform:translate(1px,1px)}
+  #ants .a1{position:absolute;inset:0;border:1px dashed #fff;border-radius:999px}
+  #ants .a2{position:absolute;inset:0;border:1px dashed #000;border-radius:999px;transform:translate(1px,1px)}
   #fx{position:absolute;inset:0;pointer-events:none;z-index:30}
 </style>
 <div id="stage">
@@ -51,7 +52,7 @@
     <div class="statusbar">
       <div id="stYou">YOUR MOVE.</div>
       <div style="flex:1.4" id="stBot">MOSS is thinking about dirt.</div>
-      <div style="flex:.5">6:6</div>
+      <div style="flex:.5">5:5</div>
     </div>
     <div id="fx"></div>
   </div>
@@ -86,15 +87,21 @@ const fire = makeFire(q("#fireC"));
 fire.start();
 
 // ---- board: red to move, column 3 completes the anti-diagonal ----
-const START = ["", "ry", "yrr", "yyry", "yr", "r", ""]; // bottom-up per column
-const WIN_CELLS = [[5, 0], [4, 1], [3, 2], [2, 3]];     // [col,row] once the disc lands
+// The position replays a verified legal game (red first, no earlier four):
+// 4 5 5 4 6 3 4 3 3 5, and 3 wins. Yellow's last move built its own
+// diagonal instead of blocking — that's how losing works.
+const START = ["", "", "yyr", "ryr", "yry", "r", ""]; // bottom-up per column
+const WIN_CELLS = [[5, 0], [4, 1], [3, 2], [2, 3]];   // [col,row] once the disc lands
 const DROP_COL = 2, DROP_ROW = 3;
-const cellAt = (c, r) => q("#grid").children[5 - r].children[c];
-let cellFires = [];
+const cellAt = (c, r) => q("#grid").querySelectorAll(".cellrow")[5 - r].children[c];
+const center = ([c, r]) => [c * 64 + 32, (5 - r) * 64 + 32]; // grid px
+let seamFire = null;
+const seam = { progress: 0 };
 
 function buildBoard() {
   const grid = q("#grid");
-  grid.innerHTML = `<div id="ants"><div class="a1"></div><div class="a2"></div></div>`;
+  grid.innerHTML = `<canvas id="seam" width="78" height="80"></canvas><div id="ants"><div class="a1"></div><div class="a2"></div></div>`;
+  q("#seam").style.display = "none";
   for (let row = 5; row >= 0; row--) {
     const rEl = document.createElement("div");
     rEl.className = "cellrow";
@@ -134,7 +141,8 @@ const beat = (n) => (BEATS[n] = STEPS.length - 1);
 // 0 · idle
 step(() => {
   buildBoard();
-  cellFires.forEach((f) => f.stop()); cellFires = [];
+  if (seamFire) { seamFire.stop(); seamFire = null; }
+  seam.progress = 0;
   q("#fx").innerHTML = "";
   q("#dialogs").innerHTML = "";
   q("#tasks").innerHTML = `<div class="task down">BOARD.EXE</div><div class="task">flames.scr</div>`;
@@ -166,45 +174,66 @@ step(() => {
     () => { d.remove(); land(); });
 }, 640); beat(1);
 
-// 2 · the OS selects your win the way it selects anything: marching ants
-{
-  const c0 = Math.min(...WIN_CELLS.map(([c]) => c)), c1 = Math.max(...WIN_CELLS.map(([c]) => c));
-  const r0 = Math.min(...WIN_CELLS.map(([, r]) => r)), r1 = Math.max(...WIN_CELLS.map(([, r]) => r));
-  step(() => {
-    const ants = q("#ants");
-    ants.style.display = "block";
-    ants.style.left = (c0 * 64 - 2) + "px";
-    ants.style.top = ((5 - r1) * 64 - 2) + "px";
-    ants.style.width = ((c1 - c0 + 1) * 64 + 3) + "px";
-    ants.style.height = ((r1 - r0 + 1) * 64 + 3) + "px";
-    q("#stYou").textContent = "FOUR ARE CONNECTED.";
-    q("#stBot").textContent = "MOSS has stopped thinking.";
-    if (!FROZEN) {
-      let n = 0;
-      const march = setInterval(() => {
-        const [a1, a2] = ants.children;
-        a1.style.borderColor = n % 2 ? "#000" : "#fff";
-        a2.style.borderColor = n % 2 ? "#fff" : "#000";
-        if (!document.body.contains(ants)) clearInterval(march);
-        n++;
-      }, 120);
-    }
-  }, 700);
-}
+// 2 · the OS selects your win the way it selects anything: marching ants —
+//     one rotated capsule hugging the whole line, so a diagonal reads as a
+//     line, not a staircase of squares
+const [Ax, Ay] = center(WIN_CELLS[WIN_CELLS.length - 1]);
+const [Bx, By] = center(WIN_CELLS[0]);
+step(() => {
+  const ants = q("#ants");
+  const len = Math.hypot(Bx - Ax, By - Ay) + 68;
+  ants.style.display = "block";
+  ants.style.width = len + "px";
+  ants.style.height = "62px";
+  ants.style.left = ((Ax + Bx) / 2 - len / 2) + "px";
+  ants.style.top = ((Ay + By) / 2 - 31) + "px";
+  ants.style.transform = `rotate(${Math.atan2(By - Ay, Bx - Ax)}rad)`;
+  q("#stYou").textContent = "FOUR ARE CONNECTED.";
+  q("#stBot").textContent = "MOSS has stopped thinking.";
+  if (!FROZEN) {
+    let n = 0;
+    const march = setInterval(() => {
+      const [a1, a2] = ants.children;
+      a1.style.borderColor = n % 2 ? "#000" : "#fff";
+      a2.style.borderColor = n % 2 ? "#fff" : "#000";
+      if (!document.body.contains(ants)) clearInterval(march);
+      n++;
+    }, 120);
+  }
+}, 700);
 beat(2);
 
-// then the four cells ignite, one at a time, along the line
-WIN_CELLS.forEach(([c, r], i) => {
-  step(() => {
-    const cv = document.createElement("canvas");
-    cv.width = 18; cv.height = 25;
-    cv.className = "cellfire";
-    cellAt(c, r).appendChild(cv);
-    const f = makeFire(cv, { transparent: true, baseHeat: 48, stokeVar: 12, cool: 4.4, interval: 70 });
-    f.start();
-    cellFires.push(f);
-  }, i === WIN_CELLS.length - 1 ? 700 : 190);
-});
+// then the line itself catches: ONE fire, stoked along the whole diagonal,
+// growing from the new disc to the old one. Continuous, because the win is.
+{
+  const SX = 100, SY = 70, RES = 4; // seam canvas origin in grid px, and its pixel size
+  const ignite = (progress) => () => {
+    seam.progress = progress;
+    if (!seamFire) {
+      const cv = q("#seam");
+      cv.style.display = "block";
+      cv.style.left = SX + "px"; cv.style.top = SY + "px";
+      cv.style.width = (cv.width * RES) + "px"; cv.style.height = (cv.height * RES) + "px";
+      seamFire = makeFire(cv, {
+        transparent: true, cool: 4.2, interval: 70,
+        stoke(heat, W, H) {
+          for (let t = 0; t <= seam.progress; t += 0.02) {
+            const gx = Math.round((Ax + (Bx - Ax) * t - SX) / RES);
+            const gy = Math.round((Ay + (By - Ay) * t - SY) / RES);
+            for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+              const x = gx + dx, y = gy + dy;
+              if (x >= 0 && x < W && y >= 0 && y < H)
+                heat[y * W + x] = Math.min(63, 42 + (Math.random() * 14 | 0));
+            }
+          }
+        },
+      });
+      seamFire.start();
+    }
+  };
+  [0.3, 0.55, 0.8, 1].forEach((p, i) =>
+    step(ignite(p), i === 3 ? 700 : 190));
+}
 
 // 3.. · the cascade. One sincere dialog per beat; the taskbar pays for each.
 CASCADE.forEach((spec, i) => {
