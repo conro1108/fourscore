@@ -17,6 +17,19 @@
 > search), an editable untitled.txt, and a games folder whose icons drag
 > out onto the desk and persist; everything reachable from the desk and
 > the Start menu, each with a `?state=` pose.
+>
+> **The middle of a game is no longer empty (2026-08-14).** It was: measured
+> over real games, two in three peaked at fever 0.38 — one tier crossing
+> around the minute mark, then nothing until the endgame. Two causes, both
+> in director.ts, both now fixed and both written up there. And the desktop
+> gained a second channel: **beats** (beats.ts), discrete acts answering a
+> move grade, a live threat or the room changing, drawn from weighted pools
+> the way fever's `gags.ts` draws its gags. Eight acts, all reversible —
+> a dialog, a titlebar that changes its mind, a note in moves.txt, a flare,
+> the clock lurching, the taskbar stuttering, the icons flinching, a preview
+> that opens itself. `npm run trace:exe` prints the tier timeline over real
+> games; `npm run fever:exe` plays one in a real browser and reports what the
+> desktop actually did.
 
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
@@ -128,6 +141,23 @@ grip; flames.scr's preview grows; at full fever the screensaver wins the
 desktop. A win should be the biggest thing the machine has ever announced,
 still in the OS's own furniture — a cascade of sincere dialogs beats any
 custom banner. Comic-sinister, never crash-horror: no BSOD, no fake data loss.
+
+**Escalation is not enough on its own.** There are four tier crossings in a
+whole game and a game runs two minutes, so a desktop that *only* escalates is
+one that does something every thirty seconds at best and nothing in between —
+which is what shipped first, and what it felt like. The fever is the weather;
+the **beats** are the reactions, and every one of them is an answer to a ply
+rather than something the screen decided to do on its own. Keep them apart:
+a beat is a moment and puts itself back, a tier is a state and stays. Nothing
+in `beats.ts` may leave the desktop permanently altered, and nothing may cover
+the grid — "never blocking play" is a rule about clicks, and a beat dialog is
+a real window with real pointer events.
+
+**Never let the software declare a result it hasn't got.** A beat's grade comes
+from the live feed, which is `estimated` on every ply of every game, so no beat
+copy says a move won or lost — the blunder dialogs notice that something
+happened and decline to say what they think of it. `endgame.ts` is where the
+machine gets to be flat and declarative, because by then the game is over.
 
 ## Anti-goals
 

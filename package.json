@@ -13,6 +13,8 @@
     "dev:exe": "npm run dev -w @fourscore/exe",
     "build:exe": "npm run build -w @fourscore/exe",
     "shots:exe": "npm run shots -w @fourscore/exe",
+    "trace:exe": "npm run trace -w @fourscore/exe",
+    "fever:exe": "npm run fever -w @fourscore/exe",
     "db:push": "node db/push.mjs db/schema.sql",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -44,6 +44,18 @@ const STATES = [
   ["chess", "?state=chess"],
   ["notepad", "?state=notepad"],
   ["games", "?state=games"],
+  // the beat acts — what the desktop does between tier crossings. Each puts
+  // itself back after a second or two, so they are posed rather than caught.
+  ["beat-dialog-blunder", "?state=midgame&act=dialog&pool=move:blunder"],
+  ["beat-dialog-threat", "?state=midgame&act=dialog&pool=threat:bot"],
+  ["beat-dialog-nevermind", "?state=midgame&act=dialog&pool=swing:collapsing"],
+  ["beat-title-slip", "?state=midgame&act=title-slip&pool=move:dubious"],
+  ["beat-note", "?state=midgame&act=note&pool=move:brilliant"],
+  ["beat-clock-lurch", "?state=midgame&act=clock-lurch&pool=threat:bot"],
+  ["beat-taskbar", "?state=midgame&act=taskbar-stutter&pool=move:brilliant"],
+  ["beat-icon-twitch", "?state=midgame&act=icon-twitch&pool=move:blunder"],
+  ["beat-preview-blink", "?state=midgame&act=preview-blink&pool=swing:rising"],
+  ["beat-flare", "?state=midgame&act=flare&pool=threat:you"],
 ];
 
 let BASE = process.env.BASE ?? null;

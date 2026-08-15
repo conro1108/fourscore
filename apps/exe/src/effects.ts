@@ -25,11 +25,13 @@ import {
   type Fire,
   type FireOptions,
 } from "./fire.js";
-import { DIALOG, TITLES } from "./copy.js";
-import type { DirectorSnapshot } from "./director.js";
+import { BEAT_DIALOGS, BEAT_NOTES, BEAT_TITLES, DIALOG, TITLES } from "./copy.js";
+import { BEAT_ACTS, pickAct, poolKey, type BeatAct } from "./beats.js";
+import type { Beat, DirectorSnapshot } from "./director.js";
 import type { Shell } from "./desktop.js";
-import { stageScale, type AnchorX, type WM, type Win } from "./wm.js";
+import { anchorX, anchorY, deskHeight, deskWidth, stageScale, type AnchorX, type WM, type Win } from "./wm.js";
 import type { EndResult } from "./board.js";
+import type { MovesPad } from "./notepad.js";
 
 type Personality = "classic" | "coals" | "pillar" | "rain";
 
@@ -60,10 +62,26 @@ const ROAM_ANCHOR: readonly AnchorX[] = ["left", "center", "right"];
 
 const ICON_SHIFT_T3 = [[3, -2], [-2, 3], [1, 2], [-3, -1], [2, -3], [-1, 2]] as const;
 const ICON_SHIFT_T4 = [[6, -4], [-5, 6], [3, 5], [-7, -2], [5, 4], [-4, -5]] as const;
+/** A flinch, not a state — bigger than either tier shift, and it goes back. */
+const ICON_TWITCH = [[-9, 5], [7, -6], [-4, -8], [9, 3], [-6, 7], [5, -9]] as const;
 const CLOCK_DRIFT = [0, 1, 5, 22, -1] as const;
+
+/** Roughly how tall a beat dialog comes out — two lines of body plus the
+    button row and the titlebar. Only used to test whether one would land on
+    the board, so a few pixels either way costs nothing. */
+const DIALOG_H = 108;
+const TASKBAR_H = 36;
+
+/** The preview that opens itself for two seconds. Left margin, out of the way
+    of the board and of every geometry `MAIN_GEOM` uses. */
+const BLINK_GEOM: FireWindowGeom = { x: 34, y: 250, ax: "left", cw: 208, ch: 138, rw: 69, rh: 46 };
 
 export interface Effects {
   apply(s: DirectorSnapshot): void;
+  /** Answer one ply. The desktop's whole life between tier crossings.
+      `force` is the harness naming an act so it can be looked at; live play
+      never passes it and always draws. */
+  beat(b: Beat, force?: BeatAct): void;
   gameEvent(kind: EndResult["kind"]): void;
   /** The moment a game ends, crossings stop talking (the endgame has the mic). */
   setGameOver(): void;
@@ -74,8 +92,17 @@ export interface Effects {
   takeover(on: boolean): void;
 }
 
-export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; boardWin: () => Win | undefined }): Effects {
+export function makeEffects(deps: {
+  wm: WM;
+  shell: Shell;
+  stage: HTMLElement;
+  boardWin: () => Win | undefined;
+  notepad: MovesPad;
+  /** Injected so the beat picker is deterministic under test and in the shots. */
+  rng?: () => number;
+}): Effects {
   const { wm, shell, stage } = deps;
+  const rng = deps.rng ?? Math.random;
 
   /* ---- the main flames.scr preview ---- */
   let mainWin: Win | null = null;
@@ -378,6 +405,185 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
     }
   }
 
+  /* ---- beats: what the desktop does between tier crossings ----
+     Every act here is small, reversible, and puts itself back. A tier is a
+     state the OS is *in*; a beat is something it does and then stops doing,
+     so nothing below is allowed to leave the desktop permanently altered —
+     that is what `applyTier` is for. Timing law holds: instant or stepped,
+     never eased. */
+  let beatTimers: ReturnType<typeof setTimeout>[] = [];
+  let lastAct: BeatAct | null = null;
+  /** Rotation cursor per pool, so a repeated beat doesn't repeat its line.
+      Deterministic on purpose — the draw picks the act, never how it looks. */
+  const rotation = new Map<string, number>();
+  let beatDialogs: Win[] = [];
+
+  const beatLater = (fn: () => void, ms: number): void => {
+    beatTimers.push(setTimeout(fn, ms));
+  };
+  function clearBeats(): void {
+    for (const t of beatTimers) clearTimeout(t);
+    beatTimers = [];
+    for (const d of beatDialogs) if (d.isOpen()) d.close();
+    beatDialogs = [];
+    rotation.clear();
+    lastAct = null;
+    // whatever an act was borrowing, the tier gets back
+    shell.setClockDrift(CLOCK_DRIFT[Math.min(tier, 4)]!);
+    shell.shiftIcons(tier >= 4 ? ICON_SHIFT_T4 : tier >= 3 ? ICON_SHIFT_T3 : []);
+    restoreTitle();
+    applyHeat();
+  }
+
+  /** Next entry of a rotating list, or undefined if the pool has no copy. */
+  function nextOf<T>(key: string, list: readonly T[] | undefined): T | undefined {
+    if (!list || list.length === 0) return undefined;
+    const i = rotation.get(key) ?? 0;
+    rotation.set(key, i + 1);
+    return list[i % list.length];
+  }
+
+  const restoreTitle = (): void => {
+    const board = deps.boardWin();
+    if (board?.isOpen()) board.setTitle(TITLES.board);
+  };
+
+  /**
+   * Keep a beat dialog off the board — "never blocking play" (DIRECTION.md) is
+   * a rule about clicks, not about taste. A beat dialog is a real window with
+   * real pointer events, so one parked over the grid eats the drop you were
+   * aiming at, and unlike the win cascade it arrives while the game is still
+   * going.
+   *
+   * The authored position is the intent and is used whenever it fits. It stops
+   * fitting more often than it looks: BOARD.EXE is center-anchored and sizes
+   * itself from the variant, so a Connect 7 window is 852px of the desk where
+   * Connect 4's is 480, and a spot that was clear margin on one board is the
+   * middle of the next one. So the authored spot is *moved*, never redrawn —
+   * pushed to the band below the board, then above it, then to whichever side
+   * has more room. Deterministic all the way down: the draw picks which dialog
+   * you get, the layout decides where it will fit, and neither is random.
+   */
+  function clearOfBoard(spec: { x: number; y: number; ax?: AnchorX; ay?: "top" | "bottom"; w: number }): {
+    x: number;
+    y: number;
+    ax?: AnchorX;
+    ay?: "top" | "bottom";
+  } {
+    const board = deps.boardWin();
+    if (!board?.isOpen()) return spec;
+    const b = {
+      left: board.el.offsetLeft,
+      top: board.el.offsetTop,
+      right: board.el.offsetLeft + board.el.offsetWidth,
+      bottom: board.el.offsetTop + board.el.offsetHeight,
+    };
+    const x = anchorX(spec.x, spec.ax);
+    const y = anchorY(spec.y, spec.ay);
+    const h = DIALOG_H;
+    const clear = x + spec.w <= b.left || x >= b.right || y + h <= b.top || y >= b.bottom;
+    if (clear) return spec;
+
+    const deskBottom = deskHeight() - TASKBAR_H;
+    // below the board, where a short variant leaves a full-width band
+    if (deskBottom - b.bottom >= h + 12)
+      return { x: Math.min(x, deskWidth() - spec.w - 8), y: b.bottom + 8 };
+    // above it, in the strip over the titlebar
+    if (b.top >= h + 12) return { x: Math.min(x, deskWidth() - spec.w - 8), y: Math.max(8, b.top - h - 8) };
+    // otherwise the wider shoulder, which on a maximised board is neither
+    const roomRight = deskWidth() - b.right;
+    return roomRight >= b.left
+      ? { x: Math.min(b.right + 8, deskWidth() - spec.w - 8), y }
+      : { x: Math.max(8, b.left - spec.w - 8), y };
+  }
+
+  const ACTS: Record<BeatAct, (key: string) => void> = {
+    dialog(key) {
+      const spec = nextOf(key, BEAT_DIALOGS[key]);
+      if (!spec) return;
+      const at = clearOfBoard(spec);
+      const win = wm.dialog({
+        title: spec.title,
+        body: spec.body,
+        icon: spec.icon,
+        buttons: spec.buttons ? [...spec.buttons] : undefined,
+        x: at.x,
+        y: at.y,
+        ax: at.ax,
+        ay: at.ay,
+        w: spec.w,
+      });
+      beatDialogs.push(win);
+      // The OS takes it back, but you can close it first — it is a real dialog.
+      beatLater(() => {
+        if (win.isOpen()) win.close();
+        beatDialogs = beatDialogs.filter((d) => d !== win);
+      }, spec.dwell);
+    },
+
+    "title-slip"(key) {
+      const board = deps.boardWin();
+      const title = nextOf(key, BEAT_TITLES[key]);
+      if (!board?.isOpen() || !title) return;
+      board.setTitle(title);
+      beatLater(restoreTitle, 2600);
+    },
+
+    note(key) {
+      const line = nextOf(key, BEAT_NOTES[key]);
+      if (line) deps.notepad.lines([line]);
+    },
+
+    flare() {
+      if (!mainFire) return;
+      // the continuous system, shoved — and then handed straight back to fever
+      mainFire.set({ baseHeat: Math.round(52 + fever * 10), cool: 2.2, interval: 48 });
+      beatLater(applyHeat, 1400);
+    },
+
+    "clock-lurch"() {
+      // the clock finds several minutes it did not have, and loses them again
+      const base = CLOCK_DRIFT[Math.min(tier, 4)]!;
+      shell.setClockDrift(base + 9);
+      beatLater(() => shell.setClockDrift(base + 2), 420);
+      beatLater(() => shell.setClockDrift(base), 1700);
+    },
+
+    "taskbar-stutter"() {
+      // every button believes it is the focused one, in turn. 12fps, stepped.
+      const buttons = [...shell.tasksEl.querySelectorAll<HTMLElement>(".task")];
+      if (buttons.length === 0) return;
+      const held = buttons.map((b) => b.classList.contains("down"));
+      buttons.forEach((b, i) =>
+        beatLater(() => {
+          buttons.forEach((o) => o.classList.remove("down"));
+          b.classList.add("down");
+        }, 90 * i),
+      );
+      beatLater(() => {
+        buttons.forEach((b, i) => b.classList.toggle("down", held[i]!));
+      }, 90 * buttons.length + 160);
+    },
+
+    "icon-twitch"() {
+      shell.shiftIcons(ICON_TWITCH);
+      beatLater(() => {
+        shell.shiftIcons(tier >= 4 ? ICON_SHIFT_T4 : tier >= 3 ? ICON_SHIFT_T3 : []);
+      }, 720);
+    },
+
+    "preview-blink"() {
+      // a preview nobody opened, which is briefly a real window and then isn't
+      const id = "flames-blink";
+      if (wm.get(id)?.isOpen()) return;
+      const made = fireWindow(id, TITLES.flamesN(4), BLINK_GEOM, heatParams({ dBase: -6, dInt: 10 }));
+      beatLater(() => {
+        made.fire.stop();
+        if (made.win.isOpen()) made.win.close();
+      }, 2200);
+    },
+  };
+
   function applyTier(t: number): void {
     const prev = tier;
     tier = t;
@@ -405,6 +611,17 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
       if (s.tier !== tier) applyTier(s.tier);
       applyHeat();
     },
+
+    beat(b, force) {
+      // Once a game ends the endgame owns the mic, same as tier crossings.
+      if (gameOver) return;
+      const key = poolKey(b);
+      const act = force ?? pickAct(b, rng, { avoid: lastAct, fever });
+      if (!act) return;
+      lastAct = act;
+      ACTS[act](key);
+    },
+
     setGameOver() {
       gameOver = true;
     },
@@ -438,6 +655,9 @@ export function makeEffects(deps: { wm: WM; shell: Shell; stage: HTMLElement; bo
       wonGeom = false;
       gameOver = false;
       personality = opponentId === "oracle" ? "pillar" : "classic";
+      clearBeats();
+      const blink = wm.get("flames-blink");
+      if (blink?.isOpen()) blink.close();
       for (const d of crossingDialogs) if (d.isOpen()) d.close();
       crossingDialogs = [];
       closeRoam();

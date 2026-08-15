@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "shots": "node tools/shots.mjs",
-    "timeline": "node tools/timeline.mjs"
+    "timeline": "node tools/timeline.mjs",
+    "trace": "vite-node tools/trace.ts",
+    "fever": "node tools/fever.mjs"
   },
   "dependencies": {
     "@fourscore/engine": "*"

@@ -194,6 +194,99 @@ export const LOSS_CASCADE: readonly (CascadeSpec & { behind?: boolean })[] = [
   { title: "flames.scr", body: "The fire has gone low.<br>It is not for you.", x: 1080, y: 540, w: 300, dwell: 760 },
 ] as const;
 
+/**
+ * What the desktop says between tier crossings — the beat roster's words.
+ *
+ * Two laws bind every string in here.
+ *
+ * **The confidence law (CLAUDE.md).** A beat's grade comes from the live feed,
+ * which is `estimated` on every ply of every game — this engine's read, not a
+ * fact about the game. So nothing here may declare a result. No line says a
+ * move lost, or won, or was wrong; the blunder dialogs notice that something
+ * happened and then decline to say what they think of it, which is both honest
+ * and funnier than a verdict. `endgame.ts` is where the software is allowed to
+ * be flat and declarative, because by then the game is actually over.
+ *
+ * **The voice.** Sincere period software, deadpan, believes it is fine. The OS
+ * is not commenting on your game; it is filing, printing, previewing and
+ * acknowledging, and your game is simply what is happening while it does that.
+ *
+ * Positions are authored against 1280x800 and carry anchors, like every other
+ * window spec. They are hand-tuned per line rather than drawn from a hat: the
+ * cascade's rule holds here too — randomness picks which act fires, never how
+ * it looks.
+ */
+export interface BeatDialog {
+  title: string;
+  body: string;
+  icon?: "i" | "!";
+  buttons?: readonly string[];
+  x: number;
+  y: number;
+  ax?: "left" | "center" | "right";
+  ay?: "top" | "bottom";
+  w: number;
+  /** Milliseconds before the OS takes it back. You may close it first. */
+  dwell: number;
+}
+
+export const BEAT_DIALOGS: Record<string, readonly BeatDialog[]> = {
+  "move:fine": [
+    { title: "Information", body: "A move has been made.<br>The move has been acknowledged.", x: 300, y: 200, ax: "center", w: 320, dwell: 2200 },
+    { title: "Print", body: "Nothing has been sent to the printer.", x: 840, y: 168, ax: "center", w: 316, dwell: 2000 },
+    { title: "Display", body: "The display is keeping up.", x: 250, y: 470, ax: "left", w: 288, dwell: 1900 },
+  ],
+  "move:brilliant": [
+    { title: "Information", body: "That looks stronger.<br>The machine is prepared to say so.", x: 620, y: 150, ax: "center", w: 340, dwell: 2600 },
+    { title: "Sound", body: "A small sound has played.<br>You may not have heard it.", x: 330, y: 250, ax: "center", w: 322, dwell: 2400 },
+    { title: "flames.scr", body: "The fire has been informed.", x: 880, y: 470, ax: "right", w: 300, dwell: 2200 },
+  ],
+  "move:dubious": [
+    { title: "System", body: "The system has said hmm.<br>The system does not elaborate.", x: 560, y: 220, ax: "center", w: 340, dwell: 2600 },
+    { title: "Display", body: "The display noticed.<br>The display is saying nothing.", x: 300, y: 390, ax: "center", w: 330, dwell: 2400 },
+    { title: "moves.txt", body: "The file has recorded that.<br>The file is not editorialising.", x: 900, y: 250, ax: "right", w: 336, dwell: 2600 },
+  ],
+  // Hedged by law, and better for it. Not one of these says the move was bad.
+  "move:blunder": [
+    { title: "Information", body: "This program has an opinion.<br>It is keeping it.", x: 480, y: 260, ax: "center", w: 330, dwell: 3000 },
+    { title: "Display", body: "That looked like something.<br>The display is not sure what.", x: 700, y: 180, ax: "center", w: 348, dwell: 2800 },
+    { title: "System", icon: "!", body: "A column has been used.<br>It may not have been the one.", x: 360, y: 430, ax: "center", w: 344, dwell: 3000 },
+    { title: "FOURSCORE.EXE — not responding (it is)", body: "This move is running normally.", buttons: ["OK", "OK"], x: 540, y: 320, ax: "center", w: 372, dwell: 2800 },
+  ],
+  "threat:you": [
+    { title: "Information", body: "There is a winning column.<br>It is one of them.", x: 520, y: 190, ax: "center", w: 330, dwell: 3000 },
+    { title: "flames.scr", body: "The fire has read the board.<br>The fire is encouraged.", x: 870, y: 430, ax: "right", w: 312, dwell: 2800 },
+  ],
+  "threat:bot": [
+    { title: "System", icon: "!", body: "Something is available to the opponent.<br>This is not a warning.", x: 470, y: 230, ax: "center", w: 366, dwell: 3200 },
+    { title: "Display", body: "The next move has been previewed.<br>It went well for them.", x: 690, y: 350, ax: "center", w: 348, dwell: 3000 },
+  ],
+  "swing:rising": [
+    { title: "System", body: "The room has changed temperature.<br>No action is required.", x: 600, y: 170, ax: "center", w: 352, dwell: 2600 },
+    { title: "flames.scr", body: "The fire has increased.<br>This is within tolerance.", x: 880, y: 490, ax: "right", w: 316, dwell: 2600 },
+  ],
+  // The best line in fever's roster, and this is the only beat that plays it.
+  "swing:collapsing": [
+    { title: "Information", body: "Never mind.", x: 540, y: 280, ax: "center", w: 300, dwell: 2400 },
+    { title: "Display", body: "That has passed.<br>The display was ready for nothing.", x: 320, y: 330, ax: "center", w: 344, dwell: 2600 },
+  ],
+};
+
+/** What BOARD.EXE's titlebar says when it briefly says something else. */
+export const BEAT_TITLES: Record<string, readonly string[]> = {
+  "move:fine": ["BOARD.EXE — working", "BOARD.EXE — please wait", "BOARD.EXE — (1 move)"],
+  "move:dubious": ["BOARD.EXE — thinking about it", "BOARD.EXE — (not responding)", "BOARD.EXE — hm"],
+  "swing:collapsing": ["BOARD.EXE — never mind", "BOARD.EXE — (nothing)", "BOARD.EXE — working"],
+};
+
+/** What moves.txt volunteers, in its own lowercase. */
+export const BEAT_NOTES: Record<string, readonly string[]> = {
+  "move:fine": ["that happened.", "noted without comment.", "the file is keeping up.", "still writing this down."],
+  "move:brilliant": ["that one is going in.", "underlined.", "the file approves. the file is a file."],
+  "move:dubious": ["hm.", "noted. no further notes.", "written down twice."],
+  "swing:collapsing": ["never mind.", "scratched out.", "the file has moved on."],
+};
+
 export const NOTES = {
   hesitated: ["and then you", "hesitated"],
   sameColumn: (col: number): string => `column ${col + 1} again.`,

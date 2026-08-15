@@ -8,7 +8,7 @@
  * over the worker protocol; the deliberation walk is theatre, the move is not.
  */
 
-import { ROSTER, VARIANTS, byId, variantById, type Variant } from "@fourscore/engine";
+import { ROSTER, VARIANTS, byId, variantById, type Position, type Variant } from "@fourscore/engine";
 import { Match } from "@fourscore/engine";
 import { el, gravityFall, q } from "./dom.js";
 import { ICONS } from "./icons.js";
@@ -35,7 +35,9 @@ export interface BoardDeps {
   onEval?(history: readonly number[]): void;
   onEnd(end: EndResult): void;
   onNewGame?(variant: Variant, botId: string): void;
-  onPly?(mover: "you" | "bot"): void;
+  /** Fires the instant a ply commits, with the position it produced — the
+      synchronous half of the director's feed, ahead of the worker's eval. */
+  onPly?(mover: "you" | "bot", position: Position): void;
 }
 
 export interface BoardApp {
@@ -432,7 +434,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   function afterPly(mover: "you" | "bot", col: number): void {
     updateCount();
     deps.notepad.move(col);
-    deps.onPly?.(mover);
+    deps.onPly?.(mover, match.position);
     deps.onEval?.(match.history);
     if (match.status !== "playing") {
       end();

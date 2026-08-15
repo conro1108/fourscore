@@ -11,6 +11,7 @@
  *   ?state=mines|sol|snake|checkers|notepad|games   the other software
  *   ?state=sol&rig=won    a double-click from the card bounce
  *   ?fever=0.85           walk the fever up to a value and pin it
+ *   ?act=dialog&pool=move:blunder   fire one beat act, so it can be looked at
  *   ?chips=pixel          preselect a chip style
  *   ?bot=quill ?variant=connect5
  *   ?ctl=1                FEVER.CTL (dev only; does not ship in the fiction)
@@ -26,6 +27,7 @@ import { makeMovesPad, openUntitled, textWindow } from "./notepad.js";
 import { installGeneratedChips, openPieces } from "./chips.js";
 import { makeDirector, tierOf } from "./director.js";
 import { makeEffects } from "./effects.js";
+import { beatFromPool, type BeatAct } from "./beats.js";
 import { makeEndgame } from "./endgame.js";
 import { BIN_TEXT, DIALOG, HELP_TEXT, TITLES } from "./copy.js";
 import { openMines } from "./games/mines.js";
@@ -64,9 +66,18 @@ const boardDeps: BoardDeps = {
       .evaluate(board.variant.id, history)
       .then((r) => {
         // a stale reply from an abandoned game can't hurt a target, but don't bother
-        director.feedEval(r.advantage, r.ply, board.variant.cells);
+        director.feedEval(r.advantage, r.ply, board.variant.cells, r.source);
       })
       .catch(() => {});
+  },
+  /* The synchronous half of the feed. The eval is a worker round-trip and a
+     threat is a bitboard test, so the board hands the cheap fact over the
+     instant the disc lands and the expensive one whenever it arrives. */
+  onPly(mover, position) {
+    director.feedPly({
+      mover,
+      threats: position.legalMoves().filter((c) => position.isWinningMove(c)).length,
+    });
   },
   onEnd(end) {
     effects.setGameOver();
@@ -91,7 +102,13 @@ const endgame = makeEndgame({
     effects.gameEvent(kind);
   },
 });
-const effects = makeEffects({ wm, shell, stage, boardWin: () => wm.get("board") });
+const effects = makeEffects({
+  wm,
+  shell,
+  stage,
+  boardWin: () => wm.get("board"),
+  notepad: movesPad,
+});
 
 board.onMenu("help", () => desktopApps.openHelp());
 board.onMenu("about", () =>
@@ -195,6 +212,10 @@ setInterval(() => {
   if (frozenFever) return;
   const moved = director.step(0.5);
   if (moved) effects.apply(moved);
+  // Beats are drained whether or not fever moved: a blunder in a level game
+  // still deserves an answer, and that is exactly the game that used to get
+  // nothing at all.
+  for (const b of director.takeBeats()) effects.beat(b);
 }, 500);
 effects.apply(director.snapshot());
 
@@ -262,6 +283,20 @@ if (state === "midgame") {
   openChess(wm, param("fen") ?? undefined);
 } else if (state === "games") {
   desktopApps.openGames();
+}
+
+/* ---- beat poses: the eyes for the acts ----
+   Every act puts itself back after a second or two, and `npm run shots` always
+   looks at 1800ms — so a pose that fired on load would be caught after the
+   icons had settled and the clock had found its minutes again, which is a
+   screenshot of the act not happening. Firing at 1500ms puts the shutter 300ms
+   into every act instead, inside the shortest of them. `npm run timeline` is
+   still the tool for watching one restore. */
+const actParam = param("act");
+if (actParam) {
+  const pool = param("pool") ?? "move:fine";
+  board.freeze();
+  setTimeout(() => effects.beat(beatFromPool(pool), actParam as BeatAct), 1500);
 }
 
 /* ---- FEVER.CTL — dev chrome; does not ship in the fiction ---- */
