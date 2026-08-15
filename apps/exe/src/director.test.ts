@@ -127,6 +127,27 @@ describe("director", () => {
     expect(d.snapshot().tier).toBeGreaterThanOrEqual(3);
   });
 
+  /**
+   * The screensaver is the ending's, not the middlegame's. `advantageOf` puts a
+   * forced win the search can *see* at 0.50-0.56 and `SHARP_REF` is 0.5, so the
+   * first ply where a mate comes into view used to pin the target at exactly 1
+   * — full-screen fire over a board that was still being played on, several
+   * plies before the game had a result.
+   */
+  it("a decisive live position stops short of the screensaver", () => {
+    const d = makeDirector();
+    for (let ply = 20; ply <= 40; ply++) {
+      d.feedEval(0.53, ply, 42); // the evaluator sees a win, late, board filling
+      for (let i = 0; i < 8; i++) d.step(0.5);
+    }
+    expect(d.snapshot().tier).toBe(3);
+    expect(d.snapshot().fever).toBeLessThan(1);
+    // and the game actually ending is still allowed to take the desktop
+    d.event("win");
+    for (let i = 0; i < 20; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBe(4);
+  });
+
   it("a level game still escalates on disc count alone", () => {
     const d = makeDirector();
     for (let ply = 1; ply <= 42; ply++) {

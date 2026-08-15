@@ -319,21 +319,23 @@ export function makeEffects(deps: {
   function hideSaver(fade: boolean): void {
     if (!saverEl) return;
     const el2 = saverEl;
-    if (!fade) {
+    // the raised band goes back with the picture, not before it — dropping it
+    // first would slip the board under a saver that is still on screen
+    const gone = (): void => {
       el2.style.display = "none";
       el2.style.opacity = "1";
       saverFire?.stop();
+      wm.setSaverActive(false);
+    };
+    if (!fade) {
+      gone();
       return;
     }
     [0.75, 0.5, 0.25, 0].forEach((o, i) => {
       fadeTimers.push(
         setTimeout(() => {
           el2.style.opacity = String(o);
-          if (o === 0) {
-            el2.style.display = "none";
-            el2.style.opacity = "1";
-            saverFire?.stop();
-          }
+          if (o === 0) gone();
         }, (i + 1) * 110),
       );
     });
@@ -361,20 +363,14 @@ export function makeEffects(deps: {
       });
       saverFire.start();
       mainFire?.stop();
-      // the board stays playable on top of it
-      const board = deps.boardWin();
-      if (board?.isOpen()) {
-        board.el.style.zIndex = "250";
-        board.focus();
-        board.el.style.zIndex = "250";
-      }
+      // The board stays playable on top of it — a band the wm owns, so that
+      // clicking the board (which re-focuses it) can't drop it back under.
+      // Nothing is focused or raised on the way in: the fire arriving must not
+      // reorder the desktop, or it shuffles the board over the win's own
+      // finale, which is the one window that has earned the top of the stack.
+      wm.setSaverActive(true);
     } else {
       hideSaver(fade);
-      const board = deps.boardWin();
-      if (board?.isOpen()) {
-        board.el.style.zIndex = "";
-        board.focus();
-      }
       if (mainWin?.isOpen()) {
         mainFire?.start();
       }

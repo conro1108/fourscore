@@ -316,11 +316,9 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       step(() => {
         const d = dialog({ title: spec.title, body: spec.body, icon: spec.icon, x: spec.x, y: spec.y, w: spec.w });
         // one notice is filed underneath the board, where you find it later —
-        // slid below the board's z, not by raising the board over the others
-        if (spec.behind) {
-          const boardZ = Number(deps.board().win.el.style.zIndex || 40);
-          d.el.style.zIndex = String(boardZ - 1);
-        }
+        // slid below the board in the stack, not by raising the board over the
+        // others, and it stays there when something else takes the focus
+        if (spec.behind) deps.wm.sendBelow(d, deps.board().win);
       }, spec.dwell);
       beat(6 + i);
     });

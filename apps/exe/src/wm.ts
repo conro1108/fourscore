@@ -31,6 +31,12 @@ export interface WindowSpec {
   onClose?: () => void;
   /** Fires after maximize/restore, so a window can re-frame its contents. */
   onMaximize?: (on: boolean) => void;
+  /** Stay above the screensaver while it has the desktop. The board asks for
+      this ("the board stays playable on top of it" — DIRECTION.md) and so does
+      anything the machine is currently saying; dialogs get it by default. */
+  overSaver?: boolean;
+  /** A fixed z-index, opting out of the stack entirely. Dev chrome only. */
+  z?: number;
 }
 
 export interface Win {
@@ -79,7 +85,28 @@ export interface WM {
   onDrag(cb: (win: Win, x: number, y: number) => void): void;
   /** Fires on any focus change — roam.scr steals focus through this. */
   focusWin(win: Win): void;
+  /** Put `win` directly underneath `other` in the stack, and leave it there —
+      the loss files one notice behind the board for you to find later. */
+  sendBelow(win: Win, other: Win): void;
+  /** The screensaver has (or has let go of) the desktop. While it has it, the
+      `overSaver` windows are the only ones above it. */
+  setSaverActive(on: boolean): void;
 }
+
+/* ---- stacking ----
+   Windows are packed into a band in back-to-front order rather than counted up
+   from an ever-climbing z. The counter walked into the chrome's own fixed
+   layers over a long session (#taskbar is 200, #saver 240), and worse, it made
+   `focus()` the thing that undid a raised window: the screensaver put the board
+   at 250, and the next click on the board handed it back a number in the
+   fifties, so the board vanished underneath the fire. A band is a property of
+   the window, so clicking it can't lose it. */
+const Z_BASE = 40;
+/** Above #saver (240), below #startmenu (300). */
+const Z_OVER_SAVER = 250;
+/** Ordering headroom inside a band. The desk never holds this many windows;
+    past it the extras tie and fall back to DOM order, which is fine. */
+const Z_DEPTH = 45;
 
 /* ---- the desk ----
    The desktop IS the screen (DIRECTION.md), so the stage fills the browser
@@ -129,12 +156,41 @@ export function fitStage(stage: HTMLElement, w = DESIGN_W, h = DESIGN_H): void {
 }
 
 export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
-  let zTop = 40;
   const wins = new Map<string, Win>();
   const tasks = new Map<string, HTMLElement>();
   const dragCbs: ((win: Win, x: number, y: number) => void)[] = [];
   let focusedWin: Win | undefined;
   let dialogSeq = 0;
+
+  /** Every open window, back to front. Index in here IS the z-order. */
+  interface Stacked {
+    win: Win;
+    overSaver: boolean;
+    z?: number;
+  }
+  const order: Stacked[] = [];
+  let saverOn = false;
+
+  function restack(): void {
+    order.forEach((s, i) => {
+      if (s.z !== undefined) return; // fixed-z windows sit outside the stack
+      const base = saverOn && s.overSaver ? Z_OVER_SAVER : Z_BASE;
+      s.win.el.style.zIndex = String(base + Math.min(i, Z_DEPTH));
+    });
+  }
+
+  /** Move a window to the front of the stack (or drop it, on close). */
+  function reorder(win: Win, to: "front" | "out" | { below: Win }): void {
+    const i = order.findIndex((s) => s.win === win);
+    if (i < 0) return;
+    const [s] = order.splice(i, 1);
+    if (to === "front") order.push(s!);
+    else if (typeof to === "object") {
+      const j = order.findIndex((o) => o.win === to.below);
+      order.splice(j < 0 ? 0 : j, 0, s!);
+    }
+    restack();
+  }
 
   function setFocus(win: Win | undefined): void {
     focusedWin = win;
@@ -185,8 +241,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       focus() {
         if (!w.isConnected) return;
         w.style.display = ""; // undo minimize; the class decides the display
-
-        w.style.zIndex = String(++zTop);
+        reorder(win, "front");
         setFocus(win);
       },
       minimize() {
@@ -201,6 +256,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         // A window that was already gone doesn't close twice either; the
         // endgame's `clear()` sweeps a stack that has half closed itself.
         if (w.isConnected && !quiet) play("window-close", 0.6);
+        reorder(win, "out");
         w.remove();
         tasks.get(spec.id)?.remove();
         tasks.delete(spec.id);
@@ -281,6 +337,8 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     }
 
     wins.set(spec.id, win);
+    order.push({ win, overSaver: spec.overSaver ?? false, z: spec.z });
+    if (spec.z !== undefined) w.style.zIndex = String(spec.z);
     win.focus();
     if (!quiet) play("window-open", 0.7);
     return win;
@@ -318,6 +376,10 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         body,
         buttons: ["close"],
         taskbar: spec.taskbar ?? false,
+        // the machine gets to keep talking over its own screensaver: a win
+        // cascade the fire had covered would be its biggest announcement,
+        // unannounced
+        overSaver: true,
       },
       true,
     );
@@ -334,5 +396,10 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     focused: () => focusedWin,
     onDrag: (cb) => dragCbs.push(cb),
     focusWin: (win) => win.focus(),
+    sendBelow: (win, other) => reorder(win, { below: other }),
+    setSaverActive(on) {
+      saverOn = on;
+      restack();
+    },
   };
 }

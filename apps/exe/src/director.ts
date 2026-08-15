@@ -107,6 +107,24 @@ const SHARP_GAMMA = 1.5;
  */
 const FLOOR_MAX = 0.62;
 
+/**
+ * The ceiling on a *live* target, and the reason it can't be 1.
+ *
+ * Tier 4 is the screensaver taking the desktop, and it belongs to the endgame
+ * shove — `event()` is the only thing allowed to ask for 1. `FLOOR_MAX` says
+ * as much about the disc ramp, but the ramp was never the way in: sharpness is
+ * the way in. `advantageOf` scores a forced win the evaluator can *see* at
+ * 0.50-0.56 and `SHARP_REF` is 0.5, so the first ply where the search finds a
+ * mate — several plies before the game actually ends — pins sharpness at 1,
+ * which drives the target to exactly 1 whatever the floor is. The desktop then
+ * pre-empted its own ending: full-screen fire over a board still being played
+ * on, with the game's real result still to come.
+ *
+ * High tier 3 rather than a round number, because a live game that has gone
+ * decisive should be sitting right under the ceiling, not comfortably inside.
+ */
+const LIVE_MAX = 0.95;
+
 /** Seconds an end-of-game target stands before the desktop starts cooling.
     A win holds through its cascade and its screensaver; a loss holds long
     enough that stewing on it still escalates. */
@@ -290,7 +308,7 @@ export function makeDirector(): Director {
       const progress = cells > 0 ? ply / cells : 0;
       const floor = FLOOR_MAX * progress;
       const drive = BASE + (1 - BASE) * sharp;
-      target = clamp(floor + (1 - floor) * drive);
+      target = Math.min(LIVE_MAX, clamp(floor + (1 - floor) * drive));
     },
 
     feedPly({ mover, threats: count }) {

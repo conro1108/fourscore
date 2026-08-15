@@ -321,7 +321,7 @@ if (param("ctl")) {
       </div>
       <div style="padding:0 12px 10px;color:#404040">fever = <span id="fOut">0.00</span>. This control does not ship.</div>
     </div>`);
-  const ctl = wm.open({
+  wm.open({
     id: "feverCtl",
     title: TITLES.feverCtl,
     x: 20,
@@ -330,8 +330,10 @@ if (param("ctl")) {
     body,
     buttons: ["close"],
     taskbar: false,
+    // dev chrome, above everything including the screensaver it drives — and
+    // fixed, because focusing it used to hand it back an ordinary z
+    z: 400,
   });
-  ctl.el.style.zIndex = "400";
   const setFever = (f: number): void => {
     const v = Math.max(0, Math.min(1, f));
     frozenFever = true;

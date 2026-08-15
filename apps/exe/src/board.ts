@@ -106,6 +106,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     cls: `chips-${chips}`,
     body,
     onMaximize: (on) => layoutMax(on),
+    // the screensaver wins the desktop; the game goes on on top of it
+    overSaver: true,
   });
 
   const name = (): string => byId(botId).name.toUpperCase();
