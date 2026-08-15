@@ -225,6 +225,8 @@ export function makeEffects(deps: {
   /* ---- roam.scr: one fire, three windows, focus follows it ---- */
   let roam: { start(): void; stop(): void } | null = null;
   let roamWins: Win[] = [];
+  /** Desk px per fire px — the canvas's css size over its resolution. */
+  const ROAM_SCALE = 296 / 100;
   function openRoam(): void {
     if (roam) return;
     const canvases: HTMLCanvasElement[] = [];
@@ -247,9 +249,26 @@ export function makeEffects(deps: {
         body,
         w: 308,
         buttons: ["close"],
+        // when you close the last porthole there is nothing left to burn in
+        onClose: () => {
+          if (roam && roamWins.every((w) => !w.isOpen())) closeRoam();
+        },
       });
     });
-    roam = makeRoam(canvases, (i) => {
+    // each window reports where it is *now*, so dragging one moves its
+    // porthole and closing or minimizing one removes it from the fire's world
+    const views = (): { canvas: HTMLCanvasElement; x: number; index: number }[] => {
+      const sr = stage.getBoundingClientRect();
+      const k = stageScale();
+      const out: { canvas: HTMLCanvasElement; x: number; index: number }[] = [];
+      roamWins.forEach((w, i) => {
+        if (!w.isOpen() || w.el.style.display === "none") return;
+        const r = canvases[i]!.getBoundingClientRect();
+        out.push({ canvas: canvases[i]!, x: Math.round((r.left - sr.left) / k / ROAM_SCALE), index: i });
+      });
+      return out;
+    };
+    roam = makeRoam(Math.ceil(deskWidth() / ROAM_SCALE), 50, views, (i) => {
       const w = roamWins[i];
       if (w?.isOpen()) w.focus();
     });
@@ -258,8 +277,9 @@ export function makeEffects(deps: {
   function closeRoam(): void {
     roam?.stop();
     roam = null;
-    for (const w of roamWins) if (w.isOpen()) w.close();
+    const wins = roamWins;
     roamWins = [];
+    for (const w of wins) if (w.isOpen()) w.close();
   }
 
   /* ---- smears: a dragged window leaves un-repainted copies of itself ---- */

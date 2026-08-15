@@ -247,23 +247,34 @@ export const COALS_OPTIONS: FireOptions = {
 };
 
 /**
- * roam.scr: ONE heat field spanning several windows. The heat source wanders
- * the full width — two incommensurate sines plus a bounded random walk, so it
- * goes where it wants — and the flame walks out of one window into the next.
- * `onFocus` fires when it crosses a window boundary: focus follows the fire.
+ * roam.scr: ONE heat field, laid out in desk space, with each window a
+ * viewport into it. `view()` reports where every still-visible window sits
+ * right now (in field pixels), so a dragged window carries its porthole with
+ * it and a closed or minimized one stops being somewhere the fire can appear.
+ * The heat source wanders the span the surviving windows actually cover —
+ * two incommensurate sines plus a bounded random walk, so it goes where it
+ * wants — and the flame walks out of one window into the next, invisibly
+ * crossing whatever gap you dragged between them. `onFocus` fires when it
+ * enters a different window: focus follows the fire.
  */
+export interface RoamView {
+  canvas: HTMLCanvasElement;
+  /** Field-pixel x of the canvas's left edge, in desk space. */
+  x: number;
+  /** The caller's stable window index, for `onFocus`. */
+  index: number;
+}
+
 export function makeRoam(
-  canvases: readonly HTMLCanvasElement[],
+  fieldWidth: number,
+  fieldHeight: number,
+  view: () => readonly RoamView[],
   onFocus: (index: number) => void,
 ): { start(): void; stop(): void } {
-  const SLICE = canvases[0]!.width;
-  const TH = canvases[0]!.height;
-  const TW = SLICE * canvases.length;
-  const heat = new Uint8Array(TW * TH);
-  const targets = canvases.map((c) => {
-    const ctx = c.getContext("2d")!;
-    return { ctx, img: ctx.createImageData(SLICE, TH) };
-  });
+  let FW = fieldWidth;
+  const TH = fieldHeight;
+  let heat = new Uint8Array(FW * TH);
+  const targets = new Map<HTMLCanvasElement, { ctx: CanvasRenderingContext2D; img: ImageData }>();
   const pal = PALETTES.classic;
   let tick = 0;
   let focused = -1;
@@ -272,36 +283,70 @@ export function makeRoam(
 
   function step(): void {
     tick++;
+    const views = view();
+    // a window dragged past the field's right edge stretches the field —
+    // the fire's world is wherever the windows are, not a fixed strip
+    let lo = FW;
+    let hi = 0;
+    for (const v of views) {
+      lo = Math.min(lo, v.x);
+      hi = Math.max(hi, v.x + v.canvas.width);
+    }
+    if (hi > FW) {
+      const grown = new Uint8Array(hi * TH);
+      for (let y = 0; y < TH; y++) grown.set(heat.subarray(y * FW, y * FW + FW), y * hi);
+      heat = grown;
+      FW = hi;
+    }
+    if (views.length === 0) {
+      lo = 0;
+      hi = FW;
+    }
     wander = Math.max(-30, Math.min(30, wander + (Math.random() - 0.5) * 3));
-    const p =
-      TW * (0.5 + 0.3 * Math.sin(tick * 0.011) + 0.16 * Math.sin(tick * 0.037 + 1.7)) + wander;
-    for (let x = 0; x < TW; x++) {
+    const span = Math.max(1, hi - lo);
+    const p = Math.max(
+      0,
+      Math.min(
+        FW - 1,
+        lo + span * (0.5 + 0.3 * Math.sin(tick * 0.011) + 0.16 * Math.sin(tick * 0.037 + 1.7)) + wander,
+      ),
+    );
+    for (let x = 0; x < FW; x++) {
       const g = Math.exp(-(((x - p) / 20) ** 2));
-      heat[(TH - 1) * TW + x] = Math.min(63, (10 + Math.random() * 8 + g * 46) | 0);
+      heat[(TH - 1) * FW + x] = Math.min(63, (10 + Math.random() * 8 + g * 46) | 0);
     }
     for (let y = 0; y < TH - 1; y++)
-      for (let x = 0; x < TW; x++) {
-        const src = (y + 1) * TW + x;
+      for (let x = 0; x < FW; x++) {
+        const src = (y + 1) * FW + x;
         const drift = x + (((Math.random() * 3) | 0) - 1);
         const cool = (Math.random() * 2.6) | 0;
-        heat[y * TW + Math.max(0, Math.min(TW - 1, drift))] = Math.max(0, heat[src]! - cool);
+        heat[y * FW + Math.max(0, Math.min(FW - 1, drift))] = Math.max(0, heat[src]! - cool);
       }
-    targets.forEach(({ ctx, img }, w) => {
+    for (const v of views) {
+      let t = targets.get(v.canvas);
+      if (!t) {
+        const ctx = v.canvas.getContext("2d")!;
+        t = { ctx, img: ctx.createImageData(v.canvas.width, TH) };
+        targets.set(v.canvas, t);
+      }
+      const sw = v.canvas.width;
       for (let y = 0; y < TH; y++)
-        for (let x = 0; x < SLICE; x++) {
-          const [r, g, b] = pal[Math.min(63, heat[y * TW + w * SLICE + x]!)]!;
-          const i = (y * SLICE + x) * 4;
-          img.data[i] = r;
-          img.data[i + 1] = g;
-          img.data[i + 2] = b;
-          img.data[i + 3] = 255;
+        for (let x = 0; x < sw; x++) {
+          const gx = v.x + x;
+          const h = gx >= 0 && gx < FW ? heat[y * FW + gx]! : 0;
+          const [r, g, b] = pal[Math.min(63, h)]!;
+          const i = (y * sw + x) * 4;
+          t.img.data[i] = r;
+          t.img.data[i + 1] = g;
+          t.img.data[i + 2] = b;
+          t.img.data[i + 3] = 255;
         }
-      ctx.putImageData(img, 0, 0);
-    });
-    const fw = Math.min(canvases.length - 1, (p / SLICE) | 0);
-    if (fw !== focused) {
-      focused = fw;
-      onFocus(fw);
+      t.ctx.putImageData(t.img, 0, 0);
+    }
+    const inside = views.find((v) => p >= v.x && p < v.x + v.canvas.width);
+    if (inside && inside.index !== focused) {
+      focused = inside.index;
+      onFocus(inside.index);
     }
   }
 
