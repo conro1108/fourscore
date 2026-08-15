@@ -22,6 +22,7 @@
 import { el } from "./dom.js";
 import { makeFire, PALETTES, type Fire } from "./fire.js";
 import { cascadeFor, DIALOG, LOSS_CASCADE, NOTES, STATUS, voiceOf } from "./copy.js";
+import { play } from "./audio/index.js";
 import type { BoardApp, EndResult } from "./board.js";
 import type { MovesPad } from "./notepad.js";
 import type { WM, Win } from "./wm.js";
@@ -151,6 +152,9 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     wrap.appendChild(cv);
 
     let progress = 0;
+    // the line catching is the loudest thing on the board, and the loss's
+    // version of it is the same event refusing to be an announcement
+    play(smolder ? "smolder" : "line-catch", smolder ? 0.75 : 1);
     const heatLo = smolder ? 30 : 42;
     const heatVar = smolder ? 10 : 14;
     seamFire = makeFire(cv, {
@@ -243,6 +247,8 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         y: 330,
         w: 368,
         taskbar: true,
+        // the one moment the scheme has a fanfare in it
+        sound: "tada",
         onButton(i) {
           if (i === 1) {
             clear();
@@ -330,6 +336,9 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         w: 368,
         buttons: ["OK", "Again"],
         taskbar: true,
+        // three notes down, in the win's own type. Sincere, and quieter than
+        // the win on purpose — the same rule the rest of this parade follows.
+        sound: "shutdown-chime",
         onButton(i) {
           if (i === 1) {
             clear();

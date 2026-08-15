@@ -8,6 +8,7 @@
 
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
+import { play } from "../audio/index.js";
 import type { WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
@@ -230,6 +231,8 @@ export function openCheckers(wm: WM): void {
       render();
       b = keep;
       i++;
+      // every hop lands; a jump is several, which is what a jump sounds like
+      play("disc-land", 0.45);
       if (i < m.path.length) later(hop, 150);
       else
         later(() => {

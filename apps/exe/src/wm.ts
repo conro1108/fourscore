@@ -8,6 +8,7 @@
 
 import { el } from "./dom.js";
 import { iconCanvas } from "./icons.js";
+import { play, type SoundName } from "./audio/index.js";
 
 export interface WindowSpec {
   id: string;
@@ -57,6 +58,13 @@ export interface DialogSpec {
   ay?: AnchorY;
   w?: number;
   taskbar?: boolean;
+  /**
+   * What it arrives with. Defaults to the scheme's Default sound, or the error
+   * chord for a `!` — the two the icon already implies. Named explicitly when a
+   * dialog means something else (Shut Down is not an error), and `null` when
+   * something louder is about to play over it.
+   */
+  sound?: SoundName | null;
   /** Called with the button index; the dialog closes itself first. */
   onButton?: (index: number, label: string) => void;
 }
@@ -138,7 +146,12 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     }
   }
 
-  function open(spec: WindowSpec): Win {
+  /**
+   * `quiet` is how a dialog gets in without the program-opening whoosh: a
+   * dialog is not a program starting, it is the machine saying something, and
+   * `dialog()` below plays the sentence's own sound instead.
+   */
+  function open(spec: WindowSpec, quiet = false): Win {
     const buttons = spec.buttons ?? ["min", "max", "close"];
     const w = el(`<div class="win bevel${spec.cls ? " " + spec.cls : ""}"${spec.w ? ` style="width:${spec.w}px"` : ""}></div>`);
     let maximized: { left: string; top: string; width: string; height: string } | null = null;
@@ -177,10 +190,17 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         setFocus(win);
       },
       minimize() {
+        if (w.style.display !== "none") play("window-min", 0.7);
         w.style.display = "none";
         if (focusedWin === win) setFocus(undefined);
       },
       close() {
+        // Only a program closing gets the whoosh: a dialog going away is the
+        // end of a sentence, and its OK already clicked. It matters more than
+        // it sounds like — the win cascade dismisses eight of them at once.
+        // A window that was already gone doesn't close twice either; the
+        // endgame's `clear()` sweeps a stack that has half closed itself.
+        if (w.isConnected && !quiet) play("window-close", 0.6);
         w.remove();
         tasks.get(spec.id)?.remove();
         tasks.delete(spec.id);
@@ -207,6 +227,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       if (b === "close") win.close();
       else if (b === "min") win.minimize();
       else if (b === "max") {
+        play(maximized ? "window-min" : "window-max", 0.7);
         // real maximize: fill the desktop above the taskbar, instantly
         if (maximized) {
           Object.assign(w.style, maximized);
@@ -261,6 +282,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
 
     wins.set(spec.id, win);
     win.focus();
+    if (!quiet) play("window-open", 0.7);
     return win;
   }
 
@@ -277,24 +299,30 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       const btn = el(`<div class="btn${i === (spec.defIdx ?? 0) ? " def" : ""}"></div>`);
       btn.textContent = label;
       btn.addEventListener("click", () => {
+        play("click", 0.6);
         win.close();
         spec.onButton?.(i, label);
       });
       row.appendChild(btn);
     });
     body.appendChild(row);
-    const win = open({
-      id: `dlg-${++dialogSeq}`,
-      title: spec.title,
-      x: spec.x,
-      y: spec.y,
-      ax: spec.ax,
-      ay: spec.ay,
-      w: spec.w ?? 340,
-      body,
-      buttons: ["close"],
-      taskbar: spec.taskbar ?? false,
-    });
+    const win = open(
+      {
+        id: `dlg-${++dialogSeq}`,
+        title: spec.title,
+        x: spec.x,
+        y: spec.y,
+        ax: spec.ax,
+        ay: spec.ay,
+        w: spec.w ?? 340,
+        body,
+        buttons: ["close"],
+        taskbar: spec.taskbar ?? false,
+      },
+      true,
+    );
+    const sound = spec.sound === undefined ? (spec.icon === "!" ? "chord" : "ding") : spec.sound;
+    if (sound) play(sound, 0.65);
     return win;
   }
 

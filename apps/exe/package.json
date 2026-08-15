@@ -10,7 +10,8 @@
     "shots": "node tools/shots.mjs",
     "timeline": "node tools/timeline.mjs",
     "trace": "vite-node tools/trace.ts",
-    "fever": "node tools/fever.mjs"
+    "fever": "node tools/fever.mjs",
+    "audio": "node tools/audio.mjs"
   },
   "dependencies": {
     "@fourscore/engine": "*"

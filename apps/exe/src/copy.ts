@@ -7,6 +7,8 @@
  * cascade is sincere, never sarcastic; nothing winks.
  */
 
+import type { SoundName } from "./audio/library.js";
+
 export interface BotVoice {
   /** Statusbar while it's your move. */
   waiting: string;
@@ -408,10 +410,76 @@ export const TITLES = {
   chess: "CHESS.EXE",
   untitled: "untitled.txt — Notepad",
   feverCtl: "FEVER.CTL",
+  sounds: "sounds.ctl",
   congratulations: "Congratulations",
 } as const;
 
 export const PIECES_NOTE = "Applies immediately. No restart required, unusually.";
+
+/**
+ * The Sounds control panel's event list — one row per sound in the scheme, in
+ * the Control Panel's own flat language.
+ *
+ * The joke is the filing, and it only works if nothing in here winks: the
+ * machine lists the fever's symptoms in the same list as Minimize and Maximize,
+ * because from inside the OS they are the same kind of event. `Clock corrected`
+ * is a clock losing four minutes. `Icons rearranged` is the desk flinching.
+ * Neither is described as a problem, because this computer is functioning
+ * normally.
+ *
+ * A test keeps this list and the library exactly in step in both directions —
+ * a sound with no event row is a sound the player can never find, and an event
+ * row with no sound is a dead control.
+ */
+export const SOUND_EVENTS: readonly { sound: SoundName; label: string }[] = [
+  { sound: "startup", label: "Start Windows" },
+  { sound: "shutdown-chime", label: "Exit Windows" },
+  { sound: "ding", label: "Default sound" },
+  { sound: "chord", label: "Program error" },
+  { sound: "tada", label: "Game won" },
+  { sound: "click", label: "Command accepted" },
+  { sound: "menu", label: "Menu popup" },
+  { sound: "window-open", label: "Open program" },
+  { sound: "window-close", label: "Close program" },
+  { sound: "window-min", label: "Minimize" },
+  { sound: "window-max", label: "Maximize" },
+  { sound: "hover-tick", label: "Disc over column" },
+  { sound: "disc-drop", label: "Disc released" },
+  { sound: "disc-land", label: "Disc landed" },
+  { sound: "bot-step", label: "Opponent deliberating" },
+  { sound: "line-catch", label: "Line connected" },
+  { sound: "smolder", label: "Line connected (theirs)" },
+  { sound: "tier-cross", label: "System state changed" },
+  { sound: "flare", label: "flames.scr — flare" },
+  { sound: "clock-tick", label: "Clock corrected" },
+  { sound: "twitch", label: "Icons rearranged" },
+  { sound: "saver-thunk", label: "Screen saver" },
+  { sound: "drive-seek", label: "Disk activity" },
+];
+
+export const SOUNDS = {
+  events: "Events:",
+  scheme: "Schemes:",
+  volume: "Volume:",
+  mute: "Mute all sounds",
+  play: "Play",
+  schemes: {
+    board95: "BOARD 95",
+    possessed: "BOARD 95 (as it is now)",
+    none: "No Sounds",
+  },
+  /** The note under the list, which changes with what the panel can do. */
+  note: {
+    ok: "This scheme is the one the machine came with.",
+    possessed: "The machine prefers this one. It has not said why.",
+    none: "There are no sounds to preview in this scheme.",
+    muted: "Sounds are muted. The scheme is unaffected.",
+  },
+  tray: {
+    on: "Volume",
+    off: "Volume (muted)",
+  },
+} as const;
 
 export const START_MENU = {
   programs: "Programs",

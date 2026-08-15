@@ -14,6 +14,7 @@ import { el, gravityFall, q } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { STATUS, voiceOf } from "./copy.js";
 import { deskHeight, stageScale, type WM, type Win } from "./wm.js";
+import { play } from "./audio/index.js";
 import type { MovesPad } from "./notepad.js";
 
 export const CELL = 64;
@@ -168,6 +169,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
         const was = openPopup;
         closeMenus();
         if (was !== popup) {
+          play("menu", 0.7);
           popup.style.display = "block";
           btn.classList.add("open");
           openPopup = popup;
@@ -180,12 +182,18 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     buildAbort?.abort();
     buildAbort = new AbortController();
     addEventListener("click", closeMenus, { signal: buildAbort.signal });
-    gamePopup.addEventListener("click", (e) => { e.stopPropagation(); closeMenus(); });
-    oppPopup.addEventListener("click", (e) => { e.stopPropagation(); closeMenus(); });
-    helpPopup.addEventListener("click", (e) => { e.stopPropagation(); closeMenus(); });
+    const chose = (e: Event): void => {
+      e.stopPropagation();
+      play("click", 0.6);
+      closeMenus();
+    };
+    gamePopup.addEventListener("click", chose);
+    oppPopup.addEventListener("click", chose);
+    helpPopup.addEventListener("click", chose);
 
     forfeitBtn.addEventListener("click", () => {
       if (forfeitBtn.classList.contains("gray")) return;
+      play("click", 0.6);
       forfeit();
     });
 
@@ -219,14 +227,23 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     grid.addEventListener("mousemove", (e) => {
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
       if (!cell || phase === "over") return;
-      hoverCol = Number(cell.dataset.col);
+      const col = Number(cell.dataset.col);
+      // only when it actually crosses — a mousemove inside one column is not
+      // an event, and the tick is the smallest sound in the scheme for a reason
+      if (col !== hoverCol && phase === "your-turn") play("hover-tick", 0.55);
+      hoverCol = col;
       if (phase === "your-turn") picker.style.left = `${pickerX(hoverCol)}px`;
     });
     grid.addEventListener("click", (e) => {
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
       if (!cell || phase !== "your-turn") return;
       const col = Number(cell.dataset.col);
-      if (!match.canPlay(col)) return;
+      if (!match.canPlay(col)) {
+        // a full column used to be silence, which is indistinguishable from a
+        // click the window didn't get
+        play("chord", 0.4);
+        return;
+      }
       if (!hesitated && Date.now() - turnStartedAt > 5000) {
         hesitated = true;
         deps.notepad.lines(["and then you", "hesitated"]);
@@ -354,9 +371,13 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     maskToBoard(fx, o, k);
     const d = el(`<div class="disc ${who}" style="position:absolute;left:${(srcR.left - o.left) / k}px"></div>`);
     fx.appendChild(d);
+    play("disc-drop", 0.7);
     gravityFall(d, (srcR.top - o.top) / k, (cellR.top - o.top) / k + 8, () => {
       d.remove();
       clearMask(fx);
+      // the knock lands with the disc, not with the click — a deep column
+      // falls for a good deal longer than a full one
+      play("disc-land");
       // a New Game landed mid-flight: the disc belonged to a board that no
       // longer exists, and painting it would deal it onto the fresh one
       if (seq !== gameSeq) return;
@@ -491,6 +512,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       }
       botCol += Math.sign(target - botCol);
       botDisc.style.left = `${pickerX(botCol)}px`;
+      play("bot-step", 0.5);
       wanderTimer = setTimeout(() => walkTo(target, then), 85);
     };
 

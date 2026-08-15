@@ -8,6 +8,7 @@
 import { el } from "../dom.js";
 import { px } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
+import { play } from "../audio/index.js";
 import type { WM } from "../wm.js";
 import { lcd, menubar } from "./ui.js";
 
@@ -209,6 +210,9 @@ export function openMines(wm: WM): void {
   function lose(hit: number): void {
     alive = false;
     stopClock();
+    // the machine's other software runs on the same scheme — the error chord
+    // is what this OS has for a thing going wrong, and MINES.EXE gets it too
+    play("chord", 0.7);
     setFace("dead");
     board!.mines.forEach((m, i) => {
       if (!m) return;
@@ -272,9 +276,11 @@ export function openMines(wm: WM): void {
           cell.appendChild(cv);
         }
         counter.set(level.count - flags.size);
+        play("click", 0.5);
         return;
       }
       if (e.button !== 0 || flags.has(i) || open.has(i)) return;
+      play("click", 0.45);
       if (!board) board = makeMinesBoard(level.w, level.h, level.count, i);
       startClock();
       if (board.mines[i]) {

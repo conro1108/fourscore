@@ -7,6 +7,7 @@
 
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
+import { play } from "../audio/index.js";
 import type { WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
@@ -76,6 +77,7 @@ export function openSnake(wm: WM): void {
 
   function die(kind: "dead" | "wall"): void {
     alive = false;
+    play("chord", 0.7);
     const spec = GAMES_COPY.snake[kind];
     setTimeout(() => {
       wm.dialog({ ...spec, x: 260, y: 480, w: 330 });
@@ -103,6 +105,8 @@ export function openSnake(wm: WM): void {
     }
     snake.unshift(head);
     if (head[0] === chip[0] && head[1] === chip[1]) {
+      // it eats the board's chips, so it eats them with the board's own knock
+      play("disc-land", 0.55);
       grow += 2;
       chip = free();
       chipColor = chipColor === "r" ? "y" : "r";

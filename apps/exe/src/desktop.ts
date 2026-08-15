@@ -7,6 +7,8 @@
 import { el, q } from "./dom.js";
 import { ICONS, ROCKET, iconCanvas, px } from "./icons.js";
 import { START_MENU } from "./copy.js";
+import { play } from "./audio/index.js";
+import { installTray } from "./sounds.js";
 import { anchorX, onDeskResize, stageScale } from "./wm.js";
 
 export interface DesktopApps {
@@ -19,6 +21,7 @@ export interface DesktopApps {
   openGames(): void;
   openUntitled(): void;
   openGame(id: "mines" | "sol" | "snake" | "checkers" | "chess"): void;
+  openSounds(): void;
   shutdown(): void;
 }
 
@@ -159,6 +162,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   const clock = el(`<div id="clock">6:66 PM</div>`);
   taskbar.append(start, tasksEl, clock);
   stage.appendChild(taskbar);
+  installTray(taskbar, clock, () => apps().openSounds());
 
   /* ---- start menu ---- */
   const menu = el(`<div id="startmenu" class="bevel">
@@ -177,6 +181,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
         si.textContent = l;
         si.addEventListener("click", (e) => {
           e.stopPropagation();
+          play("click", 0.6);
           closeStart();
           a();
         });
@@ -185,6 +190,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       it.appendChild(s);
     } else if (act) {
       it.addEventListener("click", () => {
+        play("click", 0.6);
         closeStart();
         act();
       });
@@ -206,7 +212,10 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       ["untitled.txt", () => apps().openUntitled()],
       ["help.txt", () => apps().openHelp()],
     ]),
-    item(START_MENU.settings, undefined, [["pieces.ctl", () => apps().openPieces()]]),
+    item(START_MENU.settings, undefined, [
+      ["pieces.ctl", () => apps().openPieces()],
+      ["sounds.ctl", () => apps().openSounds()],
+    ]),
     el(`<hr>`),
     item(START_MENU.help, () => apps().openHelp()),
     item(START_MENU.shutdown, () => apps().shutdown()),
@@ -220,6 +229,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   start.addEventListener("click", (e) => {
     e.stopPropagation();
     const opening = menu.style.display !== "block";
+    play("menu", 0.7);
     menu.style.display = opening ? "block" : "none";
     start.classList.toggle("down", opening);
   });

@@ -44,6 +44,7 @@ const STATES = [
   ["chess", "?state=chess"],
   ["notepad", "?state=notepad"],
   ["games", "?state=games"],
+  ["sounds", "?state=sounds"],
   // the beat acts — what the desktop does between tier crossings. Each puts
   // itself back after a second or two, so they are posed rather than caught.
   ["beat-dialog-blunder", "?state=midgame&act=dialog&pool=move:blunder"],

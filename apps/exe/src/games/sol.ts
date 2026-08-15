@@ -9,6 +9,7 @@
 
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
+import { play } from "../audio/index.js";
 import { deskHeight, deskWidth, stageScale, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
@@ -274,6 +275,7 @@ export function openSol(wm: WM, rig?: string): void {
     if (won || e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (pileAt(e.clientX, e.clientY) === "stock") {
+      play("click", 0.5);
       if (s.stock.length || s.waste.length) snap();
       const recycled = drawFromStock(s);
       if (recycled) statusEl.textContent = GAMES_COPY.sol.stuckDeal;
@@ -351,6 +353,8 @@ export function openSol(wm: WM, rig?: string): void {
     if (moved) {
       const to = pileAt(e.clientX, e.clientY);
       if (to && to !== "stock" && tryDrop(cards, from, to)) {
+        // a card landing on a pile is the same knock the board has, softer
+        play("disc-land", 0.4);
         render();
         checkWin();
         return;
@@ -379,6 +383,7 @@ export function openSol(wm: WM, rig?: string): void {
       card = up[up.length - 1]!;
     }
     if (sendHome(ref, card)) {
+      play("disc-land", 0.4);
       render();
       checkWin();
     }
@@ -390,6 +395,7 @@ export function openSol(wm: WM, rig?: string): void {
   function checkWin(): void {
     if (won || !isWon(s)) return;
     won = true;
+    play("tada");
     bounceStop = runBounce();
   }
 

@@ -30,6 +30,13 @@
 > that opens itself. `npm run trace:exe` prints the tier timeline over real
 > games; `npm run fever:exe` plays one in a real browser and reports what the
 > desktop actually did.
+>
+> **The desktop makes noise now (2026-08-14).** `src/audio/` is a synthesized
+> period sound scheme — 23 sounds, no wav files anywhere (see below) — plus a
+> live machine bed that gets busier with fever. `sounds.ctl` is in Settings and
+> behind the tray speaker, and `npm run audio:exe` renders every recipe through
+> real Chrome, writes them to `shots/audio/` (including `all.wav`, everything
+> back to back) and checks the laws from outside.
 
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
@@ -67,6 +74,37 @@ Everything on the desktop is interactible, like a real OS (Connor,
 launches, both `OK`s click. Joke content is fine — Help is allowed to be
 unhelpful, the Recycle Bin is allowed to contain "the rest" — but inert
 chrome is not. A dead control breaks the fiction harder than a wrong one.
+
+## The scheme is computed, for the same reason the fire is
+
+A wav file is the audio equivalent of a pixel-art illustration pretending to be
+a screenshot, so there is no `public/sounds/` and there should never be one.
+Every sound is a struck bell, a filtered noise sweep or a relay tick built out
+of `audio/synth.ts` at render time, the way a period sound card's own scheme
+was made. Same recipe, same bytes, every time.
+
+Three things about it that are load-bearing:
+
+- **The fever bends the scheme, and only the bus knows that.** One-shots play
+  flat and in a bigger, wronger room as things sharpen — a machine bogging
+  down, never speeding up. A recipe may not read the fever: a ding has to be
+  the same ding every time, and the room running hot is a property of the
+  evening.
+- **The bed is the machine, not a soundtrack.** Transformer hum, fan, and a
+  CRT's 15.7kHz flyback, all under the level where you'd call them a sound —
+  plus the disk, which is asked for something on a fixed uneven schedule that
+  compresses with fever. It is the one channel that reports the position
+  sharpening with every window shut. Muting it should feel like the room got
+  smaller, not like a sound stopped.
+- **The autoplay rule is a gift, not a workaround.** Nothing is built until the
+  first gesture, so the gesture plays `startup`: the machine has been sitting
+  there since the page loaded, and it finishes booting the moment you touch it.
+
+`sounds.ctl` files the fever's symptoms as ordinary system events —
+`Clock corrected`, `Icons rearranged`, `Line connected (theirs)` — in the
+Control Panel's own flat language. That list and the library are held in step
+by a test in both directions: a sound with no event row is one the player can
+never find, and an event row with no sound is a dead control.
 
 ## Settled by the proposal rounds (Connor, 2026-08-13)
 
@@ -180,7 +218,11 @@ machine gets to be flat and declarative, because by then the game is over.
   tooling pattern. Screenshot before you claim — that rule caught real bugs in
   fever and both mocks here. `npm run shots` always looks at 1800ms, so it is
   blind to anything that happens over seconds; `npm run timeline -- "?state=win"
-  3 8 14 18 40` is the one that can see the fever rise and let go.
+  3 8 14 18 40` is the one that can see the fever rise and let go. Sound can't
+  be screenshotted at all, which is what `npm run audio` is for: a recipe that
+  schedules its oscillators after `startRendering` is silence that typechecks.
+  It listens for the two things a machine can hear — is it there, and how loud
+  — and hands the rest to your ears as `shots/audio/all.wav`.
 - Review/online: later phases, same product truths as the repo (proven vs
   estimated confidence law binds every string; online stays
   client-authoritative).

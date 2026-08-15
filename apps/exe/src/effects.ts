@@ -30,6 +30,7 @@ import { BEAT_ACTS, pickAct, poolKey, type BeatAct } from "./beats.js";
 import type { Beat, DirectorSnapshot } from "./director.js";
 import type { Shell } from "./desktop.js";
 import { anchorX, anchorY, deskHeight, deskWidth, stageScale, type AnchorX, type WM, type Win } from "./wm.js";
+import { play } from "./audio/index.js";
 import type { EndResult } from "./board.js";
 import type { MovesPad } from "./notepad.js";
 
@@ -340,6 +341,9 @@ export function makeEffects(deps: {
   function takeover(on: boolean, fade = false): void {
     if (on === takenOver) return;
     takenOver = on;
+    // the picture changing hands, both ways — a period monitor degausses when
+    // it does, and this is the one that gets to arrive out of a silent room
+    play("saver-thunk", on ? 0.9 : 0.5);
     stopFade();
     if (on) {
       if (!saverEl) {
@@ -385,6 +389,8 @@ export function makeEffects(deps: {
     buttons: ["OK", "OK"] as const,
   };
   function crossInto(t: number): void {
+    // the machine changing gear, under whatever the crossing opens on top of it
+    play("tier-cross", 0.8);
     ensureMain(); // windows open on their own
     if (t === 1 && !gameOver)
       crossingDialogs.push(wm.dialog({ ...NOT_RESPONDING, x: 750, y: 140, ax: "center", w: 372 }));
@@ -532,10 +538,13 @@ export function makeEffects(deps: {
     note(key) {
       const line = nextOf(key, BEAT_NOTES[key]);
       if (line) deps.notepad.lines([line]);
+      // moves.txt is a text box, and something typed into it
+      if (line) play("click", 0.45);
     },
 
     flare() {
       if (!mainFire) return;
+      play("flare", 0.8);
       // the continuous system, shoved — and then handed straight back to fever
       mainFire.set({ baseHeat: Math.round(52 + fever * 10), cool: 2.2, interval: 48 });
       beatLater(applyHeat, 1400);
@@ -543,6 +552,7 @@ export function makeEffects(deps: {
 
     "clock-lurch"() {
       // the clock finds several minutes it did not have, and loses them again
+      play("clock-tick", 0.85);
       const base = CLOCK_DRIFT[Math.min(tier, 4)]!;
       shell.setClockDrift(base + 9);
       beatLater(() => shell.setClockDrift(base + 2), 420);
@@ -558,6 +568,8 @@ export function makeEffects(deps: {
         beatLater(() => {
           buttons.forEach((o) => o.classList.remove("down"));
           b.classList.add("down");
+          // each button believing it was clicked, at the 90ms the act steps on
+          play("click", 0.35);
         }, 90 * i),
       );
       beatLater(() => {
@@ -566,6 +578,7 @@ export function makeEffects(deps: {
     },
 
     "icon-twitch"() {
+      play("twitch", 0.8);
       shell.shiftIcons(ICON_TWITCH);
       beatLater(() => {
         shell.shiftIcons(tier >= 4 ? ICON_SHIFT_T4 : tier >= 3 ? ICON_SHIFT_T3 : []);

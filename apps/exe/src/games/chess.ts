@@ -13,6 +13,7 @@
 
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
+import { play } from "../audio/index.js";
 import type { WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
@@ -485,6 +486,7 @@ export function openChess(wm: WM, fen?: string): void {
         }
         s = applyMove(s, m);
         lastMove = m;
+        play("disc-land", 0.45);
         render();
         settle(() => {
           busy = false;
@@ -498,6 +500,8 @@ export function openChess(wm: WM, fen?: string): void {
     selected = null;
     s = applyMove(s, m);
     lastMove = m;
+    // a piece set down — the same knock the discs land with, on wood
+    play("disc-land", 0.45);
     render();
     settle(() => machineTurn());
   }

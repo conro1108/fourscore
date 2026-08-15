@@ -9,6 +9,7 @@
  *   ?state=pieces         pieces.ctl open
  *   ?state=saver          the screensaver has won the desktop
  *   ?state=mines|sol|snake|checkers|notepad|games   the other software
+ *   ?state=sounds         sounds.ctl open
  *   ?state=sol&rig=won    a double-click from the card bounce
  *   ?fever=0.85           walk the fever up to a value and pin it
  *   ?act=dialog&pool=move:blunder   fire one beat act, so it can be looked at
@@ -29,6 +30,8 @@ import { makeDirector, tierOf } from "./director.js";
 import { makeEffects } from "./effects.js";
 import { beatFromPool, type BeatAct } from "./beats.js";
 import { makeEndgame } from "./endgame.js";
+import { openSounds } from "./sounds.js";
+import * as audio from "./audio/index.js";
 import { BIN_TEXT, DIALOG, HELP_TEXT, TITLES } from "./copy.js";
 import { openMines } from "./games/mines.js";
 import { openSnake } from "./games/snake.js";
@@ -51,6 +54,10 @@ const engine = engineClient();
 const analysis = analysisClient();
 const director = makeDirector();
 const movesPad = makeMovesPad(wm);
+
+/* The scheme. Nothing is built until the first gesture (the autoplay law), and
+   fever is pulled rather than pushed so the director never learns audio exists. */
+audio.installAudio({ fever: () => director.snapshot().fever });
 
 /** The harness freezes the endgame at a beat; live play never sets this. */
 let frozenBeat: number | undefined;
@@ -188,6 +195,7 @@ const desktopApps: DesktopApps = {
   openGames: () => openGamesFolder(wm, gameLaunchers, placeGameOnDesk),
   openUntitled: () => openUntitled(wm),
   openGame: (id) => gameLaunchers[id](),
+  openSounds: () => openSounds(wm),
   shutdown() {
     wm.dialog({
       title: DIALOG.shutdown.title,
@@ -198,6 +206,8 @@ const desktopApps: DesktopApps = {
       y: 310,
       ax: "center",
       w: 360,
+      // it does not shut down, but it says the thing it says on the way out
+      sound: "shutdown-chime",
     });
   },
 };
@@ -283,6 +293,8 @@ if (state === "midgame") {
   openChess(wm, param("fen") ?? undefined);
 } else if (state === "games") {
   desktopApps.openGames();
+} else if (state === "sounds") {
+  desktopApps.openSounds();
 }
 
 /* ---- beat poses: the eyes for the acts ----
@@ -345,6 +357,12 @@ if (param("ctl")) {
     b.addEventListener("click", () => setFever(parseFloat(b.dataset.f!))),
   );
 }
+
+/* ---- the harness's ears ----
+   Sound can't be screenshotted, so `npm run audio` drives the real page
+   through this: it renders every recipe, checks the autoplay law from the
+   outside, and works the mute the way a player does. */
+(window as unknown as { __exe: { audio: typeof audio } }).__exe = { audio };
 
 // the console gets one honest line
 console.log(`BOARD.EXE — tier ${tierOf(director.snapshot().fever)}. This computer is functioning normally.`);
