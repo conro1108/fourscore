@@ -638,6 +638,8 @@ export function openChess(wm: WM, fen?: string): void {
     w: 8 * 40 + 26 + 20,
     body,
     buttons: ["min", "close"],
+    resizable: true, // no smaller than the board — the natural floor holds
+
     onClose: () => {
       for (const t of timers) clearTimeout(t);
     },

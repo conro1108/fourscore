@@ -142,7 +142,7 @@ export function openSol(wm: WM, rig?: string): void {
   };
 
   const body = el(`<div></div>`);
-  const felt = el(`<div class="sunken felt"></div>`);
+  const felt = el(`<div class="sunken felt flexwell"></div>`);
 
   /* drag state: a run of cards riding the cursor while its originals hide */
   let drag: {

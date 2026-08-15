@@ -36,7 +36,7 @@ export function makeMovesPad(wm: WM): MovesPad {
       win.focus();
       return;
     }
-    bodyEl = el(`<div class="sunken notepad" style="max-height:300px;overflow:auto"></div>`);
+    bodyEl = el(`<div class="sunken notepad flexwell" style="max-height:300px;overflow:auto"></div>`);
     const body = el(`<div></div>`);
     body.appendChild(bodyEl);
     win = wm.open({
@@ -100,7 +100,7 @@ export function openUntitled(wm: WM): void {
     `<textarea class="notepad notepad-edit" spellcheck="false"></textarea>`,
   ) as HTMLTextAreaElement;
   ta.value = localStorage.getItem("exe.untitled") ?? "";
-  const wrap = el(`<div class="sunken" style="margin:3px;background:#fff"></div>`);
+  const wrap = el(`<div class="sunken flexwell" style="margin:3px;background:#fff"></div>`);
   wrap.appendChild(ta);
 
   const bar = menubar([
@@ -168,7 +168,7 @@ export function textWindow(
     return;
   }
   const body = el(`<div></div>`);
-  const pad = el(`<div class="sunken notepad" style="max-height:420px;overflow:auto"></div>`);
+  const pad = el(`<div class="sunken notepad flexwell" style="max-height:420px;overflow:auto"></div>`);
   pad.textContent = text;
   body.appendChild(pad);
   wm.open({ id, title, icon: ICONS.moves, x, y, ax, w, body, buttons: ["close"], resizable: true, minW: 180, minH: 120 });

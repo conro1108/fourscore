@@ -39,7 +39,7 @@ export function openGamesFolder(
     return;
   }
   const body = el(`<div></div>`);
-  const pane = el(`<div class="sunken folderpane"></div>`);
+  const pane = el(`<div class="sunken folderpane flexwell"></div>`);
   const ics: HTMLElement[] = [];
   for (const item of GAME_ITEMS) {
     const ic = el(`<div class="fic"></div>`);
@@ -107,5 +107,8 @@ export function openGamesFolder(
     w: 420,
     body,
     buttons: ["min", "close"],
+    resizable: true,
+    minW: 200,
+    minH: 120,
   });
 }

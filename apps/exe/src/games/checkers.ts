@@ -345,6 +345,8 @@ export function openCheckers(wm: WM): void {
     w: 8 * SQ + 26 + 20,
     body,
     buttons: ["min", "close"],
+    resizable: true, // no smaller than the board — the natural floor holds
+
     onClose: () => {
       for (const t of timers) clearTimeout(t);
     },

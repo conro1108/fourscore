@@ -95,20 +95,26 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   const windowWidth = (): number => variant.width * CELL + CHROME_W + (scrolls() ? 16 : 0);
 
   const body = el(`<div></div>`);
-  const win = deps.wm.open({
+  // kept as a named object: setVariant re-floors minW when the board changes size
+  const winSpec = {
     id: "board",
     title: TITLES.boardVariant(variant.name),
     icon: ICONS.board,
     x: 296,
     y: 64,
-    ax: "center",
+    ax: "center" as const,
     w: windowWidth(),
     cls: `chips-${chips}`,
     body,
-    onMaximize: (on) => layoutMax(on),
+    onMaximize: (on: boolean) => layoutMax(on),
+    resizable: true,
+    minW: windowWidth(),
+    minH: 320,
+    onResize: () => layoutSized(),
     // the screensaver wins the desktop; the game goes on on top of it
     overSaver: true,
-  });
+  };
+  const win = deps.wm.open(winSpec);
 
   const name = (): string => byId(botId).name.toUpperCase();
   const voice = () => voiceOf(botId);
@@ -268,6 +274,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     buildGrid();
     renderPosition();
     if (win.el.classList.contains("max")) layoutMax(true);
+    else if (win.el.classList.contains("sized")) layoutSized();
   }
 
   const pickerX = (col: number): number => 14 + CELL * col;
@@ -276,36 +283,49 @@ export function makeBoard(deps: BoardDeps): BoardApp {
      the top-left of a desk-wide sheet of gray: frame centered, given all the
      height there is, picker row kept over the columns, statusbar at the
      bottom. All instant — this is layout, not animation. ---- */
-  function layoutMax(on: boolean): void {
+  function frameTo(totalH: number): void {
     const frame = q<HTMLElement>(".boardframe", body);
     const pickerRow = q("#pickerRow", body);
+    const availFrame = totalH - 8 - chromeH;
+    const naturalFrame = variant.height * CELL + 12;
+    const stillScrolls = naturalFrame > availFrame;
+    const frameW = variant.width * CELL + 12 + (stillScrolls ? 16 : 0);
+    body.style.display = "flex";
+    body.style.flexDirection = "column";
+    body.style.minHeight = "0";
+    frame.style.height = `${Math.min(naturalFrame, availFrame)}px`;
+    frame.style.width = `${frameW}px`;
+    frame.style.flex = "none";
+    frame.style.margin = "0 auto auto";
+    pickerRow.style.width = `${frameW}px`;
+    pickerRow.style.margin = "auto auto 0";
+  }
+
+  const layoutSized = (): void => frameTo(win.el.offsetHeight);
+
+  function layoutMax(on: boolean): void {
     if (on) {
-      const availFrame = deskHeight() - 36 - 8 - chromeH;
-      const naturalFrame = variant.height * CELL + 12;
-      const stillScrolls = naturalFrame > availFrame;
-      const frameW = variant.width * CELL + 12 + (stillScrolls ? 16 : 0);
-      body.style.display = "flex";
-      body.style.flexDirection = "column";
-      body.style.minHeight = "0";
-      frame.style.height = `${Math.min(naturalFrame, availFrame)}px`;
-      frame.style.width = `${frameW}px`;
-      frame.style.flex = "none";
-      frame.style.margin = "0 auto auto";
-      pickerRow.style.width = `${frameW}px`;
-      pickerRow.style.margin = "auto auto 0";
-    } else {
-      body.style.display = "";
-      body.style.flexDirection = "";
-      body.style.minHeight = "";
-      frame.style.width = "";
-      frame.style.flex = "";
-      frame.style.margin = "";
-      frame.style.height = scrolls() ? `${maxFrame}px` : "";
-      pickerRow.style.width = "";
-      pickerRow.style.margin = "";
-      // the restore size may predate a variant switch; re-assert the real one
-      win.el.style.width = `${windowWidth()}px`;
+      frameTo(deskHeight() - 36);
+      return;
     }
+    // restoring out of maximize lands back in the hand size, if there was one
+    if (win.el.classList.contains("sized")) {
+      layoutSized();
+      return;
+    }
+    const frame = q<HTMLElement>(".boardframe", body);
+    const pickerRow = q("#pickerRow", body);
+    body.style.display = "";
+    body.style.flexDirection = "";
+    body.style.minHeight = "";
+    frame.style.width = "";
+    frame.style.flex = "";
+    frame.style.margin = "";
+    frame.style.height = scrolls() ? `${maxFrame}px` : "";
+    pickerRow.style.width = "";
+    pickerRow.style.margin = "";
+    // the restore size may predate a variant switch; re-assert the real one
+    win.el.style.width = `${windowWidth()}px`;
   }
 
   function buildGrid(): void {
@@ -612,8 +632,15 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     if (id === variant.id) return;
     variant = variantById(id);
     win.setTitle(TITLES.boardVariant(variant.name));
-    // maximized stays maximized; the new size lands on restore (layoutMax)
-    if (!win.el.classList.contains("max")) win.el.style.width = `${windowWidth()}px`;
+    winSpec.minW = windowWidth();
+    // maximized stays maximized; the new size lands on restore (layoutMax).
+    // A hand size belonged to the old board and is let go — the new variant
+    // takes its natural window, same as it always has.
+    if (!win.el.classList.contains("max")) {
+      win.el.classList.remove("sized");
+      win.el.style.height = "";
+      win.el.style.width = `${windowWidth()}px`;
+    }
     newGame();
   }
 

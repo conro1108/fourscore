@@ -173,6 +173,8 @@ export function openSnake(wm: WM): void {
     w: COLS * PX * 4 + 32,
     body,
     buttons: ["min", "close"],
+    resizable: true, // no smaller than the pit — the natural floor holds
+
     onClose: () => {
       if (timer) clearInterval(timer);
       timer = null;

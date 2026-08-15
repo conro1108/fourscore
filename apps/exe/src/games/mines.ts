@@ -317,6 +317,10 @@ export function openMines(wm: WM): void {
     ]);
 
     body.append(bar, top, gridEl);
+    // a difficulty change re-derives the window's size; a hand size from the
+    // old grid would crush or strand the new one
+    win.el.classList.remove("sized");
+    win.el.style.height = "";
     win.el.style.width = `${level.w * 24 + 32}px`;
     reset();
   }
@@ -330,6 +334,8 @@ export function openMines(wm: WM): void {
     w: level.w * 24 + 32,
     body,
     buttons: ["min", "close"],
+    resizable: true, // no smaller than the field — the natural floor holds
+
     onClose: stopClock,
   });
 

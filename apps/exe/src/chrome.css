@@ -28,14 +28,17 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .rz-se{bottom:-2px;right:-2px;width:9px;height:9px;cursor:se-resize}
 .rz-sw{bottom:-2px;left:-2px;width:9px;height:9px;cursor:sw-resize}
 .win.max .rz{display:none}
-/* what flexes inside a hand-sized window: the one sunken well grows, a
-   notepad forgets its natural cap, an editor's textarea fills its well */
+/* what flexes inside a hand-sized window: a well marked `flexwell` grows, a
+   notepad forgets its natural cap, an editor's textarea fills its well, and
+   the statusbar keeps to the bottom edge the way the period had it. A window
+   with no flexwell (a fixed grid) just gets more gray, which is also period. */
 .win.sized > .winbody{display:flex;flex-direction:column}
-.win.sized > .winbody > .sunken{flex:1 1 0;min-height:0}
+.win.sized .flexwell{flex:1 1 0;min-height:0}
 .win.sized .notepad{max-height:none!important}
-.win.sized > .winbody > .sunken:has(> textarea){display:flex;flex-direction:column}
+.win.sized .flexwell:has(> textarea){display:flex;flex-direction:column}
 .win.sized textarea.notepad-edit{height:auto;flex:1}
 .win.sized .felt{height:auto}
+.win.sized > .winbody > .statusbar{margin-top:auto}
 .titlebar{height:22px;display:flex;align-items:center;gap:4px;padding:0 3px;margin:3px;color:#fff;font-weight:bold}
 .titlebar.active{background:linear-gradient(90deg,#000080,#1084d0)}
 .titlebar.inactive{background:linear-gradient(90deg,#808080,#b5b5b5);color:#d8d8d8}

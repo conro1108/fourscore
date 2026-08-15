@@ -34,8 +34,13 @@ export interface WindowSpec {
   /** Real resize borders, like the OS the fiction claims to be. The window
       gets `sized` on first drag and its body flexes (chrome.css). */
   resizable?: boolean;
+  /** Floors for a resize drag. Left unset, the floor is the window's own
+      natural size, captured the moment a drag starts on an un-sized window —
+      a fixed-content window grows but never crushes its contents. */
   minW?: number;
   minH?: number;
+  /** Fires during a resize drag, after each new size lands. */
+  onResize?: () => void;
   /** Stay above the screensaver while it has the desktop. The board asks for
       this ("the board stays playable on top of it" — DIRECTION.md) and so does
       anything the machine is currently saying; dialogs get it by default. */
@@ -242,6 +247,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
 
     // resize borders — instant, 1:1, no easing, same as the titlebar drag
     if (spec.resizable) {
+      let natural: { w: number; h: number } | null = null;
       for (const dir of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
         const h = el(`<div class="rz rz-${dir}"></div>`);
         h.addEventListener("mousedown", (e) => {
@@ -249,8 +255,10 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
           e.preventDefault();
           e.stopPropagation();
           win.focus();
-          const minW = spec.minW ?? 180;
-          const minH = spec.minH ?? 120;
+          if (!w.classList.contains("sized"))
+            natural = { w: w.offsetWidth, h: w.offsetHeight };
+          const minW = spec.minW ?? natural?.w ?? 180;
+          const minH = spec.minH ?? natural?.h ?? 120;
           const sx = e.clientX / scale;
           const sy = e.clientY / scale;
           const r = { left: w.offsetLeft, top: w.offsetTop, width: w.offsetWidth, height: w.offsetHeight };
@@ -280,6 +288,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
               width: `${width}px`,
               height: `${height}px`,
             });
+            spec.onResize?.();
           };
           const up = (): void => {
             removeEventListener("mousemove", move);
