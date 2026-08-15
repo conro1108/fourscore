@@ -428,6 +428,38 @@ export const GAMES_COPY = {
     threefold: { title: "CHESS.EXE", body: "This position keeps happening.<br>The rules say three times is enough." },
     promote: { title: "Promotion", body: "The pawn has reached the end.<br>It must become something." },
     help: { title: "CHESS.EXE", body: "It is chess.<br>You may already know how this goes." },
+    /* ---- the result, which is a fact ----
+       Checkmate and stalemate are proven by the rules, not read off an
+       evaluation, so this half of the file is allowed to be flat and
+       declarative. It stays in the statusbar for as long as the position
+       stands, because the position stands. */
+    over: {
+      youWin: "CHECKMATE. You win.",
+      machineWins: "CHECKMATE. The computer wins.",
+      stalemate: "STALEMATE. Nobody may move.",
+      fifty: "DRAW. Fifty moves and nothing happened.",
+      threefold: "DRAW. The position happened three times.",
+    },
+    /** What the titlebar carries afterwards, for good. */
+    overTitle: {
+      youWin: "Checkmate",
+      machineWins: "Checkmate",
+      stalemate: "Stalemate",
+      fifty: "Draw",
+      threefold: "Draw",
+    },
+    overButtons: ["OK", "New Game"],
+    /* ---- and the pressure, which is a guess ----
+       These hang off a heuristic reading of the position — material standing
+       loose, a king addressed, a mate on the board — so every one of them
+       hedges, and not one says a move won or lost anything. The titlebar
+       carries them while they last and drops them when the position calms. */
+    pressure: {
+      check: "The king is aware",
+      loose: "Something is loose",
+      swing: "Something has changed",
+      mate: "This looks nearly over",
+    },
   },
   notepad: {
     saved: (name: string): { title: string; body: string } => ({
@@ -462,6 +494,9 @@ export const TITLES = {
   snake: "SNAKE.EXE",
   checkers: "CHECKERS.EXE",
   chess: "CHESS.EXE",
+  /** CHESS.EXE's titlebar carries what the window currently knows — a hedged
+      note while the position is sharp, the result once there is one. */
+  chessNote: (note: string): string => `CHESS.EXE — ${note}`,
   notepad: (name: string): string => `${name} — Notepad`,
   terminal: "COMMAND.COM",
   saveAs: "Save As",

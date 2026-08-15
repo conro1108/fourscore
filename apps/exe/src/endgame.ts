@@ -31,7 +31,7 @@ import { el } from "./dom.js";
 import { makeFire, PALETTES, type Fire } from "./fire.js";
 import { cascadeFor, DIALOG, LOSS_CASCADE, NOTES, STATUS, voiceOf } from "./copy.js";
 import { play } from "./audio/index.js";
-import type { BoardApp, EndResult } from "./board.js";
+import { CELL, type BoardApp, type EndResult } from "./board.js";
 import type { MovesPad } from "./notepad.js";
 import type { WM, Win } from "./wm.js";
 
@@ -137,20 +137,27 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     } else dismiss();
   };
 
+  /* Everything the win draws on the grid was authored against the 64px cell,
+     and the cell is live now (board.ts): a win that *starts* at a dragged or
+     maximized size needs the same ratio `rescaleDecor` applies to one that is
+     resized afterwards. At 96px a 62px capsule cuts through 72px discs. */
+  const decorScale = (): number => deps.board().cellSize() / CELL;
+
   /* ---- the selection ---- */
   function showAnts(cells: EndResult["cells"], frozen: boolean): void {
     const wrap = deps.board().gridwrap();
+    const s = decorScale();
     // geometric endpoints (not the outward-from-landing order)
     const ordered = [...cells].sort((a, b) => a.col - b.col || a.row - b.row);
     const [ax, ay] = deps.board().cellCenter(ordered[0]!.col, ordered[0]!.row);
     const [bx, by] = deps.board().cellCenter(ordered[ordered.length - 1]!.col, ordered[ordered.length - 1]!.row);
     const ants = el(`<div class="ants"><div class="a1"></div><div class="a2"></div></div>`);
-    const len = Math.hypot(bx - ax, by - ay) + 68;
+    const len = Math.hypot(bx - ax, by - ay) + 68 * s;
     ants.style.display = "block";
     ants.style.width = `${len}px`;
-    ants.style.height = "62px";
+    ants.style.height = `${62 * s}px`;
     ants.style.left = `${(ax + bx) / 2 - len / 2}px`;
-    ants.style.top = `${(ay + by) / 2 - 31}px`;
+    ants.style.top = `${(ay + by) / 2 - 31 * s}px`;
     ants.style.transform = `rotate(${Math.atan2(by - ay, bx - ax)}rad)`;
     wrap.appendChild(ants);
     if (!frozen) {
@@ -206,7 +213,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     const lineLen = Math.hypot(bx - ax, by - ay) || 1;
     const t0 = Math.hypot(lx - ax, ly - ay) / lineLen;
 
-    const pad = 44;
+    const pad = 44 * decorScale();
     const sx = Math.min(ax, bx) - pad;
     const sy = Math.min(ay, by) - pad;
     const w = Math.ceil((Math.abs(bx - ax) + pad * 2) / SEAM_RES);

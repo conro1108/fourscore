@@ -42,6 +42,15 @@ const STATES = [
   ["sol", "?state=sol"],
   ["checkers", "?state=checkers"],
   ["chess", "?state=chess"],
+  // CHESS.EXE's endings, which stay on the board, and its own minor fever
+  ["chess-mate", "?state=chess&fen=R5k1/5ppp/8/8/8/8/8/6K1 b - - 1 1"],
+  ["chess-mated", "?state=chess&fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3"],
+  ["chess-stalemate", "?state=chess&fen=7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"],
+  // the three steps of the window's own weather: a queen standing loose, the
+  // same with the king addressed, and a mate actually on the board
+  ["chess-loose", "?state=chess&fen=r3k2r/ppp2ppp/8/3q4/4P3/2N5/PPP2PPP/R3K2R w KQkq - 0 1"],
+  ["chess-check", "?state=chess&fen=r3k3/ppp2ppp/8/3q4/4P3/2N5/PPP2PPP/R3K2r w Qq - 0 1"],
+  ["chess-sharp", "?state=chess&fen=6k1/2p2ppp/8/8/8/5N2/7q/R4K2 w - - 0 1"],
   ["notepad", "?state=notepad"],
   ["terminal", "?state=terminal"],
   ["games", "?state=games"],

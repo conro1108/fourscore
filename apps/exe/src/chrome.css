@@ -143,11 +143,6 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .chips-toon .disc::after{content:none}
 .chips-faces .disc{border-radius:0;image-rendering:pixelated}
 .chips-faces .disc::after{content:none}
-/* The two generated chip faces are 16px art, and chips.ts hands them a fixed
-   48px background — which is the authored rung, not the live one. Four classes
-   so it outranks the runtime <style> tag that arrives after this file. */
-.win.chips-pixel .disc.r,.win.chips-pixel .disc.y,
-.win.chips-faces .disc.r,.win.chips-faces .disc.y{background-size:var(--disc,48px) var(--disc,48px)}
 
 .statusbar{display:flex;gap:2px;margin:3px}
 .statusbar div{flex:1;height:20px;line-height:20px;padding:0 6px;white-space:nowrap;overflow:hidden;
@@ -361,6 +356,12 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
    that appears because you won is not. */
 .gridwrap{position:relative;overflow:clip;overflow-clip-margin:6px}
 .gridwrap .disc{z-index:2}
+/* A new game drains the old position out through the floor of the cabinet
+   (board.ts). The layer is exactly the grid, wears the same hole mask #fx does,
+   and clips at its own bottom edge — which is what "out of the machine" means
+   here: a disc that gets there is gone, and nothing lands. */
+.drain{position:absolute;overflow:clip;pointer-events:none;z-index:3}
+.drain .disc{position:absolute}
 .seam{position:absolute;z-index:1;pointer-events:none;image-rendering:pixelated}
 /* the OS selects your win like it selects anything: marching ants —
    but along the line, one capsule, not four squares */

@@ -67,7 +67,16 @@ await page.screenshot({ path: here("../shots/live-menu.png") });
 const quill = page.locator(".popup div", { hasText: "QUILL" });
 if ((await quill.count()) === 0) fail("opponent menu did not list QUILL");
 await quill.first().click();
-await page.waitForTimeout(400);
+// Switching bots starts a new game, and a new game now drains the old position
+// out of the cabinet first — so the statusbar names the new opponent a few
+// hundred ms after the click, not on it. Poll rather than sleep: a fixed wait
+// here was 150ms from being a harness that fails on a slower machine.
+await page
+  .locator(".statusbar div")
+  .nth(1)
+  .filter({ hasText: "QUILL" })
+  .waitFor({ timeout: 5000 })
+  .catch(() => fail("statusbar never named QUILL after the switch"));
 const stBot = await page.locator(".statusbar div").nth(1).textContent();
 console.log("after switching to QUILL:", stBot);
 if (!/QUILL/.test(stBot ?? "")) fail(`expected QUILL statusbar, got "${stBot}"`);

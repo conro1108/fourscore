@@ -109,7 +109,7 @@ export function isAttacked(b: ChessBoard, r: number, c: number, by: 0 | 1): bool
   return false;
 }
 
-function kingSquare(b: ChessBoard, side: 0 | 1): [number, number] {
+export function kingSquare(b: ChessBoard, side: 0 | 1): [number, number] {
   for (let r = 0; r < 8; r++)
     for (let c = 0; c < 8; c++) {
       const p = b[r]![c];
@@ -383,6 +383,134 @@ export function bestMoveTimed(
   setTimeout(step, 0);
 }
 
+/* ---- what the window is allowed to say ----
+
+   Two readings of the same position, and the difference between them is the
+   confidence law. `outcomeOf` is the rules speaking: checkmate, stalemate and
+   the two drawing counts are facts, so the window states them flat and leaves
+   them on the board. `sharpness` is a heuristic — material standing loose, a
+   king addressed, a mate available, the evaluation lurching — so everything it
+   drives hedges and everything it drives is reversible. It may never end a
+   game or claim one; all it does is make the window sit up. ---- */
+
+export type ChessEnd = "youWin" | "machineWins" | "stalemate" | "fifty" | "threefold";
+
+/** The result, if there is one. `repeats` is how many times this exact
+    position has now stood, including this one. */
+export function outcomeOf(s: ChessState, repeats: number): ChessEnd | null {
+  if (repeats >= 3) return "threefold";
+  if (s.half >= 100) return "fifty";
+  if (legalMoves(s).length) return null;
+  return inCheck(s, s.turn) ? (s.turn === 0 ? "machineWins" : "youWin") : "stalemate";
+}
+
+/** The squares the OS selects to say what happened. A mate or a stalemate is
+    about one king — the one with nowhere to go. A draw by count is about both
+    of them, so both get selected. */
+export function endSquares(s: ChessState, kind: ChessEnd): [number, number][] {
+  if (kind === "fifty" || kind === "threefold")
+    return [kingSquare(s.board, 0), kingSquare(s.board, 1)];
+  return [kingSquare(s.board, s.turn)];
+}
+
+/** Kings are priceless rather than free when the question is "who can take
+    this" — a king is the most expensive attacker there is, not the cheapest. */
+const ATT: Record<PieceT, number> = { ...VAL, k: 10000 };
+
+/** The cheapest piece of `by` attacking (r,c), by value; Infinity for none.
+    Same scan as `isAttacked`, kept honest by reporting what it found. */
+export function attackerValue(b: ChessBoard, r: number, c: number, by: 0 | 1): number {
+  let best = Infinity;
+  const keep = (t: PieceT): void => {
+    if (ATT[t] < best) best = ATT[t];
+  };
+  const pr = by === 0 ? r + 1 : r - 1;
+  for (const dc of [-1, 1]) {
+    const p = at(b, pr, c + dc);
+    if (p && p.s === by && p.t === "p") keep("p");
+  }
+  for (const [dr, dc] of KNIGHT) {
+    const p = at(b, r + dr, c + dc);
+    if (p && p.s === by && p.t === "n") keep("n");
+  }
+  for (const [dr, dc] of [...ORTH, ...DIAG]) {
+    const p = at(b, r + dr, c + dc);
+    if (p && p.s === by && p.t === "k") keep("k");
+  }
+  for (const dirs of [ORTH, DIAG] as const) {
+    const slider = dirs === ORTH ? "r" : "b";
+    for (const [dr, dc] of dirs) {
+      let rr = r + dr;
+      let cc = c + dc;
+      while (inb(rr, cc)) {
+        const p = b[rr]![cc];
+        if (p) {
+          if (p.s === by && (p.t === slider || p.t === "q")) keep(p.t);
+          break;
+        }
+        rr += dr;
+        cc += dc;
+      }
+    }
+  }
+  return best;
+}
+
+/** The most material standing where it can be taken for less, either colour —
+    undefended costs everything, defended costs the difference. A guess, and
+    the copy it drives says so. */
+export function hangingValue(b: ChessBoard): number {
+  let worst = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = b[r]![c];
+      if (!p || p.t === "k") continue;
+      const foe: 0 | 1 = p.s === 0 ? 1 : 0;
+      const att = attackerValue(b, r, c, foe);
+      if (att === Infinity) continue;
+      const def = attackerValue(b, r, c, p.s);
+      const loss = def === Infinity ? VAL[p.t] : Math.max(0, VAL[p.t] - att);
+      if (loss > worst) worst = loss;
+    }
+  return worst;
+}
+
+/** Does the side to move have mate on the board right now. One ply deep, once
+    per move — the search costs a hundred times this. */
+export function mateInOne(s: ChessState): boolean {
+  for (const m of legalMoves(s)) {
+    const ns = applyMove(s, m);
+    if (inCheck(ns, ns.turn) && !legalMoves(ns).length) return true;
+  }
+  return false;
+}
+
+export type PressureNote = "check" | "loose" | "swing" | "mate";
+
+export interface Sharpness {
+  /** 0..1, and only ever a guess. */
+  level: number;
+  /** 0 calm, 3 as far as this window goes — a fraction of the desktop's. */
+  tier: 0 | 1 | 2 | 3;
+  /** Which reading is loudest, for the hedged line the titlebar carries. */
+  note: PressureNote | null;
+}
+
+/** How sharp the position looks, from four honest readings of it. `swing` is
+    how far the evaluation moved on the last ply. */
+export function sharpness(s: ChessState, swing = 0): Sharpness {
+  const parts: [PressureNote, number][] = [
+    ["check", inCheck(s, 0) || inCheck(s, 1) ? 0.34 : 0],
+    ["loose", 0.42 * Math.min(1, hangingValue(s.board) / 900)],
+    ["swing", 0.3 * Math.min(1, Math.abs(swing) / 400)],
+    ["mate", mateInOne(s) ? 0.62 : 0],
+  ];
+  const level = Math.min(1, parts.reduce((a, [, v]) => a + v, 0));
+  const top = parts.reduce((a, b) => (b[1] > a[1] ? b : a));
+  const tier = level >= 0.8 ? 3 : level >= 0.55 ? 2 : level >= 0.28 ? 1 : 0;
+  return { level, tier, note: tier === 0 ? null : top[0] };
+}
+
 /* ---- the window ---- */
 
 const GLYPH: Record<PieceT, string> = {
@@ -398,6 +526,53 @@ const repKey = (s: ChessState): string =>
   s.board.map((row) => row.map((p) => (p ? (p.s ? p.t : p.t.toUpperCase()) : ".")).join("")).join("/") +
   `|${s.turn}|${s.castle.join("")}|${s.ep ?? "-"}`;
 
+/**
+ * CHESS.EXE's own chrome, which nothing else on the desktop shares. It ships
+ * its own rules rather than adding to chrome.css for the reason the fever is
+ * local in the first place: a game on the shelf may degrade itself and may not
+ * reach the desktop, and a stylesheet is a way of reaching the desktop.
+ *
+ * Everything here is sized off `--sq`, the live square, so a dragged window
+ * keeps its ants and its ants keep their proportions. Nothing eases: the
+ * ants step, the tiers land instantly.
+ */
+let styleInstalled = false;
+function installChessStyle(): void {
+  if (styleInstalled) return;
+  styleInstalled = true;
+  document.head.appendChild(
+    el(`<style>
+/* the result, selected the way the OS selects anything: marching ants, two
+   dashed borders half a dash apart, swapping colour on a step */
+.chessfx .cksq.chdone{position:relative}
+.chessfx .chants{position:absolute;--ant:max(2px,calc(var(--sq,40px)/20));
+  inset:calc(var(--ant)*-1);pointer-events:none;z-index:3}
+.chessfx .chants i{position:absolute;inset:0;border:var(--ant) dashed #fff;
+  animation:chmarch .32s steps(1,end) infinite}
+.chessfx .chants i+i{border-color:#000;transform:translate(var(--ant),var(--ant));animation-delay:.16s}
+@keyframes chmarch{0%{border-color:#fff}50%{border-color:#000}}
+.chessfx .statusbar div.chover{font-weight:bold}
+
+/* the minor fever: this window's own board, its own gray, its own titlebar.
+   Three steps, each one a state that stays until the position calms. */
+.chessfx .cksq.d{background:var(--dk,#9c5a3c)}
+.chessfx .cksq.l{background:var(--lt,#ecd8b0)}
+.chessfx.chfev1{background:#bdbab4}
+.chessfx.chfev2{background:#b8b2a8}
+.chessfx.chfev3{background:#b0a598}
+.chessfx.chfev3 .titlebar.active{background:linear-gradient(90deg,#4a4358,#7e7590)}
+</style>`),
+  );
+}
+
+/** The board's three warmer states, and the one it goes back to. */
+const HEAT: readonly (readonly [string, string])[] = [
+  ["#9c5a3c", "#ecd8b0"],
+  ["#96513a", "#e7cfa2"],
+  ["#8d4331", "#dfc290"],
+  ["#7f3227", "#d3b078"],
+];
+
 /** `fen` is a harness pose (?state=chess&fen=...). Live play never passes it. */
 export function openChess(wm: WM, fen?: string): void {
   const existing = wm.get("chess");
@@ -405,6 +580,7 @@ export function openChess(wm: WM, fen?: string): void {
     existing.focus();
     return;
   }
+  installChessStyle();
 
   let s = fen ? parseFen(fen) : initialState();
 
@@ -439,6 +615,13 @@ export function openChess(wm: WM, fen?: string): void {
   let selected: [number, number] | null = null;
   let lastMove: ChessMove | null = null;
   let seen = new Map<string, number>();
+  /** The finished position's selection. Set once, cleared only by a new game —
+      this is the record, and the record is what was missing. */
+  let ended: [number, number][] = [];
+  /** The window's own temperature (0..3) and the evaluation it last read, for
+      the swing. Neither leaves this window. */
+  let heat = 0;
+  let lastEval = evaluate(s.board);
   const timers: ReturnType<typeof setTimeout>[] = [];
   const later = (fn: () => void, ms: number): void => void timers.push(setTimeout(fn, ms));
 
@@ -468,35 +651,85 @@ export function openChess(wm: WM, fen?: string): void {
           const pc = el(`<div class="chpc ${p.s === 0 ? "w" : "b"}">${GLYPH[p.t]}</div>`);
           sq.appendChild(pc);
         }
+        // the result, redrawn with the board so it survives every re-render
+        // and every resize — the ants are a fraction of the square, not of 40
+        if (ended.some(([er, ec]) => er === r && ec === c)) {
+          sq.classList.add("chdone");
+          sq.appendChild(el(`<div class="chants"><i></i><i></i></div>`));
+        }
         grid.appendChild(sq);
       }
   }
 
-  function end(kind: "youWin" | "machineWins" | "stalemate" | "fifty" | "threefold"): void {
+  /* ---- the window's own weather ----
+     A fraction of what the desktop does, and it cannot reach the desktop: the
+     board warms, the window's gray gets dirtier, the titlebar loses some blood
+     and carries a hedged note. Three steps, all reversible, none of them over
+     the board — the squares stay exactly as clickable as they were. */
+  function setHeat(tier: number, note: PressureNote | null): void {
+    const rose = tier > heat;
+    heat = tier;
+    for (const t of [1, 2, 3]) win.el.classList.toggle(`chfev${t}`, tier >= t);
+    const [dk, lt] = HEAT[tier]!;
+    frame.style.setProperty("--dk", dk);
+    frame.style.setProperty("--lt", lt);
+    win.setTitle(note ? TITLES.chessNote(GAMES_COPY.chess.pressure[note]) : TITLES.chess);
+    // the room changing, filed as the system event it is — and quietly, because
+    // BOARD.EXE is the machine's fever and this is a window's
+    if (rose && tier >= 2) play("tier-cross", 0.3);
+  }
+
+  /** Read the position and let the window answer it. Once per ply. */
+  function takeTemperature(): void {
+    const now = evaluate(s.board);
+    const sharp = sharpness(s, now - lastEval);
+    lastEval = now;
+    setHeat(sharp.tier, sharp.note);
+  }
+
+  /**
+   * The result, and it stays. The mated king's square is selected the way the
+   * OS selects anything and is still selected when the dialog has gone; the
+   * statusbar keeps saying what happened; the titlebar carries the word for
+   * good. One dialog, no cascade — the win in BOARD.EXE is the biggest thing
+   * this machine announces and nothing on the shelf goes near it.
+   */
+  function end(kind: ChessEnd): void {
     over = true;
-    statusEl.textContent = "";
+    busy = false;
+    ended = endSquares(s, kind);
+    // whatever the position was doing, it has stopped doing it
+    setHeat(0, null);
+    win.setTitle(TITLES.chessNote(GAMES_COPY.chess.overTitle[kind]));
+    statusEl.textContent = GAMES_COPY.chess.over[kind];
+    statusEl.classList.add("chover");
+    render();
     later(() => {
-      wm.dialog({ ...GAMES_COPY.chess[kind], x: 470, y: 320, w: 360 });
+      wm.dialog({
+        ...GAMES_COPY.chess[kind],
+        buttons: GAMES_COPY.chess.overButtons,
+        // under the window, not over it: the finished position is the point,
+        // and the machine has never covered a board to talk about one
+        x: 440,
+        y: 552,
+        w: 360,
+        onButton: (i) => {
+          if (i === 1) newGame();
+        },
+      });
     }, 500);
   }
 
-  /** After a move lands: draws, mates, and whose voice the statusbar gets. */
+  /** After a move lands: the facts first, then how sharp it all looks. */
   function settle(next: () => void): void {
     const key = repKey(s);
     seen.set(key, (seen.get(key) ?? 0) + 1);
-    if (seen.get(key)! >= 3) {
-      end("threefold");
+    const kind = outcomeOf(s, seen.get(key)!);
+    if (kind) {
+      end(kind);
       return;
     }
-    if (s.half >= 100) {
-      end("fifty");
-      return;
-    }
-    if (!legalMoves(s).length) {
-      if (inCheck(s, s.turn)) end(s.turn === 0 ? "machineWins" : "youWin");
-      else end("stalemate");
-      return;
-    }
+    takeTemperature();
     next();
   }
 
@@ -597,8 +830,14 @@ export function openChess(wm: WM, fen?: string): void {
     selected = null;
     lastMove = null;
     seen = new Map();
+    // the record comes down with the game it was a record of
+    ended = [];
+    lastEval = evaluate(s.board);
+    setHeat(0, null);
+    statusEl.classList.remove("chover");
     statusEl.textContent = GAMES_COPY.chess.yourMove;
     render();
+    seen.set(repKey(s), 1);
   }
 
   const makeBar = (): HTMLElement =>
@@ -648,6 +887,8 @@ export function openChess(wm: WM, fen?: string): void {
     id: "chess",
     title: TITLES.chess,
     icon: CHESS_ICON,
+    // everything this window does to itself is scoped under this class
+    cls: "chessfx",
     x: 430,
     y: 120,
     w: 8 * 40 + 26 + 20,
@@ -664,12 +905,15 @@ export function openChess(wm: WM, fen?: string): void {
     },
   });
 
-  statusEl.textContent = GAMES_COPY.chess.yourMove;
+  statusEl.textContent = inCheck(s, 0) ? GAMES_COPY.chess.check : GAMES_COPY.chess.yourMove;
   render();
   relayout();
-  seen.set(repKey(s), 1);
-  // a harness pose can hand the machine the move
-  if (s.turn === 1 && !over) machineTurn();
+  // A pose (?state=chess&fen=...) can hand the window a position that is
+  // already over, or already sharp, so the opening goes through the same
+  // settle every move does rather than a shortcut that only reads the turn.
+  settle(() => {
+    if (s.turn === 1) machineTurn();
+  });
 }
 
 export const CHESS_ICON = [

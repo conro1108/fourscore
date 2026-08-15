@@ -13,6 +13,7 @@
  *   ?state=shutdown       the Shut Down box
  *   ?state=reboot         the restart beat, held (the real one navigates)
  *   ?state=sol&rig=won    a double-click from the card bounce
+ *   ?state=chess&fen=...  chess parked on a position — a mate, or a sharp one
  *   ?fever=0.85           walk the fever up to a value and pin it
  *   ?act=dialog&pool=move:blunder   fire one beat act, so it can be looked at
  *   ?chips=pixel          preselect a chip style

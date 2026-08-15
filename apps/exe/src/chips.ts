@@ -75,14 +75,18 @@ function faceDisc(bodyC: string, shade: string, outline: string): string {
   return cv.toDataURL();
 }
 
-/** Inject the generated chip textures once. */
+/** Inject the generated chip textures once. 16px of art on a live-sized chip:
+    the size is `--disc` (board.ts sets it on every rung of the cell ladder),
+    never the authored 48, or a dragged window gets 16px art at 48px inside a
+    32px hole. */
 export function installGeneratedChips(): void {
+  const size = "var(--disc,48px) var(--disc,48px)";
   const style = document.createElement("style");
   style.textContent = `
-    .chips-pixel .disc.r{background:url(${pixelDisc("#ff9d8a", "#e0332e", "#7a0f14", "#40100c")}) 0 0/48px 48px}
-    .chips-pixel .disc.y{background:url(${pixelDisc("#fff2b0", "#f0b400", "#8a5c00", "#403000")}) 0 0/48px 48px}
-    .chips-faces .disc.r{background:url(${faceDisc("#e0332e", "#a51b17", "#402e3a")}) 0 0/48px 48px}
-    .chips-faces .disc.y{background:url(${faceDisc("#f0b400", "#c08900", "#402e3a")}) 0 0/48px 48px}`;
+    .chips-pixel .disc.r{background:url(${pixelDisc("#ff9d8a", "#e0332e", "#7a0f14", "#40100c")}) 0 0/${size}}
+    .chips-pixel .disc.y{background:url(${pixelDisc("#fff2b0", "#f0b400", "#8a5c00", "#403000")}) 0 0/${size}}
+    .chips-faces .disc.r{background:url(${faceDisc("#e0332e", "#a51b17", "#402e3a")}) 0 0/${size}}
+    .chips-faces .disc.y{background:url(${faceDisc("#f0b400", "#c08900", "#402e3a")}) 0 0/${size}}`;
   document.head.appendChild(style);
 }
 

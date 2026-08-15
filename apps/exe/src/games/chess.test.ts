@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   applyMove,
+  attackerValue,
+  endSquares,
   evaluate,
+  hangingValue,
   inCheck,
   initialState,
   legalMoves,
+  mateInOne,
+  outcomeOf,
   parseFen,
   perft,
   searchDepth,
+  sharpness,
   type ChessMove,
 } from "./chess.js";
 
@@ -114,5 +120,91 @@ describe("the opponent", () => {
     const s = parseFen("k7/8/8/3q4/4P3/8/8/K7 w - - 0 1");
     const m = searchDepth(s, 3, null, () => 0)!;
     expect(m.to).toEqual([3, 3]);
+  });
+});
+
+/* The result is a fact and the window states it flat; the sharpness is a guess
+   and everything it drives hedges. These are the two halves of that. */
+
+describe("the result, which stays on the board", () => {
+  it("names checkmate for whichever king ran out of squares", () => {
+    let s = initialState();
+    for (const m of [mv("f2", "f3"), mv("e7", "e5"), mv("g2", "g4"), mv("d8", "h4")])
+      s = applyMove(s, m);
+    expect(outcomeOf(s, 1)).toBe("machineWins");
+    // and it is the mated king that gets selected — e1, the white king
+    expect(endSquares(s, "machineWins")).toEqual([[7, 4]]);
+  });
+
+  it("names stalemate and selects the king with nowhere to go", () => {
+    const s = parseFen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1");
+    expect(outcomeOf(s, 1)).toBe("stalemate");
+    expect(endSquares(s, "stalemate")).toEqual([[0, 7]]);
+  });
+
+  it("counts the draws, and a draw is about both kings", () => {
+    const quiet = parseFen("7k/8/6K1/8/8/8/8/R7 w - - 0 1");
+    expect(outcomeOf(quiet, 1)).toBeNull();
+    expect(outcomeOf(quiet, 3)).toBe("threefold");
+    expect(outcomeOf(parseFen("7k/8/6K1/8/8/8/8/R7 w - - 100 1"), 1)).toBe("fifty");
+    expect(endSquares(quiet, "threefold")).toEqual([[2, 6], [0, 7]]);
+  });
+
+  it("says nothing about a position that is still a game", () => {
+    expect(outcomeOf(initialState(), 1)).toBeNull();
+  });
+});
+
+describe("how sharp the window thinks it looks", () => {
+  it("reads the opening as calm, and stays calm after a normal move", () => {
+    const s = initialState();
+    expect(sharpness(s).tier).toBe(0);
+    expect(sharpness(s).note).toBeNull();
+    expect(sharpness(applyMove(s, mv("e2", "e4"))).tier).toBe(0);
+  });
+
+  it("finds the cheapest attacker, and a king is not cheap", () => {
+    // black queen on d5, attacked by a white pawn on e4 and the white king on c4
+    const b = parseFen("k7/8/8/3q4/2K1P3/8/8/8 w - - 0 1").board;
+    expect(attackerValue(b, 3, 3, 0)).toBe(100);
+    // nothing of black's attacks e4 except the queen
+    expect(attackerValue(b, 4, 4, 1)).toBe(900);
+    expect(attackerValue(b, 0, 0, 0)).toBe(Infinity);
+  });
+
+  it("notices material standing loose, and how much of it", () => {
+    expect(hangingValue(initialState().board)).toBe(0);
+    // an undefended queen where a pawn can reach it costs the whole queen
+    expect(hangingValue(parseFen("k7/8/8/3q4/4P3/8/8/K7 w - - 0 1").board)).toBe(900);
+    // defended by its own king, it still costs the difference against a pawn
+    expect(hangingValue(parseFen("8/8/2k5/3q4/4P3/8/8/K7 w - - 0 1").board)).toBe(800);
+    const loose = sharpness(parseFen("k7/8/8/3q4/4P3/8/8/K7 w - - 0 1"));
+    expect(loose.tier).toBeGreaterThanOrEqual(1);
+    expect(loose.note).toBe("loose");
+  });
+
+  it("sits up for a mate on the board and calls it nothing stronger", () => {
+    const s = parseFen("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1");
+    expect(mateInOne(s)).toBe(true);
+    const sharp = sharpness(s);
+    expect(sharp.tier).toBeGreaterThanOrEqual(2);
+    expect(sharp.note).toBe("mate");
+    expect(mateInOne(initialState())).toBe(false);
+  });
+
+  it("answers a check, and lets go of it again", () => {
+    const checked = parseFen("4k3/8/8/8/8/8/8/4R1K1 b - - 0 1");
+    expect(sharpness(checked).tier).toBeGreaterThanOrEqual(1);
+    // the king steps aside and the window goes back to calm — a tier is a
+    // state, and this one is allowed to end
+    const quiet = applyMove(checked, mv("e8", "d8"));
+    expect(sharpness(quiet).tier).toBe(0);
+  });
+
+  it("hears a big swing, and never reports more than 1", () => {
+    const s = initialState();
+    expect(sharpness(s, 900).tier).toBeGreaterThanOrEqual(1);
+    expect(sharpness(parseFen("6k1/5ppp/3q4/8/8/8/8/R5K1 w - - 0 1"), 900).level)
+      .toBeLessThanOrEqual(1);
   });
 });

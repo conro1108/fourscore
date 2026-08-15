@@ -68,6 +68,34 @@
 > the assembler because a label called `key` once silently shadowed the
 > keyboard.
 
+> **The desk answers its edges, and the fever lets go (2026-08-15).** Seven
+> notes from the desk's owner, all landed. **Size is a value now, the way
+> geometry is in the engine:** `CELL` was a constant and is one stepped
+> whole-pixel unit per game, walking a ladder as you drag the window — a
+> fractional transform mushes a 1px bevel and an integer-only one does nothing
+> until it doubles, so the ladder is what lets a drag land on a handful of
+> crisp sizes. Everything derived steps with it (`board.ts`'s cabinet mask and
+> hole radius, the drop's landing, the touch hit-test, chess's `--sq`, the
+> card pitch), and `wm.test.ts` pins the round-trip: the natural window
+> measures back to exactly the authored cell, so nothing moves until you ask.
+> A hardcoded 64 is now a bug that only shows on a dragged window — the class
+> of bug this pass existed to remove. **Leaving the ending brings the machine
+> down:** the director always cooled, but `gameOver` short-circuited the tidy
+> loop, so `OK` did nothing and the litter waited for a new game. And the
+> fever produces the drag-ghost trail itself now, as a transform and never a
+> position, only on windows whose rect grown by the full drift still misses
+> the grid. **A new game drains the old one out of the cabinet** — the floor
+> gives out left to right and the position falls through the same hole mask a
+> drop wears, on `gravityFall`'s own physics; an empty board is instant, which
+> is what keeps 47 scripted poses landing where they land. **The machine
+> reboots** (`reboot.ts`): the period's real Shut Down box, Ctrl+Alt+Del as
+> the other door, a POST and an honest page load — it writes to localStorage
+> at no point, so `C:\` and the Control Panel come back untouched. **And
+> CHESS.EXE keeps its result**: ants on the mated king, the word in the
+> titlebar and the status bar, plus a minor fever of its own, keyed off its
+> own evaluation and scoped to its own window — a shelf game does not get to
+> set the desktop's temperature.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

@@ -594,6 +594,123 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     if (above > 0) frame.scrollTop -= above;
   }
 
+  /* ---- and the position leaves the way it arrived ----
+     A new game used to blink the old board out of existence: a full cabinet
+     one frame, an empty one the next. Now the floor gives out — left to right,
+     over about a tenth of a second — and the whole position falls through it
+     with the physics the discs arrived with. Same `gravityFall`, same per-60Hz
+     integration, no easing curve anywhere.
+
+     The discs are lifted out of their cells into one layer sized to the grid
+     and wearing the same hole mask `maskToBoard` puts on `#fx`, so on the way
+     down they are still only what the holes let you see — a disc between two
+     rows is two crescents, which is what emptying a real cabinet looks like
+     from the front. The layer's own clip is the bottom of the machine: a disc
+     that reaches it is gone, and nothing lands.
+
+     The win's ants and its seam fire ride down with it. They were parked on
+     this position in its own coordinates, and a capsule left hanging over an
+     empty board is the bug you only find by looking.
+
+     Every number here is measured off the DOM rather than off `variant` or
+     `cell`: this runs *before* a variant switch takes its new geometry, and
+     the board falling out is the old one. */
+  function exitPosition(then: () => void): void {
+    const wrap = q(".gridwrap", body);
+    const grid = q("#grid", body);
+    const filled = [...grid.querySelectorAll<HTMLElement>(".cell")].filter(
+      (c) => c.firstElementChild?.classList.contains("disc"),
+    );
+    // an empty board has nothing to take away — the boot and a new game off a
+    // position nobody played into stay instant
+    if (!filled.length) {
+      then();
+      return;
+    }
+    const seq = gameSeq;
+    q("#picker", body).style.display = "none";
+    q("#botDisc", body).style.display = "none";
+
+    // every read before any write: one layout for the whole board, not one per
+    // disc. A cell is positioned, so its offsets are already grid-relative.
+    const gx = grid.offsetLeft;
+    const gy = grid.offsetTop;
+    const gw = grid.offsetWidth;
+    const gh = grid.offsetHeight;
+    const width = grid.firstElementChild?.childElementCount ?? 1;
+    // the layer clips at its own bottom edge, so a disc whose top reaches the
+    // grid's last pixel is already out of the machine. Nothing lands.
+    const drop = gh;
+    const falling: { d: HTMLElement; col: number; x: number; y: number }[] = filled.map((c) => {
+      const d = c.firstElementChild as HTMLElement;
+      return {
+        d,
+        col: Number(c.dataset.col),
+        x: c.offsetLeft + d.offsetLeft - gx,
+        y: c.offsetTop + d.offsetTop - gy,
+      };
+    });
+    const decor = [...wrap.querySelectorAll<HTMLElement>(".ants,.seam")];
+
+    const layer = el(`<div class="drain"></div>`);
+    layer.style.cssText = `left:${gx}px;top:${gy}px;width:${gw}px;height:${gh}px`;
+    const r = disc() / 2;
+    setMask(layer, {
+      image: `radial-gradient(circle at ${cell / 2}px ${cell / 2}px,#000 0 ${r}px,transparent ${r}px)`,
+      position: `0 0`,
+      size: `${cell}px ${cell}px`,
+      repeat: `repeat`,
+    });
+    wrap.appendChild(layer);
+
+    // the disc moves to the layer and the hole it was in comes back underneath
+    // it — invisible while it hasn't moved, because the mask cuts it to exactly
+    // that hole
+    for (const f of falling) {
+      const c = f.d.parentElement!;
+      f.d.style.left = `${f.x}px`;
+      f.d.style.top = `${f.y}px`;
+      layer.appendChild(f.d);
+      c.appendChild(el(`<div class="hole"></div>`));
+    }
+
+    let pending = falling.length + decor.length;
+    const gone = (): void => {
+      if (--pending > 0 || seq !== gameSeq) return;
+      // the position hitting the bottom of the machine, somewhere below
+      play("disc-land", 0.4);
+      then();
+    };
+
+    play("disc-drop", 0.6);
+    const k = stageScale();
+    for (const d of decor) {
+      // The decor is outside the layer and rides the gridwrap's own clip, six
+      // px past the last row. The ants capsule is rotated onto its line, so
+      // its rendered box is a good deal taller than the height it was given —
+      // a target that ignores that leaves an arc of it hanging under an empty
+      // board, which is exactly the thing this animation exists to stop.
+      const box = d.getBoundingClientRect().height / k;
+      gravityFall(d, parseFloat(d.style.top) || 0, gh + 10 + (box - d.offsetHeight) / 2, gone);
+    }
+    // the tear runs across the board in a fixed time, so a 13-wide Connect 7
+    // gives out over the same beat a 7-wide Connect 4 does
+    const lag = 90 / Math.max(1, width - 1);
+    const byCol = new Map<number, typeof falling>();
+    for (const f of falling) {
+      const list = byCol.get(f.col);
+      if (list) list.push(f);
+      else byCol.set(f.col, [f]);
+    }
+    for (const [col, list] of byCol) {
+      const release = (): void => {
+        for (const f of list) gravityFall(f.d, f.y, drop, gone);
+      };
+      if (col === 0) release();
+      else setTimeout(release, col * lag);
+    }
+  }
+
   const landingRow = (col: number): number => {
     const g = match.grid();
     for (let row = variant.height - 1; row >= 0; row--)
@@ -746,10 +863,27 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     deps.onEnd({ kind: "forfeit", cells: [], run: variant.run, botId, variant });
   }
 
-  /* ---- game lifecycle ---- */
-  function newGame(): void {
+  /* ---- game lifecycle ----
+     Two halves with the exit between them: the old position drains out of the
+     cabinet, and only then does anything about the next game exist. `prepare`
+     is what a variant or opponent switch changes, and it runs on the far side
+     for the same reason — resizing the window under a board that is still
+     falling out of it is the one way to make this ugly. With an empty board
+     `exitPosition` calls straight through, so the boot and every scripted pose
+     land exactly where they always did. */
+  function newGame(prepare?: () => void): void {
     gameSeq++;
     if (wanderTimer) clearTimeout(wanderTimer);
+    // the exit is not a window in which you can click a column into a
+    // half-torn-down match
+    phase = "over";
+    exitPosition(() => {
+      prepare?.();
+      beginGame();
+    });
+  }
+
+  function beginGame(): void {
     match = new Match(variant);
     hesitated = false;
     sameColStreak = 0;
@@ -767,26 +901,30 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
   function setVariant(id: string): void {
     if (id === variant.id) return;
-    variant = variantById(id);
-    win.setTitle(TITLES.boardVariant(variant.name));
-    winSpec.minW = minWindowW();
-    winSpec.minH = minWindowH();
-    // maximized stays maximized; the new size lands on restore (layoutMax).
-    // A hand size belonged to the old board and is let go — the new variant
-    // takes its natural window, same as it always has.
-    if (!win.el.classList.contains("max")) {
-      win.el.classList.remove("sized");
-      win.el.style.height = "";
-      win.el.style.width = `${windowWidth()}px`;
-      setCell(CELL);
-    }
-    newGame();
+    newGame(() => {
+      variant = variantById(id);
+      win.setTitle(TITLES.boardVariant(variant.name));
+      winSpec.minW = minWindowW();
+      winSpec.minH = minWindowH();
+      // maximized stays maximized; the new size lands on restore (layoutMax).
+      // A hand size belonged to the old board and is let go — the new variant
+      // takes its natural window, same as it always has.
+      if (!win.el.classList.contains("max")) {
+        win.el.classList.remove("sized");
+        win.el.style.height = "";
+        win.el.style.width = `${windowWidth()}px`;
+        setCell(CELL);
+      }
+    });
   }
 
   function setBot(id: string): void {
     if (id === botId) return;
-    botId = id;
-    newGame();
+    // the old game is still on the board while it leaves, and it was played
+    // against the old opponent — the statusbar keeps saying so until it's gone
+    newGame(() => {
+      botId = id;
+    });
   }
 
   function setChips(style: string, persist = true): void {
