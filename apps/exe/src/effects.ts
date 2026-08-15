@@ -217,12 +217,57 @@ export function makeEffects(deps: {
     const made = fireWindow(id, TITLES.flamesN(n), geom, { ...opts, ...heatParams(d) });
     extras.push({ win: made.win, fire: made.fire, d });
   }
-  function closeExtras(): void {
-    for (const e of extras) {
-      e.fire.stop();
-      if (e.win.isOpen()) e.win.close();
+  /* ---- the litter goes out one thing at a time ----
+     A new game (or a tier letting go mid-game) doesn't cut the fever's
+     manifestations off the desk: the machine puts them away — one window per
+     beat, newest first, each with its ordinary close. Anything the *current*
+     tier still justifies stays until the room cools under it, so a fresh
+     board that starts hot keeps its fires and loses them as the fever does. */
+  let litterTimer: ReturnType<typeof setTimeout> | null = null;
+  const TIDY_BEAT = 1300;
+  function stopTidy(): void {
+    if (litterTimer) clearTimeout(litterTimer);
+    litterTimer = null;
+  }
+  function tidyStep(): void {
+    litterTimer = null;
+    if (gameOver) return; // the endgame keeps its litter; the next game tidies
+    const again = (): void => {
+      litterTimer = setTimeout(tidyStep, TIDY_BEAT);
+    };
+    if (tier < 3) {
+      const w = [...roamWins].reverse().find((rw) => rw.isOpen());
+      if (w) {
+        // the last porthole closing shuts roam down through its own onClose
+        w.close();
+        again();
+        return;
+      }
     }
-    extras.length = 0;
+    if (tier < 2) {
+      const e = extras.pop();
+      if (e) {
+        e.fire.stop();
+        if (e.win.isOpen()) e.win.close();
+        again();
+        return;
+      }
+      const host = smearsEl();
+      if (host.children.length) {
+        // smears go by the handful — forty one-per-beat would outlast the game
+        const n = Math.max(4, Math.ceil(host.children.length / 3));
+        for (let i = 0; i < n && host.lastElementChild; i++) host.lastElementChild.remove();
+        if (!host.children.length) lastSmearAt.clear();
+        again();
+        return;
+      }
+    }
+    // whatever is left, this tier has earned; check back once the room cools
+    if (roamWins.some((rw) => rw.isOpen()) || extras.length || smearsEl().children.length) again();
+  }
+  function tidyLitter(): void {
+    stopTidy();
+    litterTimer = setTimeout(tidyStep, TIDY_BEAT);
   }
 
   /* ---- roam.scr: one fire, three windows, focus follows it ---- */
@@ -622,17 +667,12 @@ export function makeEffects(deps: {
     shell.setClockDrift(CLOCK_DRIFT[t]!);
     shell.shiftIcons(t >= 4 ? ICON_SHIFT_T4 : t >= 3 ? ICON_SHIFT_T3 : []);
     if (t > prev) for (let c = prev + 1; c <= t; c++) crossInto(c);
-    // Coming down after a game the desktop keeps its litter — the windows the
-    // fever opened stay open, and the next game is what clears them. Only the
-    // screensaver lets go on its own, because it's the one thing covering the
-    // board.
-    if (!gameOver) {
-      if (t < 3) closeRoam();
-      if (t < 2 && prev >= 2) {
-        closeExtras();
-        smearsEl().innerHTML = "";
-      }
-    }
+    // Coming down, nothing is cut: the tidy loop retires whatever the new
+    // tier no longer justifies, one thing per beat. Coming down after a game
+    // the desktop keeps its litter — the loop itself pauses on gameOver, and
+    // the next game restarts it. Only the screensaver lets go on its own,
+    // because it's the one thing covering the board.
+    if (t < prev && !gameOver) tidyLitter();
     takeover(t >= 4, true);
     if (!wonGeom) applyGeometry();
   }
@@ -688,14 +728,13 @@ export function makeEffects(deps: {
       gameOver = false;
       personality = opponentId === "oracle" ? "pillar" : "classic";
       clearBeats();
+      // the machine's sentences about the old game end now; its
+      // manifestations get to fade with the fever instead
       const blink = wm.get("flames-blink");
       if (blink?.isOpen()) blink.close();
       for (const d of crossingDialogs) if (d.isOpen()) d.close();
       crossingDialogs = [];
-      closeRoam();
-      closeExtras();
-      smearsEl().innerHTML = "";
-      lastSmearAt.clear();
+      tidyLitter();
       if (mainWin?.isOpen()) {
         applyPersonality();
         applyGeometry();
