@@ -53,6 +53,21 @@
 > harness — a touchscreen Chromium phone that plays a real move and
 > screenshots what a PWA user gets.
 
+> **The machine can be programmed (2026-08-15).** C:\ is real: one
+> localStorage volume (`fs.ts`) seeded with its own manual (readme.txt,
+> asm.txt) and two working programs, edited by a Notepad that genuinely
+> Opens/Saves/Saves As (per-file windows, a period picker), and served by
+> COMMAND.COM (`terminal.ts`) — DIR/TYPE/EDIT/DEL/REN/COPY plus RUN, which
+> assembles a .asm file to machine words and executes them on the machine's
+> own processor (`vm.ts`: a 16-bit CPU, 4096 words, memory-mapped
+> console/keyboard/RNG ports, real binary encoding so self-modifying code
+> just works). A running program gets a step budget per frame, so an
+> infinite loop animates instead of hanging and ESC always breaks.
+> `vm.test.ts` assembles and plays the shipped programs, which pins the
+> manual, the seeds and the CPU together; port names are reserved words in
+> the assembler because a label called `key` once silently shadowed the
+> keyboard.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

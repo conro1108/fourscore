@@ -20,6 +20,8 @@ export interface DesktopApps {
   openPieces(): void;
   openGames(): void;
   openUntitled(): void;
+  openReadme(): void;
+  openTerminal(): void;
   openGame(id: "mines" | "sol" | "snake" | "checkers" | "chess"): void;
   openSounds(): void;
   shutdown(): void;
@@ -76,6 +78,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin() },
     { rows: ICONS.folder, label: "games", top: 422, launch: () => apps().openGames() },
     { rows: ICONS.moves, label: "untitled.txt", top: 522, launch: () => apps().openUntitled() },
+    { rows: ICONS.term, label: "COMMAND.COM", top: 622, launch: () => apps().openTerminal() },
   ];
   const iconEls: HTMLElement[] = [];
   function makeIcon(spec: DeskIconSpec): DeskIcon {
@@ -225,10 +228,12 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       ["SNAKE.EXE", () => apps().openGame("snake")],
       ["CHECKERS.EXE", () => apps().openGame("checkers")],
       ["CHESS.EXE", () => apps().openGame("chess")],
+      ["COMMAND.COM", () => apps().openTerminal()],
     ]),
     item(START_MENU.documents, undefined, [
       ["moves.txt", () => apps().openMoves()],
       ["untitled.txt", () => apps().openUntitled()],
+      ["readme.txt", () => apps().openReadme()],
       ["help.txt", () => apps().openHelp()],
     ]),
     item(START_MENU.settings, undefined, [

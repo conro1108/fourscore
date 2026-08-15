@@ -8,7 +8,7 @@
  *   ?state=loss&beat=N    the coals parade held at a beat (2..10)
  *   ?state=pieces         pieces.ctl open
  *   ?state=saver          the screensaver has won the desktop
- *   ?state=mines|sol|snake|checkers|notepad|games   the other software
+ *   ?state=mines|sol|snake|checkers|notepad|games|terminal   the other software
  *   ?state=sounds         sounds.ctl open
  *   ?state=sol&rig=won    a double-click from the card bounce
  *   ?fever=0.85           walk the fever up to a value and pin it
@@ -24,7 +24,9 @@ import { fitStage, makeWM } from "./wm.js";
 import { buildShell, type DesktopApps } from "./desktop.js";
 import { analysisClient, engineClient } from "./engine/client.js";
 import { makeBoard, type BoardApp, type BoardDeps } from "./board.js";
-import { makeMovesPad, openUntitled, textWindow } from "./notepad.js";
+import { makeMovesPad, openEditor, textWindow } from "./notepad.js";
+import { makeDisk } from "./fs.js";
+import { openTerminal } from "./terminal.js";
 import { installGeneratedChips, openPieces } from "./chips.js";
 import { makeDirector, tierOf } from "./director.js";
 import { makeEffects } from "./effects.js";
@@ -62,6 +64,7 @@ const engine = engineClient();
 const analysis = analysisClient();
 const director = makeDirector();
 const movesPad = makeMovesPad(wm);
+const disk = makeDisk(localStorage);
 
 /* The scheme. Nothing is built until the first gesture (the autoplay law), and
    fever is pulled rather than pushed so the director never learns audio exists. */
@@ -202,7 +205,9 @@ const desktopApps: DesktopApps = {
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
   openGames: () => openGamesFolder(wm, gameLaunchers, placeGameOnDesk),
-  openUntitled: () => openUntitled(wm),
+  openUntitled: () => openEditor(wm, disk, "untitled.txt"),
+  openReadme: () => openEditor(wm, disk, "readme.txt"),
+  openTerminal: () => openTerminal({ wm, disk, edit: (name) => openEditor(wm, disk, name) }),
   openGame: (id) => gameLaunchers[id](),
   openSounds: () => openSounds(wm),
   shutdown() {
@@ -293,7 +298,9 @@ if (state === "midgame") {
 } else if (state === "snake") {
   openSnake(wm);
 } else if (state === "notepad") {
-  openUntitled(wm);
+  desktopApps.openUntitled();
+} else if (state === "terminal") {
+  desktopApps.openTerminal();
 } else if (state === "sol") {
   openSol(wm, param("rig") ?? undefined);
 } else if (state === "checkers") {

@@ -43,6 +43,7 @@ const STATES = [
   ["checkers", "?state=checkers"],
   ["chess", "?state=chess"],
   ["notepad", "?state=notepad"],
+  ["terminal", "?state=terminal"],
   ["games", "?state=games"],
   ["sounds", "?state=sounds"],
   // the beat acts — what the desktop does between tier crossings. Each puts

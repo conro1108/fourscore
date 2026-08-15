@@ -75,6 +75,12 @@ export const ICONS = {
     ".rrrr..ggggg....","................",".bbbb..yyyyy....",".bbbb..yyyyy....",
     ".bbbb..yyyyy....",".bbbb..yyyyy....","................","................",
     "................","................","................","................"],
+  // COMMAND.COM: a monitor showing a prompt and its cursor
+  term: [
+    "................",".kkkkkkkkkkkkk..",".kwwwwwwwwwwwk..",".kwkkkkkkkkkwk..",
+    ".kwkskkkkkkkwk..",".kwkkskkkkkkwk..",".kwkskssskkkwk..",".kwkkkkkkkkkwk..",
+    ".kwwwwwwwwwwwk..",".kkkkkkkkkkkkk..","....kkkkkkk.....","......kkk.......",
+    "....kkkkkkk.....","................","................","................"],
   // the tray speaker, and the same speaker with the waves crossed out
   speaker: [
     "................","................","...........k....",".......k..k.k...",
