@@ -378,6 +378,8 @@ export const GAMES_COPY = {
     yourMove: "YOUR MOVE.",
     check: "CHECK. The king has been made aware.",
     thinking: "The computer is considering all of it.",
+    thinkingMost: "The computer is considering most of it.",
+    thinkingSome: "The computer is considering some of it.",
     youWin: { title: "CHESS.EXE", body: "Checkmate.<br>The computer accepts this as information." },
     machineWins: { title: "CHESS.EXE", body: "Checkmate.<br>The computer has written it down somewhere." },
     stalemate: { title: "CHESS.EXE", body: "Stalemate.<br>Nobody can do anything. This is official." },
@@ -394,6 +396,9 @@ export const GAMES_COPY = {
 
 export const TITLES = {
   board: "BOARD.EXE",
+  /** The titlebar carries which game this is — a Connect 6 window should
+      never have to be counted to be identified. */
+  boardVariant: (name: string): string => `BOARD.EXE — ${name}`,
   moves: "moves.txt — Notepad",
   flames: "flames.scr — Preview",
   flamesN: (n: number): string => `flames.scr — Preview (${n})`,

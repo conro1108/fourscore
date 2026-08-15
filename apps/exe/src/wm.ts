@@ -31,6 +31,11 @@ export interface WindowSpec {
   onClose?: () => void;
   /** Fires after maximize/restore, so a window can re-frame its contents. */
   onMaximize?: (on: boolean) => void;
+  /** Real resize borders, like the OS the fiction claims to be. The window
+      gets `sized` on first drag and its body flexes (chrome.css). */
+  resizable?: boolean;
+  minW?: number;
+  minH?: number;
   /** Stay above the screensaver while it has the desktop. The board asks for
       this ("the board stays playable on top of it" — DIRECTION.md) and so does
       anything the machine is currently saying; dialogs get it by default. */
@@ -231,8 +236,61 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       bar.appendChild(btn);
     }
     w.appendChild(bar);
+    spec.body.classList.add("winbody");
     w.appendChild(spec.body);
     stage.appendChild(w);
+
+    // resize borders — instant, 1:1, no easing, same as the titlebar drag
+    if (spec.resizable) {
+      for (const dir of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
+        const h = el(`<div class="rz rz-${dir}"></div>`);
+        h.addEventListener("mousedown", (e) => {
+          if (maximized || e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          win.focus();
+          const minW = spec.minW ?? 180;
+          const minH = spec.minH ?? 120;
+          const sx = e.clientX / scale;
+          const sy = e.clientY / scale;
+          const r = { left: w.offsetLeft, top: w.offsetTop, width: w.offsetWidth, height: w.offsetHeight };
+          const move = (ev: MouseEvent): void => {
+            const dx = ev.clientX / scale - sx;
+            const dy = ev.clientY / scale - sy;
+            let { left, top, width, height } = r;
+            if (dir.includes("e")) width = Math.max(minW, Math.round(r.width + dx));
+            if (dir.includes("s")) height = Math.max(minH, Math.round(r.height + dy));
+            if (dir.includes("w")) {
+              width = Math.max(minW, Math.round(r.width - dx));
+              left = r.left + (r.width - width);
+            }
+            if (dir.includes("n")) {
+              height = Math.max(minH, Math.round(r.height - dy));
+              top = r.top + (r.height - height);
+              if (top < 0) {
+                height += top;
+                top = 0;
+              }
+            }
+            dragged = true; // you sized it; a desk resize doesn't get to move it
+            w.classList.add("sized");
+            Object.assign(w.style, {
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${width}px`,
+              height: `${height}px`,
+            });
+          };
+          const up = (): void => {
+            removeEventListener("mousemove", move);
+            removeEventListener("mouseup", up);
+          };
+          addEventListener("mousemove", move);
+          addEventListener("mouseup", up);
+        });
+        w.appendChild(h);
+      }
+    }
 
     const win: Win = {
       id: spec.id,

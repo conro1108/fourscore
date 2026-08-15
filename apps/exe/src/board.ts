@@ -12,7 +12,7 @@ import { ROSTER, VARIANTS, byId, variantById, type Position, type Variant } from
 import { Match } from "@fourscore/engine";
 import { el, gravityFall, q } from "./dom.js";
 import { ICONS } from "./icons.js";
-import { STATUS, voiceOf } from "./copy.js";
+import { STATUS, TITLES, voiceOf } from "./copy.js";
 import { deskHeight, stageScale, type WM, type Win } from "./wm.js";
 import { play } from "./audio/index.js";
 import type { MovesPad } from "./notepad.js";
@@ -97,7 +97,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   const body = el(`<div></div>`);
   const win = deps.wm.open({
     id: "board",
-    title: "BOARD.EXE",
+    title: TITLES.boardVariant(variant.name),
     icon: ICONS.board,
     x: 296,
     y: 64,
@@ -611,6 +611,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   function setVariant(id: string): void {
     if (id === variant.id) return;
     variant = variantById(id);
+    win.setTitle(TITLES.boardVariant(variant.name));
     // maximized stays maximized; the new size lands on restore (layoutMax)
     if (!win.el.classList.contains("max")) win.el.style.width = `${windowWidth()}px`;
     newGame();

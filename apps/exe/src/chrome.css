@@ -12,10 +12,30 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .bevel{background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .sunken{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
 .win{position:absolute}
-/* maximized: the body gets the full height, so contents can re-frame */
-.win.max{display:flex;flex-direction:column}
-.win.max > .titlebar{flex:none}
-.win.max > :last-child{flex:1;min-height:0}
+/* maximized or hand-resized: the body gets the full height, so contents can
+   re-frame. `sized` arrives the first time a resize handle is dragged. */
+.win.max,.win.sized{display:flex;flex-direction:column}
+.win.max > .titlebar,.win.sized > .titlebar{flex:none}
+.win.max > .winbody,.win.sized > .winbody{flex:1;min-height:0}
+/* resize handles: invisible strips on the frame, like the real borders were */
+.rz{position:absolute;z-index:6}
+.rz-n{top:-2px;left:9px;right:9px;height:5px;cursor:n-resize}
+.rz-s{bottom:-2px;left:9px;right:9px;height:5px;cursor:s-resize}
+.rz-e{right:-2px;top:9px;bottom:9px;width:5px;cursor:e-resize}
+.rz-w{left:-2px;top:9px;bottom:9px;width:5px;cursor:w-resize}
+.rz-ne{top:-2px;right:-2px;width:9px;height:9px;cursor:ne-resize}
+.rz-nw{top:-2px;left:-2px;width:9px;height:9px;cursor:nw-resize}
+.rz-se{bottom:-2px;right:-2px;width:9px;height:9px;cursor:se-resize}
+.rz-sw{bottom:-2px;left:-2px;width:9px;height:9px;cursor:sw-resize}
+.win.max .rz{display:none}
+/* what flexes inside a hand-sized window: the one sunken well grows, a
+   notepad forgets its natural cap, an editor's textarea fills its well */
+.win.sized > .winbody{display:flex;flex-direction:column}
+.win.sized > .winbody > .sunken{flex:1 1 0;min-height:0}
+.win.sized .notepad{max-height:none!important}
+.win.sized > .winbody > .sunken:has(> textarea){display:flex;flex-direction:column}
+.win.sized textarea.notepad-edit{height:auto;flex:1}
+.win.sized .felt{height:auto}
 .titlebar{height:22px;display:flex;align-items:center;gap:4px;padding:0 3px;margin:3px;color:#fff;font-weight:bold}
 .titlebar.active{background:linear-gradient(90deg,#000080,#1084d0)}
 .titlebar.inactive{background:linear-gradient(90deg,#808080,#b5b5b5);color:#d8d8d8}

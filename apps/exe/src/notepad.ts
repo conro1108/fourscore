@@ -49,6 +49,9 @@ export function makeMovesPad(wm: WM): MovesPad {
       w: 240,
       body,
       buttons: ["close"],
+      resizable: true,
+      minW: 180,
+      minH: 120,
     });
     render();
   }
@@ -141,6 +144,9 @@ export function openUntitled(wm: WM): void {
     w: 300,
     body,
     buttons: ["min", "close"],
+    resizable: true,
+    minW: 220,
+    minH: 160,
   });
   ta.focus();
 }
@@ -165,5 +171,5 @@ export function textWindow(
   const pad = el(`<div class="sunken notepad" style="max-height:420px;overflow:auto"></div>`);
   pad.textContent = text;
   body.appendChild(pad);
-  wm.open({ id, title, icon: ICONS.moves, x, y, ax, w, body, buttons: ["close"] });
+  wm.open({ id, title, icon: ICONS.moves, x, y, ax, w, body, buttons: ["close"], resizable: true, minW: 180, minH: 120 });
 }

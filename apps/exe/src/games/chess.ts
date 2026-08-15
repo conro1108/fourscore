@@ -407,6 +407,33 @@ export function openChess(wm: WM, fen?: string): void {
   }
 
   let s = fen ? parseFen(fen) : initialState();
+
+  /* Skill: how much of it the computer considers. Novice and Standard are
+     fixed shallow searches (still no hung pieces — the quiescence sees
+     captures); Expert is the timed iterative deepening. */
+  type Skill = "novice" | "standard" | "expert";
+  const SKILLS: readonly (readonly [Skill, string])[] = [
+    ["novice", "Novice"],
+    ["standard", "Standard"],
+    ["expert", "Expert"],
+  ];
+  let skill = (localStorage.getItem("exe.chessSkill") ?? "expert") as Skill;
+  if (!SKILLS.some(([id]) => id === skill)) skill = "expert";
+
+  function think(done: (m: ChessMove | null) => void): void {
+    if (skill === "expert") {
+      bestMoveTimed(s, 900, done);
+      return;
+    }
+    const depth = skill === "novice" ? 1 : 2;
+    setTimeout(() => done(searchDepth(s, depth, null)), 0);
+  }
+
+  const thinkingLine = (): string =>
+    skill === "novice" ? GAMES_COPY.chess.thinkingSome :
+    skill === "standard" ? GAMES_COPY.chess.thinkingMost :
+    GAMES_COPY.chess.thinking;
+
   let over = false;
   let busy = false;
   let selected: [number, number] | null = null;
@@ -475,10 +502,10 @@ export function openChess(wm: WM, fen?: string): void {
 
   function machineTurn(): void {
     busy = true;
-    statusEl.textContent = GAMES_COPY.chess.thinking;
+    statusEl.textContent = thinkingLine();
     later(() => {
       if (!win.isOpen() || over) return;
-      bestMoveTimed(s, 900, (m) => {
+      think((m) => {
         if (!win.isOpen() || over) return;
         if (!m) {
           settle(() => {});
@@ -574,16 +601,32 @@ export function openChess(wm: WM, fen?: string): void {
     render();
   }
 
-  const bar = menubar([
-    { label: "Game", items: [["New", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
-    {
-      label: "Help",
-      items: [[
-        "Contents",
-        () => wm.dialog({ ...GAMES_COPY.chess.help, x: 440, y: 300, w: 340 }),
-      ]],
-    },
-  ]);
+  const makeBar = (): HTMLElement =>
+    menubar([
+      { label: "Game", items: [["New", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
+      {
+        label: "Skill",
+        items: SKILLS.map(([id, label]) => [label, () => setSkill(id), skill === id] as const),
+      },
+      {
+        label: "Help",
+        items: [[
+          "Contents",
+          () => wm.dialog({ ...GAMES_COPY.chess.help, x: 440, y: 300, w: 340 }),
+        ]],
+      },
+    ]);
+  let bar = makeBar();
+
+  function setSkill(id: Skill): void {
+    if (id === skill) return;
+    skill = id;
+    localStorage.setItem("exe.chessSkill", id);
+    // rebuild the bar so the checkmark moves; takes hold on the next move
+    const next = makeBar();
+    bar.replaceWith(next);
+    bar = next;
+  }
 
   body.append(bar, frame, status);
   const win = wm.open({

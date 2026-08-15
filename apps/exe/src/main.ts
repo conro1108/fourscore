@@ -114,6 +114,7 @@ const effects = makeEffects({
   shell,
   stage,
   boardWin: () => wm.get("board"),
+  boardTitle: () => TITLES.boardVariant(board.variant.name),
   notepad: movesPad,
 });
 

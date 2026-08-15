@@ -526,6 +526,11 @@ export function openSol(wm: WM, rig?: string): void {
     w: 7 * 68 + 16 + 20,
     body,
     buttons: ["min", "close"],
+    // the felt grows; the cards are a fixed period size, so the floor is
+    // wherever the seventh column and the fullest pile still fit
+    resizable: true,
+    minW: 7 * 68 + 16 + 20,
+    minH: 560,
     onClose: () => {
       bounceStop?.();
       bounceStop = null;

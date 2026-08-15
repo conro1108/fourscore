@@ -98,6 +98,9 @@ export function makeEffects(deps: {
   shell: Shell;
   stage: HTMLElement;
   boardWin: () => Win | undefined;
+  /** The board's rightful title — variant-aware, so a title-slip beat hands
+      back "BOARD.EXE — Connect 6" and not a bare BOARD.EXE. */
+  boardTitle: () => string;
   notepad: MovesPad;
   /** Injected so the beat picker is deterministic under test and in the shots. */
   rng?: () => number;
@@ -467,7 +470,7 @@ export function makeEffects(deps: {
 
   const restoreTitle = (): void => {
     const board = deps.boardWin();
-    if (board?.isOpen()) board.setTitle(TITLES.board);
+    if (board?.isOpen()) board.setTitle(deps.boardTitle());
   };
 
   /**
