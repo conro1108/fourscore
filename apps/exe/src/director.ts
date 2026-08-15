@@ -18,7 +18,12 @@
  * An end-of-game shove is a moment, not a state. It holds its target long
  * enough to be the biggest thing the machine has announced, and then the
  * desktop is allowed to come down — otherwise a sharp game leaves you parked
- * at tier 4 with the screensaver on top of the next one.
+ * at tier 4 with the screensaver on top of the next one. The hold is a
+ * backstop, not the cue: `dismissed` is the cue. The moment you leave the
+ * ending — `OK`, the dialog's close box, any way out that isn't `Again` — the
+ * shove is over and the desktop starts coming down at COOL, because a player
+ * who has read the finale and put it away should not have to start a new game
+ * to get a working desktop back.
  *
  * Pure — no DOM, no timers of its own — so it's testable and the subsystems
  * that read it stay honest (they read, they never match state). `tools/trace.ts`
@@ -32,7 +37,10 @@ export interface DirectorSnapshot {
   tier: number;
 }
 
-export type FeverEvent = "win" | "loss" | "draw" | "forfeit" | "newGame";
+/** `dismissed` is the player leaving the ending; `newGame` is them starting
+    another one. Both end the shove — the first lets the desktop come down, the
+    second also wipes the last game's throttles. */
+export type FeverEvent = "win" | "loss" | "draw" | "forfeit" | "newGame" | "dismissed";
 
 /**
  * What the desktop answers between tier crossings. `by` is always from the
@@ -125,10 +133,11 @@ const FLOOR_MAX = 0.62;
  */
 const LIVE_MAX = 0.95;
 
-/** Seconds an end-of-game target stands before the desktop starts cooling.
-    A win holds through its cascade and its screensaver; a loss holds long
-    enough that stewing on it still escalates. */
-const HOLD: Record<Exclude<FeverEvent, "newGame">, number> = {
+/** Seconds an end-of-game target stands before the desktop starts cooling *on
+    its own*. A win holds through its cascade and its screensaver; a loss holds
+    long enough that stewing on it still escalates. This is the backstop for a
+    player who walks away — dismissing the ending cuts it short. */
+const HOLD: Record<Exclude<FeverEvent, "newGame" | "dismissed">, number> = {
   win: 12,
   loss: 22,
   draw: 6,
@@ -346,6 +355,14 @@ export function makeDirector(): Director {
           target = Math.min(target, 0.4);
           hold = HOLD[e];
           over = true;
+          break;
+        case "dismissed":
+          // You closed the ending. Mid-game there is nothing to release — a
+          // stray dismissal must not be a way to cool a live position.
+          if (!over) break;
+          hold = 0;
+          target = BASE;
+          cooling = true;
           break;
         case "newGame":
           target = BASE;

@@ -9,7 +9,7 @@
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import type { WM } from "../wm.js";
+import { centered, fieldScaler, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 /* ---- the pure part (the tests live on this) ---- */
@@ -336,6 +336,22 @@ export function openCheckers(wm: WM): void {
   ]);
 
   body.append(bar, frame, status);
+
+  /* The board is the window: drag either bigger and the squares follow, on the
+     stepped ladder every game here uses. Measured chrome — a natural window is
+     366x406 around a 320px board, and 40 comes straight back out. */
+  const naturalMargin = frame.style.margin;
+  const relayout = fieldScaler({
+    win: () => win.el,
+    grid: () => ({ cols: 8, rows: 8 }),
+    chrome: { w: 46, h: 86 },
+    cell: { base: SQ, step: 8, min: 24, max: 96 },
+    apply(sq, wide) {
+      frame.style.setProperty("--sq", `${sq}px`);
+      frame.style.margin = wide ? centered(naturalMargin) : naturalMargin;
+    },
+  });
+
   const win = wm.open({
     id: "checkers",
     title: TITLES.checkers,
@@ -345,13 +361,18 @@ export function openCheckers(wm: WM): void {
     w: 8 * SQ + 26 + 20,
     body,
     buttons: ["min", "close"],
-    resizable: true, // no smaller than the board — the natural floor holds
+    resizable: true,
+    minW: 8 * 24 + 46,
+    minH: 8 * 24 + 86,
+    onResize: relayout,
+    onMaximize: relayout,
 
     onClose: () => {
       for (const t of timers) clearTimeout(t);
     },
   });
   newGame();
+  relayout();
 }
 
 export const CHECKERS_ICON = [

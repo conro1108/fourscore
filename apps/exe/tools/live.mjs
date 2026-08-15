@@ -72,14 +72,18 @@ const stBot = await page.locator(".statusbar div").nth(1).textContent();
 console.log("after switching to QUILL:", stBot);
 if (!/QUILL/.test(stBot ?? "")) fail(`expected QUILL statusbar, got "${stBot}"`);
 
-// start menu opens, shutdown answers
+// start menu opens, the Shut Down box offers both period answers, and the
+// machine still declines to shut down when you take it up on the first one
 await page.locator("#start").click();
 await page.waitForTimeout(150);
 await page.getByText("Shut Down...").click();
 await page.waitForTimeout(250);
-const dlg = await page.getByText("not ready to shut down").count();
-if (!dlg) fail("shutdown dialog missing");
+if (!(await page.getByText("Restart the computer?").count())) fail("no Restart option");
 await page.screenshot({ path: here("../shots/live-shutdown.png") });
+await page.getByText("Yes", { exact: true }).click();
+await page.waitForTimeout(250);
+if (!(await page.getByText("not ready to shut down").count())) fail("shutdown refusal missing");
+await page.screenshot({ path: here("../shots/live-shutdown-refused.png") });
 
 // at high fever, dragging a dialog must leave un-repainted copies of itself
 await page.goto(`${BASE}/?state=midgame&fever=0.85`);
@@ -100,6 +104,40 @@ else {
   if (smears < 2) fail(`expected smears from the drag, got ${smears}`);
   await page.screenshot({ path: here("../shots/live-smear.png") });
 }
+
+/* And the way back out of all of it. The desk is littered right now — a
+   fevered game, dialogs, drag ghosts, a pose in the URL — so restart it and
+   check what came back: the boot pose, a clean URL, no litter, and a disk
+   that still has the player's files on it. */
+await page.screenshot({ path: here("../shots/live-restart-before.png") });
+await page.locator("#start").click();
+await page.waitForTimeout(150);
+await page.getByText("Shut Down...").click();
+await page.waitForTimeout(200);
+await page.locator('[data-opt="1"]').click(); // Restart the computer?
+const rebooted = page.waitForNavigation({ timeout: 8000 }).catch(() => null);
+await page.getByText("Yes", { exact: true }).click();
+await page.waitForTimeout(1000);
+if (!(await page.locator("#reboot").count())) fail("no reboot screen");
+await page.screenshot({ path: here("../shots/live-restart-beat.png") });
+await rebooted;
+await page.waitForTimeout(2000);
+const back = {
+  url: page.url(),
+  wins: await page.locator(".win").count(),
+  smears: await page.locator("#smears > *").count(),
+  clock: await page.locator("#clock").textContent(),
+  disk: await page.evaluate(() => localStorage.getItem("exe.fs")),
+};
+console.log("after restart:", { ...back, disk: `${(back.disk ?? "").length} bytes` });
+if (/[?#]/.test(back.url)) fail(`restart kept the pose: ${back.url}`);
+// the boot order: moves.txt, flames.scr, BOARD.EXE — and nothing else
+if (back.wins !== 3) fail(`expected 3 windows after a restart, got ${back.wins}`);
+if (back.smears) fail("drag ghosts survived the restart");
+if (back.clock !== "6:66 PM") fail(`clock did not reset: ${back.clock}`);
+// no fake data loss: C:\ is not the machine's runtime and does not go with it
+if (!/readme\.txt/.test(back.disk ?? "")) fail("the restart ate the disk");
+await page.screenshot({ path: here("../shots/live-restart-after.png") });
 
 console.log(process.exitCode ? "live run FAILED" : "live run ok");
 await browser.close();

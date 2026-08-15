@@ -8,12 +8,15 @@
 import { el, onPointerDrag } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import type { WM } from "../wm.js";
+import { centered, fieldScaler, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 const COLS = 22;
 const ROWS = 16;
 const PX = 4; // canvas pixels per cell
+/** Screen px per canvas px. Whole numbers only — the pit is a 88x64 bitmap
+    and a nearest-neighbour upscale at 3.5x is a fence with a wobble in it. */
+const ZOOM = 4;
 const STEP_MS = 110;
 
 type Dir = readonly [number, number];
@@ -34,7 +37,7 @@ export function openSnake(wm: WM): void {
   const body = el(`<div></div>`);
   const frame = el(`<div class="sunken snakefield" style="margin:6px 10px 4px;background:#000;width:max-content;padding:3px"></div>`);
   const canvas = el(
-    `<canvas class="pix" width="${COLS * PX}" height="${ROWS * PX}" style="width:${COLS * PX * 4}px;height:${ROWS * PX * 4}px"></canvas>`,
+    `<canvas class="pix" width="${COLS * PX}" height="${ROWS * PX}" style="width:${COLS * PX * ZOOM}px;height:${ROWS * PX * ZOOM}px"></canvas>`,
   ) as HTMLCanvasElement;
   frame.appendChild(canvas);
   const status = el(`<div class="statusbar"><div id="snakeStatus"></div></div>`);
@@ -187,16 +190,38 @@ export function openSnake(wm: WM): void {
   ]);
 
   body.append(bar, frame, status);
+
+  /* The pit is a bitmap, so it takes the one scale a bitmap can take: a whole
+     multiple. The ladder's step is 1 screen px per canvas px, which on an
+     88x64 pit is 88px of window at a time — the coarsest rung on the desk,
+     and the only one that keeps a 4px chip square. */
+  const naturalMargin = frame.style.margin;
+  const relayout = fieldScaler({
+    win: () => win.el,
+    grid: () => ({ cols: COLS * PX, rows: ROWS * PX }),
+    chrome: { w: 32, h: 86 },
+    cell: { base: ZOOM, step: 1, min: 2, max: 12 },
+    apply(z, wide) {
+      canvas.style.width = `${COLS * PX * z}px`;
+      canvas.style.height = `${ROWS * PX * z}px`;
+      frame.style.margin = wide ? centered(naturalMargin) : naturalMargin;
+    },
+  });
+
   const win = wm.open({
     id: "snake",
     title: TITLES.snake,
     icon: SNAKE_ICON,
     x: 120,
     y: 380,
-    w: COLS * PX * 4 + 32,
+    w: COLS * PX * ZOOM + 32,
     body,
     buttons: ["min", "close"],
-    resizable: true, // no smaller than the pit — the natural floor holds
+    resizable: true,
+    minW: COLS * PX * 2 + 32,
+    minH: ROWS * PX * 2 + 86,
+    onResize: relayout,
+    onMaximize: relayout,
 
     onClose: () => {
       if (timer) clearInterval(timer);
@@ -204,6 +229,7 @@ export function openSnake(wm: WM): void {
     },
   });
   reset();
+  relayout();
   timer = setInterval(step, STEP_MS);
 }
 

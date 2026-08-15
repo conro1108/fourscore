@@ -136,6 +136,7 @@ export const DIALOG = {
     title: "About BOARD.EXE",
     body: "BOARD.EXE<br>Version 4.0 (of 4)<br><br>This computer is functioning normally.",
   },
+  /** What the machine says when you ask it to stop. It declines, sincerely. */
   shutdown: {
     title: "Shut Down Windows",
     body: "The system is not ready to shut down.<br>The system may never be ready.",
@@ -148,6 +149,39 @@ export const DIALOG = {
     title: "System",
     body: "The screen saver would like to start early.",
   },
+} as const;
+
+/**
+ * Start ▸ Shut Down — the period's own dialog, and the period's own answer to
+ * "reset the whole screen". A question, the ways of answering it, Yes/No/Help.
+ * Shutting down is still refused (`DIALOG.shutdown`); restarting is real.
+ */
+export const SHUTDOWN = {
+  title: "Shut Down Windows",
+  prompt: "Are you sure you want to:",
+  /** In the period's order, and the period's default: shut down is first. */
+  options: ["Shut down the computer?", "Restart the computer?"] as const,
+  yes: "Yes",
+  no: "No",
+  help: "Help",
+} as const;
+
+/**
+ * The restart, out loud. A machine that came back without saying anything
+ * would have been a page reload; this one counts its memory first, the way
+ * every machine of the period did, in the same console the terminal uses.
+ *
+ * The version number is the one COMMAND.COM already claims and the clock
+ * already believes.
+ */
+export const REBOOT = {
+  wait: "Please wait while your computer restarts.",
+  post: [
+    "BOARD BIOS v4.00.666",
+    "Memory Test : 640K OK",
+    "Detecting IDE drives ...  C: BOARD 95",
+    "Starting BOARD 95 ...",
+  ],
 } as const;
 
 /**
@@ -319,6 +353,13 @@ export const HELP_TEXT = [
   "   on my desktop.",
   "A: The fire came",
   "   with the computer.",
+  "",
+  "Q: There are too",
+  "   many windows.",
+  "A: Shut Down, then",
+  "   Restart.",
+  "   Ctrl+Alt+Del",
+  "   also asks.",
   "",
   "Q: Who is MOSS?",
   "A: MOSS is thinking",

@@ -152,6 +152,84 @@ export const taskbarH = (): number => 36 + taskbarPad;
 /** Fires after the desk changes size, so placed things can re-anchor. */
 export const onDeskResize = (cb: () => void): void => void resizeCbs.push(cb);
 
+/* ---- how a window's contents answer a resize ----
+   Drag a window bigger and the game inside gets bigger — the frame growing
+   while the playfield sits in a corner is a window manager admitting it isn't
+   one. But the playfield never takes a fractional scale: this desktop is 1px
+   bevels and 64px-nearest art all the way down, and a bevel drawn at 1.37x is
+   mush. So one whole-pixel cell size steps through a fixed ladder and every
+   derived number (disc, hole, gutter, piece) comes off it. Stepping is also
+   the timing law falling out for free: a slow drag lands on a handful of
+   sizes instead of shivering a pixel at a time.
+
+   `count` may be fractional — the board's picker row is three quarters of a
+   cell tall, so its height budget is `rows + 0.75` cells. */
+export interface CellFit {
+  /** px the whole field may occupy on this axis. */
+  space: number;
+  /** cells across it. */
+  count: number;
+  /** The authored size. A natural-sized window measures back to exactly this,
+      so nothing moves until you actually drag. */
+  base: number;
+  /** Ladder rung, in px. Keep it a divisor of `base`, or natural won't round-trip. */
+  step?: number;
+  min?: number;
+  max?: number;
+}
+export function fitCell(f: CellFit): number {
+  const step = f.step ?? Math.max(1, Math.round(f.base / 8));
+  const min = f.min ?? Math.max(step, Math.round(f.base / 2));
+  const max = f.max ?? f.base * 3;
+  const raw = Math.floor(f.space / f.count);
+  return Math.max(min, Math.min(max, Math.floor(raw / step) * step));
+}
+
+/** Everything a window needs to answer its own resize with a size. */
+export interface FieldFit {
+  /** The window element, measured live — a resize drag is mid-flight. */
+  win(): HTMLElement;
+  /** Cells across and down. Live, because a level or a variant can change it,
+      and fractional where something else on the axis is a fraction of a cell. */
+  grid(): { cols: number; rows: number };
+  /** Window px that are never the field, per axis. Measure these off a natural
+      window rather than adding up the stylesheet — then the natural size
+      round-trips to exactly `cell.base` and nothing moves until you drag. */
+  chrome: { w: number; h: number };
+  cell: { base: number; step: number; min: number; max: number };
+  /** Hand the size to the DOM. `wide` is true once the window has been dragged
+      or maximized, which is when the well should centre in the extra gray. */
+  apply(size: number, wide: boolean): void;
+}
+
+/**
+ * The one way a game window on this desktop grows: build a scaler, hand it to
+ * `onResize` and `onMaximize`, and call it once after the first paint. Five
+ * games and the board share this so that "drag it bigger" means the same thing
+ * everywhere — and so that the stepping law lives in one place.
+ */
+export function fieldScaler(f: FieldFit): () => void {
+  return (): void => {
+    const el = f.win();
+    const { cols, rows } = f.grid();
+    const size = Math.min(
+      fitCell({ space: el.offsetWidth - f.chrome.w, count: cols, ...f.cell }),
+      fitCell({ space: el.offsetHeight - f.chrome.h, count: rows, ...f.cell }),
+    );
+    f.apply(size, el.classList.contains("sized") || el.classList.contains("max"));
+  };
+}
+
+/** A well's margin with its horizontal halves handed to `auto`, so it centres
+    in a window that has more gray than it needs. `""` leaves it to the CSS. */
+export function centered(margin: string): string {
+  const p = margin.trim().split(/\s+/);
+  if (p.length === 2) return `${p[0]} auto`;
+  if (p.length === 3) return `${p[0]} auto ${p[2]}`;
+  if (p.length === 4) return `${p[0]} auto ${p[2]} auto`;
+  return margin;
+}
+
 /** Where a coordinate authored against a 1280x800 desk goes on this one. */
 export type AnchorX = "left" | "center" | "right";
 export type AnchorY = "top" | "bottom";

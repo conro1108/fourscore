@@ -86,6 +86,10 @@ export interface Effects {
   gameEvent(kind: EndResult["kind"]): void;
   /** The moment a game ends, crossings stop talking (the endgame has the mic). */
   setGameOver(): void;
+  /** The player has left the ending. The endgame hands the mic back: the fire
+      goes back to its ordinary personality and geometry, and the litter starts
+      going out on the tidy beat as the fever comes down under it. */
+  endingDismissed(): void;
   setOpponent(botId: string): void;
   newGame(): void;
   openFlames(): void;
@@ -119,6 +123,9 @@ export function makeEffects(deps: {
   let wonGeom = false;
   /** After a game ends the endgame owns the dialogs; crossings stay mute. */
   let gameOver = false;
+  /** …until you leave the ending, which hands the desktop back. The game is
+      still over (no beats, no crossings), but the litter is now litter. */
+  let dismissed = false;
 
   function fireWindow(
     id: string,
@@ -231,10 +238,25 @@ export function makeEffects(deps: {
   }
   function tidyStep(): void {
     litterTimer = null;
-    if (gameOver) return; // the endgame keeps its litter; the next game tidies
+    // While the machine is still announcing an ending it keeps its litter —
+    // the win cascade is the biggest thing it has ever said and nothing gets
+    // to start clearing up underneath it. The moment you leave the ending,
+    // though, the loop runs again: you should not have to start a new game to
+    // get a working desktop back.
+    if (gameOver && !dismissed) return;
     const again = (): void => {
       litterTimer = setTimeout(tidyStep, TIDY_BEAT);
     };
+    // the sentences the crossings left behind go first — they are the loudest
+    // thing still standing, and they belong to a game that is finished
+    if (dismissed) {
+      const d = crossingDialogs.pop();
+      if (d) {
+        if (d.isOpen()) d.close();
+        again();
+        return;
+      }
+    }
     if (tier < 3) {
       const w = [...roamWins].reverse().find((rw) => rw.isOpen());
       if (w) {
@@ -263,7 +285,13 @@ export function makeEffects(deps: {
       }
     }
     // whatever is left, this tier has earned; check back once the room cools
-    if (roamWins.some((rw) => rw.isOpen()) || extras.length || smearsEl().children.length) again();
+    if (
+      roamWins.some((rw) => rw.isOpen()) ||
+      extras.length ||
+      smearsEl().children.length ||
+      crossingDialogs.length
+    )
+      again();
   }
   function tidyLitter(): void {
     stopTidy();
@@ -330,22 +358,218 @@ export function makeEffects(deps: {
     for (const w of wins) if (w.isOpen()) w.close();
   }
 
-  /* ---- smears: a dragged window leaves un-repainted copies of itself ---- */
+  /* ---- smears: an un-repainted copy of a window ---- */
   const smearsEl = (): HTMLElement => stage.querySelector<HTMLElement>("#smears")!;
+
+  /** A window's pixels, left behind. `#smears` sits at z 35, under every
+      window (chrome.css), so a ghost can never come between you and the grid
+      — and it is `pointer-events:none` on top of that. */
+  function ghostOf(w: HTMLElement, dx = 0, dy = 0): HTMLElement {
+    const ghost = w.cloneNode(true) as HTMLElement;
+    ghost.style.pointerEvents = "none";
+    ghost.style.zIndex = "0";
+    ghost.style.transform = dx || dy ? `translate(${dx}px,${dy}px)` : "";
+    // a cloned canvas comes out blank, and a ghost of flames.scr with a black
+    // hole in it is the one place this reads as a bug rather than as the OS
+    // failing to repaint. Carry the bitmap across.
+    const from = w.querySelectorAll<HTMLCanvasElement>("canvas");
+    ghost.querySelectorAll<HTMLCanvasElement>("canvas").forEach((c, i) => {
+      const src = from[i];
+      if (!src || !src.width || !src.height) return;
+      try {
+        c.getContext("2d")?.drawImage(src, 0, 0);
+      } catch {
+        /* a canvas that won't copy is a blank one, which is still a ghost */
+      }
+    });
+    return ghost;
+  }
+
+  /* ---- a dragged window leaves them ---- */
   const lastSmearAt = new Map<string, [number, number]>();
   wm.onDrag((win, x, y) => {
+    driftOff(win.el); // you have hold of it; the desktop lets go of it
     if (tier < 2) return;
     const last = lastSmearAt.get(win.id);
     if (last && Math.hypot(x - last[0], y - last[1]) < 70) return;
     lastSmearAt.set(win.id, [x, y]);
     if (!last) return; // the first sample sets the anchor, not a smear
-    const ghost = win.el.cloneNode(true) as HTMLElement;
-    ghost.style.pointerEvents = "none";
-    ghost.style.zIndex = "0";
     const host = smearsEl();
-    host.appendChild(ghost);
+    host.appendChild(ghostOf(win.el));
     while (host.children.length > 40) host.firstElementChild!.remove();
   });
+
+  /* ---- and so does the fever, with nobody dragging anything ----
+     The drag-ghost trail is the loudest artifact this OS has, and it used to
+     be the one thing the fever could not produce: you saw it if you happened
+     to drag a window, and otherwise never. So it gets an ambient channel. Past
+     the middle of tier 2 the desktop stops holding still — windows wander off
+     their own coordinates and leave copies where they were, further and more
+     often the sharper the position gets.
+
+     Four rules make that legal:
+
+     - It is a `transform`, never a position. The wm owns left/top; the drift
+       rides on top of them, so clearing it is exact — no accumulated error, no
+       fight with `place()` when the desk resizes, and coming down puts every
+       window back precisely where the window manager still thinks it is.
+     - The board never drifts, and neither does anything that could reach it: a
+       window is eligible only if its rect *grown by the maximum drift* misses
+       the board's. "Never blocking play" is a rule about clicks, and a window
+       that wanders onto the grid eats the drop you were aiming at.
+     - The focused window holds still — the thing you are looking at is the
+       thing the machine is still managing to repaint. That is also what keeps
+       a drag honest: pointerdown clears the offset before the wm's drag reads
+       `offsetLeft`, so grabbing a drifting window doesn't jump it.
+     - It is stepped, at the 11fps the cursor trail already runs at, and every
+       number in it is a function of fever. At fever 0 there is none of it. */
+  const DRIFT_TICK = 90;
+  /** Below this the desktop is still keeping up with itself. Tier 2 starts at
+      0.5, so the drift opens just inside it at a pixel and builds from there. */
+  const DRIFT_FLOOR = 0.45;
+  /** Desk px of wander at fever 1 — 44 peak to peak. Small enough to read as a
+      machine failing to repaint rather than as furniture sliding around, and
+      big enough that the copies it leaves are a trail rather than a fringe:
+      at 14 the ghost never cleared the window it came off and the whole
+      channel only showed up as a slightly doubled edge. */
+  const DRIFT_MAX = 22;
+  /** Steps a window takes to reach full drift once it becomes eligible, so
+      letting go of one doesn't fling it. Stepped, not eased. */
+  const DRIFT_RAMP = 0.2;
+  /** Px of wander between un-repainted copies. */
+  const SMEAR_STEP = 6;
+  /** A ghost gives up in four goes, ~2s all told — long enough that three or
+      four of them are strung out along the window's path at once, which is
+      what makes it a trail. A real un-repainted region survives until
+      something repaints it; forty of them at once is mush, so the OS is
+      allowed to eventually get round to it. */
+  const SMEAR_FADE = 500;
+  const SMEAR_STEPS = [0.7, 0.45, 0.2, 0] as const;
+  const AMBIENT_SMEARS = 16;
+
+  interface Drifter {
+    phase: number;
+    gain: number;
+    /** Offset the last ghost was left at. */
+    sx: number;
+    sy: number;
+  }
+  const drifters = new WeakMap<HTMLElement, Drifter>();
+  let drifterSeq = 0;
+  let driftClock = 0;
+  let ambientSmears = 0;
+
+  const drifterOf = (w: HTMLElement): Drifter => {
+    let d = drifters.get(w);
+    if (!d) {
+      // a phase per window, so the desk wanders as a room of separate machines
+      d = { phase: drifterSeq++ * 2.399, gain: 0, sx: 0, sy: 0 };
+      drifters.set(w, d);
+    }
+    return d;
+  };
+
+  /** Hand a window straight back to the window manager. */
+  function driftOff(w: HTMLElement): void {
+    const d = drifters.get(w);
+    if (d) {
+      d.gain = 0;
+      d.sx = 0;
+      d.sy = 0;
+    }
+    if (w.style.transform) w.style.transform = "";
+  }
+
+  /** 0 below the floor, 1 at fever 1 — and 0 flat while the machine is still
+      announcing an ending. The win cascade stays the biggest thing the desktop
+      has ever done, and a drifting finale would spend it. */
+  function driftAmount(): number {
+    if (gameOver && !dismissed) return 0;
+    return Math.max(0, Math.min(1, (fever - DRIFT_FLOOR) / (1 - DRIFT_FLOOR)));
+  }
+
+  /** Would this window, at full drift, still miss the board entirely? */
+  function missesBoard(w: HTMLElement, b: HTMLElement | null): boolean {
+    if (!b) return true;
+    if (w === b) return false;
+    const m = DRIFT_MAX + 2;
+    return (
+      w.offsetLeft + w.offsetWidth + m <= b.offsetLeft ||
+      w.offsetLeft >= b.offsetLeft + b.offsetWidth + m ||
+      w.offsetTop + w.offsetHeight + m <= b.offsetTop ||
+      w.offsetTop >= b.offsetTop + b.offsetHeight + m
+    );
+  }
+
+  function fadeGhost(ghost: HTMLElement): void {
+    ambientSmears++;
+    SMEAR_STEPS.forEach((o, i) =>
+      setTimeout(
+        () => {
+          if (o > 0) {
+            ghost.style.opacity = String(o);
+            return;
+          }
+          // exactly one decrement per ghost, whether or not the tidy loop got
+          // to it first — otherwise the budget leaks and the drift goes silent
+          ghost.remove();
+          ambientSmears--;
+        },
+        (i + 1) * SMEAR_FADE,
+      ),
+    );
+  }
+
+  // grabbing a window is the wm's business from the pointerdown on, so the
+  // offset comes off before its drag handler ever measures the element
+  stage.addEventListener(
+    "pointerdown",
+    (e) => {
+      const w = (e.target as HTMLElement | null)?.closest<HTMLElement>(".win");
+      if (w?.parentElement === stage) driftOff(w);
+    },
+    true,
+  );
+
+  setInterval(() => {
+    driftClock++;
+    const amp = driftAmount() * DRIFT_MAX;
+    const board = deps.boardWin();
+    const boardEl = board?.isOpen() ? board.el : null;
+    const focused = wm.focused()?.el;
+    const host = smearsEl();
+    // `:scope >` on purpose: the ghosts in #smears are .win clones, and a
+    // desktop that drifted its own ghosts would clone them again, forever
+    for (const w of stage.querySelectorAll<HTMLElement>(":scope > .win")) {
+      const d = drifterOf(w);
+      const eligible =
+        amp > 0 &&
+        w !== boardEl &&
+        w !== focused &&
+        w.style.display !== "none" &&
+        !w.classList.contains("max") &&
+        missesBoard(w, boardEl);
+      if (!eligible) {
+        if (d.gain > 0 || w.style.transform) driftOff(w);
+        continue;
+      }
+      d.gain = Math.min(1, d.gain + DRIFT_RAMP);
+      const k = amp * d.gain;
+      const dx = Math.round(k * Math.sin(driftClock * 0.055 + d.phase));
+      const dy = Math.round(k * 0.55 * Math.sin(driftClock * 0.037 + d.phase * 1.7));
+      w.style.transform = dx || dy ? `translate(${dx}px,${dy}px)` : "";
+      if (Math.hypot(dx - d.sx, dy - d.sy) >= SMEAR_STEP) {
+        // the copy is left where the window was, not where it is
+        if (ambientSmears < AMBIENT_SMEARS) {
+          const ghost = ghostOf(w, d.sx, d.sy);
+          host.appendChild(ghost);
+          fadeGhost(ghost);
+        }
+        d.sx = dx;
+        d.sy = dy;
+      }
+    }
+  }, DRIFT_TICK);
 
   /* ---- the cursor's past selves ---- */
   const trailEl = (): HTMLElement => stage.querySelector<HTMLElement>("#trail")!;
@@ -672,7 +896,7 @@ export function makeEffects(deps: {
     // the desktop keeps its litter — the loop itself pauses on gameOver, and
     // the next game restarts it. Only the screensaver lets go on its own,
     // because it's the one thing covering the board.
-    if (t < prev && !gameOver) tidyLitter();
+    if (t < prev && (!gameOver || dismissed)) tidyLitter();
     takeover(t >= 4, true);
     if (!wonGeom) applyGeometry();
   }
@@ -696,9 +920,26 @@ export function makeEffects(deps: {
 
     setGameOver() {
       gameOver = true;
+      dismissed = false;
+    },
+    endingDismissed() {
+      if (!gameOver || dismissed) return;
+      dismissed = true;
+      // The win's fireplace and the loss's coals were the ending talking. With
+      // the ending put away the fire is a screensaver again, at whatever size
+      // the tier still justifies — and the tier is on its way down.
+      wonGeom = false;
+      personality = opponentId === "oracle" ? "pillar" : "classic";
+      if (mainWin?.isOpen()) {
+        applyPersonality();
+        applyGeometry();
+      }
+      // one thing per beat from here: nothing is cut, you watch it go
+      tidyLitter();
     },
     gameEvent(kind) {
       gameOver = true;
+      dismissed = false;
       if (kind === "win") {
         wonGeom = true;
         personality = "classic";
@@ -726,6 +967,7 @@ export function makeEffects(deps: {
     newGame() {
       wonGeom = false;
       gameOver = false;
+      dismissed = false;
       personality = opponentId === "oracle" ? "pillar" : "classic";
       clearBeats();
       // the machine's sentences about the old game end now; its

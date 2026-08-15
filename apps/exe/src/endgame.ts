@@ -17,6 +17,14 @@
  * a Condolences dialog set in the same big type as the win's. Quieter than
  * the win on purpose: no taskbar crush, half the dialogs. The win stays the
  * biggest thing the machine has ever announced.
+ *
+ * And then you leave it. `OK`, the close box, whichever ending it was: that is
+ * the machine's cue that it has finished announcing, and everything it stood
+ * up starts coming down — the director cools (`dismissed`), the desktop starts
+ * retiring its litter, and the paperwork goes back one dialog at a time on the
+ * same 1300ms beat effects.ts tidies on. Not a snap to zero; the OS putting
+ * itself away while you watch. `Again` doesn't come through here — a new game
+ * is a stronger reset and takes its own path.
  */
 
 import { el } from "./dom.js";
@@ -32,6 +40,9 @@ export interface EndgameDeps {
   board: () => BoardApp;
   notepad: MovesPad;
   onFeverEvent(kind: EndResult["kind"]): void;
+  /** The player has left the ending. Fires once per game, and never for
+      `Again` — that goes through the new-game path, which resets more. */
+  onDismiss(): void;
 }
 
 export interface Endgame {
@@ -42,11 +53,18 @@ export interface Endgame {
 
 const SEAM_RES = 4;
 
+/** The beat the machine puts its own paperwork away on — effects.ts tidies the
+    fever's litter on the same one, so the two read as one desktop coming down
+    rather than as two systems clearing up at each other. */
+const RETIRE_BEAT = 1300;
+
 export function makeEndgame(deps: EndgameDeps): Endgame {
   const timers: ReturnType<typeof setTimeout>[] = [];
   const intervals: ReturnType<typeof setInterval>[] = [];
   let seamFire: Fire | null = null;
   let openDialogs: Win[] = [];
+  /** The player has left the ending; the retire is running. */
+  let dismissed = false;
 
   const later = (fn: () => void, ms: number): void => {
     timers.push(setTimeout(fn, ms));
@@ -61,6 +79,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     seamFire = null;
     for (const d of openDialogs) if (d.isOpen()) d.close();
     openDialogs = [];
+    dismissed = false;
   }
 
   const dialog = (spec: Parameters<WM["dialog"]>[0]): Win => {
@@ -68,6 +87,54 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     const d = deps.wm.dialog({ ax: "center", ...spec });
     openDialogs.push(d);
     return d;
+  };
+
+  /* ---- leaving the ending ---- */
+
+  /** Retire the announcement, newest sentence first, one per beat. The last
+      thing to go is the line itself: the fire and the marching ants were the
+      machine announcing a result, and the finished position left on the board
+      is the record, which stays. */
+  function retire(): void {
+    const step = (): void => {
+      let d = openDialogs.pop();
+      while (d && !d.isOpen()) d = openDialogs.pop();
+      if (d) {
+        d.close();
+        later(step, RETIRE_BEAT);
+        return;
+      }
+      seamFire?.stop();
+      seamFire = null;
+      for (const i of intervals) clearInterval(i);
+      intervals.length = 0;
+      for (const n of [...deps.board().gridwrap().querySelectorAll(".ants, .seam")]) n.remove();
+    };
+    later(step, RETIRE_BEAT);
+  }
+
+  function dismiss(): void {
+    if (dismissed) return;
+    dismissed = true;
+    deps.onDismiss();
+    retire();
+  }
+
+  /** Every way out of an ending that isn't `Again`. The button row is one; the
+      titlebar close box is the other, and `wm.dialog` has no hook for it — a
+      dialog is a real window, so the listener goes on the real button. */
+  function onLeaving(d: Win): Win {
+    d.el.querySelector<HTMLElement>('.tbtn[data-b="close"]')?.addEventListener("click", dismiss);
+    return d;
+  }
+
+  /** `Again` is a new game (which resets everything); anything else is you
+      putting the ending away. */
+  const leaveOrAgain = (i: number): void => {
+    if (i === 1) {
+      clear();
+      deps.board().newGame();
+    } else dismiss();
   };
 
   /* ---- the selection ---- */
@@ -249,13 +316,9 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         taskbar: true,
         // the one moment the scheme has a fanfare in it
         sound: "tada",
-        onButton(i) {
-          if (i === 1) {
-            clear();
-            deps.board().newGame();
-          }
-        },
+        onButton: leaveOrAgain,
       });
+      onLeaving(d);
       d.el.classList.add("finale");
       deps.board().setStatus(STATUS.youWin, STATUS.crowd);
     }, 3400);
@@ -337,13 +400,9 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         // three notes down, in the win's own type. Sincere, and quieter than
         // the win on purpose — the same rule the rest of this parade follows.
         sound: "shutdown-chime",
-        onButton(i) {
-          if (i === 1) {
-            clear();
-            deps.board().newGame();
-          }
-        },
+        onButton: leaveOrAgain,
       });
+      onLeaving(d);
       d.el.classList.add("finale");
     }, 3000);
     beat(10);
@@ -355,40 +414,34 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     deps.onFeverEvent("draw");
     deps.notepad.lines([NOTES.draw]);
     deps.board().setStatus(STATUS.draw, STATUS.drawStatus);
-    dialog({
-      title: DIALOG.draw.title,
-      body: DIALOG.draw.body,
-      buttons: ["OK", "Again"],
-      x: 470,
-      y: 320,
-      w: 360,
-      onButton(i) {
-        if (i === 1) {
-          clear();
-          deps.board().newGame();
-        }
-      },
-    });
+    onLeaving(
+      dialog({
+        title: DIALOG.draw.title,
+        body: DIALOG.draw.body,
+        buttons: ["OK", "Again"],
+        x: 470,
+        y: 320,
+        w: 360,
+        onButton: leaveOrAgain,
+      }),
+    );
   }
 
   function runForfeit(end: EndResult): void {
     deps.onFeverEvent("forfeit");
     const spec = DIALOG.forfeit(deps.board().botName());
     deps.board().setStatus(STATUS.forfeited, voiceOf(end.botId).winStatus);
-    dialog({
-      title: spec.title,
-      body: spec.body,
-      buttons: ["OK", "Again"],
-      x: 470,
-      y: 320,
-      w: 360,
-      onButton(i) {
-        if (i === 1) {
-          clear();
-          deps.board().newGame();
-        }
-      },
-    });
+    onLeaving(
+      dialog({
+        title: spec.title,
+        body: spec.body,
+        buttons: ["OK", "Again"],
+        x: 470,
+        y: 320,
+        w: 360,
+        onButton: leaveOrAgain,
+      }),
+    );
   }
 
   return {

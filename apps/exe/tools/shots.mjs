@@ -46,6 +46,9 @@ const STATES = [
   ["terminal", "?state=terminal"],
   ["games", "?state=games"],
   ["sounds", "?state=sounds"],
+  ["shutdown", "?state=shutdown"],
+  // the restart beat, held at the POST — the real one has navigated by now
+  ["reboot", "?state=reboot"],
   // the beat acts — what the desktop does between tier crossings. Each puts
   // itself back after a second or two, so they are posed rather than caught.
   ["beat-dialog-blunder", "?state=midgame&act=dialog&pool=move:blunder"],

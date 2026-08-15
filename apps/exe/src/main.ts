@@ -10,6 +10,8 @@
  *   ?state=saver          the screensaver has won the desktop
  *   ?state=mines|sol|snake|checkers|notepad|games|terminal   the other software
  *   ?state=sounds         sounds.ctl open
+ *   ?state=shutdown       the Shut Down box
+ *   ?state=reboot         the restart beat, held (the real one navigates)
  *   ?state=sol&rig=won    a double-click from the card bounce
  *   ?fever=0.85           walk the fever up to a value and pin it
  *   ?act=dialog&pool=move:blunder   fire one beat act, so it can be looked at
@@ -33,6 +35,7 @@ import { makeEffects } from "./effects.js";
 import { beatFromPool, type BeatAct } from "./beats.js";
 import { makeEndgame } from "./endgame.js";
 import { openSounds } from "./sounds.js";
+import { openShutdown, restart } from "./reboot.js";
 import * as audio from "./audio/index.js";
 import { BIN_TEXT, DIALOG, HELP_TEXT, TITLES } from "./copy.js";
 import { openMines } from "./games/mines.js";
@@ -118,6 +121,13 @@ const endgame = makeEndgame({
     if (kind === "win" || kind === "loss" || kind === "draw" || kind === "forfeit")
       director.event(kind);
     effects.gameEvent(kind);
+  },
+  /* You left the ending — the desktop comes down without waiting for a new
+     game. Both halves hear it: the fever starts cooling, the litter starts
+     going out. */
+  onDismiss() {
+    director.event("dismissed");
+    effects.endingDismissed();
   },
 });
 const effects = makeEffects({
@@ -210,21 +220,21 @@ const desktopApps: DesktopApps = {
   openTerminal: () => openTerminal({ wm, disk, edit: (name) => openEditor(wm, disk, name) }),
   openGame: (id) => gameLaunchers[id](),
   openSounds: () => openSounds(wm),
-  shutdown() {
-    wm.dialog({
-      title: DIALOG.shutdown.title,
-      body: DIALOG.shutdown.body,
-      icon: "!",
-      buttons: ["OK", "OK"],
-      x: 450,
-      y: 310,
-      ax: "center",
-      w: 360,
-      // it does not shut down, but it says the thing it says on the way out
-      sound: "shutdown-chime",
-    });
-  },
+  shutdown: () => openShutdown(wm, { stage, help: () => desktopApps.openHelp() }),
 };
+
+/* ---- the other door ----
+   "Reset the whole screen" had a keystroke in 1995 and this is it. It opens
+   the same box the Start menu does rather than rebooting outright, which is
+   both what the real one did and the reason it is safe to leave on a hotkey.
+   Backspace as well as Delete: on this keyboard the key that says delete
+   reports as Backspace, and the reflex is the same reflex. */
+addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.altKey && (e.key === "Delete" || e.key === "Backspace")) {
+    e.preventDefault();
+    desktopApps.shutdown();
+  }
+});
 
 /* ---- boot order: the desktop as the approved frame has it ---- */
 movesPad.open();
@@ -311,6 +321,11 @@ if (state === "midgame") {
   desktopApps.openGames();
 } else if (state === "sounds") {
   desktopApps.openSounds();
+} else if (state === "shutdown") {
+  desktopApps.shutdown();
+} else if (state === "reboot") {
+  // the beat, held: the real one navigates out from under the shutter
+  restart(stage, { hold: true });
 }
 
 /* ---- beat poses: the eyes for the acts ----

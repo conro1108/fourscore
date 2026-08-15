@@ -14,7 +14,7 @@
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import type { WM } from "../wm.js";
+import { centered, fieldScaler, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 /* ---- the pure part (perft lives on this) ---- */
@@ -629,6 +629,21 @@ export function openChess(wm: WM, fen?: string): void {
   }
 
   body.append(bar, frame, status);
+
+  /* Same board family as CHECKERS.EXE, so the same squares and the same
+     ladder: drag the window and the pieces grow with their squares. */
+  const naturalMargin = frame.style.margin;
+  const relayout = fieldScaler({
+    win: () => win.el,
+    grid: () => ({ cols: 8, rows: 8 }),
+    chrome: { w: 46, h: 86 },
+    cell: { base: 40, step: 8, min: 24, max: 96 },
+    apply(sq, wide) {
+      frame.style.setProperty("--sq", `${sq}px`);
+      frame.style.margin = wide ? centered(naturalMargin) : naturalMargin;
+    },
+  });
+
   const win = wm.open({
     id: "chess",
     title: TITLES.chess,
@@ -638,7 +653,11 @@ export function openChess(wm: WM, fen?: string): void {
     w: 8 * 40 + 26 + 20,
     body,
     buttons: ["min", "close"],
-    resizable: true, // no smaller than the board — the natural floor holds
+    resizable: true,
+    minW: 8 * 24 + 46,
+    minH: 8 * 24 + 86,
+    onResize: relayout,
+    onMaximize: relayout,
 
     onClose: () => {
       for (const t of timers) clearTimeout(t);
@@ -647,6 +666,7 @@ export function openChess(wm: WM, fen?: string): void {
 
   statusEl.textContent = GAMES_COPY.chess.yourMove;
   render();
+  relayout();
   seen.set(repKey(s), 1);
   // a harness pose can hand the machine the move
   if (s.turn === 1 && !over) machineTurn();

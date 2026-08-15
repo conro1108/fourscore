@@ -10,7 +10,7 @@
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { deskHeight, deskWidth, stageScale, taskbarH, type WM } from "../wm.js";
+import { deskHeight, deskWidth, fieldScaler, stageScale, taskbarH, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 /* ---- the pure part (the tests live on this) ---- */
@@ -79,11 +79,15 @@ export const isWon = (s: SolState): boolean => s.found.every((p) => p.length ===
 
 const SUITS = ["♠", "♥", "♦", "♣"] as const;
 const RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const;
+/* The authored table, in one unit: the column pitch. Everything else on the
+   felt is a fixed fraction of it, so dragging the window bigger deals a bigger
+   deck instead of a bigger green rectangle — and every fraction rounds to a
+   whole pixel, because a card is a 1px black rule and half of one is a smudge. */
+const PITCH = 68;
 const CARD_W = 62;
 const CARD_H = 84;
-const COL_X = (i: number): number => 10 + i * 68;
-const UP_DY = 20;
-const DOWN_DY = 6;
+const FELT_H = 560;
+const scaleOf = (u: number, at68: number): number => Math.round((u * at68) / PITCH);
 
 function cardEl(c: Card, faceUp: boolean): HTMLElement {
   if (!faceUp) return el(`<div class="card back"></div>`);
@@ -144,6 +148,16 @@ export function openSol(wm: WM, rig?: string): void {
   const body = el(`<div></div>`);
   const felt = el(`<div class="sunken felt flexwell"></div>`);
 
+  /* The live table. `u` is the column pitch; everything on the felt is a
+     rounded fraction of it, and at the authored 68 every one of them lands
+     back on its authored number. */
+  let u = PITCH;
+  const cardW = (): number => scaleOf(u, CARD_W);
+  const cardH = (): number => Math.round((cardW() * CARD_H) / CARD_W);
+  const COL_X = (i: number): number => scaleOf(u, 10) + i * u;
+  const UP_DY = (): number => scaleOf(u, 20);
+  const DOWN_DY = (): number => scaleOf(u, 6);
+
   /* drag state: a run of cards riding the cursor while its originals hide */
   let drag: {
     cards: Card[];
@@ -159,12 +173,13 @@ export function openSol(wm: WM, rig?: string): void {
     felt.innerHTML = "";
 
     // stock
-    const stock = el(`<div class="slot" data-pile="stock" style="left:${COL_X(0)}px;top:10px"></div>`);
+    const top = scaleOf(u, 10);
+    const stock = el(`<div class="slot" data-pile="stock" style="left:${COL_X(0)}px;top:${top}px"></div>`);
     if (s.stock.length) stock.appendChild(cardEl(s.stock[s.stock.length - 1]!, false));
     felt.appendChild(stock);
 
     // waste
-    const waste = el(`<div class="slot" data-pile="waste" style="left:${COL_X(1)}px;top:10px"></div>`);
+    const waste = el(`<div class="slot" data-pile="waste" style="left:${COL_X(1)}px;top:${top}px"></div>`);
     if (s.waste.length) {
       const c = s.waste[s.waste.length - 1]!;
       const e = cardEl(c, true);
@@ -176,7 +191,7 @@ export function openSol(wm: WM, rig?: string): void {
     // foundations
     for (let i = 0; i < 4; i++) {
       const f = el(
-        `<div class="slot found" data-pile="f${i}" style="left:${COL_X(3 + i)}px;top:10px"><span class="ghostpip">${SUITS[i]}</span></div>`,
+        `<div class="slot found" data-pile="f${i}" style="left:${COL_X(3 + i)}px;top:${top}px"><span class="ghostpip">${SUITS[i]}</span></div>`,
       );
       const pile = s.found[i]!;
       if (pile.length) {
@@ -189,21 +204,23 @@ export function openSol(wm: WM, rig?: string): void {
 
     // tableau: the column div is the drop target, full height
     for (let i = 0; i < 7; i++) {
-      const col = el(`<div class="tabcol" data-pile="t${i}" style="left:${COL_X(i)}px;top:${10 + CARD_H + 14}px"></div>`);
+      const col = el(
+        `<div class="tabcol" data-pile="t${i}" style="left:${COL_X(i)}px;top:${top + cardH() + scaleOf(u, 14)}px"></div>`,
+      );
       const pile = s.tab[i]!;
       let y = 0;
       for (const c of pile.down) {
         const e = cardEl(c, false);
         e.style.top = `${y}px`;
         col.appendChild(e);
-        y += DOWN_DY;
+        y += DOWN_DY();
       }
       pile.up.forEach((c, j) => {
         const e = cardEl(c, true);
         e.style.top = `${y}px`;
         e.dataset.drag = `t${i}:${j}`;
         col.appendChild(e);
-        y += UP_DY;
+        y += UP_DY();
       });
       if (!pile.down.length && !pile.up.length) col.classList.add("empty");
       felt.appendChild(col);
@@ -308,10 +325,14 @@ export function openSol(wm: WM, rig?: string): void {
     }
 
     // the run rides the cursor in a ghost pile
+    // the ghost rides the stage, not the felt, so it carries the table's size
+    // with it or its cards fall back to the authored 62x84 mid-drag
     const ghost = el(`<div class="solghost"></div>`);
+    ghost.style.setProperty("--cw", `${cardW()}px`);
+    ghost.style.setProperty("--ch", `${cardH()}px`);
     cards.forEach((c, j) => {
       const ce = cardEl(c, true);
-      ce.style.top = `${j * UP_DY}px`;
+      ce.style.top = `${j * UP_DY()}px`;
       ghost.appendChild(ce);
     });
     const stageR = wm.stage.getBoundingClientRect();
@@ -449,7 +470,10 @@ export function openSol(wm: WM, rig?: string): void {
       starts.push([(r.left - stageR.left) / k, (r.top - stageR.top) / k]);
     });
 
-    const floor = deskHeight() - taskbarH() - CARD_H;
+    // the ceremony deals the same cards the table was playing with
+    const cw = cardW();
+    const ch = cardH();
+    const floor = deskHeight() - taskbarH() - ch;
     let raf = 0;
     let idx = 0; // 0..51: kings first, cycling suits
     let card: { c: Card; x: number; y: number; vx: number; vy: number } | null = null;
@@ -457,14 +481,14 @@ export function openSol(wm: WM, rig?: string): void {
 
     const paint = (c: Card, x: number, y: number): void => {
       ctx.fillStyle = "#fff";
-      ctx.fillRect(x, y, CARD_W, CARD_H);
+      ctx.fillRect(x, y, cw, ch);
       ctx.strokeStyle = "#000";
-      ctx.strokeRect(x + 0.5, y + 0.5, CARD_W - 1, CARD_H - 1);
+      ctx.strokeRect(x + 0.5, y + 0.5, cw - 1, ch - 1);
       ctx.fillStyle = isRed(c.suit) ? "#c00000" : "#000";
-      ctx.font = "bold 13px Tahoma";
-      ctx.fillText(`${RANKS[c.rank]}${SUITS[c.suit]}`, x + 5, y + 16);
-      ctx.font = "26px Tahoma";
-      ctx.fillText(SUITS[c.suit]!, x + CARD_W / 2 - 9, y + CARD_H / 2 + 10);
+      ctx.font = `bold ${scaleOf(u, 13)}px Tahoma`;
+      ctx.fillText(`${RANKS[c.rank]}${SUITS[c.suit]}`, x + scaleOf(u, 5), y + scaleOf(u, 16));
+      ctx.font = `${scaleOf(u, 26)}px Tahoma`;
+      ctx.fillText(SUITS[c.suit]!, x + cw / 2 - scaleOf(u, 9), y + ch / 2 + scaleOf(u, 10));
     };
 
     const frame = (): void => {
@@ -495,7 +519,7 @@ export function openSol(wm: WM, rig?: string): void {
         if (Math.abs(card.vy) < 1.2) card.vy = -8; // tired cards get a second wind out
       }
       paint(card.c, card.x, card.y);
-      if (card.x < -CARD_W - 10 || card.x > deskWidth() + 10) card = null;
+      if (card.x < -cw - 10 || card.x > deskWidth() + 10) card = null;
       raf = requestAnimationFrame(frame);
     };
 
@@ -551,20 +575,44 @@ export function openSol(wm: WM, rig?: string): void {
   const statusEl = status.firstElementChild as HTMLElement;
 
   body.append(bar, felt, status);
+
+  /* The felt already grew with the window; now the deck does too. The unit is
+     the column pitch, so the seven columns keep their proportions and the
+     ceremony bounces cards the size you were playing with. Measured chrome: a
+     natural window is 512 wide around seven 68px pitches, and 640 tall around
+     a 560px felt. */
+  const relayout = fieldScaler({
+    win: () => win.el,
+    grid: () => ({ cols: 7, rows: FELT_H / PITCH }),
+    chrome: { w: 36, h: 80 },
+    cell: { base: PITCH, step: 2, min: 44, max: 110 },
+    apply(next) {
+      const changed = next !== u;
+      u = next;
+      body.style.setProperty("--cw", `${cardW()}px`);
+      body.style.setProperty("--ch", `${cardH()}px`);
+      // the piles are laid out in px, so a new pitch has to re-deal them —
+      // but only when it actually moved; every resize drag calls this
+      if (changed) render();
+    },
+  });
+
   const win = wm.open({
     id: "sol",
     title: TITLES.sol,
     icon: SOL_ICON,
     x: 620,
     y: 60,
-    w: 7 * 68 + 16 + 20,
+    w: 7 * PITCH + 16 + 20,
     body,
     buttons: ["min", "close"],
-    // the felt grows; the cards are a fixed period size, so the floor is
-    // wherever the seventh column and the fullest pile still fit
+    // the table scales with the window now, so the floor is the smallest deck
+    // still worth dealing rather than the authored one
     resizable: true,
-    minW: 7 * 68 + 16 + 20,
-    minH: 560,
+    minW: 7 * 44 + 36,
+    minH: Math.round((FELT_H * 44) / PITCH) + 80,
+    onResize: relayout,
+    onMaximize: relayout,
     onClose: () => {
       bounceStop?.();
       bounceStop = null;
@@ -584,6 +632,7 @@ export function openSol(wm: WM, rig?: string): void {
   addEventListener("keydown", onKey);
 
   render();
+  relayout();
 }
 
 export const SOL_ICON = [

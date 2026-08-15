@@ -86,13 +86,15 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .icon.sel .lbl{background:#000080;outline:1px dotted #fff}
 .icon.dragghost{pointer-events:none;z-index:500;opacity:.8}
 
-/* the grid */
+/* the grid. --cell/--disc are the live size (board.ts): the authored 64/48
+   until the window is dragged, then a whole-pixel step off the same ladder —
+   every bevel and hole here lands on an integer at every rung. */
 .cellrow{display:flex}
-.cell{width:64px;height:64px;background:#c0c0c0;display:grid;place-items:center;position:relative;
+.cell{width:var(--cell,64px);height:var(--cell,64px);background:#c0c0c0;display:grid;place-items:center;position:relative;
       box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
-.hole{width:48px;height:48px;border-radius:50%;background:#1c1c1c;
+.hole{width:var(--disc,48px);height:var(--disc,48px);border-radius:50%;background:#1c1c1c;
       box-shadow:inset 3px 3px 6px #000,inset -2px -2px 3px #5a5a5a,0 1px 0 #fff}
-.disc{width:48px;height:48px;border-radius:50%;position:relative}
+.disc{width:var(--disc,48px);height:var(--disc,48px);border-radius:50%;position:relative}
 .disc.r{background:radial-gradient(circle at 36% 30%,#ff9d8a,#e0332e 55%,#7a0f14)}
 .disc.y{background:radial-gradient(circle at 36% 30%,#fff2b0,#f0b400 55%,#8a5c00)}
 .disc::after{content:"";position:absolute;inset:0;border-radius:50%;
@@ -119,8 +121,8 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .chips-plastic .disc::after{background:none;opacity:1;left:9px;top:6px;width:15px;height:8px;inset:auto;
   border-radius:50%;background:rgba(255,255,255,.55);transform:rotate(-24deg)}
 .chips-rings .disc{background:#141414;box-sizing:border-box}
-.chips-rings .disc.r{border:9px solid #e0332e}
-.chips-rings .disc.y{border:9px solid #f0b400}
+.chips-rings .disc.r{border:calc(var(--disc,48px)*3/16) solid #e0332e}
+.chips-rings .disc.y{border:calc(var(--disc,48px)*3/16) solid #f0b400}
 .chips-rings .disc::after{content:none}
 .chips-pixel .disc{border-radius:0;image-rendering:pixelated}
 .chips-pixel .disc::after{content:none}
@@ -128,7 +130,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .chips-half .disc.y{background:linear-gradient(180deg,#ffe08a 0 46%,#c08900 54% 100%)}
 .chips-half .disc::after{content:none}
 .chips-bevel .disc{background:#c0c0c0;box-shadow:inset -2px -2px #808080,inset 2px 2px #fff}
-.chips-bevel .disc::after{content:"";position:absolute;inset:9px;left:9px;top:9px;width:auto;height:auto;
+.chips-bevel .disc::after{content:"";position:absolute;inset:calc(var(--disc,48px)*3/16);width:auto;height:auto;
   border-radius:50%;opacity:1;transform:none;box-shadow:inset 1px 1px 3px rgba(0,0,0,.45)}
 .chips-bevel .disc.r::after{background:#e0332e}
 .chips-bevel .disc.y::after{background:#f0b400}
@@ -136,11 +138,16 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .chips-gem .disc.y{background:conic-gradient(#fff2b0 0 25deg,#f0b400 0 70deg,#8a5c00 0 115deg,#ffd75e 0 160deg,#c89600 0 205deg,#6e4a00 0 250deg,#fff2b0 0 295deg,#a87e00 0 360deg)}
 .chips-gem .disc::after{background:none;opacity:1;inset:0;box-shadow:inset 0 0 0 5px rgba(255,255,255,.14);border-radius:50%}
 .chips-scan .disc::after{background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 2px,transparent 2px 4px);opacity:1}
-.chips-toon .disc.r{background:#e8443c;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 6px #fff}
-.chips-toon .disc.y{background:#f5bd1a;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 6px #fff}
+.chips-toon .disc.r{background:#e8443c;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 calc(var(--disc,48px)/8) #fff}
+.chips-toon .disc.y{background:#f5bd1a;box-shadow:inset 0 0 0 2px #402e3a,inset 0 0 0 calc(var(--disc,48px)/8) #fff}
 .chips-toon .disc::after{content:none}
 .chips-faces .disc{border-radius:0;image-rendering:pixelated}
 .chips-faces .disc::after{content:none}
+/* The two generated chip faces are 16px art, and chips.ts hands them a fixed
+   48px background — which is the authored rung, not the live one. Four classes
+   so it outranks the runtime <style> tag that arrives after this file. */
+.win.chips-pixel .disc.r,.win.chips-pixel .disc.y,
+.win.chips-faces .disc.r,.win.chips-faces .disc.y{background-size:var(--disc,48px) var(--disc,48px)}
 
 .statusbar{display:flex;gap:2px;margin:3px}
 .statusbar div{flex:1;height:20px;line-height:20px;padding:0 6px;white-space:nowrap;overflow:hidden;
@@ -201,26 +208,31 @@ canvas.pix{image-rendering:pixelated;display:block}
 .mface:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff}
 .mface .pix{width:22px;height:22px}
 .minesgrid{display:grid;margin:0 auto 10px;padding:3px;width:max-content}
-.mcell{width:24px;height:24px;display:grid;place-items:center;font:bold 14px Tahoma,sans-serif;background:#c0c0c0;position:relative;
+/* --mc is the live cell (mines.ts): 24 until the window is dragged. The
+   number and the 12px flag/mine sprites are fractions of it. */
+.mcell{width:var(--mc,24px);height:var(--mc,24px);display:grid;place-items:center;background:#c0c0c0;position:relative;
+     font-weight:bold;font-size:calc(var(--mc,24px)*7/12);font-family:Tahoma,sans-serif;
      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .mcell.open{box-shadow:inset 1px 0 #808080,inset 0 1px #808080}
 .mcell.hit{background:#f00}
-.mcell .pix{width:24px;height:24px;position:absolute;inset:0}
+.mcell .pix{width:var(--mc,24px);height:var(--mc,24px);position:absolute;inset:0}
 
-/* SOL.EXE — the felt and the cards */
+/* SOL.EXE — the felt and the cards. --cw/--ch are the live card (sol.ts):
+   the authored 62x84 until the window is dragged, then a whole-pixel step off
+   the column pitch, with every glyph a fraction of the width. */
 .felt{position:relative;margin:6px 10px 4px;height:560px;background:#008000;overflow:hidden}
-.slot{position:absolute;width:62px;height:84px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
-.slot .ghostpip{position:absolute;inset:0;display:grid;place-items:center;font-size:26px;color:rgba(255,255,255,.35)}
-.tabcol{position:absolute;width:62px;bottom:6px}
-.tabcol.empty{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);height:84px;bottom:auto}
-.card{position:absolute;left:0;top:0;width:62px;height:84px;background:#fff;border:1px solid #000;
+.slot{position:absolute;width:var(--cw,62px);height:var(--ch,84px);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.slot .ghostpip{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw,62px)*13/31);color:rgba(255,255,255,.35)}
+.tabcol{position:absolute;width:var(--cw,62px);bottom:6px}
+.tabcol.empty{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);height:var(--ch,84px);bottom:auto}
+.card{position:absolute;left:0;top:0;width:var(--cw,62px);height:var(--ch,84px);background:#fff;border:1px solid #000;
       border-radius:3px;box-sizing:border-box}
-.card .rk{position:absolute;left:4px;top:2px;font:bold 12px Tahoma,sans-serif}
-.card .pip{position:absolute;inset:0;display:grid;place-items:center;font-size:26px}
+.card .rk{position:absolute;left:4px;top:2px;font-weight:bold;font-size:calc(var(--cw,62px)*6/31);font-family:Tahoma,sans-serif}
+.card .pip{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw,62px)*13/31)}
 .card.red{color:#c00000}
 .card.blk{color:#000}
 .card.back{background:#1058c8;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 2px,transparent 2px 6px)}
-.solghost{position:absolute;width:62px;z-index:500;pointer-events:none}
+.solghost{position:absolute;width:var(--cw,62px);z-index:500;pointer-events:none}
 .solbounce{position:absolute;inset:0;z-index:210}
 
 /* the games folder */
@@ -230,23 +242,26 @@ canvas.pix{image-rendering:pixelated;display:block}
 .fic .lbl{display:inline-block;padding:1px 2px;font-size:10px}
 .fic.sel .lbl{background:#000080;color:#fff;outline:1px dotted #fff}
 
-/* CHECKERS.EXE — the machine's own boardgame, played with the chips */
-.ckgrid{display:grid;grid-template-columns:repeat(8,40px)}
-.cksq{width:40px;height:40px;display:grid;place-items:center}
+/* CHECKERS.EXE — the machine's own boardgame, played with the chips.
+   --sq is the live square (checkers.ts / chess.ts): 40 until the window is
+   dragged, then a whole-pixel step. The pieces are fractions of it, so a
+   king's K and a bishop's glyph grow with their square. */
+.ckgrid{display:grid;grid-template-columns:repeat(8,var(--sq,40px))}
+.cksq{width:var(--sq,40px);height:var(--sq,40px);display:grid;place-items:center}
 .cksq.l{background:#ecd8b0}
 .cksq.d{background:#9c5a3c}
 .cksq.sel{box-shadow:inset 0 0 0 2px #fff}
 .cksq.tgt{box-shadow:inset 0 0 0 2px #30d030}
-.ckpc{width:30px;height:30px;border-radius:50%}
+.ckpc{width:calc(var(--sq,40px)*3/4);height:calc(var(--sq,40px)*3/4);border-radius:50%}
 .ckpc.r{background:#e0332e;box-shadow:inset 0 0 0 2px #7a0f14}
 .ckpc.y{background:#f0b400;box-shadow:inset 0 0 0 2px #8a5c00}
-.ckpc.king{display:grid;place-items:center;font:bold 14px Tahoma,sans-serif}
+.ckpc.king{display:grid;place-items:center;font-weight:bold;font-size:calc(var(--sq,40px)*.35);font-family:Tahoma,sans-serif}
 .ckpc.king::after{content:"K"}
 .ckpc.r.king::after{color:#7a0f14}
 .ckpc.y.king::after{color:#8a5c00}
 
 /* CHESS.EXE — same board family, glyph pieces */
-.chpc{font-size:30px;line-height:1;user-select:none}
+.chpc{font-size:calc(var(--sq,40px)*3/4);line-height:1;user-select:none}
 .chpc.w{color:#fff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000,1px 1px #000,-1px -1px #000,1px -1px #000,-1px 1px #000}
 .chpc.b{color:#141414}
 .cksq.chk{box-shadow:inset 0 0 0 2px #e03030}
@@ -335,7 +350,16 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 
 /* ---- the win ---- */
 #fx{position:absolute;inset:0;pointer-events:none;z-index:30}
-.gridwrap{position:relative}
+/* The ants capsule and the seam fire are parked here in grid coordinates, and
+   both deliberately overhang the line they hug — the capsule by half its
+   height, the fire by the room it needs to rise. That overhang used to land in
+   `.boardframe`'s scrollable overflow, so winning a game grew the frame a
+   scrollbar and (with classic scrollbars) shoved the window a notch taller.
+   `clip` clips without becoming a scroll container, and the margin keeps the
+   overhang paintable out to the frame's own padding — exactly as far as it
+   ever showed. A scrollbar on a genuinely too-tall variant is the joke; one
+   that appears because you won is not. */
+.gridwrap{position:relative;overflow:clip;overflow-clip-margin:6px}
 .gridwrap .disc{z-index:2}
 .seam{position:absolute;z-index:1;pointer-events:none;image-rendering:pixelated}
 /* the OS selects your win like it selects anything: marching ants —

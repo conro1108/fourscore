@@ -9,7 +9,7 @@ import { el } from "../dom.js";
 import { px } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import type { WM } from "../wm.js";
+import { fieldScaler, type WM } from "../wm.js";
 import { lcd, menubar } from "./ui.js";
 
 interface Level {
@@ -19,6 +19,9 @@ interface Level {
   h: number;
   count: number;
 }
+/** The authored cell, and the smallest the ladder goes. */
+const MC = 24;
+const MC_MIN = 16;
 const LEVELS: readonly Level[] = [
   { id: "beginner", label: "Beginner", w: 9, h: 9, count: 10 },
   { id: "intermediate", label: "Intermediate", w: 16, h: 16, count: 40 },
@@ -247,7 +250,7 @@ export function openMines(wm: WM): void {
     top.append(counter.el, face, clock.el);
 
     const gridEl = el(
-      `<div class="minesgrid sunken" style="grid-template-columns:repeat(${level.w},24px)"></div>`,
+      `<div class="minesgrid sunken" style="grid-template-columns:repeat(${level.w},var(--mc,24px))"></div>`,
     );
     cells = [];
     for (let i = 0; i < level.w * level.h; i++) {
@@ -355,23 +358,42 @@ export function openMines(wm: WM): void {
     // old grid would crush or strand the new one
     win.el.classList.remove("sized");
     win.el.style.height = "";
-    win.el.style.width = `${level.w * 24 + 32}px`;
+    win.el.style.width = `${level.w * MC + 32}px`;
+    winSpec.minW = Math.max(level.w * MC_MIN + 32, 210); // the LCDs need a row
+    winSpec.minH = level.h * MC_MIN + 112;
+    relayout();
     reset();
   }
 
-  const win = wm.open({
+  /* Drag the window and the field grows, on the same stepped ladder the board
+     uses. Measured chrome: a natural Beginner window is 248x328 around a 9x9
+     field of 24px cells, so 32 and 112 are everything that isn't cells — the
+     LCD row, the margins, and the sunken grid's own 3px of padding. */
+  const relayout = fieldScaler({
+    win: () => win.el,
+    grid: () => ({ cols: level.w, rows: level.h }),
+    chrome: { w: 32, h: 112 },
+    cell: { base: MC, step: 4, min: MC_MIN, max: 48 },
+    apply: (mc) => body.style.setProperty("--mc", `${mc}px`),
+  });
+
+  const winSpec = {
     id: "mines",
     title: TITLES.mines,
     icon: GAME_ICON_MINE,
     x: 96,
     y: 92,
-    w: level.w * 24 + 32,
+    w: level.w * MC + 32,
     body,
-    buttons: ["min", "close"],
-    resizable: true, // no smaller than the field — the natural floor holds
-
+    buttons: ["min", "close"] as const,
+    resizable: true,
+    minW: Math.max(level.w * MC_MIN + 32, 210),
+    minH: level.h * MC_MIN + 112,
+    onResize: () => relayout(),
+    onMaximize: () => relayout(),
     onClose: stopClock,
-  });
+  };
+  const win = wm.open(winSpec);
 
   const onUp = (): void => {
     if (!win.isOpen()) {

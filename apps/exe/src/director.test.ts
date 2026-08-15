@@ -72,6 +72,54 @@ describe("director", () => {
     expect(d.snapshot().tier).toBe(0);
   });
 
+  /**
+   * The reason `dismissed` exists. Hitting OK on the finale used to do nothing
+   * to the fever — the desktop stayed at whatever tier the game ended on until
+   * the shove's own hold ran out, and the litter until a whole new game. The
+   * cue is leaving the ending, not starting another one.
+   */
+  it("leaving the ending starts the desktop coming down at once", () => {
+    const d = makeDirector();
+    d.event("win");
+    for (let i = 0; i < 12; i++) d.step(0.5); // the crescendo, mid-hold
+    expect(d.snapshot().tier).toBe(4);
+    d.event("dismissed");
+    for (let i = 0; i < 4; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBeLessThan(4); // and it is already letting go
+    for (let i = 0; i < 40; i++) d.step(0.5);
+    expect(d.snapshot().tier).toBe(0);
+  });
+
+  it("dismissing beats the hold rather than waiting it out", () => {
+    const held = makeDirector();
+    const left = makeDirector();
+    for (const d of [held, left]) {
+      d.event("loss");
+      for (let i = 0; i < 10; i++) d.step(0.5);
+    }
+    left.event("dismissed");
+    for (let i = 0; i < 20; i++) {
+      held.step(0.5);
+      left.step(0.5);
+    }
+    // same game, same clock — the only difference is that one of them was read
+    expect(left.snapshot().fever).toBeLessThan(held.snapshot().fever);
+    // a loss tops out under the screensaver (that belongs to the win) — the
+    // one nobody dismissed is still stewing up there, the one you closed isn't
+    expect(held.snapshot().tier).toBe(3);
+    expect(left.snapshot().tier).toBeLessThan(3);
+  });
+
+  it("a stray dismissal cannot cool a live game", () => {
+    const d = makeDirector();
+    d.feedEval(0.42, 34, 42);
+    for (let i = 0; i < 60; i++) d.step(0.5);
+    const hot = d.snapshot().fever;
+    d.event("dismissed");
+    d.step(1);
+    expect(d.snapshot().fever).toBeGreaterThanOrEqual(hot);
+  });
+
   it("stewing on a loss still escalates before it lets go", () => {
     const d = makeDirector();
     d.event("loss");
