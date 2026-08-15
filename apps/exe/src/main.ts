@@ -19,7 +19,7 @@
  */
 
 import "./chrome.css";
-import { el, param, q } from "./dom.js";
+import { el, onPointerDrag, param, q } from "./dom.js";
 import { fitStage, makeWM } from "./wm.js";
 import { buildShell, type DesktopApps } from "./desktop.js";
 import { analysisClient, engineClient } from "./engine/client.js";
@@ -39,11 +39,19 @@ import { openSol } from "./games/sol.js";
 import { openCheckers } from "./games/checkers.js";
 import { openChess } from "./games/chess.js";
 import { GAME_ITEMS, openGamesFolder, type GameId } from "./games/folder.js";
-import { deskHeight, deskWidth } from "./wm.js";
+import { deskHeight, deskWidth, taskbarH } from "./wm.js";
 import type { DeskIcon } from "./desktop.js";
 
 const stage = q("#stage");
 fitStage(stage);
+
+/* ---- installed to a home screen, the machine works with the cable out ----
+   Production only: a service worker under the dev server would cache Vite's
+   transient module graph and serve yesterday's desktop. */
+if (import.meta.env.PROD && "serviceWorker" in navigator)
+  navigator.serviceWorker.register("/sw.js").catch(() => {
+    /* an uninstallable desktop still runs */
+  });
 installGeneratedChips();
 
 const apps = (): DesktopApps => desktopApps;
@@ -143,7 +151,7 @@ const saveDeskGames = (): void => {
 };
 function placeGameOnDesk(id: GameId, x: number, y: number, persist = true): void {
   const cx = Math.max(0, Math.min(deskWidth() - 80, Math.round(x)));
-  const cy = Math.max(0, Math.min(deskHeight() - 36 - 90, Math.round(y)));
+  const cy = Math.max(0, Math.min(deskHeight() - taskbarH() - 90, Math.round(y)));
   deskGamePos.set(id, [cx, cy]);
   const already = deskGameIcons.get(id);
   if (already) already.moveTo(cx, cy);
@@ -344,18 +352,15 @@ if (param("ctl")) {
     q("#thumb", body).style.left = `${v * (226 - 11)}px`;
   };
   const track = q("#track", body);
-  let dragging = false;
-  const fromEvent = (e: MouseEvent): void => {
+  const fromEvent = (e: PointerEvent): void => {
     const r = track.getBoundingClientRect();
     setFever((e.clientX - r.left) / r.width);
   };
-  track.addEventListener("mousedown", (e) => {
-    dragging = true;
-    fromEvent(e);
+  onPointerDrag(track, (e) => {
     e.stopPropagation();
+    fromEvent(e);
+    return fromEvent;
   });
-  addEventListener("mousemove", (e) => dragging && fromEvent(e));
-  addEventListener("mouseup", () => (dragging = false));
   body.querySelectorAll<HTMLElement>("[data-f]").forEach((b) =>
     b.addEventListener("click", () => setFever(parseFloat(b.dataset.f!))),
   );

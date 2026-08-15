@@ -11,6 +11,8 @@
     "timeline": "node tools/timeline.mjs",
     "trace": "vite-node tools/trace.ts",
     "fever": "node tools/fever.mjs",
+    "mobile": "node tools/mobile.mjs",
+    "appicon": "node tools/appicon.mjs",
     "audio": "node tools/audio.mjs"
   },
   "dependencies": {

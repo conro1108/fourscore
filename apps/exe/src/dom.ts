@@ -55,6 +55,39 @@ export function gravityFall(
   requestAnimationFrame(frame);
 }
 
+/**
+ * A pointer drag: down on `target`, then window-level moves until the pointer
+ * lifts or the browser cancels it (a touch that turned into a scroll). One
+ * path for mouse and finger — touch pointers are implicitly captured by the
+ * pointerdown target, so moves keep arriving after the finger leaves it.
+ * `begin` returns the move handler, or null to let the event go.
+ */
+export function onPointerDrag(
+  target: HTMLElement,
+  begin: (e: PointerEvent) => ((e: PointerEvent) => void) | null,
+  end?: (e: PointerEvent, cancelled: boolean) => void,
+): void {
+  target.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const move = begin(e);
+    if (!move) return;
+    const id = e.pointerId;
+    const onMove = (ev: PointerEvent): void => {
+      if (ev.pointerId === id) move(ev);
+    };
+    const finish = (ev: PointerEvent): void => {
+      if (ev.pointerId !== id) return;
+      removeEventListener("pointermove", onMove);
+      removeEventListener("pointerup", finish);
+      removeEventListener("pointercancel", finish);
+      end?.(ev, ev.type === "pointercancel");
+    };
+    addEventListener("pointermove", onMove);
+    addEventListener("pointerup", finish);
+    addEventListener("pointercancel", finish);
+  });
+}
+
 /** Deep-link parameter, the harness pattern from the proposals. */
 export const param = (name: string): string | null =>
   new URLSearchParams(location.search).get(name);

@@ -6,7 +6,7 @@
  * status bar counts objects the way Explorer counted them: proudly.
  */
 
-import { el } from "../dom.js";
+import { el, onPointerDrag } from "../dom.js";
 import { ICONS, iconCanvas } from "../icons.js";
 import { TITLES } from "../copy.js";
 import { stageScale, type WM } from "../wm.js";
@@ -54,32 +54,39 @@ export function openGamesFolder(
     ic.addEventListener("dblclick", () => launch[item.id]());
 
     // drag out of the folder: past a few pixels a ghost rides the cursor,
-    // and dropping it off the folder's own window plants it on the desk
-    ic.addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
-      const startX = e.clientX;
-      const startY = e.clientY;
-      let ghost: HTMLElement | null = null;
-      const move = (ev: MouseEvent): void => {
-        if (!ghost && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+    // and dropping it off the folder's own window plants it on the desk.
+    // A finger-tap that never became a drag launches instead — a touchscreen
+    // has no double-click to offer.
+    let ghost: HTMLElement | null = null;
+    onPointerDrag(
+      ic,
+      (e) => {
+        const startX = e.clientX;
+        const startY = e.clientY;
+        ghost = null;
+        return (ev: PointerEvent): void => {
+          if (!ghost && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+          if (!ghost) {
+            ghost = el(`<div class="icon dragghost"></div>`);
+            ghost.appendChild(iconCanvas(item.rows, 32));
+            const gl = el(`<span class="lbl"></span>`);
+            gl.textContent = item.label;
+            ghost.appendChild(gl);
+            wm.stage.appendChild(ghost);
+          }
+          const k = stageScale();
+          const r = wm.stage.getBoundingClientRect();
+          ghost.style.left = `${(ev.clientX - r.left) / k - 24}px`;
+          ghost.style.top = `${(ev.clientY - r.top) / k - 20}px`;
+        };
+      },
+      (ev, cancelled) => {
         if (!ghost) {
-          ghost = el(`<div class="icon dragghost"></div>`);
-          ghost.appendChild(iconCanvas(item.rows, 32));
-          const gl = el(`<span class="lbl"></span>`);
-          gl.textContent = item.label;
-          ghost.appendChild(gl);
-          wm.stage.appendChild(ghost);
+          if (!cancelled && ev.pointerType === "touch") launch[item.id]();
+          return;
         }
-        const k = stageScale();
-        const r = wm.stage.getBoundingClientRect();
-        ghost.style.left = `${(ev.clientX - r.left) / k - 24}px`;
-        ghost.style.top = `${(ev.clientY - r.top) / k - 20}px`;
-      };
-      const up = (ev: MouseEvent): void => {
-        removeEventListener("mousemove", move);
-        removeEventListener("mouseup", up);
-        if (!ghost) return;
         ghost.remove();
+        if (cancelled) return;
         const winR = win.el.getBoundingClientRect();
         const inFolder =
           ev.clientX >= winR.left && ev.clientX <= winR.right &&
@@ -88,10 +95,8 @@ export function openGamesFolder(
         const k = stageScale();
         const r = wm.stage.getBoundingClientRect();
         onDragOut(item.id, (ev.clientX - r.left) / k - 24, (ev.clientY - r.top) / k - 20);
-      };
-      addEventListener("mousemove", move);
-      addEventListener("mouseup", up);
-    });
+      },
+    );
 
     pane.appendChild(ic);
     ics.push(ic);

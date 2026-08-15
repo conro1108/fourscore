@@ -13,7 +13,7 @@
  * silently doesn't — and `Forfeit` in BOARD.EXE already does exactly this.
  */
 
-import { el, q } from "./dom.js";
+import { el, onPointerDrag, q } from "./dom.js";
 import { ICONS, iconCanvas } from "./icons.js";
 import { SOUND_EVENTS, SOUNDS, TITLES } from "./copy.js";
 import { audible, audioSettings, onAudioChange, play, setAudio, type Scheme } from "./audio/index.js";
@@ -218,23 +218,17 @@ export function installTray(taskbar: HTMLElement, before: HTMLElement, openPanel
  * in desk units.
  */
 function dragTrack(track: HTMLElement, set: (v: number) => void, axis: "horizontal" | "vertical" = "horizontal"): void {
-  const from = (e: MouseEvent): void => {
+  const from = (e: PointerEvent): void => {
     const r = track.getBoundingClientRect();
     const v = axis === "horizontal" ? (e.clientX - r.left) / r.width : 1 - (e.clientY - r.top) / r.height;
     set(Math.max(0, Math.min(1, v)));
   };
-  track.addEventListener("mousedown", (e) => {
+  // listeners for the length of the drag only — sounds.ctl can be opened and
+  // closed all evening, and the desktop's icons drag the same way
+  onPointerDrag(track, (e) => {
     e.preventDefault();
     e.stopPropagation();
     from(e);
-    // listeners for the length of the drag only — sounds.ctl can be opened and
-    // closed all evening, and the desktop's icons drag the same way
-    const move = (ev: MouseEvent): void => from(ev);
-    const up = (): void => {
-      removeEventListener("mousemove", move);
-      removeEventListener("mouseup", up);
-    };
-    addEventListener("mousemove", move);
-    addEventListener("mouseup", up);
+    return from;
   });
 }

@@ -256,27 +256,61 @@ export function openMines(wm: WM): void {
       cells.push(c);
     }
 
+    const toggleFlag = (i: number, cell: HTMLElement): void => {
+      if (open.has(i)) return;
+      if (flags.has(i)) {
+        flags.delete(i);
+        cell.innerHTML = "";
+      } else {
+        flags.add(i);
+        const cv = el(`<canvas class="pix" width="12" height="12"></canvas>`) as HTMLCanvasElement;
+        px(cv, FLAG);
+        cell.appendChild(cv);
+      }
+      counter.set(level.count - flags.size);
+      play("click", 0.5);
+    };
+
+    // A finger has no right button, so a held finger is the flag: the
+    // period gesture translated, not a new control.
+    let press: ReturnType<typeof setTimeout> | null = null;
+    let pressAt: [number, number] = [0, 0];
+    let pressConsumed = false;
+    const clearPress = (): void => {
+      if (press) clearTimeout(press);
+      press = null;
+    };
+
     gridEl.addEventListener("contextmenu", (e) => e.preventDefault());
-    gridEl.addEventListener("mousedown", (e) => {
-      if (alive && !won && e.button === 0 && (e.target as HTMLElement).closest(".mcell")) setFace("o");
+    gridEl.addEventListener("pointerdown", (e) => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
+      if (!cell) return;
+      if (alive && !won && e.button === 0) setFace("o");
+      pressConsumed = false;
+      if (e.pointerType === "touch" && alive && !won) {
+        pressAt = [e.clientX, e.clientY];
+        press = setTimeout(() => {
+          press = null;
+          pressConsumed = true;
+          toggleFlag(Number(cell.dataset.i), cell);
+        }, 450);
+      }
     });
-    gridEl.addEventListener("mouseup", (e) => {
+    gridEl.addEventListener("pointermove", (e) => {
+      if (press && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 8) clearPress();
+    });
+    gridEl.addEventListener("pointercancel", () => {
+      clearPress();
+      if (alive && !won) setFace("happy");
+    });
+    gridEl.addEventListener("pointerup", (e) => {
+      clearPress();
+      if (pressConsumed) return; // the long-press already flagged this cell
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
       if (!cell || !alive) return;
       const i = Number(cell.dataset.i);
       if (e.button === 2) {
-        if (open.has(i)) return;
-        if (flags.has(i)) {
-          flags.delete(i);
-          cell.innerHTML = "";
-        } else {
-          flags.add(i);
-          const cv = el(`<canvas class="pix" width="12" height="12"></canvas>`) as HTMLCanvasElement;
-          px(cv, FLAG);
-          cell.appendChild(cv);
-        }
-        counter.set(level.count - flags.size);
-        play("click", 0.5);
+        toggleFlag(i, cell);
         return;
       }
       if (e.button !== 0 || flags.has(i) || open.has(i)) return;
@@ -341,12 +375,14 @@ export function openMines(wm: WM): void {
 
   const onUp = (): void => {
     if (!win.isOpen()) {
-      removeEventListener("mouseup", onUp);
+      removeEventListener("pointerup", onUp);
+      removeEventListener("pointercancel", onUp);
       return;
     }
     if (alive && !won) setFace("happy");
   };
-  addEventListener("mouseup", onUp);
+  addEventListener("pointerup", onUp);
+  addEventListener("pointercancel", onUp);
 
   build();
 }

@@ -29,7 +29,7 @@ import { BEAT_DIALOGS, BEAT_NOTES, BEAT_TITLES, DIALOG, TITLES } from "./copy.js
 import { BEAT_ACTS, pickAct, poolKey, type BeatAct } from "./beats.js";
 import type { Beat, DirectorSnapshot } from "./director.js";
 import type { Shell } from "./desktop.js";
-import { anchorX, anchorY, deskHeight, deskWidth, stageScale, type AnchorX, type WM, type Win } from "./wm.js";
+import { anchorX, anchorY, deskHeight, deskWidth, stageScale, taskbarH, type AnchorX, type WM, type Win } from "./wm.js";
 import { play } from "./audio/index.js";
 import type { EndResult } from "./board.js";
 import type { MovesPad } from "./notepad.js";
@@ -71,7 +71,7 @@ const CLOCK_DRIFT = [0, 1, 5, 22, -1] as const;
     button row and the titlebar. Only used to test whether one would land on
     the board, so a few pixels either way costs nothing. */
 const DIALOG_H = 108;
-const TASKBAR_H = 36;
+const TASKBAR_H = 36; // chrome only; taskbarH() adds the phone's home-bar inset
 
 /** The preview that opens itself for two seconds. Left margin, out of the way
     of the board and of every geometry `MAIN_GEOM` uses. */
@@ -350,7 +350,7 @@ export function makeEffects(deps: {
   /* ---- the cursor's past selves ---- */
   const trailEl = (): HTMLElement => stage.querySelector<HTMLElement>("#trail")!;
   const cursorPast: [number, number][] = [];
-  addEventListener("mousemove", (e) => {
+  addEventListener("pointermove", (e) => {
     const r = stage.getBoundingClientRect();
     const k = stageScale();
     cursorPast.push([(e.clientX - r.left) / k, (e.clientY - r.top) / k]);
@@ -554,7 +554,7 @@ export function makeEffects(deps: {
     const clear = x + spec.w <= b.left || x >= b.right || y + h <= b.top || y >= b.bottom;
     if (clear) return spec;
 
-    const deskBottom = deskHeight() - TASKBAR_H;
+    const deskBottom = deskHeight() - taskbarH();
     // below the board, where a short variant leaves a full-width band
     if (deskBottom - b.bottom >= h + 12)
       return { x: Math.min(x, deskWidth() - spec.w - 8), y: b.bottom + 8 };

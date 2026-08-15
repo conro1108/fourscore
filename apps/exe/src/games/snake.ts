@@ -5,7 +5,7 @@
  * asked why the chips are in this program.
  */
 
-import { el } from "../dom.js";
+import { el, onPointerDrag } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
 import type { WM } from "../wm.js";
@@ -32,7 +32,7 @@ export function openSnake(wm: WM): void {
   }
 
   const body = el(`<div></div>`);
-  const frame = el(`<div class="sunken" style="margin:6px 10px 4px;background:#000;width:max-content;padding:3px"></div>`);
+  const frame = el(`<div class="sunken snakefield" style="margin:6px 10px 4px;background:#000;width:max-content;padding:3px"></div>`);
   const canvas = el(
     `<canvas class="pix" width="${COLS * PX}" height="${ROWS * PX}" style="width:${COLS * PX * 4}px;height:${ROWS * PX * 4}px"></canvas>`,
   ) as HTMLCanvasElement;
@@ -130,17 +130,10 @@ export function openSnake(wm: WM): void {
     paint();
   }
 
-  const onKey = (e: KeyboardEvent): void => {
-    if (!win.isOpen()) {
-      removeEventListener("keydown", onKey);
-      return;
-    }
-    const d = DIRS[e.key];
-    if (!d || wm.focused()?.id !== "snake") return;
-    e.preventDefault();
+  const steer = (d: Dir): void => {
     if (!alive) return;
     if (!dir) {
-      // first arrow: any way but backwards into your own body
+      // first move: any way but backwards into your own body
       if (d[0] === -1) return;
       dir = d;
       statusEl.textContent = GAMES_COPY.snake.score(snake.length);
@@ -150,7 +143,37 @@ export function openSnake(wm: WM): void {
     if (d[0] === -cur[0] && d[1] === -cur[1]) return; // no U-turns
     pending = d;
   };
+
+  const onKey = (e: KeyboardEvent): void => {
+    if (!win.isOpen()) {
+      removeEventListener("keydown", onKey);
+      return;
+    }
+    const d = DIRS[e.key];
+    if (!d || wm.focused()?.id !== "snake") return;
+    e.preventDefault();
+    steer(d);
+  };
   addEventListener("keydown", onKey);
+
+  // a touchscreen has no arrow keys, so the field itself steers: swipe the
+  // way you want the snake to go
+  let swipeFrom: [number, number] = [0, 0];
+  onPointerDrag(
+    frame,
+    (e) => {
+      if (e.pointerType !== "touch") return null;
+      swipeFrom = [e.clientX, e.clientY];
+      return () => {};
+    },
+    (e, cancelled) => {
+      if (cancelled) return;
+      const dx = e.clientX - swipeFrom[0];
+      const dy = e.clientY - swipeFrom[1];
+      if (Math.hypot(dx, dy) < 18) return; // a tap is not a direction
+      steer(Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
+    },
+  );
 
   const bar = menubar([
     { label: "Game", items: [["New", reset], ["-", () => {}], ["Exit", () => win.close()]] },

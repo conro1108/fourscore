@@ -2,9 +2,16 @@
    approved bevel kit) and extended for the real app.
    Timing law: nothing in here eases. Windows move instantly or in steps. */
 
-html,body{margin:0;height:100%;overflow:hidden}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
 body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-size:11px;color:#000;
-     cursor:default;user-select:none;-webkit-user-select:none}
+     cursor:default;user-select:none;-webkit-user-select:none;
+     /* a possessed desktop, not a web page: no tap flash, no long-press
+        callout, no double-tap zoom (iOS) */
+     -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;touch-action:manipulation}
+/* surfaces that drag 1:1 own their gestures outright; the board's grid keeps
+   vertical panning so a scrolled Connect 6 frame still scrolls under a finger */
+.titlebar,.rz,.icon,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.rocket{touch-action:none}
+#grid{touch-action:pan-y}
 /* the desk. fitStage() sizes it to the browser window; these are the
    authored 1280x800 it composes against. */
 #stage{position:relative;width:1280px;height:800px;background:#0e8078;overflow:hidden}
@@ -28,6 +35,18 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .rz-se{bottom:-2px;right:-2px;width:9px;height:9px;cursor:se-resize}
 .rz-sw{bottom:-2px;left:-2px;width:9px;height:9px;cursor:sw-resize}
 .win.max .rz{display:none}
+/* a finger is not a pointer: the invisible borders and the titlebar buttons
+   grow to something a thumb can actually hit. The authored geometry the
+   layout math reads (titlebar 22, taskbar 36) stays untouched. */
+@media (pointer: coarse){
+  .rz-n{height:12px}.rz-s{height:12px}
+  .rz-e{width:12px}.rz-w{width:12px}
+  .rz-ne,.rz-nw,.rz-se,.rz-sw{width:18px;height:18px}
+  .tbtn{width:26px;height:20px;font-size:11px;line-height:19px}
+  .menu span{padding:5px 9px}
+  .popup div{padding:7px 20px 7px 22px}
+  .task,#start,#clock{height:30px;line-height:30px}
+}
 /* what flexes inside a hand-sized window: a well marked `flexwell` grows, a
    notepad forgets its natural cap, an editor's textarea fills its well, and
    the statusbar keeps to the bottom edge the way the period had it. A window
@@ -141,8 +160,13 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .finale .dlg-body div{font-size:16px;font-weight:bold;letter-spacing:.5px;padding-top:8px}
 
 /* taskbar */
-#taskbar{position:absolute;left:0;right:0;bottom:0;height:36px;background:#c0c0c0;z-index:200;
-      box-shadow:inset 0 1px #fff,inset 0 2px #dfdfdf;display:flex;align-items:center;gap:5px;padding:0 4px}
+/* --taskbar-pad is the phone's home-indicator inset (set by fitStage): the
+   bar thickens to cover it so the chrome still reaches the physical edge and
+   the clock stays above the swipe zone */
+#taskbar{position:absolute;left:0;right:0;bottom:0;height:calc(36px + var(--taskbar-pad,0px));
+      box-sizing:border-box;background:#c0c0c0;z-index:200;
+      box-shadow:inset 0 1px #fff,inset 0 2px #dfdfdf;display:flex;align-items:center;gap:5px;
+      padding:0 4px var(--taskbar-pad,0px)}
 #start{height:26px;display:flex;align-items:center;gap:5px;padding:0 8px;font-weight:bold;font-size:12px;flex:none;min-width:0}
 #start .pix{width:16px;height:16px;image-rendering:pixelated}
 #start.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
@@ -157,7 +181,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
       box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
 
 /* the start menu is a popup that opens upward, with the period banner */
-#startmenu{position:absolute;left:2px;bottom:38px;z-index:300;display:none;padding-left:24px;min-width:160px}
+#startmenu{position:absolute;left:2px;bottom:calc(38px + var(--taskbar-pad,0px));z-index:300;display:none;padding-left:24px;min-width:160px}
 #startmenu .banner{position:absolute;left:2px;top:2px;bottom:2px;width:22px;background:linear-gradient(0deg,#000080,#1084d0);
       color:#c0c0c0;font-weight:bold;font-size:13px;letter-spacing:1px;
       writing-mode:vertical-rl;transform:rotate(180deg);text-align:left;padding:6px 0}

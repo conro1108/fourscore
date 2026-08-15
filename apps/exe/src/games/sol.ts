@@ -10,7 +10,7 @@
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { deskHeight, deskWidth, stageScale, type WM } from "../wm.js";
+import { deskHeight, deskWidth, stageScale, taskbarH, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 /* ---- the pure part (the tests live on this) ---- */
@@ -271,8 +271,8 @@ export function openSol(wm: WM, rig?: string): void {
   }
 
   /* ---- input ---- */
-  felt.addEventListener("mousedown", (e) => {
-    if (won || e.button !== 0) return;
+  felt.addEventListener("pointerdown", (e) => {
+    if (won || e.button !== 0 || !e.isPrimary) return;
     const target = e.target as HTMLElement;
     if (pileAt(e.clientX, e.clientY) === "stock") {
       play("click", 0.5);
@@ -331,7 +331,7 @@ export function openSol(wm: WM, rig?: string): void {
     wm.stage.appendChild(ghost);
   });
 
-  addEventListener("mousemove", (e) => {
+  addEventListener("pointermove", (e) => {
     if (!drag) return;
     if (!drag.moved) {
       // the originals lift only once the drag is real, so a plain double-
@@ -345,7 +345,16 @@ export function openSol(wm: WM, rig?: string): void {
     drag.ghost.style.top = `${(e.clientY - stageR.top) / k - drag.dy}px`;
   });
 
-  addEventListener("mouseup", (e) => {
+  // a cancelled touch (the browser took the gesture) puts the cards back too
+  addEventListener("pointercancel", () => {
+    if (!drag) return;
+    const { ghost, hidden } = drag;
+    drag = null;
+    ghost.remove();
+    for (const hEl of hidden) hEl.style.visibility = "";
+  });
+
+  addEventListener("pointerup", (e) => {
     if (!drag) return;
     const { cards, from, ghost, hidden, moved } = drag;
     drag = null;
@@ -365,9 +374,9 @@ export function openSol(wm: WM, rig?: string): void {
     for (const hEl of hidden) hEl.style.visibility = "";
   });
 
-  felt.addEventListener("dblclick", (e) => {
+  const autoHome = (target: HTMLElement): void => {
     if (won) return;
-    const tag = (e.target as HTMLElement).closest<HTMLElement>("[data-drag]")?.dataset.drag;
+    const tag = target.closest<HTMLElement>("[data-drag]")?.dataset.drag;
     if (!tag || tag.startsWith("f")) return;
     let ref: PileRef;
     let card: Card;
@@ -386,6 +395,31 @@ export function openSol(wm: WM, rig?: string): void {
       play("disc-land", 0.4);
       render();
       checkWin();
+    }
+  };
+  felt.addEventListener("dblclick", (e) => autoHome(e.target as HTMLElement));
+
+  // the double-click, translated for a finger: two quick taps on the same
+  // card send it home
+  let lastTap: { tag: string; at: number } | null = null;
+  felt.addEventListener("pointerup", (e) => {
+    if (e.pointerType !== "touch" || won) return;
+    if (drag?.moved) {
+      lastTap = null;
+      return;
+    }
+    const target = e.target as HTMLElement;
+    const tag = target.closest<HTMLElement>("[data-drag]")?.dataset.drag;
+    if (!tag) {
+      lastTap = null;
+      return;
+    }
+    const now = performance.now();
+    if (lastTap && lastTap.tag === tag && now - lastTap.at < 400) {
+      lastTap = null;
+      autoHome(target);
+    } else {
+      lastTap = { tag, at: now };
     }
   });
 
@@ -415,7 +449,7 @@ export function openSol(wm: WM, rig?: string): void {
       starts.push([(r.left - stageR.left) / k, (r.top - stageR.top) / k]);
     });
 
-    const floor = deskHeight() - 36 - CARD_H;
+    const floor = deskHeight() - taskbarH() - CARD_H;
     let raf = 0;
     let idx = 0; // 0..51: kings first, cycling suits
     let card: { c: Card; x: number; y: number; vx: number; vy: number } | null = null;
@@ -479,15 +513,15 @@ export function openSol(wm: WM, rig?: string): void {
     // a click ends the ceremony early, like the period key-press did
     const skip = (): void => {
       finish();
-      removeEventListener("mousedown", skip);
+      removeEventListener("pointerdown", skip);
     };
-    setTimeout(() => addEventListener("mousedown", skip), 800);
+    setTimeout(() => addEventListener("pointerdown", skip), 800);
     raf = requestAnimationFrame(frame);
     return () => {
       done = true;
       cancelAnimationFrame(raf);
       cv.remove();
-      removeEventListener("mousedown", skip);
+      removeEventListener("pointerdown", skip);
     };
   }
 

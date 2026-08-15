@@ -38,6 +38,21 @@
 > real Chrome, writes them to `shots/audio/` (including `all.wav`, everything
 > back to back) and checks the laws from outside.
 
+> **The machine fits in a hand (2026-08-15).** Installable as an iOS PWA
+> (manifest + service worker + icons rendered from the board's own pixel art
+> by `tools/appicon.mjs`), and every gesture is a pointer event now — one
+> path for mouse and finger (`onPointerDrag` in dom.ts). On a coarse-pointer
+> screen where the 1280x800 fit would make a cell untappable, the *monitor*
+> gets smaller instead of the pixels (wm.ts `FIT_W`/`FIT_H`); windows clamp
+> onto the smaller desk, and the icons keep to a dock row above the taskbar
+> where the board can't cover them. Touch grew period-correct verbs: the
+> hover disc rides the finger and drops on release, a tap launches an icon,
+> a held finger is Minesweeper's right button, a swipe steers the snake, two
+> taps send a card home. The taskbar thickens over the home-indicator inset
+> so the chrome still reaches the physical edge. `npm run mobile` is the
+> harness — a touchscreen Chromium phone that plays a real move and
+> screenshots what a PWA user gets.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

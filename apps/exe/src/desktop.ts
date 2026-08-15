@@ -4,12 +4,12 @@
  * menu item does something, the clock genuinely keeps (its own) time.
  */
 
-import { el, q } from "./dom.js";
+import { el, onPointerDrag, q } from "./dom.js";
 import { ICONS, ROCKET, iconCanvas, px } from "./icons.js";
 import { START_MENU } from "./copy.js";
 import { play } from "./audio/index.js";
 import { installTray } from "./sounds.js";
-import { anchorX, onDeskResize, stageScale } from "./wm.js";
+import { anchorX, deskHeight, deskWidth, onDeskResize, stageScale, taskbarH } from "./wm.js";
 
 export interface DesktopApps {
   openBoard(): void;
@@ -86,26 +86,34 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     icon.appendChild(lbl);
     icon.addEventListener("click", (e) => e.stopPropagation());
     icon.addEventListener("dblclick", () => spec.launch());
-    // icons drag like anything else on a real desktop
-    icon.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      iconEls.forEach((i) => i.classList.remove("sel"));
-      icon.classList.add("sel");
-      const k = stageScale();
-      const sx = e.clientX / k - icon.offsetLeft;
-      const sy = e.clientY / k - icon.offsetTop;
-      const move = (ev: MouseEvent): void => {
-        icon.style.left = `${Math.round(ev.clientX / k - sx)}px`;
-        icon.style.top = `${Math.round(ev.clientY / k - sy)}px`;
-      };
-      const up = (): void => {
-        removeEventListener("mousemove", move);
-        removeEventListener("mouseup", up);
-        spec.onMove?.(icon.offsetLeft, icon.offsetTop);
-      };
-      addEventListener("mousemove", move);
-      addEventListener("mouseup", up);
-    });
+    // icons drag like anything else on a real desktop; a finger-tap launches
+    // outright, because a double-click asked of a touchscreen is a dead icon
+    let moved = false;
+    onPointerDrag(
+      icon,
+      (e) => {
+        e.preventDefault();
+        moved = false;
+        iconEls.forEach((i) => i.classList.remove("sel"));
+        icon.classList.add("sel");
+        const k = stageScale();
+        const sx = e.clientX / k - icon.offsetLeft;
+        const sy = e.clientY / k - icon.offsetTop;
+        return (ev: PointerEvent): void => {
+          if (Math.hypot(ev.clientX / k - sx - icon.offsetLeft, ev.clientY / k - sy - icon.offsetTop) > 4)
+            moved = true;
+          if (!moved) return;
+          icon.style.left = `${Math.round(ev.clientX / k - sx)}px`;
+          icon.style.top = `${Math.round(ev.clientY / k - sy)}px`;
+        };
+      },
+      (e, cancelled) => {
+        if (moved) {
+          icon.dataset.dragged = "1"; // you put it there; a re-stage lets it be
+          spec.onMove?.(icon.offsetLeft, icon.offsetTop);
+        } else if (!cancelled && e.pointerType === "touch") spec.launch();
+      },
+    );
     stage.appendChild(icon);
     iconEls.push(icon);
     return {
@@ -117,6 +125,23 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   }
   for (const def of iconDefs)
     makeIcon({ rows: def.rows, label: def.label, x: 20, y: def.top, launch: def.launch });
+  /* On a desk narrower than the authored 1280 (a phone), the left column
+     disappears behind BOARD.EXE. The icons keep to the open ground instead —
+     a row above the taskbar, where a thumb lives. Dragged icons stay put. */
+  const layoutIcons = (): void => {
+    iconEls.slice(0, iconDefs.length).forEach((icon, i) => {
+      if (icon.dataset.dragged) return;
+      if (deskWidth() < 1280) {
+        icon.style.left = `${8 + (i % 6) * Math.max(80, Math.floor((deskWidth() - 16) / 6))}px`;
+        icon.style.top = `${deskHeight() - taskbarH() - 100 - Math.floor(i / 6) * 96}px`;
+      } else {
+        icon.style.left = "20px";
+        icon.style.top = `${iconDefs[i]!.top}px`;
+      }
+    });
+  };
+  layoutIcons();
+  onDeskResize(layoutIcons);
   stage.addEventListener("click", (e) => {
     if (e.target === stage) iconEls.forEach((i) => i.classList.remove("sel"));
   });
@@ -124,7 +149,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   /* ---- the rocket: a pixel sprite that has escaped a window. Nobody
      comments, but it is real enough to drag around. ---- */
   const rocket = el(
-    `<canvas class="pix" width="12" height="18" style="position:absolute;top:40px;width:60px;height:90px;transform:rotate(30deg);z-index:20"></canvas>`,
+    `<canvas class="pix rocket" width="12" height="18" style="position:absolute;top:40px;width:60px;height:90px;transform:rotate(30deg);z-index:20"></canvas>`,
   ) as HTMLCanvasElement;
   px(rocket, ROCKET);
   // it escaped toward the right edge, so that is the edge it keeps to
@@ -134,22 +159,16 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   };
   placeRocket();
   onDeskResize(placeRocket);
-  rocket.addEventListener("mousedown", (e) => {
+  onPointerDrag(rocket, (e) => {
     e.preventDefault();
     rocketPlaced = true;
     const k = stageScale();
     const sx = e.clientX / k - rocket.offsetLeft;
     const sy = e.clientY / k - rocket.offsetTop;
-    const move = (ev: MouseEvent): void => {
+    return (ev: PointerEvent): void => {
       rocket.style.left = `${Math.round(ev.clientX / k - sx)}px`;
       rocket.style.top = `${Math.round(ev.clientY / k - sy)}px`;
     };
-    const up = (): void => {
-      removeEventListener("mousemove", move);
-      removeEventListener("mouseup", up);
-    };
-    addEventListener("mousemove", move);
-    addEventListener("mouseup", up);
   });
   stage.appendChild(rocket);
 
@@ -257,7 +276,9 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       wakeCbs.forEach((cb) => cb());
     }
   };
-  for (const ev of ["mousemove", "mousedown", "keydown"] as const)
+  // pointer events, not mouse events: a finger playing the whole game must
+  // not read as an idle machine, or the screensaver takes the desktop mid-move
+  for (const ev of ["pointermove", "pointerdown", "keydown"] as const)
     addEventListener(ev, noteActivity);
   setInterval(() => {
     if (idle) return;

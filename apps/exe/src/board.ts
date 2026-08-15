@@ -10,10 +10,10 @@
 
 import { ROSTER, VARIANTS, byId, variantById, type Position, type Variant } from "@fourscore/engine";
 import { Match } from "@fourscore/engine";
-import { el, gravityFall, q } from "./dom.js";
+import { el, gravityFall, onPointerDrag, q } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { STATUS, TITLES, voiceOf } from "./copy.js";
-import { deskHeight, stageScale, type WM, type Win } from "./wm.js";
+import { deskHeight, stageScale, taskbarH, type WM, type Win } from "./wm.js";
 import { play } from "./audio/index.js";
 import type { MovesPad } from "./notepad.js";
 
@@ -84,6 +84,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   let gameSeq = 0;
   /** Kills the previous build's document-level listeners on rebuild. */
   let buildAbort: AbortController | null = null;
+  /** A touch that already committed mutes its own synthetic click. */
+  let clickSuppressedUntil = 0;
 
   // The grid sits at x=16 inside the window (frame margin 10 + padding 6) and
   // the same 16 has to come back on the right, or the sunken well shows a dead
@@ -232,20 +234,9 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       if (!win.el.classList.contains("max")) win.el.style.top = "4px";
     }
 
-    grid.addEventListener("mousemove", (e) => {
-      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
-      if (!cell || phase === "over") return;
-      const col = Number(cell.dataset.col);
-      // only when it actually crosses — a mousemove inside one column is not
-      // an event, and the tick is the smallest sound in the scheme for a reason
-      if (col !== hoverCol && phase === "your-turn") play("hover-tick", 0.55);
-      hoverCol = col;
-      if (phase === "your-turn") picker.style.left = `${pickerX(hoverCol)}px`;
-    });
-    grid.addEventListener("click", (e) => {
-      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
-      if (!cell || phase !== "your-turn") return;
-      const col = Number(cell.dataset.col);
+    /* One committed move, whatever pointed at it. */
+    const commit = (col: number): void => {
+      if (phase !== "your-turn") return;
       if (!match.canPlay(col)) {
         // a full column used to be silence, which is indistinguishable from a
         // click the window didn't get
@@ -269,7 +260,62 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       lastHumanCol = col;
       picker.style.left = `${pickerX(col)}px`;
       humanMove(col);
+    };
+
+    grid.addEventListener("pointermove", (e) => {
+      if (e.pointerType === "touch") return; // the finger has its own path below
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
+      if (!cell || phase === "over") return;
+      const col = Number(cell.dataset.col);
+      // only when it actually crosses — a move inside one column is not an
+      // event, and the tick is the smallest sound in the scheme for a reason
+      if (col !== hoverCol && phase === "your-turn") play("hover-tick", 0.55);
+      hoverCol = col;
+      if (phase === "your-turn") picker.style.left = `${pickerX(hoverCol)}px`;
     });
+    grid.addEventListener("click", (e) => {
+      // the tap already committed through the touch path; its synthetic click
+      // arriving here would deal a second disc
+      if (performance.now() < clickSuppressedUntil) return;
+      const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
+      if (!cell || phase !== "your-turn") return;
+      commit(Number(cell.dataset.col));
+    });
+
+    /* ---- the finger's path: the hover disc IS your piece here too. Touch
+       the board and the disc snaps to that column; drag and it follows;
+       let go over the board and it falls from where it hovers. Slide off
+       the side to put it down without playing. ---- */
+    const colFrom = (ev: PointerEvent): number => {
+      const gr = q("#grid", body).getBoundingClientRect();
+      const col = Math.floor((ev.clientX - gr.left) / stageScale() / CELL);
+      return Math.max(0, Math.min(variant.width - 1, col));
+    };
+    const touchAim = (e: PointerEvent): ((ev: PointerEvent) => void) | null => {
+      if (e.pointerType !== "touch" || phase !== "your-turn") return null;
+      const aim = (ev: PointerEvent): void => {
+        const col = colFrom(ev);
+        if (col !== hoverCol && phase === "your-turn") play("hover-tick", 0.55);
+        hoverCol = col;
+        if (phase === "your-turn") picker.style.left = `${pickerX(hoverCol)}px`;
+      };
+      aim(e);
+      return aim;
+    };
+    const touchDrop = (e: PointerEvent, cancelled: boolean): void => {
+      if (e.pointerType !== "touch") return;
+      clickSuppressedUntil = performance.now() + 700;
+      if (cancelled || phase !== "your-turn") return; // a scroll took the gesture
+      const k = stageScale();
+      const fr = frame.getBoundingClientRect();
+      const pr = pickerRow.getBoundingClientRect();
+      const off = 12 * k;
+      if (e.clientY < pr.top - off || e.clientY > fr.bottom + off) return;
+      if (e.clientX < fr.left - off || e.clientX > fr.right + off) return;
+      commit(hoverCol);
+    };
+    onPointerDrag(grid, touchAim, touchDrop);
+    onPointerDrag(pickerRow, touchAim, touchDrop);
 
     buildGrid();
     renderPosition();
@@ -305,7 +351,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
   function layoutMax(on: boolean): void {
     if (on) {
-      frameTo(deskHeight() - 36);
+      frameTo(deskHeight() - taskbarH());
       return;
     }
     // restoring out of maximize lands back in the hand size, if there was one

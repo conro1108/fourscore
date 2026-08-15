@@ -177,6 +177,10 @@ export function installAudio(deps: { fever: () => number }): void {
     });
   };
   addEventListener("pointerdown", unlock, { passive: true });
+  // iOS has historically only honoured the *end* of a touch as the gesture
+  // that may start audio, so the lift gets a listener too — `wake()` makes
+  // the second call a no-op.
+  addEventListener("pointerup", unlock, { passive: true });
   addEventListener("keydown", unlock);
 
   // Coming back to a backgrounded tab is not a gesture, so none of the above

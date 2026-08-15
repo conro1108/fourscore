@@ -6,7 +6,7 @@
  * Timing law: window operations are instant. Nothing in here animates.
  */
 
-import { el } from "./dom.js";
+import { el, onPointerDrag } from "./dom.js";
 import { iconCanvas } from "./icons.js";
 import { play, type SoundName } from "./audio/index.js";
 
@@ -128,14 +128,27 @@ const Z_DEPTH = 45;
    where it was authored. */
 const DESIGN_W = 1280;
 const DESIGN_H = 800;
+/* A phone can't hold a 1280x800 desk at a readable size, so when the screen
+   is touched rather than pointed at and the base fit would put a 64px cell
+   under ~40 device px, the monitor gets smaller instead of the pixels: a desk
+   just wide enough to hold BOARD.EXE in portrait, just tall enough for it in
+   landscape. Everything stays authored against 1280x800; `place()` clamps
+   windows onto the smaller desk. */
+const FIT_W = 512;
+const FIT_H = 600;
+const MIN_CELL_PX = 40;
 let scale = 1;
 let deskW = DESIGN_W;
 let deskH = DESIGN_H;
+/** Home-indicator inset (desk px). The taskbar thickens by this much. */
+let taskbarPad = 0;
 const resizeCbs: (() => void)[] = [];
 
 export const stageScale = (): number => scale;
 export const deskWidth = (): number => deskW;
 export const deskHeight = (): number => deskH;
+/** Taskbar's real height: 36px of chrome plus the home-indicator inset. */
+export const taskbarH = (): number => 36 + taskbarPad;
 /** Fires after the desk changes size, so placed things can re-anchor. */
 export const onDeskResize = (cb: () => void): void => void resizeCbs.push(cb);
 
@@ -151,18 +164,41 @@ export function anchorY(y: number, a: AnchorY = "top"): number {
 }
 
 export function fitStage(stage: HTMLElement, w = DESIGN_W, h = DESIGN_H): void {
+  // The notch and the home indicator are pixels the desk can't use (iOS PWA,
+  // viewport-fit=cover). env() only resolves inside CSS, so a hidden probe
+  // wears the insets as padding and the fit reads them back.
+  const probe = el(
+    `<div style="position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)"></div>`,
+  );
+  document.body.appendChild(probe);
   const fit = (): void => {
-    scale = Math.min(innerWidth / w, innerHeight / h);
-    deskW = Math.round(innerWidth / scale);
-    deskH = Math.round(innerHeight / scale);
+    const cs = getComputedStyle(probe);
+    const safeT = parseFloat(cs.paddingTop) || 0;
+    const safeR = parseFloat(cs.paddingRight) || 0;
+    const safeB = parseFloat(cs.paddingBottom) || 0;
+    const safeL = parseFloat(cs.paddingLeft) || 0;
+    // The desk keeps the bottom inset — the taskbar thickens to cover it, so
+    // the chrome still reaches the physical edge and the clock stays tappable.
+    const availW = innerWidth - safeL - safeR;
+    const availH = innerHeight - safeT;
+    scale = Math.min(availW / w, availH / h);
+    if (matchMedia("(pointer: coarse)").matches && scale * 64 < MIN_CELL_PX)
+      scale = Math.max(scale, Math.min(availW / FIT_W, availH / FIT_H));
+    deskW = Math.round(availW / scale);
+    deskH = Math.round(availH / scale);
+    taskbarPad = safeB / scale;
     stage.style.transformOrigin = "top left";
-    stage.style.transform = `scale(${scale})`;
+    stage.style.transform = `translate(${safeL}px,${safeT}px) scale(${scale})`;
     stage.style.width = `${deskW}px`;
     stage.style.height = `${deskH}px`;
+    stage.style.setProperty("--taskbar-pad", `${taskbarPad}px`);
     for (const cb of resizeCbs) cb();
   };
   fit();
   addEventListener("resize", fit);
+  // iOS resizes the visual viewport (keyboard, orientation) without always
+  // firing a window resize in standalone mode
+  visualViewport?.addEventListener("resize", fit);
 }
 
 export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
@@ -225,10 +261,17 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     const authored: [number, number] = [spec.x, spec.y];
     let dragged = false;
     const place = (): void => {
-      w.style.left = `${anchorX(authored[0], spec.ax)}px`;
-      w.style.top = `${anchorY(authored[1], spec.ay)}px`;
+      let x = anchorX(authored[0], spec.ax);
+      let y = anchorY(authored[1], spec.ay);
+      // On a desk smaller than the authored 1280x800 (a phone), an authored
+      // position can land off the monitor entirely. Clamp fully on-desk on the
+      // cramped axis only, so a full-size desk keeps every hand-tuned position
+      // — including the win cascade's intentional half-off-screen dialog.
+      if (deskW < DESIGN_W) x = Math.max(0, Math.min(x, deskW - w.offsetWidth));
+      if (deskH < DESIGN_H) y = Math.max(0, Math.min(y, deskH - taskbarH() - w.offsetHeight));
+      w.style.left = `${x}px`;
+      w.style.top = `${y}px`;
     };
-    place();
     onDeskResize(() => {
       if (!dragged && !maximized && w.isConnected) place();
     });
@@ -244,14 +287,16 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     spec.body.classList.add("winbody");
     w.appendChild(spec.body);
     stage.appendChild(w);
+    // placed after it's in the DOM: the clamp needs a measured size
+    place();
 
     // resize borders — instant, 1:1, no easing, same as the titlebar drag
     if (spec.resizable) {
       let natural: { w: number; h: number } | null = null;
       for (const dir of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
         const h = el(`<div class="rz rz-${dir}"></div>`);
-        h.addEventListener("mousedown", (e) => {
-          if (maximized || e.button !== 0) return;
+        onPointerDrag(h, (e) => {
+          if (maximized) return null;
           e.preventDefault();
           e.stopPropagation();
           win.focus();
@@ -262,7 +307,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
           const sx = e.clientX / scale;
           const sy = e.clientY / scale;
           const r = { left: w.offsetLeft, top: w.offsetTop, width: w.offsetWidth, height: w.offsetHeight };
-          const move = (ev: MouseEvent): void => {
+          return (ev: PointerEvent): void => {
             const dx = ev.clientX / scale - sx;
             const dy = ev.clientY / scale - sy;
             let { left, top, width, height } = r;
@@ -290,12 +335,6 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
             });
             spec.onResize?.();
           };
-          const up = (): void => {
-            removeEventListener("mousemove", move);
-            removeEventListener("mouseup", up);
-          };
-          addEventListener("mousemove", move);
-          addEventListener("mouseup", up);
         });
         w.appendChild(h);
       }
@@ -359,37 +398,39 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
           spec.onMaximize?.(false);
         } else {
           maximized = { left: w.style.left, top: w.style.top, width: w.style.width, height: w.style.height };
-          Object.assign(w.style, { left: "0px", top: "0px", width: `${deskW}px`, height: `${deskH - 36}px` });
+          Object.assign(w.style, { left: "0px", top: "0px", width: `${deskW}px`, height: `${deskH - taskbarH()}px` });
           w.classList.add("max");
           spec.onMaximize?.(true);
         }
       }
     });
 
-    // click anywhere raises; mousedown so it raises before the click lands
-    w.addEventListener("mousedown", () => win.focus());
+    // press anywhere raises; pointerdown so it raises before the click lands
+    w.addEventListener("pointerdown", () => win.focus());
 
     // drag by titlebar — instant, 1:1, no easing
-    bar.addEventListener("mousedown", (e) => {
-      if ((e.target as HTMLElement).closest(".tbtn")) return;
-      if (maximized) return;
+    onPointerDrag(bar, (e) => {
+      if ((e.target as HTMLElement).closest(".tbtn")) return null;
+      if (maximized) return null;
       e.preventDefault();
       dragged = true; // you put it there; a resize doesn't get to move it back
       const startX = e.clientX / scale - w.offsetLeft;
       const startY = e.clientY / scale - w.offsetTop;
-      const move = (ev: MouseEvent): void => {
-        const x = Math.round(ev.clientX / scale - startX);
-        const y = Math.max(0, Math.round(ev.clientY / scale - startY));
+      return (ev: PointerEvent): void => {
+        // a sliver has to stay reachable: a window shoved fully off a phone's
+        // desk has no mouse precision to rescue it with
+        const x = Math.min(
+          deskW - 48,
+          Math.max(48 - w.offsetWidth, Math.round(ev.clientX / scale - startX)),
+        );
+        const y = Math.min(
+          deskH - taskbarH() - 22,
+          Math.max(0, Math.round(ev.clientY / scale - startY)),
+        );
         w.style.left = `${x}px`;
         w.style.top = `${y}px`;
         for (const cb of dragCbs) cb(win, x, y);
       };
-      const up = (): void => {
-        removeEventListener("mousemove", move);
-        removeEventListener("mouseup", up);
-      };
-      addEventListener("mousemove", move);
-      addEventListener("mouseup", up);
     });
 
     if (spec.taskbar !== false) {
