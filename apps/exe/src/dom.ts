@@ -16,20 +16,31 @@ export function el<T extends HTMLElement = HTMLElement>(html: string): T {
 /**
  * A disc falls with real gravity, no easing curve: v += g each frame, one
  * cheap frame of overshoot on landing. Positions are local `top` pixels.
+ *
+ * `g` is px per 60Hz frame squared, and the step is scaled by the frame time
+ * actually elapsed. Integrating per *frame* instead makes the drop twice as
+ * fast on a 120Hz laptop as on the 60Hz monitor it's plugged into, which is
+ * what "the drop got slow" means when nothing in the code changed. The step
+ * is clamped so a backgrounded tab resumes falling rather than teleporting
+ * through the board.
  */
 export function gravityFall(
   elt: HTMLElement,
   y0: number,
   y1: number,
   done?: () => void,
-  g = 1.15,
+  g = 2.4,
 ): void {
+  const FRAME = 1000 / 60;
   let y = y0;
   let v = 0;
+  let last: number | null = null;
   elt.style.top = `${y}px`;
-  function frame(): void {
-    v += g;
-    y += v;
+  function frame(now: number): void {
+    const step = last === null ? 1 : Math.min((now - last) / FRAME, 3);
+    last = now;
+    v += g * step;
+    y += v * step;
     if (y >= y1) {
       elt.style.top = `${y1 + 4}px`;
       requestAnimationFrame(() => {

@@ -343,17 +343,73 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     const row = landingRow(col);
     const fx = q("#fx", body);
     const k = stageScale();
+    const seq = gameSeq;
+    revealRow(row, k);
     const o = fx.getBoundingClientRect();
     const srcR = source.getBoundingClientRect();
     const cellR = cellAt(col, row).getBoundingClientRect();
     source.style.display = "none";
+    maskToBoard(fx, o, k);
     const d = el(`<div class="disc ${who}" style="position:absolute;left:${(srcR.left - o.left) / k}px"></div>`);
     fx.appendChild(d);
     gravityFall(d, (srcR.top - o.top) / k, (cellR.top - o.top) / k + 8, () => {
       d.remove();
+      clearMask(fx);
+      // a New Game landed mid-flight: the disc belonged to a board that no
+      // longer exists, and painting it would deal it onto the fresh one
+      if (seq !== gameSeq) return;
       cellAt(col, row).innerHTML = `<div class="disc ${who}"></div>`;
       then();
     });
+  }
+
+  /* ---- the disc goes *into* the cabinet, not across its face. Above the
+     board it is its own object; from the board's top edge down it is only
+     what the holes let you see, which is what a real one looks like and
+     what the mock's arrow implies. One mask does both: an opaque band down
+     to the frame, then the hole tile. Both offsets are read live, because
+     maximize, a variant switch and a scrolled frame all move the grid. ---- */
+  const HOLE_R = 24;
+
+  function maskToBoard(fx: HTMLElement, o: DOMRect, k: number): void {
+    const frameR = q(".boardframe", body).getBoundingClientRect();
+    const gridR = q("#grid", body).getBoundingClientRect();
+    const band = Math.max(0, (frameR.top - o.top) / k);
+    const gx = (gridR.left - o.left) / k;
+    const gy = (gridR.top - o.top) / k;
+    setMask(fx, {
+      image: `linear-gradient(#000,#000),radial-gradient(circle at ${CELL / 2}px ${CELL / 2}px,#000 0 ${HOLE_R}px,transparent ${HOLE_R}px)`,
+      position: `0 0,${gx}px ${gy}px`,
+      size: `100% ${band}px,${CELL}px ${CELL}px`,
+      repeat: `no-repeat,repeat`,
+    });
+  }
+
+  const clearMask = (fx: HTMLElement): void =>
+    setMask(fx, { image: "", position: "", size: "", repeat: "" });
+
+  function setMask(fx: HTMLElement, m: Record<string, string>): void {
+    const s = fx.style as unknown as Record<string, string>;
+    for (const [k, v] of Object.entries(m)) {
+      const prop = k[0]!.toUpperCase() + k.slice(1);
+      s[`mask${prop}`] = v;
+      s[`webkitMask${prop}`] = v;
+    }
+  }
+
+  /* Connect 6 and 7 outgrow the desktop and the frame scrolls. Landing a
+     disc in a row that's scrolled out of sight drops it, visibly, past the
+     bottom of the board and over the statusbar — so bring the row into
+     view first, then measure. */
+  function revealRow(row: number, k: number): void {
+    const frame = q<HTMLElement>(".boardframe", body);
+    if (frame.scrollHeight <= frame.clientHeight) return;
+    const fr = frame.getBoundingClientRect();
+    const cr = cellAt(0, row).getBoundingClientRect();
+    const below = (cr.bottom - fr.top) / k - frame.clientHeight;
+    if (below > 0) frame.scrollTop += below;
+    const above = (fr.top - cr.top) / k;
+    if (above > 0) frame.scrollTop -= above;
   }
 
   const landingRow = (col: number): number => {

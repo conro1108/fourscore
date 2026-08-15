@@ -75,8 +75,10 @@ The mocks in `proposals/` are the approved answers to these; port their code
   un-repainted copies of itself, the clock loses its grip, icons drift
   off-grid; at 1.0 the screensaver wins the desktop and the board stays
   playable on top of it. `FEVER.CTL` is dev-only chrome and does not ship.
-- **The win.** The drop is real gravity (v += g per frame, one cheap frame
-  of overshoot, no easing curve). The win line is highlighted continuously,
+- **The win.** The drop is real gravity (v += g, one cheap frame of
+  overshoot, no easing curve) — but per *60Hz frame*, scaled by the real
+  elapsed time, or the same drop runs twice as fast on a 120Hz panel as on
+  the monitor it's plugged into. The win line is highlighted continuously,
   not per-cell: a rotated marching-ants capsule hugging the whole line, then
   one fire stoked along the line itself, growing from the new disc toward
   the old. Then the cascade: sincere dialogs scattered across the desktop at
@@ -84,7 +86,10 @@ The mocks in `proposals/` are the approved answers to these; port their code
   repeats), taskbar buttons crushing to slivers, one dialog half off-screen,
   finale `Congratulations — YOU WIN.` with `OK` / `Again`.
 - **The board feel.** The hover disc *is* your piece and falls from where it
-  hovers; there is no aiming arrow. The opponent deliberates visibly — a
+  hovers; there is no aiming arrow. It falls *into* the cabinet, not across
+  its face: from the board's top edge down it is only what the holes let you
+  see, which is a mask on `#fx` aligned to the live grid rect (maximize, a
+  variant switch and a scrolled frame all move it). The opponent deliberates visibly — a
   mirrored hover disc that wanders a few columns before committing, then
   falls with the same physics. `moves.txt` is a live Notepad annotating the
   game, including `and then you hesitated` after a real pause of ~5s.
