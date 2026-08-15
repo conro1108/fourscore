@@ -16,6 +16,20 @@ VISION.md/PLAN.md govern `apps/fever` only.
 
 `npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
 
+## Two tiers of checking, and the fast one is the default
+
+`npm run check` (~3s) is what an ordinary change gets: typecheck plus every test
+except the two engine files that play real games. Those two are 111 of the
+suite's 113 seconds and both test `packages/engine` only, so skipping them for
+an app-only change is sound rather than a corner cut — an app cannot break a
+test that never imports it.
+
+Touch `packages/engine` and you owe the full `npm test`. Anything visual, audible
+or live-driven owes more than that, and the whole ladder — the browser harnesses,
+the ladder sweeps, `db:verify` — lives in the `/verify` skill, scoped by what
+changed. Ask for it by name (or "full verification"); don't run it on every
+iteration.
+
 Before visual or copy work, read `redesign/VISION.md` (the aesthetic law: the
 four pillars, the two budgets, the taste law, the voice) and `redesign/PLAN.md`
 (the phase ledger and the completion log — the shared memory between sessions).

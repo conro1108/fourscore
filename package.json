@@ -19,6 +19,7 @@
     "db:push": "node db/push.mjs db/schema.sql",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check": "npm run typecheck && FAST=1 vitest run",
     "measure:solve": "vite-node packages/engine/tools/measure-solve.ts --",
     "measure:ladder": "vite-node packages/engine/tools/ladder.ts --",
     "measure:bench": "vite-node packages/engine/tools/bench-solve.ts",
