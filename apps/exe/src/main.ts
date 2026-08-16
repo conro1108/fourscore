@@ -38,14 +38,16 @@ import { makeEndgame } from "./endgame.js";
 import { openSounds } from "./sounds.js";
 import { openShutdown, restart } from "./reboot.js";
 import * as audio from "./audio/index.js";
-import { BIN_TEXT, DIALOG, HELP_TEXT, TITLES } from "./copy.js";
+import { DIALOG, HELP_TEXT, TITLES } from "./copy.js";
 import { openMines } from "./games/mines.js";
 import { openSnake } from "./games/snake.js";
 import { openSol } from "./games/sol.js";
 import { openCheckers } from "./games/checkers.js";
 import { openChess } from "./games/chess.js";
-import { GAME_ITEMS, openGamesFolder, refreshGamesFolder, type GameId } from "./games/folder.js";
-import { deskHeight, deskWidth, taskbarH } from "./wm.js";
+import { GAME_ITEMS } from "./games/folder.js";
+import { itemFace, locOfKey, openContainer, syncContainers, type ContainerDeps, type ContainerKey } from "./containers.js";
+import { gameOf, makeShellFs } from "./shellfs.js";
+import { deskHeight, deskWidth, stageScale, taskbarH } from "./wm.js";
 import type { DeskIcon } from "./desktop.js";
 
 const stage = q("#stage");
@@ -153,65 +155,162 @@ const gameLaunchers = {
   chess: () => openChess(wm),
 };
 
-/* ---- games dragged out of the folder live on the desk, and remember it ---- */
-const DESK_GAMES = "exe.deskgames";
-const deskGameIcons = new Map<GameId, DeskIcon>();
-const deskGamePos = new Map<GameId, [number, number]>();
-const saveDeskGames = (): void => {
-  localStorage.setItem(
-    DESK_GAMES,
-    JSON.stringify([...deskGamePos].map(([id, [x, y]]) => ({ id, x, y }))),
-  );
+/* ---- the desk's shell objects: games out of their folder, folders the
+   player makes, and the rest as a place things actually go ---- */
+const shellFs = makeShellFs(localStorage, GAME_ITEMS.map((g) => g.id));
+const deskIcons = new Map<string, DeskIcon>();
+
+const clampDesk = (x: number, y: number): [number, number] => [
+  Math.max(0, Math.min(deskWidth() - 80, Math.round(x))),
+  Math.max(0, Math.min(deskHeight() - taskbarH() - 90, Math.round(y))),
+];
+const stagePoint = (ev: { clientX: number; clientY: number }): [number, number] => {
+  const k = stageScale();
+  const r = stage.getBoundingClientRect();
+  return [(ev.clientX - r.left) / k, (ev.clientY - r.top) / k];
 };
-function placeGameOnDesk(id: GameId, x: number, y: number, persist = true): void {
-  const cx = Math.max(0, Math.min(deskWidth() - 80, Math.round(x)));
-  const cy = Math.max(0, Math.min(deskHeight() - taskbarH() - 90, Math.round(y)));
-  deskGamePos.set(id, [cx, cy]);
-  const already = deskGameIcons.get(id);
-  if (already) already.moveTo(cx, cy);
-  else {
-    const item = GAME_ITEMS.find((g) => g.id === id);
-    if (!item) return;
-    deskGameIcons.set(
-      id,
-      shell.addIcon({
-        rows: item.rows,
-        label: item.label,
-        x: cx,
-        y: cy,
-        launch: () => gameLaunchers[id](),
-        onMove(nx, ny) {
-          deskGamePos.set(id, [nx, ny]);
-          saveDeskGames();
-        },
-        // dropped back on the open folder window, it moves home
-        onDrop(ev) {
-          const folder = wm.get("games");
-          if (!folder?.isOpen()) return false;
-          const r = folder.el.getBoundingClientRect();
-          if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom)
-            return false;
-          removeGameFromDesk(id);
-          refreshGamesFolder();
-          return true;
-        },
-      }),
-    );
+
+/** What container is under the pointer — an open window or a desk icon. */
+const dropTargetAt = (ev: PointerEvent): ContainerKey | null =>
+  (document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-drop]")
+    ?.dataset.drop as ContainerKey) ?? null;
+
+const openItem = (id: string): void => {
+  const g = gameOf(id);
+  if (g !== null) gameLaunchers[g as keyof typeof gameLaunchers]();
+  else openContainer(containerDeps, id);
+};
+
+function makeDeskIcon(id: string): DeskIcon {
+  const face = itemFace(shellFs, id);
+  const [x, y] = shellFs.deskPos(id) ?? clampDesk(deskWidth() / 2, deskHeight() / 2);
+  return shell.addIcon({
+    rows: face.rows,
+    label: face.label,
+    x,
+    y,
+    drop: shellFs.isFolder(id) ? id : undefined,
+    launch: () => openItem(id),
+    onMove: (nx, ny) => void shellFs.move(id, "desk", [nx, ny]),
+    onDrop(ev) {
+      const target = dropTargetAt(ev);
+      if (!target || target === id) return false;
+      if (!shellFs.move(id, locOfKey(target))) return false;
+      syncShell();
+      return true;
+    },
+    onContext: shellFs.isFolder(id) ? (e) => folderMenu(e, id) : undefined,
+  });
+}
+
+/** The desk re-reads the shell: icons appear, leave, and that is all. */
+function syncDesk(): void {
+  const items = shellFs.itemsIn("desk");
+  for (const [id, ic] of deskIcons)
+    if (!items.includes(id)) {
+      ic.remove();
+      deskIcons.delete(id);
+    }
+  for (const id of items) if (!deskIcons.has(id)) deskIcons.set(id, makeDeskIcon(id));
+}
+const syncShell = (): void => {
+  syncDesk();
+  syncContainers();
+};
+
+const containerDeps: ContainerDeps = {
+  wm,
+  fs: shellFs,
+  launch: gameLaunchers,
+  drop(id, ev, from) {
+    const target = dropTargetAt(ev);
+    if (target && target !== from && target !== id) {
+      shellFs.move(id, locOfKey(target)); // a refused move just goes back
+      syncShell();
+      return;
+    }
+    const [px, py] = stagePoint(ev);
+    shellFs.move(id, "desk", clampDesk(px - 24, py - 20));
+    syncShell();
+  },
+};
+syncDesk();
+
+/* ---- context menus: the desk makes folders, folders have their say ---- */
+let ctxMenu: HTMLElement | null = null;
+const closeCtx = (): void => {
+  ctxMenu?.remove();
+  ctxMenu = null;
+};
+addEventListener("pointerdown", (e) => {
+  if (ctxMenu && !ctxMenu.contains(e.target as Node)) closeCtx();
+});
+function contextMenu(e: MouseEvent, entries: [string, () => void][]): void {
+  closeCtx();
+  const m = el(`<div class="popup ctx"></div>`);
+  for (const [label, act] of entries) {
+    const row = el(`<div></div>`);
+    row.textContent = label;
+    row.addEventListener("click", () => {
+      closeCtx();
+      act();
+    });
+    m.appendChild(row);
   }
-  if (persist) saveDeskGames();
+  const [px, py] = stagePoint(e);
+  m.style.left = `${Math.min(px, deskWidth() - 130)}px`;
+  m.style.top = `${Math.min(py, deskHeight() - 90)}px`;
+  stage.appendChild(m);
+  ctxMenu = m;
 }
-function removeGameFromDesk(id: GameId): void {
-  deskGameIcons.get(id)?.remove();
-  deskGameIcons.delete(id);
-  deskGamePos.delete(id);
-  saveDeskGames();
+function folderMenu(e: MouseEvent, id: string): void {
+  contextMenu(e, [
+    ["Open", () => openItem(id)],
+    ["Rename", () => renameFolder(id)],
+    ["Delete", () => {
+      shellFs.move(id, "bin");
+      syncShell();
+    }],
+  ]);
 }
-try {
-  for (const g of JSON.parse(localStorage.getItem(DESK_GAMES) ?? "[]") as { id: GameId; x: number; y: number }[])
-    placeGameOnDesk(g.id, g.x, g.y, false);
-} catch {
-  /* a corrupt list is an empty desk, not a crash */
+function renameFolder(id: string): void {
+  const ic = deskIcons.get(id);
+  if (!ic) return;
+  const lbl = ic.el.querySelector<HTMLElement>(".lbl");
+  if (!lbl) return;
+  const input = el<HTMLInputElement>(`<input class="ren" type="text">`);
+  input.value = shellFs.folderName(id);
+  lbl.textContent = "";
+  lbl.appendChild(input);
+  const commit = (keep: boolean): void => {
+    if (keep) shellFs.rename(id, input.value);
+    lbl.textContent = shellFs.folderName(id);
+    syncContainers(); // its own open window re-reads the name
+  };
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") input.blur();
+    if (e.key === "Escape") {
+      input.value = shellFs.folderName(id);
+      input.blur();
+    }
+  });
+  input.addEventListener("blur", () => commit(true));
+  input.addEventListener("pointerdown", (e) => e.stopPropagation());
+  input.focus();
+  input.select();
 }
+stage.addEventListener("contextmenu", (e) => {
+  if (e.target !== stage) return;
+  e.preventDefault();
+  contextMenu(e, [
+    ["New Folder", () => {
+      const [px, py] = stagePoint(e);
+      shellFs.createFolder(...clampDesk(px - 24, py - 20));
+      syncShell();
+    }],
+  ]);
+});
 
 const desktopApps: DesktopApps = {
   openBoard() {
@@ -228,11 +327,11 @@ const desktopApps: DesktopApps = {
   },
   openFlames: () => effects.openFlames(),
   openMoves: () => movesPad.open(),
-  openBin: () => textWindow(wm, "bin", TITLES.bin, BIN_TEXT, 480, 180, 230, "center"),
+  openBin: () => openContainer(containerDeps, "bin"),
   openHelp: () => textWindow(wm, "help", TITLES.help, HELP_TEXT, 180, 120, 230),
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
-  openGames: () => openGamesFolder(wm, gameLaunchers, placeGameOnDesk, (id) => deskGameIcons.has(id)),
+  openGames: () => openContainer(containerDeps, "games"),
   openUntitled: () => openEditor(wm, disk, "untitled.txt"),
   openReadme: () => openEditor(wm, disk, "readme.txt"),
   openTerminal: () => openTerminal({ wm, disk, edit: (name) => openEditor(wm, disk, name) }),
@@ -254,10 +353,19 @@ addEventListener("keydown", (e) => {
   }
 });
 
-/* ---- boot order: the desktop as the approved frame has it ---- */
-movesPad.open();
-effects.openFlames();
-board.win.focus();
+/* ---- boot order ----
+   The approved frame used to boot with BOARD.EXE, moves.txt and flames.scr
+   already open; the desk's owner asked for a machine that boots to a desk.
+   Any query param is a pose or a harness, and those still get the furniture
+   they were authored against. */
+const posed = location.search !== "";
+if (posed) {
+  movesPad.open();
+  effects.openFlames();
+  board.win.focus();
+} else {
+  board.win.close(); // openBoard() rebuilds it the day it's double-clicked
+}
 
 /* ---- the director's clock ---- */
 setInterval(() => {
@@ -285,7 +393,7 @@ if (variantParam) board.setVariant(variantParam);
 const botParam = param("bot");
 if (botParam) board.setBot(botParam);
 
-if (!variantParam && !botParam) board.newGame();
+if (posed && !variantParam && !botParam) board.newGame();
 
 const feverParam = param("fever");
 if (feverParam !== null) {

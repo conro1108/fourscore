@@ -48,9 +48,14 @@ export interface DeskIconSpec {
   onMove?(x: number, y: number): void;
   /** Offered the drop first; return true to consume it (the icon left the desk). */
   onDrop?(ev: PointerEvent): boolean;
+  /** This icon is a container — things dropped on it go inside. */
+  drop?: string;
+  /** Right-click; the icon's own menu, if it has one. */
+  onContext?(e: MouseEvent): void;
 }
 
 export interface DeskIcon {
+  readonly el: HTMLElement;
   moveTo(x: number, y: number): void;
   remove(): void;
 }
@@ -75,24 +80,31 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   stage.appendChild(el(`<div id="trail"></div>`));
 
   /* ---- icons ---- */
-  const iconDefs = [
+  const iconDefs: { rows: readonly string[]; label: string; top: number; launch(): void; drop?: string }[] = [
     { rows: ICONS.board, label: "BOARD.EXE", top: 22, launch: () => apps().openBoard() },
     { rows: ICONS.flame, label: "flames.scr", top: 122, launch: () => apps().openFlames() },
     { rows: ICONS.moves, label: "moves.txt", top: 222, launch: () => apps().openMoves() },
-    { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin() },
-    { rows: ICONS.folder, label: "games", top: 422, launch: () => apps().openGames() },
+    { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin(), drop: "bin" },
+    { rows: ICONS.folder, label: "games", top: 422, launch: () => apps().openGames(), drop: "games" },
     { rows: ICONS.moves, label: "untitled.txt", top: 522, launch: () => apps().openUntitled() },
     { rows: ICONS.term, label: "COMMAND.COM", top: 622, launch: () => apps().openTerminal() },
   ];
   const iconEls: HTMLElement[] = [];
   function makeIcon(spec: DeskIconSpec): DeskIcon {
     const icon = el(`<div class="icon" style="left:${spec.x}px;top:${spec.y}px"></div>`);
+    if (spec.drop) icon.dataset.drop = spec.drop;
     icon.appendChild(iconCanvas(spec.rows, 32));
     const lbl = el(`<span class="lbl"></span>`);
     lbl.textContent = spec.label;
     icon.appendChild(lbl);
     icon.addEventListener("click", (e) => e.stopPropagation());
     icon.addEventListener("dblclick", () => spec.launch());
+    if (spec.onContext)
+      icon.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        spec.onContext!(e);
+      });
     // icons drag like anything else on a real desktop; a finger-tap launches
     // outright, because a double-click asked of a touchscreen is a dead icon
     let moved = false;
@@ -116,7 +128,14 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       },
       (e, cancelled) => {
         if (moved) {
-          if (!cancelled && spec.onDrop?.(e)) return;
+          if (!cancelled && spec.onDrop) {
+            // the icon rides under the pointer, so it has to step aside for
+            // the drop handler's elementFromPoint to see what's beneath it
+            icon.style.visibility = "hidden";
+            const consumed = spec.onDrop(e);
+            icon.style.visibility = "";
+            if (consumed) return;
+          }
           icon.dataset.dragged = "1"; // you put it there; a re-stage lets it be
           spec.onMove?.(icon.offsetLeft, icon.offsetTop);
         } else if (!cancelled && e.pointerType === "touch") spec.launch();
@@ -125,6 +144,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     stage.appendChild(icon);
     iconEls.push(icon);
     return {
+      el: icon,
       moveTo(x, y) {
         icon.style.left = `${x}px`;
         icon.style.top = `${y}px`;
@@ -137,7 +157,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     };
   }
   for (const def of iconDefs)
-    makeIcon({ rows: def.rows, label: def.label, x: 20, y: def.top, launch: def.launch });
+    makeIcon({ rows: def.rows, label: def.label, x: 20, y: def.top, launch: def.launch, drop: def.drop });
   /* On a desk narrower than the authored 1280 (a phone), the left column
      disappears behind BOARD.EXE. The icons keep to the open ground instead —
      a row above the taskbar, where a thumb lives. Dragged icons stay put. */

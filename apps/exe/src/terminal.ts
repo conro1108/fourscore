@@ -198,6 +198,7 @@ export function openTerminal({ wm, disk, edit }: TerminalDeps): void {
         print(TERM.date);
         break;
       case "CLS":
+      case "CLEAR":
         outEl.textContent = "";
         break;
       case "ECHO": {
@@ -205,12 +206,15 @@ export function openTerminal({ wm, disk, edit }: TerminalDeps): void {
         print(text || "ECHO is on.");
         break;
       }
+      // the unix names work too — the owner's fingers predate the fiction
       case "DIR":
+      case "LS":
         dir();
         break;
-      case "TYPE": {
+      case "TYPE":
+      case "CAT": {
         if (!arg1) {
-          print(TERM.needsFile("TYPE"));
+          print(TERM.needsFile(cmd));
           break;
         }
         const text = disk.read(arg1);
@@ -219,17 +223,20 @@ export function openTerminal({ wm, disk, edit }: TerminalDeps): void {
         break;
       }
       case "DEL":
-        if (!arg1) print(TERM.needsFile("DEL"));
+      case "RM":
+        if (!arg1) print(TERM.needsFile(cmd));
         else if (!disk.remove(arg1)) print(TERM.fileNotFound);
         else print(TERM.deleted(arg1));
         break;
       case "REN":
-        if (!arg1 || !arg2) print(TERM.needsFile("REN"));
+      case "MV":
+        if (!arg1 || !arg2) print(TERM.needsFile(cmd));
         else if (!disk.rename(arg1, arg2)) print(TERM.duplicateOrMissing);
         break;
-      case "COPY": {
+      case "COPY":
+      case "CP": {
         if (!arg1 || !arg2) {
-          print(TERM.needsFile("COPY"));
+          print(TERM.needsFile(cmd));
           break;
         }
         const text = disk.read(arg1);
