@@ -1,16 +1,16 @@
 /**
- * The desktop: icons, taskbar, Start menu, clock, rocket, idle watch.
+ * The desktop: icons, taskbar, Start menu, clock, idle watch.
  * Second law (DIRECTION.md): nothing is dead. Every icon launches, every
  * menu item does something, the clock genuinely keeps (its own) time.
  */
 
 import { el, onPointerDrag, q } from "./dom.js";
-import { ICONS, ROCKET, iconCanvas, px } from "./icons.js";
+import { ICONS, iconCanvas } from "./icons.js";
 import { GAME_ITEMS } from "./games/folder.js";
 import { START_MENU } from "./copy.js";
 import { play } from "./audio/index.js";
 import { installTray } from "./sounds.js";
-import { anchorX, deskHeight, deskWidth, onDeskResize, stageScale, taskbarH } from "./wm.js";
+import { deskHeight, deskWidth, onDeskResize, stageScale, taskbarH } from "./wm.js";
 
 export interface DesktopApps {
   openBoard(): void;
@@ -23,6 +23,7 @@ export interface DesktopApps {
   openUntitled(): void;
   openReadme(): void;
   openTerminal(): void;
+  openPaint(): void;
   openGame(id: "mines" | "sol" | "snake" | "checkers" | "chess"): void;
   openSounds(): void;
   openReview(): void;
@@ -183,31 +184,8 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     if (e.target === stage) iconEls.forEach((i) => i.classList.remove("sel"));
   });
 
-  /* ---- the rocket: a pixel sprite that has escaped a window. Nobody
-     comments, but it is real enough to drag around. ---- */
-  const rocket = el(
-    `<canvas class="pix rocket" width="12" height="18" style="position:absolute;top:40px;width:60px;height:90px;transform:rotate(30deg);z-index:20"></canvas>`,
-  ) as HTMLCanvasElement;
-  px(rocket, ROCKET);
-  // it escaped toward the right edge, so that is the edge it keeps to
-  let rocketPlaced = false;
-  const placeRocket = (): void => {
-    if (!rocketPlaced) rocket.style.left = `${anchorX(1010, "right")}px`;
-  };
-  placeRocket();
-  onDeskResize(placeRocket);
-  onPointerDrag(rocket, (e) => {
-    e.preventDefault();
-    rocketPlaced = true;
-    const k = stageScale();
-    const sx = e.clientX / k - rocket.offsetLeft;
-    const sy = e.clientY / k - rocket.offsetTop;
-    return (ev: PointerEvent): void => {
-      rocket.style.left = `${Math.round(ev.clientX / k - sx)}px`;
-      rocket.style.top = `${Math.round(ev.clientY / k - sy)}px`;
-    };
-  });
-  stage.appendChild(rocket);
+  /* The rocket that used to be nailed here is rocket.spr on C:\ now — desk
+     art is the player's business (PAINT.EXE, pins.ts), not the chrome's. */
 
   /* ---- taskbar ---- */
   const taskbar = el(`<div id="taskbar"></div>`);
@@ -268,6 +246,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       ["flames.scr", () => apps().openFlames(), ICONS.flame],
       ...GAME_ITEMS.map((g): SubEntry => [g.label, () => apps().openGame(g.id), g.rows]),
       ["REVIEW.EXE", () => apps().openReview(), ICONS.moves],
+      ["PAINT.EXE", () => apps().openPaint(), ICONS.paint],
       ["COMMAND.COM", () => apps().openTerminal(), ICONS.term],
     ]),
     item(START_MENU.documents, ICONS.moves, undefined, [

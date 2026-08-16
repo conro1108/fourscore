@@ -30,12 +30,19 @@ export function px(canvas: HTMLCanvasElement, rows: readonly string[], pal = PAL
   );
 }
 
-/** A 16x16 icon canvas at a given CSS size, already painted. */
+/** An icon canvas at a given CSS size, already painted. The system icons are
+    all 16x16, but a player's .spr can be any shape up to the cap — the art's
+    own dimensions set the canvas, and the CSS box keeps the aspect. */
 export function iconCanvas(rows: readonly string[], cssSize = 32): HTMLCanvasElement {
   const c = document.createElement("canvas");
-  c.width = c.height = 16;
+  const w = Math.max(1, ...rows.map((r) => r.length));
+  const h = Math.max(1, rows.length);
+  c.width = w;
+  c.height = h;
   c.className = "pix";
-  c.style.width = c.style.height = `${cssSize}px`;
+  const m = Math.max(w, h);
+  c.style.width = `${Math.round((cssSize * w) / m)}px`;
+  c.style.height = `${Math.round((cssSize * h) / m)}px`;
   px(c, rows);
   return c;
 }
@@ -123,6 +130,12 @@ export const ICONS = {
     ".kwkkkkkkkkkwk..",".kwkkkkwkkkkwk..",".kwkkkkkkkkkwk..",".kwkkkkkkkkkwk..",
     ".kwwwwwwwwwwwk..",".kkkkkkkkkkkkk..","....kkkkkkk.....","......kkk.......",
     "....kkkkkkk.....","................","................","................"],
+  // PAINT.EXE: the color box, and a brush leaving through the corner
+  paint: [
+    "................",".kkkkkkkkkkkkk..",".kwwwwwwwwwwwk..",".kwrrwyywbbwwk..",
+    ".kwrrwyywbbwwk..",".kwwwwwwwwwwwk..",".kwnnwttwddwwk..",".kwnnwttwddwwk..",
+    ".kwwwwwwwwkkwk..",".kkkkkkkkkoykk..","..........koyk..","...........koyk",
+    "............kk..","................","................","................"],
   // pieces.ctl: one red checker
   disc: [
     "................","................","....kkkkkkkk....","...krrwwrrrrk...",
@@ -131,8 +144,5 @@ export const ICONS = {
     "................","................","................","................"],
 } as const;
 
-export const ROCKET = [
-  ".....rr.....","....rrrr....","....rrrr....","...swssss...","...swssss...",
-  "..sswkksss..","..sswbbkss..","..sswbbkss..","..sswkksss..",".rsswssssr..",
-  ".rrswsssrr..","rrrssssssrr.","rr.ssssss.rr","....oyyo....","...oyyyyo...",
-  "...oyyyyo...","....oyyo....",".....oo....."] as const;
+// The rocket that used to live here as chrome is rocket.spr now — a seed
+// file on the disk (copy.ts SEED_FILES), drawn in its own format.

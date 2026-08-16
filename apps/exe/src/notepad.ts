@@ -277,9 +277,10 @@ export function openEditor(wm: WM, disk: Disk, name: string | null): void {
 /**
  * The Open / Save As picker: the disk's contents in a listbox and a name to
  * type, in the period's own furniture. One at a time — a second request
- * replaces the first.
+ * replaces the first. PAINT.EXE borrows it too; there is one disk, so there
+ * is one picker.
  */
-function openFilePicker(
+export function openFilePicker(
   wm: WM,
   disk: Disk,
   mode: "open" | "save",

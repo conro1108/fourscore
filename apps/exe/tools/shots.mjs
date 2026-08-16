@@ -52,6 +52,7 @@ const STATES = [
   ["chess-check", "?state=chess&fen=r3k3/ppp2ppp/8/3q4/4P3/2N5/PPP2PPP/R3K2r w Qq - 0 1"],
   ["chess-sharp", "?state=chess&fen=6k1/2p2ppp/8/8/8/5N2/7q/R4K2 w - - 0 1"],
   ["notepad", "?state=notepad"],
+  ["paint", "?state=paint"],
   ["terminal", "?state=terminal"],
   // the review solves a real game first; the third field is a longer wait
   ["review", "?state=review", 15000],

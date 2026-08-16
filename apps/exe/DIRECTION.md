@@ -126,6 +126,24 @@
 > out. Red is always the player, so the review grades `forPlayer: "red"` on
 > the analysis worker — a game in progress never queues behind it.
 
+> **The machine draws, and the rocket is a file now (2026-08-16).**
+> PAINT.EXE edits the machine's picture format: a .spr is rows of palette
+> letters — the same alphabet the desk's own icons are drawn in (`icons.ts`
+> PAL), `.` for transparent — so a picture is a text file like everything
+> else on C:\. TYPE prints one, Notepad can hand-edit one, PAINT (also a
+> COMMAND.COM verb) is the door with a pencil behind it: pencil, fill,
+> right-click erases, the system palette because those are every color this
+> machine has, File against the same disk through Notepad's own picker. A
+> .spr's icon everywhere *is* its drawing (`itemFace` + a size-general
+> `iconCanvas`), and right-click ▸ **Pin to desk** puts it up big (`pins.ts`,
+> one localStorage key): label-less, draggable, under the windows, repainted
+> live when the file is saved, down when the file is deleted. The hardcoded
+> rocket chrome is gone; `rocket.spr` seeds every disk instead, where it can
+> be repainted, filed away or thrown in the rest. `?state=paint` is the pose
+> and `npm run paint` is the hands — a real browser draws a stroke, saves,
+> pins, reloads and takes it down. `sprite.test.ts` pins the format against
+> what Notepad could plausibly type at it.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

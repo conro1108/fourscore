@@ -10,7 +10,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
      -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;touch-action:manipulation}
 /* surfaces that drag 1:1 own their gestures outright; the board's grid keeps
    vertical panning so a scrolled Connect 6 frame still scrolls under a finger */
-.titlebar,.rz,.icon,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.rocket{touch-action:none}
+.titlebar,.rz,.icon,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.pin,.paintgrid{touch-action:none}
 #grid{touch-action:pan-y}
 /* the desk. fitStage() sizes it to the browser window; these are the
    authored 1280x800 it composes against. */
@@ -382,3 +382,18 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 .ants{position:absolute;pointer-events:none;z-index:6;display:none}
 .ants .a1{position:absolute;inset:0;border:1px dashed #fff;border-radius:999px}
 .ants .a2{position:absolute;inset:0;border:1px dashed #000;border-radius:999px;transform:translate(1px,1px)}
+
+/* ---- PAINT.EXE and the pinboard ----
+   The grid is drawn at whole-pixel zoom by paint.ts; the checker underneath
+   is painted, not styled, so it scales with the cell. A pinned picture is
+   desk furniture with the rocket's old z — over the wallpaper and the
+   smears, under every window. */
+.paintgrid{display:block;cursor:crosshair}
+.paintpreview{background:#fff;padding:6px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:56px}
+.palstrip{display:flex;flex-wrap:wrap;gap:3px;padding:5px 6px;background:#c0c0c0}
+.swatch{width:18px;height:18px;box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080}
+.swatch.sel{outline:1px dotted #000;outline-offset:1px}
+.swatch.none{background:repeating-conic-gradient(#f4f4f4 0% 25%,#dcdcdc 0% 50%) 0 0/8px 8px}
+.btn.ptool{min-width:0;font-size:11px}
+.btn.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf;background:#dfdfdf}
+.pin{position:absolute;z-index:20;image-rendering:pixelated}

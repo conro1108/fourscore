@@ -29,21 +29,28 @@ export interface ContainerDeps {
   wm: WM;
   fs: ShellFs;
   launch: GameLaunchers;
-  /** A disk file was double-clicked — main opens it in Notepad. */
+  /** A disk file was double-clicked — main opens it in Notepad or Paint. */
   openFile(name: string): void;
+  /** A .spr file's own art, parsed off the disk — null for everything else. */
+  sprFace?(name: string): readonly string[] | null;
   /** An icon left this container on a drag — main decides where it lands. */
   drop(id: string, ev: PointerEvent, from: ContainerKey): void;
 }
 
-/** What an item looks like, wherever it appears. */
-export function itemFace(fs: ShellFs, id: string): { rows: readonly string[]; label: string } {
+/** What an item looks like, wherever it appears. A picture file's icon is
+    the picture — the drawing wears itself. */
+export function itemFace(
+  fs: ShellFs,
+  id: string,
+  sprFace?: (name: string) => readonly string[] | null,
+): { rows: readonly string[]; label: string } {
   const g = gameOf(id);
   if (g !== null) {
     const item = GAME_ITEMS.find((x) => x.id === g);
     if (item) return { rows: item.rows, label: item.label };
   }
   const f = fileOf(id);
-  if (f !== null) return { rows: ICONS.file, label: f };
+  if (f !== null) return { rows: sprFace?.(f) ?? ICONS.file, label: f };
   return { rows: ICONS.folder, label: fs.folderName(id) };
 }
 
@@ -92,7 +99,7 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
   };
 
   const makeIcon = (id: string): HTMLElement => {
-    const face = itemFace(fs, id);
+    const face = itemFace(fs, id, deps.sprFace);
     const ic = el(`<div class="fic"></div>`);
     ic.appendChild(iconCanvas(face.rows, 32));
     const lbl = el(`<span class="lbl"></span>`);

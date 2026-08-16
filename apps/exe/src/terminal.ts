@@ -24,6 +24,8 @@ export interface TerminalDeps {
   disk: Disk;
   /** EDIT hands the file to Notepad. */
   edit(name: string): void;
+  /** PAINT hands it to PAINT.EXE. */
+  paint(name: string): void;
   /** The desk's folders, so DIR can list them — the same folders the mouse
       makes. Directories aren't real places on the flat volume; they are how
       the desk arranges it, and the prompt sees the same arrangement. */
@@ -39,7 +41,7 @@ const STEPS_PER_FRAME = 30_000;
 /** How many assembler complaints fit on a period screen. */
 const MAX_ERRORS = 8;
 
-export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): void {
+export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: TerminalDeps): void {
   const existing = wm.get("terminal");
   if (existing?.isOpen()) {
     existing.focus();
@@ -270,6 +272,10 @@ export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): 
       case "EDIT":
         if (!arg1) print(TERM.needsFile("EDIT"));
         else edit(arg1);
+        break;
+      case "PAINT":
+        if (!arg1) print(TERM.needsFile("PAINT"));
+        else paint(arg1);
         break;
       case "MKDIR":
       case "MD":

@@ -9,6 +9,7 @@
  *   ?state=pieces         pieces.ctl open
  *   ?state=saver          the screensaver has won the desktop
  *   ?state=mines|sol|snake|checkers|notepad|games|terminal   the other software
+ *   ?state=paint          PAINT.EXE with rocket.spr on the easel
  *   ?state=sounds         sounds.ctl open
  *   ?state=review         REVIEW.EXE over a finished game
  *   ?state=shutdown       the Shut Down box
@@ -30,6 +31,9 @@ import { analysisClient, engineClient } from "./engine/client.js";
 import { makeBoard, type BoardApp, type BoardDeps, type EndResult } from "./board.js";
 import { openReview } from "./review.js";
 import { makeMovesPad, openEditor, textWindow } from "./notepad.js";
+import { openPaint } from "./paint.js";
+import { installPins } from "./pins.js";
+import { cellsToRows, isSpriteFile, parseSprite } from "./sprite.js";
 import { makeDisk } from "./fs.js";
 import { openTerminal } from "./terminal.js";
 import { installGeneratedChips, openPieces } from "./chips.js";
@@ -203,16 +207,27 @@ const dropTargetAt = (ev: PointerEvent): ContainerKey | null =>
   (document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-drop]")
     ?.dataset.drop as ContainerKey) ?? null;
 
+/** A picture opens in Paint, words open in Notepad — the desk knows which. */
+const openFile = (name: string): void =>
+  isSpriteFile(name) ? openPaint(wm, disk, name) : openEditor(wm, disk, name);
+
+/** A .spr file's own art, for icons that wear their drawing. */
+const sprFace = (name: string): readonly string[] | null => {
+  if (!isSpriteFile(name)) return null;
+  const cells = parseSprite(disk.read(name) ?? "");
+  return cells ? cellsToRows(cells) : null;
+};
+
 const openItem = (id: string): void => {
   const g = gameOf(id);
   const f = fileOf(id);
   if (g !== null) gameLaunchers[g as keyof typeof gameLaunchers]();
-  else if (f !== null) openEditor(wm, disk, f);
+  else if (f !== null) openFile(f);
   else openContainer(containerDeps, id);
 };
 
 function makeDeskIcon(id: string): DeskIcon {
-  const face = itemFace(shellFs, id);
+  const face = itemFace(shellFs, id, sprFace);
   const stored = shellFs.deskPos(id);
   const [x, y] = stored ?? nextSeat();
   if (!stored) shellFs.move(id, "desk", [x, y]);
@@ -231,8 +246,26 @@ function makeDeskIcon(id: string): DeskIcon {
       syncShell();
       return true;
     },
-    onContext: shellFs.isFolder(id) ? (e) => folderMenu(e, id) : undefined,
+    onContext: shellFs.isFolder(id)
+      ? (e) => folderMenu(e, id)
+      : (() => {
+          const f = fileOf(id);
+          return f !== null && isSpriteFile(f) ? (e: MouseEvent) => sprMenu(e, f) : undefined;
+        })(),
   });
+}
+
+/** A picture's own menu: open it, or put it up on the desk big. */
+function sprMenu(e: MouseEvent, name: string): void {
+  contextMenu(e, [
+    ["Open", () => openPaint(wm, disk, name)],
+    pins.isPinned(name)
+      ? ["Take down", () => pins.unpin(name)]
+      : ["Pin to desk", () => {
+          const [px, py] = stagePoint(e);
+          pins.pin(name, ...clampDesk(px - 30, py - 30));
+        }],
+  ]);
 }
 
 /** The desk re-reads the shell: icons appear, leave, and that is all. */
@@ -254,7 +287,8 @@ const containerDeps: ContainerDeps = {
   wm,
   fs: shellFs,
   launch: gameLaunchers,
-  openFile: (name) => openEditor(wm, disk, name),
+  openFile,
+  sprFace,
   drop(id, ev, from) {
     const target = dropTargetAt(ev);
     if (target && target !== from && target !== id) {
@@ -274,7 +308,25 @@ syncDesk();
    keeps its spot. */
 disk.onChange((ev) => {
   if (ev.kind === "rename" && ev.to) shellFs.migrate(fileItemId(ev.name), fileItemId(ev.to));
+  // a repainted picture gets its desk icon repainted: drop it and let the
+  // sync grow it back wearing the new art (its spot is shellfs's memory)
+  if (ev.kind === "write" && isSpriteFile(ev.name))
+    for (const [id, ic] of deskIcons) {
+      const f = fileOf(id);
+      if (f && f.toLowerCase() === ev.name.toLowerCase()) {
+        ic.remove();
+        deskIcons.delete(id);
+      }
+    }
   syncShell();
+});
+
+/* ---- pinned pictures: the desk art the rocket used to be ---- */
+const pins = installPins({
+  stage,
+  disk,
+  edit: (name) => openPaint(wm, disk, name),
+  menu: (e, entries) => contextMenu(e, entries),
 });
 
 /** Folders the prompt should admit to: everything not in the rest. */
@@ -398,11 +450,13 @@ const desktopApps: DesktopApps = {
   openGames: () => openContainer(containerDeps, "games"),
   openUntitled: () => openEditor(wm, disk, "untitled.txt"),
   openReadme: () => openEditor(wm, disk, "readme.txt"),
+  openPaint: () => openPaint(wm, disk, null),
   openTerminal: () =>
     openTerminal({
       wm,
       disk,
       edit: (name) => openEditor(wm, disk, name),
+      paint: (name) => openPaint(wm, disk, name),
       folders: () =>
         shellFs.folders().filter((f) => !folderInBin(f.id)).map((f) => f.name),
       mkdir(name) {
@@ -519,6 +573,9 @@ if (state === "midgame") {
   desktopApps.openUntitled();
 } else if (state === "terminal") {
   desktopApps.openTerminal();
+} else if (state === "paint") {
+  // the rocket, on the easel — the seed picture every disk arrives with
+  openPaint(wm, disk, "rocket.spr");
 } else if (state === "sol") {
   openSol(wm, param("rig") ?? undefined);
 } else if (state === "checkers") {

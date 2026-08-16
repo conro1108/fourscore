@@ -12,6 +12,7 @@
     "trace": "vite-node tools/trace.ts",
     "fever": "node tools/fever.mjs",
     "mobile": "node tools/mobile.mjs",
+    "paint": "node tools/paint.mjs",
     "appicon": "node tools/appicon.mjs",
     "audio": "node tools/audio.mjs"
   },

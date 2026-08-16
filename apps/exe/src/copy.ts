@@ -479,6 +479,23 @@ export const GAMES_COPY = {
     }),
     noName: { title: "Notepad", body: "The file needs a name.<br>It can be almost anything." },
   },
+  /* PAINT.EXE speaks the same flat filing language as Notepad — a picture is
+     just another file, and the machine is not impressed by either. */
+  paint: {
+    saved: (name: string): { title: string; body: string } => ({
+      title: "Paint",
+      body: `${name} has been saved.<br>It is on C:\\ with everything else.`,
+    }),
+    replace: (name: string): { title: string; body: string } => ({
+      title: "Save As",
+      body: `${name} already exists.<br>Replace it?`,
+    }),
+    noName: { title: "Paint", body: "The picture needs a name.<br>It can be almost anything." },
+    notAPicture: (name: string): { title: string; body: string } => ({
+      title: "Paint",
+      body: `Paint cannot see a picture in ${name}.<br>Notepad may know what it is.`,
+    }),
+  },
 } as const;
 
 /**
@@ -560,6 +577,7 @@ export const TITLES = {
       note while the position is sharp, the result once there is one. */
   chessNote: (note: string): string => `CHESS.EXE — ${note}`,
   notepad: (name: string): string => `${name} — Notepad`,
+  paint: (name: string): string => `${name} — Paint`,
   terminal: "COMMAND.COM",
   saveAs: "Save As",
   openFile: "Open",
@@ -659,6 +677,7 @@ export const TERM = {
     "DIR              the disk's contents",
     "TYPE file        print a file",
     "EDIT file        open a file in Notepad",
+    "PAINT file.spr   open a picture in Paint",
     "RUN file.asm     assemble and run a program",
     "ASM file.asm     assemble only, and report",
     "CC file.c        compile C; file.asm appears",
@@ -732,6 +751,11 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "",
       "Notepad opens and saves files now (the File menu).",
       "Anything you save is on C:\\ with everything else.",
+      "",
+      "PAINT.EXE draws pictures. A picture is a .SPR file,",
+      "which is text, like everything here — TYPE one and",
+      "see. rocket.spr came with the machine. Right-click",
+      "a picture on the desk to pin it up.",
       "",
       "The processor is real. See ASM.TXT.",
     ].join("\n"),
@@ -952,6 +976,32 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       'higher: .str "HIGHER.\\n"',
       'lower:  .str "LOWER.\\n"',
       'yes:    .str "YES. THAT IS THE NUMBER.\\n"',
+    ].join("\n"),
+  },
+  {
+    /* The rocket used to be chrome nobody asked for; now it is a file. It
+       arrives on every disk in the picture format, where it can be repainted,
+       pinned up, filed away, or thrown in the rest like anything else. */
+    name: "rocket.spr",
+    text: [
+      ".....rr.....",
+      "....rrrr....",
+      "....rrrr....",
+      "...swssss...",
+      "...swssss...",
+      "..sswkksss..",
+      "..sswbbkss..",
+      "..sswbbkss..",
+      "..sswkksss..",
+      ".rsswssssr..",
+      ".rrswsssrr..",
+      "rrrssssssrr.",
+      "rr.ssssss.rr",
+      "....oyyo....",
+      "...oyyyyo...",
+      "...oyyyyo...",
+      "....oyyo....",
+      ".....oo.....",
     ].join("\n"),
   },
 ];

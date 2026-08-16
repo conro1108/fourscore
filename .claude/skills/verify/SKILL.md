@@ -50,6 +50,7 @@ npm run audio                  # ~60s. Renders every recipe, checks the autoplay
 npm run trace                  # tier timeline over real games (no browser)
 npm run fever                  # plays a real game in a browser, reports what the desktop did
 node tools/live.mjs            # click-drives a real game
+npm run paint                  # draws, saves, pins and reloads a .spr through PAINT.EXE
 npm run timeline -- "?state=win" 3 8 14 18 40   # for anything that unfolds over seconds
 ```
 
