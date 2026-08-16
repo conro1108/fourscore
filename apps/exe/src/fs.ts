@@ -10,8 +10,11 @@
  *
  * The store is injected so the tests can hand in a plain object; the app
  * makes one disk in main.ts and passes it down. A corrupt volume loads as
- * an empty one, not a crash — and an empty volume gets the seed files, so
- * a fresh machine arrives with its own documentation on it.
+ * a fresh one, not a crash — and a fresh volume gets the seed files, so a
+ * machine always arrives with its own documentation on it. An old volume is
+ * topped up with any seed it is missing (edits to a seed are kept; only its
+ * absence is corrected), so documentation the machine grew later still
+ * reaches every disk.
  */
 
 import { SEED_FILES } from "./copy.js";
@@ -69,6 +72,11 @@ export function makeDisk(store: DiskStore): Disk {
     } catch {
       /* a corrupt volume is an empty volume, not a crash */
     }
+    // documentation the machine grew after this volume was formatted arrives
+    // on it anyway — a manual referenced by HELP must exist to be typed. A
+    // deleted seed comes back on the next boot; the disk keeps saying it.
+    for (const s of SEED_FILES)
+      if (!files.some((f) => f.name.toLowerCase() === s.name.toLowerCase())) files.push({ ...s });
   }
 
   const save = (): void => store.setItem(KEY, JSON.stringify(files));

@@ -53,6 +53,8 @@ const STATES = [
   ["chess-sharp", "?state=chess&fen=6k1/2p2ppp/8/8/8/5N2/7q/R4K2 w - - 0 1"],
   ["notepad", "?state=notepad"],
   ["terminal", "?state=terminal"],
+  // the review solves a real game first; the third field is a longer wait
+  ["review", "?state=review", 15000],
   ["games", "?state=games"],
   ["sounds", "?state=sounds"],
   ["shutdown", "?state=shutdown"],
@@ -99,10 +101,10 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 page.on("console", (m) => m.type() === "error" && console.log("[console]", m.text()));
 
-for (const [name, qs] of STATES) {
+for (const [name, qs, delay] of STATES) {
   if (only.length && !only.some((o) => name.includes(o))) continue;
   await page.goto(`${BASE}/${qs}`);
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(delay ?? 1800);
   await page.screenshot({ path: here(`../shots/${name}.png`) });
   console.log("shot", name);
 }

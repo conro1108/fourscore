@@ -49,17 +49,31 @@ describe("disk", () => {
     disk.write("a.txt", "a");
     disk.write("b.txt", "b");
     expect(disk.rename("a.txt", "B.TXT")).toBe(false);
-    expect(disk.rename("a.txt", "c.txt")).toBe(true);
-    expect(disk.read("c.txt")).toBe("a");
+    expect(disk.rename("a.txt", "z.txt")).toBe(true);
+    expect(disk.read("z.txt")).toBe("a");
     expect(disk.remove("nope")).toBe(false);
-    expect(disk.remove("c.txt")).toBe(true);
-    expect(disk.exists("c.txt")).toBe(false);
+    expect(disk.remove("z.txt")).toBe(true);
+    expect(disk.exists("z.txt")).toBe(false);
   });
 
-  it("a corrupt volume is an empty volume, not a crash", () => {
+  it("a corrupt volume reloads as a fresh one, not a crash", () => {
     const disk = makeDisk(memStore({ "exe.fs": "{not json" }));
-    expect(disk.list()).toEqual([]);
+    // the manual comes back — a volume that lost itself still gets seeded
+    expect(disk.list().map((f) => f.name)).toEqual(
+      [...SEED_FILES.map((f) => f.name)].sort((a, b) => a.localeCompare(b)),
+    );
     disk.write("x.txt", "x"); // and it still saves
     expect(disk.read("x.txt")).toBe("x");
+  });
+
+  it("an old volume grows seed files it never had, and keeps its own edits", () => {
+    const store = memStore();
+    makeDisk(store); // format a full volume
+    const stripped = (JSON.parse(store.data["exe.fs"]!) as { name: string; text: string }[])
+      .filter((f) => f.name !== "c.txt")
+      .map((f) => (f.name === "hello.asm" ? { ...f, text: "; mine now" } : f));
+    const disk = makeDisk(memStore({ "exe.fs": JSON.stringify(stripped) }));
+    expect(disk.exists("c.txt")).toBe(true); // the new manual arrived
+    expect(disk.read("hello.asm")).toBe("; mine now"); // the edit survived
   });
 });

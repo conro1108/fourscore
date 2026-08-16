@@ -25,6 +25,7 @@ export interface DesktopApps {
   openTerminal(): void;
   openGame(id: "mines" | "sol" | "snake" | "checkers" | "chess"): void;
   openSounds(): void;
+  openReview(): void;
   shutdown(): void;
 }
 
@@ -266,6 +267,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       ["BOARD.EXE", () => apps().openBoard(), ICONS.board],
       ["flames.scr", () => apps().openFlames(), ICONS.flame],
       ...GAME_ITEMS.map((g): SubEntry => [g.label, () => apps().openGame(g.id), g.rows]),
+      ["REVIEW.EXE", () => apps().openReview(), ICONS.moves],
       ["COMMAND.COM", () => apps().openTerminal(), ICONS.term],
     ]),
     item(START_MENU.documents, ICONS.moves, undefined, [

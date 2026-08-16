@@ -96,6 +96,36 @@
 > own evaluation and scoped to its own window — a shelf game does not get to
 > set the desktop's temperature.
 
+> **The machine speaks C (2026-08-16).** `cc.ts` is a real compiler for a
+> Small-C dialect — functions, recursion, pointers, arrays, the full C
+> operator set with C precedence, `asm("...")` as the escape hatch, and
+> `#define NAME 123` as the entire preprocessor — that emits real assembly
+> text for the machine's own assembler; `CC FIZZ.C` writes FIZZ.ASM onto C:\
+> where you can TYPE it, and RUN takes a .c straight. The hardware stack
+> can't be addressed from the ISA, so compiled code runs a second stack for
+> arguments and locals (R7 points, R5 frames, top at 0x0E00); comparisons go
+> signed by the 0x8000-bias trick and signed DIV/MOD are runtime routines
+> emitted only when used. c.txt and fizz.c seed every disk — old volumes are
+> topped up with seeds they're missing, edits kept — and `cc.test.ts` runs
+> every construct through compile → assemble → the real CPU, fizz.c
+> included, so the manual, the seed and the compiler can't drift. Notepad
+> grew the period courtesies for source files only (.c/.h/.asm): Enter keeps
+> the indent and opens a brace onto its own line, Tab types spaces, pairs
+> close themselves and step over their closers.
+
+> **The game gets gone back over (2026-08-16).** REVIEW.EXE — the worker
+> half had answered "review" since the port; now there's a window. Entry is
+> the finale's third button (win, condolences, draw — never forfeit) and
+> Start ▸ Programs; `?state=review` is the pose. The confidence law does the
+> visible work: the result line is flat because the game is over, the curve
+> is one solid line with no legend (the proven band's step *is* the game
+> going decisive, unexplained on purpose), per-move remarks hedge when
+> estimated ("looks loose.") and declare only when proven ("the game changed
+> here."), and the verdict line is `turningPoint` (proven, flat) or
+> `biggestSwing` (estimated, "looks like the loose one.") or nothing stands
+> out. Red is always the player, so the review grades `forPlayer: "red"` on
+> the analysis worker — a game in progress never queues behind it.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 
@@ -281,6 +311,6 @@ machine gets to be flat and declarative, because by then the game is over.
   schedules its oscillators after `startRendering` is silence that typechecks.
   It listens for the two things a machine can hear — is it there, and how loud
   — and hands the rest to your ears as `shots/audio/all.wav`.
-- Review/online: later phases, same product truths as the repo (proven vs
-  estimated confidence law binds every string; online stays
-  client-authoritative).
+- Review landed (REVIEW.EXE, see the pass log); online remains a later phase,
+  same product truths as the repo (the confidence law binds every string;
+  online stays client-authoritative).

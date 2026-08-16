@@ -16,7 +16,8 @@ import { ICONS } from "./icons.js";
 import { TERM, TITLES } from "./copy.js";
 import type { WM } from "./wm.js";
 import type { Disk } from "./fs.js";
-import { assemble, makeVm, type Vm } from "./vm.js";
+import { assemble, makeVm, type AsmResult, type Vm } from "./vm.js";
+import { compileC } from "./cc.js";
 
 export interface TerminalDeps {
   wm: WM;
@@ -123,9 +124,9 @@ export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): 
     }
   };
 
-  /** Resolve NAME to a file, trying NAME.asm too, RUN-style. */
+  /** Resolve NAME to a file, trying NAME.asm and NAME.c too, RUN-style. */
   const findSource = (name: string): { name: string; text: string } | null => {
-    for (const n of [name, `${name}.asm`]) {
+    for (const n of [name, `${name}.asm`, `${name}.c`]) {
       const text = disk.read(n);
       if (text !== null) return { name: n, text };
     }
@@ -135,6 +136,17 @@ export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): 
   const printAsmErrors = (errors: readonly { line: number; msg: string }[]): void => {
     for (const e of errors.slice(0, MAX_ERRORS)) print(TERM.asmErrLine(e.line, e.msg));
     print(TERM.asmErrCount(errors.length));
+  };
+
+  /** Machine words for a source file: .c compiles first, everything else is
+      assembly. Either toolchain's complaints print the same way. */
+  const toWords = (src: { name: string; text: string }): AsmResult => {
+    if (!/\.c$/i.test(src.name)) return assemble(src.text);
+    const cc = compileC(src.text);
+    if (!cc.ok) return cc;
+    const asm = assemble(cc.asm);
+    if (!asm.ok) print(TERM.ccBadAsm);
+    return asm;
   };
 
   const runProgram = (name: string | undefined): void => {
@@ -147,7 +159,7 @@ export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): 
       print(TERM.fileNotFound);
       return;
     }
-    const res = assemble(src.text);
+    const res = toWords(src);
     if (!res.ok) {
       printAsmErrors(res.errors);
       return;
@@ -277,6 +289,34 @@ export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): 
         const res = assemble(src.text);
         if (res.ok) print(TERM.asmOk(src.name, res.words.length));
         else printAsmErrors(res.errors);
+        break;
+      }
+      case "CC": {
+        if (!arg1) {
+          print(TERM.needsFile("CC"));
+          break;
+        }
+        // CC resolves the .c itself so CC FIZZ and CC FIZZ.C both compile
+        const cName = /\.c$/i.test(arg1) ? arg1 : `${arg1}.c`;
+        const text = disk.read(cName) ?? disk.read(arg1);
+        if (text === null) {
+          print(TERM.fileNotFound);
+          break;
+        }
+        const cc = compileC(text);
+        if (!cc.ok) {
+          printAsmErrors(cc.errors);
+          break;
+        }
+        const asm = assemble(cc.asm);
+        if (!asm.ok) {
+          print(TERM.ccBadAsm);
+          printAsmErrors(asm.errors);
+          break;
+        }
+        const outName = `${cName.replace(/\.c$/i, "")}.asm`;
+        disk.write(outName, cc.asm);
+        print(TERM.ccOk(cName.toUpperCase(), outName.toUpperCase(), asm.words.length));
         break;
       }
       case "RUN":

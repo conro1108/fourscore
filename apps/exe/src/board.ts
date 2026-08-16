@@ -35,6 +35,8 @@ export interface EndResult {
   run: number;
   botId: string;
   variant: Variant;
+  /** The finished game's moves — what REVIEW.EXE goes back over. */
+  history: readonly number[];
 }
 
 export interface BoardDeps {
@@ -848,7 +850,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
         (a, b) =>
           Math.hypot(a.col - last, a.row - lastRow) - Math.hypot(b.col - last, b.row - lastRow),
       );
-    deps.onEnd({ kind, cells, run: variant.run, botId, variant });
+    deps.onEnd({ kind, cells, run: variant.run, botId, variant, history: [...match.history] });
   }
 
   function forfeit(): void {
@@ -860,7 +862,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     q("#picker", body).style.display = "none";
     q("#botDisc", body).style.display = "none";
     deps.resetBrain(botId, variant.id);
-    deps.onEnd({ kind: "forfeit", cells: [], run: variant.run, botId, variant });
+    deps.onEnd({ kind: "forfeit", cells: [], run: variant.run, botId, variant, history: [...match.history] });
   }
 
   /* ---- game lifecycle ----

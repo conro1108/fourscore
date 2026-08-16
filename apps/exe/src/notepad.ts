@@ -99,6 +99,75 @@ let editorSeq = 0;
 
 const editorKey = (name: string | null): string => name?.toLowerCase() ?? "untitled";
 
+/* ---- typing help for source files ----
+   Notepad stays Notepad for prose, but a file the processor is going to read
+   gets the three courtesies every period programmer's editor had: Enter keeps
+   the indent (and opens a brace properly), Tab types spaces instead of leaving
+   the window, and the closing half of a pair arrives with the opening half.
+   Scoped by extension so a .txt never fights you over a quotation mark. */
+
+const INDENT = "    ";
+const PAIRS: Record<string, string> = { "(": ")", "[": "]", "{": "}", '"': '"' };
+const CLOSERS = new Set(Object.values(PAIRS));
+
+const isCodeFile = (name: string | null): boolean => /\.(c|h|asm)$/i.test(name ?? "");
+
+function installCodeKeys(ta: HTMLTextAreaElement, fileName: () => string | null): void {
+  const type = (text: string, caretBack = 0): void => {
+    ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end");
+    if (caretBack) {
+      ta.selectionStart = ta.selectionEnd = ta.selectionEnd - caretBack;
+    }
+  };
+  ta.addEventListener("keydown", (e) => {
+    if (!isCodeFile(fileName()) || e.ctrlKey || e.metaKey || e.altKey) return;
+    const { value, selectionStart: start, selectionEnd: end } = ta;
+    const next = value[end] ?? "";
+    const collapsed = start === end;
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      type(INDENT);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const indent = /^[ \t]*/.exec(value.slice(lineStart, start))![0]!;
+      const prev = value.slice(lineStart, start).trimEnd().slice(-1);
+      if (prev === "{" && next === "}") {
+        // the brace opens like a door: the caret lands on its own line inside
+        type(`\n${indent}${INDENT}\n${indent}`, indent.length + 1);
+      } else {
+        type(`\n${indent}${prev === "{" ? INDENT : ""}`);
+      }
+      return;
+    }
+    if (collapsed && CLOSERS.has(e.key) && next === e.key && e.key !== '"') {
+      // the closer is already there; typing it steps over it
+      e.preventDefault();
+      ta.selectionStart = ta.selectionEnd = end + 1;
+      return;
+    }
+    if (collapsed && e.key === '"' && next === '"') {
+      e.preventDefault();
+      ta.selectionStart = ta.selectionEnd = end + 1;
+      return;
+    }
+    if (PAIRS[e.key] && collapsed) {
+      // a quote only pairs up against a boundary — mid-word it's an apostrophe
+      if (e.key === '"' && /[\w"']/.test(next)) return;
+      e.preventDefault();
+      type(e.key + PAIRS[e.key]!, 1);
+      return;
+    }
+    if (e.key === "Backspace" && collapsed && PAIRS[value[start - 1] ?? ""] === next) {
+      e.preventDefault();
+      ta.setRangeText("", start - 1, start + 1, "start");
+    }
+  });
+}
+
 export function openEditor(wm: WM, disk: Disk, name: string | null): void {
   const existing = openEditors.get(editorKey(name));
   if (existing?.isOpen()) {
@@ -112,6 +181,7 @@ export function openEditor(wm: WM, disk: Disk, name: string | null): void {
     `<textarea class="notepad notepad-edit" spellcheck="false"></textarea>`,
   ) as HTMLTextAreaElement;
   ta.value = fileName === null ? "" : (disk.read(fileName) ?? "");
+  installCodeKeys(ta, () => fileName);
   const wrap = el(`<div class="sunken flexwell" style="margin:3px;background:#fff"></div>`);
   wrap.appendChild(ta);
 

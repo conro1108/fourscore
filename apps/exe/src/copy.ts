@@ -481,6 +481,62 @@ export const GAMES_COPY = {
   },
 } as const;
 
+/**
+ * REVIEW.EXE — the game, gone back over.
+ *
+ * The confidence law (CLAUDE.md) binds every string here harder than anywhere
+ * else, because this is the one window that grades moves. A ply's score is
+ * either a fact about the game or this machine's read of it, and the sentence
+ * has to carry which one it is without ever naming the machinery: flat and
+ * declarative where it is known, hedged everywhere else. One line on the
+ * chart, no legend, no badges — the player is never asked to hold the
+ * distinction, only protected from the overclaim.
+ */
+export const REVIEW = {
+  /** While the machine reads the game back. */
+  working: "The machine is going back over it.",
+  workingSub: "This takes as long as it takes.",
+  none: {
+    title: "REVIEW.EXE",
+    body: "Nothing has finished yet.<br>There is nothing to go over.",
+  },
+  failed: {
+    title: "REVIEW.EXE",
+    body: "The review has stopped working.<br>The game remains played.",
+  },
+  /** The result is a fact — the game is over, so this half is flat. */
+  result: {
+    win: "YOU WON.",
+    loss: (name: string): string => `${name} WON.`,
+    draw: "NOBODY WON.",
+  },
+  /** Proven: the sentence is allowed to be a verdict. */
+  turningPoint: (move: number): string => `Move ${move} is where it went. This is known.`,
+  /** Estimated: the sentence is a lead, and sounds like one. */
+  biggestSwing: (move: number): string => `Move ${move} looks like the loose one.`,
+  clean: "Nothing stands out. It was simply played.",
+  moveRow: (move: number, col: number): string => `Move ${move}, column ${col}`,
+  /** One remark per grade, in two registers: proven says, estimated hedges. */
+  remark: {
+    proven: {
+      best: "correct.",
+      good: "kept the result.",
+      inaccuracy: "slower.",
+      mistake: "gave something up.",
+      blunder: "the game changed here.",
+      unknown: "",
+    },
+    estimated: {
+      best: "looks right.",
+      good: "looks fine.",
+      inaccuracy: "hm.",
+      mistake: "looks loose.",
+      blunder: "looked expensive.",
+      unknown: "",
+    },
+  },
+} as const;
+
 export const TITLES = {
   board: "BOARD.EXE",
   /** The titlebar carries which game this is — a Connect 6 window should
@@ -509,6 +565,7 @@ export const TITLES = {
   openFile: "Open",
   feverCtl: "FEVER.CTL",
   sounds: "sounds.ctl",
+  review: "REVIEW.EXE",
   congratulations: "Congratulations",
 } as const;
 
@@ -604,6 +661,7 @@ export const TERM = {
     "EDIT file        open a file in Notepad",
     "RUN file.asm     assemble and run a program",
     "ASM file.asm     assemble only, and report",
+    "CC file.c        compile C; file.asm appears",
     "DEL, REN, COPY   what they always did",
     "MKDIR name       a folder; it lands on the desk",
     "ECHO text        it comes back",
@@ -616,6 +674,7 @@ export const TERM = {
     "",
     "A running program stops on ESC.",
     "TYPE ASM.TXT explains the processor.",
+    "TYPE C.TXT explains the other language.",
   ],
   badCommand: "Bad command or file name",
   fileNotFound: "File not found",
@@ -634,6 +693,11 @@ export const TERM = {
     `                        ${free} bytes free`,
   ],
   asmOk: (name: string, words: number): string => `${name}: ${words} words. The processor accepts it.`,
+  ccOk: (src: string, outName: string, words: number): string =>
+    `${src} -> ${outName}: ${words} words. The processor accepts it.`,
+  /** CC emitted assembly its own assembler rejects — the compiler's fault,
+      and the machine says so instead of blaming the program. */
+  ccBadAsm: "CC has produced something the processor refuses. This is CC's fault:",
   asmErrLine: (line: number, msg: string): string => (line > 0 ? `Line ${line}: ${msg}` : msg),
   asmErrCount: (n: number): string => `${n} error(s). Nothing was run.`,
   broke: "^C",
@@ -660,8 +724,10 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "",
       "  DIR              what is on the disk",
       "  TYPE ASM.TXT     how to program this computer",
+      "  TYPE C.TXT       the other language",
       "  EDIT HELLO.ASM   look at a program",
       "  RUN HELLO.ASM    run it",
+      "  CC FIZZ.C        compile the C one",
       "  HELP             the rest",
       "",
       "Notepad opens and saves files now (the File menu).",
@@ -738,6 +804,78 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "grows down. HELLO.ASM and GUESS.ASM on this disk are",
       "known to work. Programs you write are between you",
       "and the machine.",
+    ].join("\n"),
+  },
+  {
+    name: "c.txt",
+    text: [
+      "C.TXT — the other language",
+      "==========================",
+      "",
+      "The disk carries CC, a C compiler. It reads a .c",
+      "file and writes the .asm the processor actually",
+      "runs — TYPE the output if you doubt it.",
+      "",
+      "  CC NAME.C        compile; NAME.ASM appears",
+      "  RUN NAME         run it (RUN will also take",
+      "                   the .c straight, quietly)",
+      "",
+      "THE LANGUAGE",
+      "",
+      "  int and char are one 16-bit word each.",
+      "  Pointers and arrays are word addresses;",
+      "  *p and p[i] both work. void is accepted.",
+      "",
+      "  Functions take arguments and return one word.",
+      "  Recursion works. main() is where it starts.",
+      "",
+      "  if/else, while, do/while, for, break,",
+      "  continue, return. The operators are C's, with",
+      "  C's precedence, including ?: and op=.",
+      "",
+      "  #define NAME 123 is the entire preprocessor.",
+      "  /* comments */ and // comments.",
+      "",
+      "THE HARDWARE, WEARING C",
+      "",
+      "  putc(c)   print one character. 10 ends a line",
+      "  putn(n)   print a signed number",
+      "  puts(s)   print a string. No newline arrives",
+      "            unless you send one",
+      "  getc()    wait for a key, return it",
+      "  key()     the key if one is waiting, else 0",
+      "  rand()    16 random bits",
+      "",
+      '  asm("st r0, [con]") passes a line straight to',
+      "  the assembler, for when C is not enough.",
+      "",
+      "SMALL PRINT",
+      "",
+      "  Numbers are 16 bits and wrap. >> shifts in",
+      "  zeros. Arguments and locals live under 0x0E00",
+      "  and grow down; a large enough program can walk",
+      "  into them. The compiler will not stop you.",
+      "  FIZZ.C on this disk is known to work.",
+    ].join("\n"),
+  },
+  {
+    name: "fizz.c",
+    text: [
+      "/* fizz.c — the machine counts to 30 and follows the rules.",
+      "   CC FIZZ.C in COMMAND.COM makes FIZZ.ASM; RUN FIZZ runs it. */",
+      "",
+      "int main() {",
+      "    int i;",
+      "    for (i = 1; i <= 30; i++) {",
+      "        if (i % 15 == 0) puts(\"FIZZBUZZ\");",
+      "        else if (i % 3 == 0) puts(\"FIZZ\");",
+      "        else if (i % 5 == 0) puts(\"BUZZ\");",
+      "        else putn(i);",
+      "        putc('\\n');",
+      "    }",
+      "    puts(\"THE RULES HAVE BEEN FOLLOWED.\\n\");",
+      "    return 0;",
+      "}",
     ].join("\n"),
   },
   {

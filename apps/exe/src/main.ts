@@ -10,6 +10,7 @@
  *   ?state=saver          the screensaver has won the desktop
  *   ?state=mines|sol|snake|checkers|notepad|games|terminal   the other software
  *   ?state=sounds         sounds.ctl open
+ *   ?state=review         REVIEW.EXE over a finished game
  *   ?state=shutdown       the Shut Down box
  *   ?state=reboot         the restart beat, held (the real one navigates)
  *   ?state=sol&rig=won    a double-click from the card bounce
@@ -26,7 +27,8 @@ import { el, onPointerDrag, param, q } from "./dom.js";
 import { fitStage, makeWM } from "./wm.js";
 import { buildShell, type DesktopApps } from "./desktop.js";
 import { analysisClient, engineClient } from "./engine/client.js";
-import { makeBoard, type BoardApp, type BoardDeps } from "./board.js";
+import { makeBoard, type BoardApp, type BoardDeps, type EndResult } from "./board.js";
+import { openReview } from "./review.js";
 import { makeMovesPad, openEditor, textWindow } from "./notepad.js";
 import { makeDisk } from "./fs.js";
 import { openTerminal } from "./terminal.js";
@@ -104,6 +106,7 @@ const boardDeps: BoardDeps = {
     });
   },
   onEnd(end) {
+    lastEnd = end; // REVIEW.EXE reads this — the game most recently finished
     effects.setGameOver();
     endgame.run(end, frozenBeat);
   },
@@ -115,6 +118,7 @@ const boardDeps: BoardDeps = {
   },
 };
 
+let lastEnd: EndResult | null = null;
 let board: BoardApp = makeBoard(boardDeps);
 const endgame = makeEndgame({
   wm,
@@ -132,6 +136,7 @@ const endgame = makeEndgame({
     director.event("dismissed");
     effects.endingDismissed();
   },
+  openReview: () => desktopApps.openReview(),
 });
 const effects = makeEffects({
   wm,
@@ -408,6 +413,12 @@ const desktopApps: DesktopApps = {
     }),
   openGame: (id) => gameLaunchers[id](),
   openSounds: () => openSounds(wm),
+  openReview: () =>
+    openReview({
+      wm,
+      last: () => lastEnd,
+      review: (variantId, history) => analysis.review(variantId, history, "red"),
+    }),
   shutdown: () => openShutdown(wm, { stage, help: () => desktopApps.openHelp() }),
 };
 
@@ -518,6 +529,11 @@ if (state === "midgame") {
   desktopApps.openGames();
 } else if (state === "sounds") {
   desktopApps.openSounds();
+} else if (state === "review") {
+  // the win game, already over — the parade is cleared so the window poses alone
+  board.script([3, 4, 4, 3, 5, 2, 3, 2, 2, 4, 2]);
+  endgame.clear();
+  desktopApps.openReview();
 } else if (state === "shutdown") {
   desktopApps.shutdown();
 } else if (state === "reboot") {

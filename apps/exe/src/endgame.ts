@@ -43,6 +43,8 @@ export interface EndgameDeps {
   /** The player has left the ending. Fires once per game, and never for
       `Again` — that goes through the new-game path, which resets more. */
   onDismiss(): void;
+  /** The finale's third door: the ending comes down and REVIEW.EXE opens. */
+  openReview(): void;
 }
 
 export interface Endgame {
@@ -128,13 +130,16 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     return d;
   }
 
-  /** `Again` is a new game (which resets everything); anything else is you
-      putting the ending away. */
+  /** `Again` is a new game (which resets everything); `Review` puts the
+      ending away and opens the review; anything else just puts it away. */
   const leaveOrAgain = (i: number): void => {
     if (i === 1) {
       clear();
       deps.board().newGame();
-    } else dismiss();
+    } else {
+      dismiss();
+      if (i === 2) deps.openReview();
+    }
   };
 
   /* Everything the win draws on the grid was authored against the 64px cell,
@@ -316,7 +321,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       const d = dialog({
         title: DIALOG.finale.title,
         body: DIALOG.finale.body,
-        buttons: ["OK", "Again"],
+        buttons: ["OK", "Again", "Review"],
         x: 470,
         y: 330,
         w: 368,
@@ -402,7 +407,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         x: 470,
         y: 330,
         w: 368,
-        buttons: ["OK", "Again"],
+        buttons: ["OK", "Again", "Review"],
         taskbar: true,
         // three notes down, in the win's own type. Sincere, and quieter than
         // the win on purpose — the same rule the rest of this parade follows.
@@ -425,7 +430,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       dialog({
         title: DIALOG.draw.title,
         body: DIALOG.draw.body,
-        buttons: ["OK", "Again"],
+        buttons: ["OK", "Again", "Review"],
         x: 470,
         y: 320,
         w: 360,
