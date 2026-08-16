@@ -46,7 +46,7 @@ import { openCheckers } from "./games/checkers.js";
 import { openChess } from "./games/chess.js";
 import { GAME_ITEMS } from "./games/folder.js";
 import { itemFace, locOfKey, openContainer, syncContainers, type ContainerDeps, type ContainerKey } from "./containers.js";
-import { gameOf, makeShellFs } from "./shellfs.js";
+import { fileItemId, fileOf, gameOf, makeShellFs } from "./shellfs.js";
 import { deskHeight, deskWidth, stageScale, taskbarH } from "./wm.js";
 import type { DeskIcon } from "./desktop.js";
 
@@ -157,8 +157,31 @@ const gameLaunchers = {
 
 /* ---- the desk's shell objects: games out of their folder, folders the
    player makes, and the rest as a place things actually go ---- */
-const shellFs = makeShellFs(localStorage, GAME_ITEMS.map((g) => g.id));
+const shellFs = makeShellFs(
+  localStorage,
+  GAME_ITEMS.map((g) => g.id),
+  () => disk.list().map((f) => f.name),
+);
 const deskIcons = new Map<string, DeskIcon>();
+
+/** A free desk spot for something that has never been placed — files the
+    terminal just made, folders MKDIR made. Columns to the right of the
+    built-in icons, filled top to bottom. */
+function nextSeat(): [number, number] {
+  const taken = shellFs
+    .itemsIn("desk")
+    .map((i) => shellFs.deskPos(i))
+    .filter((p): p is [number, number] => !!p);
+  for (let col = 0; col < 8; col++)
+    for (let row = 0; row < 7; row++) {
+      const x = 112 + col * 92;
+      const y = 22 + row * 100;
+      if (y > deskHeight() - taskbarH() - 100) break;
+      if (!taken.some(([tx, ty]) => Math.abs(tx - x) < 46 && Math.abs(ty - y) < 50))
+        return [x, y];
+    }
+  return clampDesk(deskWidth() / 2, deskHeight() / 2);
+}
 
 const clampDesk = (x: number, y: number): [number, number] => [
   Math.max(0, Math.min(deskWidth() - 80, Math.round(x))),
@@ -177,13 +200,17 @@ const dropTargetAt = (ev: PointerEvent): ContainerKey | null =>
 
 const openItem = (id: string): void => {
   const g = gameOf(id);
+  const f = fileOf(id);
   if (g !== null) gameLaunchers[g as keyof typeof gameLaunchers]();
+  else if (f !== null) openEditor(wm, disk, f);
   else openContainer(containerDeps, id);
 };
 
 function makeDeskIcon(id: string): DeskIcon {
   const face = itemFace(shellFs, id);
-  const [x, y] = shellFs.deskPos(id) ?? clampDesk(deskWidth() / 2, deskHeight() / 2);
+  const stored = shellFs.deskPos(id);
+  const [x, y] = stored ?? nextSeat();
+  if (!stored) shellFs.move(id, "desk", [x, y]);
   return shell.addIcon({
     rows: face.rows,
     label: face.label,
@@ -222,6 +249,7 @@ const containerDeps: ContainerDeps = {
   wm,
   fs: shellFs,
   launch: gameLaunchers,
+  openFile: (name) => openEditor(wm, disk, name),
   drop(id, ev, from) {
     const target = dropTargetAt(ev);
     if (target && target !== from && target !== id) {
@@ -235,6 +263,25 @@ const containerDeps: ContainerDeps = {
   },
 };
 syncDesk();
+
+/* The other door into the same disk: a file the terminal or Notepad just
+   made grows an icon; one they deleted stops existing everywhere; a rename
+   keeps its spot. */
+disk.onChange((ev) => {
+  if (ev.kind === "rename" && ev.to) shellFs.migrate(fileItemId(ev.name), fileItemId(ev.to));
+  syncShell();
+});
+
+/** Folders the prompt should admit to: everything not in the rest. */
+const folderInBin = (id: string): boolean => {
+  let l = shellFs.locOf(id);
+  for (let hops = 0; hops < 100; hops++) {
+    if (l === "bin") return true;
+    if (typeof l === "string") return false;
+    l = shellFs.locOf(l.folder);
+  }
+  return true;
+};
 
 /* ---- context menus: the desk makes folders, folders have their say ---- */
 let ctxMenu: HTMLElement | null = null;
@@ -309,6 +356,18 @@ stage.addEventListener("contextmenu", (e) => {
       shellFs.createFolder(...clampDesk(px - 24, py - 20));
       syncShell();
     }],
+    ["New Text Document", () => {
+      // terminal-typable names: untitled.txt, untitled2.txt, …
+      let name = "untitled.txt";
+      for (let n = 2; disk.exists(name); n++) name = `untitled${n}.txt`;
+      disk.write(name, ""); // onChange grows the icon; then walk it to the click
+      const id = fileItemId(name);
+      const [px, py] = stagePoint(e);
+      const seat = clampDesk(px - 24, py - 20);
+      shellFs.move(id, "desk", seat);
+      deskIcons.get(id)?.moveTo(...seat);
+      openEditor(wm, disk, name);
+    }],
   ]);
 });
 
@@ -334,7 +393,19 @@ const desktopApps: DesktopApps = {
   openGames: () => openContainer(containerDeps, "games"),
   openUntitled: () => openEditor(wm, disk, "untitled.txt"),
   openReadme: () => openEditor(wm, disk, "readme.txt"),
-  openTerminal: () => openTerminal({ wm, disk, edit: (name) => openEditor(wm, disk, name) }),
+  openTerminal: () =>
+    openTerminal({
+      wm,
+      disk,
+      edit: (name) => openEditor(wm, disk, name),
+      folders: () =>
+        shellFs.folders().filter((f) => !folderInBin(f.id)).map((f) => f.name),
+      mkdir(name) {
+        const id = shellFs.createFolder(...nextSeat(), name);
+        if (id) syncShell();
+        return id !== null;
+      },
+    }),
   openGame: (id) => gameLaunchers[id](),
   openSounds: () => openSounds(wm),
   shutdown: () => openShutdown(wm, { stage, help: () => desktopApps.openHelp() }),

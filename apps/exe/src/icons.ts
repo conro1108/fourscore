@@ -93,7 +93,19 @@ export const ICONS = {
     ".....kdk.r...r..","..kkkkdk..r.r...","..kwdddk...r....","..kwdddk...r....",
     "..kkkkdk..r.r...",".....kdk.r...r..","......kk........",".......k........",
     "................","................","................","................"],
-  // Settings: a control panel of three sliders, mid-adjustment
+  // a regular file on C:\ — a plain page, dog-eared. System things (moves.txt,
+  // the games folder) keep their own icons; this one means "yours, on the disk"
+  file: [
+    "................","...kkkkkkkkk....","...kwwwwwwwkk...","...kwwwwwwwkwk..",
+    "...kwwwwwwwkkkk.","...kwwwwwwwwwwk.","...kwdddddddwwk.","...kwwwwwwwwwwk.",
+    "...kwdddddwwwwk.","...kwwwwwwwwwwk.","...kwddddddwwwk.","...kwwwwwwwwwwk.",
+    "...kwddddwwwwwk.","...kwwwwwwwwwwk.","...kkkkkkkkkkkk.","................"],
+  // the games folder is furniture, not a folder you made — it wears a disc
+  gamesFolder: [
+    "................","................","..kkkkk.........",".k.....k........",
+    "k.......kkkkkkk.","k..............k","k.yyyyyyyyyyyy.k","k.yyykkkkyyyyy.k",
+    "k.yykrrrrkyyyy.k","k.yykrrrrkyyyy.k","k.yyykkkkyyyyy.k","k.yyyyyyyyyyyy.k",
+    "k..............k",".kkkkkkkkkkkkk..","................","................"],
   settings: [
     "................",".kkkkkkkkkkkkk..",".kccccccccccck..",".kcckcckcckcck..",
     ".kcrrrckcckcck..",".kcrrrckcckcck..",".kcckcyyyckcck..",".kcckcyyyckcck..",

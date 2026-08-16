@@ -21,6 +21,13 @@ export interface FileEntry {
   text: string;
 }
 
+export interface DiskChange {
+  kind: "write" | "remove" | "rename";
+  name: string;
+  /** The new name, for renames. */
+  to?: string;
+}
+
 export interface Disk {
   /** Every file, sorted by name. */
   list(): readonly FileEntry[];
@@ -31,6 +38,8 @@ export interface Disk {
   /** False if the source is missing or the target already exists. */
   rename(from: string, to: string): boolean;
   exists(name: string): boolean;
+  /** The desk listens: files made in one place appear in the other. */
+  onChange(cb: (ev: DiskChange) => void): void;
 }
 
 export interface DiskStore {
@@ -65,6 +74,8 @@ export function makeDisk(store: DiskStore): Disk {
   const save = (): void => store.setItem(KEY, JSON.stringify(files));
   const find = (name: string): FileEntry | undefined =>
     files.find((f) => f.name.toLowerCase() === name.toLowerCase());
+  const listeners: ((ev: DiskChange) => void)[] = [];
+  const changed = (ev: DiskChange): void => listeners.forEach((cb) => cb(ev));
 
   const disk: Disk = {
     list: () => [...files].sort((a, b) => a.name.localeCompare(b.name)),
@@ -74,22 +85,27 @@ export function makeDisk(store: DiskStore): Disk {
       if (f) f.text = text;
       else files.push({ name, text });
       save();
+      changed({ kind: "write", name });
     },
     remove(name) {
       const f = find(name);
       if (!f) return false;
       files = files.filter((x) => x !== f);
       save();
+      changed({ kind: "remove", name: f.name });
       return true;
     },
     rename(from, to) {
       const f = find(from);
       if (!f || find(to)) return false;
+      const was = f.name;
       f.name = to;
       save();
+      changed({ kind: "rename", name: was, to });
       return true;
     },
     exists: (name) => find(name) !== undefined,
+    onChange: (cb) => void listeners.push(cb),
   };
 
   // migrate the pre-disk untitled.txt buffer, then retire the key

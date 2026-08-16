@@ -17,7 +17,7 @@ import { ICONS, iconCanvas } from "./icons.js";
 import { BIN_TEXT, TITLES } from "./copy.js";
 import { stageScale, type WM, type Win } from "./wm.js";
 import { GAME_ITEMS, type GameLaunchers } from "./games/folder.js";
-import { gameOf, type ShellFs, type ShellLoc } from "./shellfs.js";
+import { fileOf, gameOf, type ShellFs, type ShellLoc } from "./shellfs.js";
 
 /** A container's key doubles as its window id; folder keys are the item id. */
 export type ContainerKey = "games" | "bin" | string;
@@ -29,6 +29,8 @@ export interface ContainerDeps {
   wm: WM;
   fs: ShellFs;
   launch: GameLaunchers;
+  /** A disk file was double-clicked — main opens it in Notepad. */
+  openFile(name: string): void;
   /** An icon left this container on a drag — main decides where it lands. */
   drop(id: string, ev: PointerEvent, from: ContainerKey): void;
 }
@@ -40,6 +42,8 @@ export function itemFace(fs: ShellFs, id: string): { rows: readonly string[]; la
     const item = GAME_ITEMS.find((x) => x.id === g);
     if (item) return { rows: item.rows, label: item.label };
   }
+  const f = fileOf(id);
+  if (f !== null) return { rows: ICONS.file, label: f };
   return { rows: ICONS.folder, label: fs.folderName(id) };
 }
 
@@ -81,7 +85,9 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
 
   const openItem = (id: string): void => {
     const g = gameOf(id);
+    const f = fileOf(id);
     if (g !== null) launch[g as keyof GameLaunchers]();
+    else if (f !== null) deps.openFile(f);
     else openContainer(deps, id);
   };
 
@@ -177,7 +183,7 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
   const win = wm.open({
     id: key,
     title: title(fs, key),
-    icon: key === "bin" ? ICONS.bin : ICONS.folder,
+    icon: key === "bin" ? ICONS.bin : key === "games" ? ICONS.gamesFolder : ICONS.folder,
     x: seat.x,
     y: seat.y,
     w: 420,

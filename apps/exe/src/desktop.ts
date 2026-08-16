@@ -85,9 +85,10 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     { rows: ICONS.flame, label: "flames.scr", top: 122, launch: () => apps().openFlames() },
     { rows: ICONS.moves, label: "moves.txt", top: 222, launch: () => apps().openMoves() },
     { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin(), drop: "bin" },
-    { rows: ICONS.folder, label: "games", top: 422, launch: () => apps().openGames(), drop: "games" },
-    { rows: ICONS.moves, label: "untitled.txt", top: 522, launch: () => apps().openUntitled() },
-    { rows: ICONS.term, label: "COMMAND.COM", top: 622, launch: () => apps().openTerminal() },
+    { rows: ICONS.gamesFolder, label: "games", top: 422, launch: () => apps().openGames(), drop: "games" },
+    // untitled.txt is no longer furniture — real files on C:\ grow their own
+    // desk icons now (main.ts), and untitled.txt is only real once saved
+    { rows: ICONS.term, label: "COMMAND.COM", top: 522, launch: () => apps().openTerminal() },
   ];
   const iconEls: HTMLElement[] = [];
   function makeIcon(spec: DeskIconSpec): DeskIcon {
@@ -122,11 +123,13 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
           if (Math.hypot(ev.clientX / k - sx - icon.offsetLeft, ev.clientY / k - sy - icon.offsetTop) > 4)
             moved = true;
           if (!moved) return;
+          icon.style.zIndex = "500"; // in flight it rides over every window
           icon.style.left = `${Math.round(ev.clientX / k - sx)}px`;
           icon.style.top = `${Math.round(ev.clientY / k - sy)}px`;
         };
       },
       (e, cancelled) => {
+        icon.style.zIndex = "";
         if (moved) {
           if (!cancelled && spec.onDrop) {
             // the icon rides under the pointer, so it has to step aside for
@@ -267,8 +270,8 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     ]),
     item(START_MENU.documents, ICONS.moves, undefined, [
       ["moves.txt", () => apps().openMoves(), ICONS.moves],
-      ["untitled.txt", () => apps().openUntitled(), ICONS.moves],
-      ["readme.txt", () => apps().openReadme(), ICONS.moves],
+      ["untitled.txt", () => apps().openUntitled(), ICONS.file],
+      ["readme.txt", () => apps().openReadme(), ICONS.file],
       ["help.txt", () => apps().openHelp(), ICONS.moves],
     ]),
     item(START_MENU.settings, ICONS.settings, undefined, [

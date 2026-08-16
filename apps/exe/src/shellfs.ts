@@ -4,11 +4,17 @@
  * games folder, inside a user folder, or in the rest. One localStorage key,
  * pure logic, no DOM: the windows and icons are somebody else's job.
  *
- * Item ids are namespaced strings — "game:mines", "folder:3" — so the state
- * serializes flat and a container can hold either kind. The games' home
- * container ("games") only ever accepts games; a folder can never be moved
- * into its own subtree; everything else is allowed, including folders in
- * folders and anything at all in the rest.
+ * Item ids are namespaced strings — "game:mines", "folder:3", "file:asm.txt"
+ * — so the state serializes flat and a container can hold any kind. The
+ * games' home container ("games") only ever accepts games; a folder can
+ * never be moved into its own subtree; everything else is allowed, including
+ * folders in folders and anything at all in the rest.
+ *
+ * Files are not owned here — C:\ (fs.ts) is the authority on what exists;
+ * this module only remembers where the desk keeps each one. A file the disk
+ * no longer has simply stops appearing, and a file the disk just gained
+ * shows up on the desk, which is what makes the terminal and the windows
+ * two doors into the same machine.
  */
 
 export type ShellLoc = "desk" | "games" | "bin" | { folder: string };
@@ -37,16 +43,22 @@ export interface ShellFs {
   /** Move an item somewhere. False (and no change) if the move is illegal:
       a non-game into "games", or a folder into its own subtree. */
   move(id: string, loc: ShellLoc, pos?: [number, number]): boolean;
-  createFolder(x: number, y: number): string;
+  /** With no name, takes the next "New Folder (n)"; a given name must be free. */
+  createFolder(x: number, y: number, name?: string): string | null;
   rename(id: string, name: string): void;
   folderName(id: string): string;
   isFolder(id: string): boolean;
   folders(): readonly ShellFolder[];
+  /** A renamed disk file keeps its spot: carry the old id's placement over. */
+  migrate(from: string, to: string): void;
 }
 
 export const gameItemId = (game: string): string => `game:${game}`;
 export const gameOf = (id: string): string | null =>
   id.startsWith("game:") ? id.slice(5) : null;
+export const fileItemId = (name: string): string => `file:${name}`;
+export const fileOf = (id: string): string | null =>
+  id.startsWith("file:") ? id.slice(5) : null;
 
 const KEY = "exe.shell";
 /** The pre-folders key: games dragged to the desk, positions only. */
@@ -57,7 +69,11 @@ const sameLoc = (a: ShellLoc, b: ShellLoc): boolean =>
     ? a === b
     : a.folder === b.folder;
 
-export function makeShellFs(storage: Storage, gameIds: readonly string[]): ShellFs {
+export function makeShellFs(
+  storage: Storage,
+  gameIds: readonly string[],
+  diskFiles: () => readonly string[] = () => [],
+): ShellFs {
   let state: ShellState = { folders: [], loc: {}, pos: {}, order: [], nextFolder: 1 };
   try {
     const raw = storage.getItem(KEY);
@@ -87,7 +103,9 @@ export function makeShellFs(storage: Storage, gameIds: readonly string[]): Shell
   const known = (id: string): boolean => {
     const g = gameOf(id);
     if (g !== null) return gameIds.includes(g);
-    return state.folders.some((f) => f.id === id);
+    const f = fileOf(id);
+    if (f !== null) return diskFiles().some((n) => n.toLowerCase() === f.toLowerCase());
+    return state.folders.some((x) => x.id === id);
   };
   const locOf = (id: string): ShellLoc => state.loc[id] ?? (gameOf(id) ? "games" : "desk");
 
@@ -102,8 +120,16 @@ export function makeShellFs(storage: Storage, gameIds: readonly string[]): Shell
     return true; // a chain that deep is already a cycle; refuse
   };
 
+  /** Placed items in move order, then disk files nobody has placed yet. */
+  const allIds = (): string[] => [
+    ...state.order,
+    ...diskFiles()
+      .map(fileItemId)
+      .filter((id) => !state.order.includes(id)),
+  ];
+
   return {
-    itemsIn: (loc) => state.order.filter((id) => known(id) && sameLoc(locOf(id), loc)),
+    itemsIn: (loc) => allIds().filter((id) => known(id) && sameLoc(locOf(id), loc)),
     locOf,
     deskPos: (id) => state.pos[id],
     move(id, loc, pos) {
@@ -117,12 +143,19 @@ export function makeShellFs(storage: Storage, gameIds: readonly string[]): Shell
       save();
       return true;
     },
-    createFolder(x, y) {
+    createFolder(x, y, given) {
+      let name: string;
+      if (given !== undefined) {
+        name = given.trim().slice(0, 32);
+        if (!name || state.folders.some((f) => f.name.toLowerCase() === name.toLowerCase()))
+          return null;
+      } else {
+        const base = "New Folder";
+        name = base;
+        for (let n = 2; state.folders.some((f) => f.name === name); n++)
+          name = `${base} (${n})`;
+      }
       const id = `folder:${state.nextFolder++}`;
-      const base = "New Folder";
-      let name = base;
-      for (let n = 2; state.folders.some((f) => f.name === name); n++)
-        name = `${base} (${n})`;
       state.folders.push({ id, name });
       state.loc[id] = "desk";
       state.pos[id] = [x, y];
@@ -141,5 +174,14 @@ export function makeShellFs(storage: Storage, gameIds: readonly string[]): Shell
     folderName: (id) => state.folders.find((x) => x.id === id)?.name ?? "folder",
     isFolder: (id) => state.folders.some((f) => f.id === id),
     folders: () => state.folders,
+    migrate(from, to) {
+      if (from === to) return;
+      if (state.loc[from]) state.loc[to] = state.loc[from];
+      if (state.pos[from]) state.pos[to] = state.pos[from];
+      delete state.loc[from];
+      delete state.pos[from];
+      state.order = state.order.map((x) => (x === from ? to : x));
+      save();
+    },
   };
 }

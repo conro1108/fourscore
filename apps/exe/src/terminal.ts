@@ -23,6 +23,12 @@ export interface TerminalDeps {
   disk: Disk;
   /** EDIT hands the file to Notepad. */
   edit(name: string): void;
+  /** The desk's folders, so DIR can list them — the same folders the mouse
+      makes. Directories aren't real places on the flat volume; they are how
+      the desk arranges it, and the prompt sees the same arrangement. */
+  folders(): readonly string[];
+  /** MKDIR: a new folder lands on the desk. False if the name is taken. */
+  mkdir(name: string): boolean;
 }
 
 /** What the volume claims to hold — localStorage's usual 5MB, honestly. */
@@ -32,7 +38,7 @@ const STEPS_PER_FRAME = 30_000;
 /** How many assembler complaints fit on a period screen. */
 const MAX_ERRORS = 8;
 
-export function openTerminal({ wm, disk, edit }: TerminalDeps): void {
+export function openTerminal({ wm, disk, edit, folders, mkdir }: TerminalDeps): void {
   const existing = wm.get("terminal");
   if (existing?.isOpen()) {
     existing.focus();
@@ -155,6 +161,8 @@ export function openTerminal({ wm, disk, edit }: TerminalDeps): void {
   /* ---- the commands ---- */
   const dir = (): void => {
     for (const line of TERM.dirHeader) print(line);
+    for (const name of folders())
+      print(`${name.slice(0, 12).toUpperCase().padEnd(13)}<DIR>           08-14-96   6:66p`);
     const files = disk.list();
     let total = 0;
     for (const f of files) {
@@ -250,6 +258,11 @@ export function openTerminal({ wm, disk, edit }: TerminalDeps): void {
       case "EDIT":
         if (!arg1) print(TERM.needsFile("EDIT"));
         else edit(arg1);
+        break;
+      case "MKDIR":
+      case "MD":
+        if (!arg1) print(TERM.needsFile(cmd));
+        else if (!mkdir(arg1)) print(TERM.dirExists);
         break;
       case "ASM": {
         if (!arg1) {
