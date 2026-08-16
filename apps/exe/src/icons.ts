@@ -13,6 +13,7 @@ export const PAL: Record<string, string> = {
   o: "#ff7a00",
   d: "#808080",
   g: "#0e8078",
+  n: "#3cd43c",
   s: "#d8d8d8",
   t: "#14b09e",
 };

@@ -44,7 +44,7 @@ import { openSnake } from "./games/snake.js";
 import { openSol } from "./games/sol.js";
 import { openCheckers } from "./games/checkers.js";
 import { openChess } from "./games/chess.js";
-import { GAME_ITEMS, openGamesFolder, type GameId } from "./games/folder.js";
+import { GAME_ITEMS, openGamesFolder, refreshGamesFolder, type GameId } from "./games/folder.js";
 import { deskHeight, deskWidth, taskbarH } from "./wm.js";
 import type { DeskIcon } from "./desktop.js";
 
@@ -184,10 +184,27 @@ function placeGameOnDesk(id: GameId, x: number, y: number, persist = true): void
           deskGamePos.set(id, [nx, ny]);
           saveDeskGames();
         },
+        // dropped back on the open folder window, it moves home
+        onDrop(ev) {
+          const folder = wm.get("games");
+          if (!folder?.isOpen()) return false;
+          const r = folder.el.getBoundingClientRect();
+          if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom)
+            return false;
+          removeGameFromDesk(id);
+          refreshGamesFolder();
+          return true;
+        },
       }),
     );
   }
   if (persist) saveDeskGames();
+}
+function removeGameFromDesk(id: GameId): void {
+  deskGameIcons.get(id)?.remove();
+  deskGameIcons.delete(id);
+  deskGamePos.delete(id);
+  saveDeskGames();
 }
 try {
   for (const g of JSON.parse(localStorage.getItem(DESK_GAMES) ?? "[]") as { id: GameId; x: number; y: number }[])
@@ -215,7 +232,7 @@ const desktopApps: DesktopApps = {
   openHelp: () => textWindow(wm, "help", TITLES.help, HELP_TEXT, 180, 120, 230),
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
-  openGames: () => openGamesFolder(wm, gameLaunchers, placeGameOnDesk),
+  openGames: () => openGamesFolder(wm, gameLaunchers, placeGameOnDesk, (id) => deskGameIcons.has(id)),
   openUntitled: () => openEditor(wm, disk, "untitled.txt"),
   openReadme: () => openEditor(wm, disk, "readme.txt"),
   openTerminal: () => openTerminal({ wm, disk, edit: (name) => openEditor(wm, disk, name) }),

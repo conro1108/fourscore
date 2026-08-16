@@ -233,9 +233,11 @@ export function openSnake(wm: WM): void {
   timer = setInterval(step, STEP_MS);
 }
 
+// n, not g: g is the desktop's own teal, and a snake the colour of the desk
+// vanishes the moment it's dragged out of the folder
 export const SNAKE_ICON = [
-  "................", "................", "....gggggggg....", "...gggggggggg...",
-  "...gg......gg...", "...gg...........", "...ggggggggg....", "....gggggggggg..",
-  "..........ggg...", "...........gg...", "...gggggggggg...", "..gggggggggg....",
-  "..ggw...........", "..gg............", "...rr...........", "................",
+  "................", "................", "....nnnnnnnn....", "...nnnnnnnnnn...",
+  "...nn......nn...", "...nn...........", "...nnnnnnnnn....", "....nnnnnnnnnn..",
+  "..........nnn...", "...........nn...", "...nnnnnnnnnn...", "..nnnnnnnnnn....",
+  "..nnw...........", "..nn............", "...rr...........", "................",
 ] as const;

@@ -45,10 +45,13 @@ export interface DeskIconSpec {
   launch(): void;
   /** Fires when the user drops the icon somewhere new. */
   onMove?(x: number, y: number): void;
+  /** Offered the drop first; return true to consume it (the icon left the desk). */
+  onDrop?(ev: PointerEvent): boolean;
 }
 
 export interface DeskIcon {
   moveTo(x: number, y: number): void;
+  remove(): void;
 }
 
 export interface Shell {
@@ -112,6 +115,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       },
       (e, cancelled) => {
         if (moved) {
+          if (!cancelled && spec.onDrop?.(e)) return;
           icon.dataset.dragged = "1"; // you put it there; a re-stage lets it be
           spec.onMove?.(icon.offsetLeft, icon.offsetTop);
         } else if (!cancelled && e.pointerType === "touch") spec.launch();
@@ -123,6 +127,11 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       moveTo(x, y) {
         icon.style.left = `${x}px`;
         icon.style.top = `${y}px`;
+      },
+      remove() {
+        icon.remove();
+        const i = iconEls.indexOf(icon);
+        if (i >= 0) iconEls.splice(i, 1);
       },
     };
   }
