@@ -19,8 +19,13 @@
  * forbids. So do the settings: the chip style, the sound scheme and volume,
  * Minesweeper's size, the chess skill, and the game icons dragged out of the
  * folder onto the desk. A machine that forgot how you had set it up would not
- * be the same machine coming back. Nothing in here writes to localStorage at
- * all, which is how that promise is kept rather than maintained.
+ * be the same machine coming back. The plain restart never touches
+ * localStorage at all, which is how that promise is kept rather than
+ * maintained. The one exception is the shutdown box's third option — "forget
+ * everything" — which wipes every `exe.*` key on the way out. That is not the
+ * fake data loss DIRECTION.md forbids: the player asked for it by name, and
+ * the wipe happens at the navigation itself so nothing can write itself back
+ * during the POST.
  *
  * The mechanism is an honest page load, which is why the paragraphs above are
  * a description and not a teardown that could drift out of date: nothing can
@@ -53,6 +58,9 @@ export interface RestartOpts {
       and `npm run timeline` can look at a screen that would otherwise have
       navigated out from under them. Never set in play. */
   hold?: boolean;
+  /** Wipe every `exe.*` localStorage key before the load — the disk, the
+      settings, the desk. Only the shutdown box's third option sets this. */
+  forget?: boolean;
 }
 
 /**
@@ -111,6 +119,9 @@ export function restart(stage: HTMLElement, opts: RestartOpts = {}): void {
     removeEventListener("pointerdown", go, true);
     removeEventListener("keydown", go, true);
     if (opts.hold) return;
+    if (opts.forget)
+      for (const k of Object.keys(localStorage))
+        if (k.startsWith("exe.")) localStorage.removeItem(k);
     // armed before the navigation, not after: a refused `replace()` that
     // throws would otherwise leave the player looking at a black screen
     setTimeout(() => screen.remove(), FAILSAFE);
@@ -170,6 +181,7 @@ export function openShutdown(wm: WM, deps: { stage: HTMLElement; help(): void })
       }
       if (i !== 0) return; // No. The machine goes on being the way it is.
       if (choice === 1) restart(deps.stage);
+      else if (choice === 2) restart(deps.stage, { forget: true });
       else
         wm.dialog({
           title: DIALOG.shutdown.title,

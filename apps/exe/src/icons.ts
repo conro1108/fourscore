@@ -93,6 +93,30 @@ export const ICONS = {
     ".....kdk.r...r..","..kkkkdk..r.r...","..kwdddk...r....","..kwdddk...r....",
     "..kkkkdk..r.r...",".....kdk.r...r..","......kk........",".......k........",
     "................","................","................","................"],
+  // Settings: a control panel of three sliders, mid-adjustment
+  settings: [
+    "................",".kkkkkkkkkkkkk..",".kccccccccccck..",".kcckcckcckcck..",
+    ".kcrrrckcckcck..",".kcrrrckcckcck..",".kcckcyyyckcck..",".kcckcyyyckcck..",
+    ".kcckcckcbbbck..",".kcckcckcbbbck..",".kcckcckcckcck..",".kccccccccccck..",
+    ".kkkkkkkkkkkkk..","................","................","................"],
+  // Help: the manual, closed, asking its one question
+  helpbook: [
+    "................","..kkkkkkkkkkkk..","..kkyyyyyyyyyk..","..kkyyywwwyyyk..",
+    "..kkyyywyyywyk..","..kkyyyyyyywyk..","..kkyyyyyywyyk..","..kkyyyyywyyyk..",
+    "..kkyyyyyyyyyk..","..kkyyyyywyyyk..","..kkyyyyyyyyyk..","..kkyyyyyyyyyk..",
+    "..kkkkkkkkkkkk..","................","................","................"],
+  // Shut Down: the same monitor as flames.scr, switched off
+  off: [
+    "................",".kkkkkkkkkkkkk..",".kwwwwwwwwwwwk..",".kwkkkkkkkkkwk..",
+    ".kwkkkkkkkkkwk..",".kwkkkkwkkkkwk..",".kwkkkkkkkkkwk..",".kwkkkkkkkkkwk..",
+    ".kwwwwwwwwwwwk..",".kkkkkkkkkkkkk..","....kkkkkkk.....","......kkk.......",
+    "....kkkkkkk.....","................","................","................"],
+  // pieces.ctl: one red checker
+  disc: [
+    "................","................","....kkkkkkkk....","...krrwwrrrrk...",
+    "..krwwrrrrrrrk..","..krwrrrrrrrrk..","..krrrrrrrrrrk..","..krrrrrrrrrrk..",
+    "..krrrrrrrrrrk..","...krrrrrrrrk...","....kkkkkkkk....","................",
+    "................","................","................","................"],
 } as const;
 
 export const ROCKET = [

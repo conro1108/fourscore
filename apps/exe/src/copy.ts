@@ -159,8 +159,14 @@ export const DIALOG = {
 export const SHUTDOWN = {
   title: "Shut Down Windows",
   prompt: "Are you sure you want to:",
-  /** In the period's order, and the period's default: shut down is first. */
-  options: ["Shut down the computer?", "Restart the computer?"] as const,
+  /** In the period's order, and the period's default: shut down is first.
+      The third is this machine's own — a restart that also empties C:\ and
+      every setting, offered out loud rather than done to anyone. */
+  options: [
+    "Shut down the computer?",
+    "Restart the computer?",
+    "Restart the computer and forget everything?",
+  ] as const,
   yes: "Yes",
   no: "No",
   help: "Help",

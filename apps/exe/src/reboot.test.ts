@@ -17,9 +17,13 @@ describe("restart", () => {
     expect(GO_AT).toBeLessThanOrEqual(2000);
   });
 
-  it("offers both period answers, shut down first", () => {
-    expect(SHUTDOWN.options).toHaveLength(2);
+  it("offers the period answers, shut down first, amnesia last and explicit", () => {
+    expect(SHUTDOWN.options).toHaveLength(3);
     expect(SHUTDOWN.options[0]).toMatch(/^Shut down/);
     expect(SHUTDOWN.options[1]).toMatch(/^Restart/);
+    // the hard reset must say what it costs — a wipe hiding behind a plain
+    // "Restart" would be the fake data loss DIRECTION.md forbids
+    expect(SHUTDOWN.options[2]).toMatch(/^Restart/);
+    expect(SHUTDOWN.options[2]).toMatch(/forget/i);
   });
 });

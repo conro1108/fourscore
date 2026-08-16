@@ -6,6 +6,7 @@
 
 import { el, onPointerDrag, q } from "./dom.js";
 import { ICONS, ROCKET, iconCanvas, px } from "./icons.js";
+import { GAME_ITEMS } from "./games/folder.js";
 import { START_MENU } from "./copy.js";
 import { play } from "./audio/index.js";
 import { installTray } from "./sounds.js";
@@ -197,19 +198,28 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
 
   /* ---- start menu ---- */
   const menu = el(`<div id="startmenu" class="bevel">
-      <div class="banner">BOARD 95</div>
+      <div class="banner"><b>BOARD</b>95</div>
       <div class="inner"></div>
     </div>`);
   const inner = q(".inner", menu);
-  const item = (label: string, act?: () => void, sub?: [string, () => void][]): HTMLElement => {
+  type SubEntry = readonly [string, () => void, (readonly string[])?];
+  // every row wears its program's own icon — the menu is a hallway of the
+  // same doors the desk has, not a list of words
+  const item = (label: string, rows: readonly string[], act?: () => void, sub?: SubEntry[]): HTMLElement => {
     const it = el(`<div></div>`);
-    it.textContent = label;
+    it.appendChild(iconCanvas(rows, 24));
+    const t = el(`<span class="mlabel"></span>`);
+    t.textContent = label;
+    it.appendChild(t);
     if (sub) {
       it.appendChild(el(`<span class="sub">▸</span>`));
       const s = el(`<div class="popup submenu"></div>`);
-      for (const [l, a] of sub) {
+      for (const [l, a, r] of sub) {
         const si = el(`<div></div>`);
-        si.textContent = l;
+        if (r) si.appendChild(iconCanvas(r, 16));
+        const sl = el(`<span class="mlabel"></span>`);
+        sl.textContent = l;
+        si.appendChild(sl);
         si.addEventListener("click", (e) => {
           e.stopPropagation();
           play("click", 0.6);
@@ -229,29 +239,25 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     return it;
   };
   inner.append(
-    item(START_MENU.programs, undefined, [
-      ["BOARD.EXE", () => apps().openBoard()],
-      ["flames.scr", () => apps().openFlames()],
-      ["MINES.EXE", () => apps().openGame("mines")],
-      ["SOL.EXE", () => apps().openGame("sol")],
-      ["SNAKE.EXE", () => apps().openGame("snake")],
-      ["CHECKERS.EXE", () => apps().openGame("checkers")],
-      ["CHESS.EXE", () => apps().openGame("chess")],
-      ["COMMAND.COM", () => apps().openTerminal()],
+    item(START_MENU.programs, ICONS.folder, undefined, [
+      ["BOARD.EXE", () => apps().openBoard(), ICONS.board],
+      ["flames.scr", () => apps().openFlames(), ICONS.flame],
+      ...GAME_ITEMS.map((g): SubEntry => [g.label, () => apps().openGame(g.id), g.rows]),
+      ["COMMAND.COM", () => apps().openTerminal(), ICONS.term],
     ]),
-    item(START_MENU.documents, undefined, [
-      ["moves.txt", () => apps().openMoves()],
-      ["untitled.txt", () => apps().openUntitled()],
-      ["readme.txt", () => apps().openReadme()],
-      ["help.txt", () => apps().openHelp()],
+    item(START_MENU.documents, ICONS.moves, undefined, [
+      ["moves.txt", () => apps().openMoves(), ICONS.moves],
+      ["untitled.txt", () => apps().openUntitled(), ICONS.moves],
+      ["readme.txt", () => apps().openReadme(), ICONS.moves],
+      ["help.txt", () => apps().openHelp(), ICONS.moves],
     ]),
-    item(START_MENU.settings, undefined, [
-      ["pieces.ctl", () => apps().openPieces()],
-      ["sounds.ctl", () => apps().openSounds()],
+    item(START_MENU.settings, ICONS.settings, undefined, [
+      ["pieces.ctl", () => apps().openPieces(), ICONS.disc],
+      ["sounds.ctl", () => apps().openSounds(), ICONS.speaker],
     ]),
     el(`<hr>`),
-    item(START_MENU.help, () => apps().openHelp()),
-    item(START_MENU.shutdown, () => apps().shutdown()),
+    item(START_MENU.help, ICONS.helpbook, () => apps().openHelp()),
+    item(START_MENU.shutdown, ICONS.off, () => apps().shutdown()),
   );
   stage.appendChild(menu);
 
