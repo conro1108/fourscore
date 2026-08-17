@@ -961,7 +961,7 @@ export function openChess(wm: WM, fen?: string): void {
 
   const makeBar = (): HTMLElement =>
     menubar([
-      { label: "Game", items: [["New\tF2", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
+      { label: "Game", items: [["New\tCtrl+D", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
       {
         label: "Skill",
         items: SKILLS.map(([id, label]) => [label, () => setSkill(id), skill === id] as const),
@@ -1029,7 +1029,10 @@ export function openChess(wm: WM, fen?: string): void {
       removeEventListener("keydown", onKey);
       return;
     }
-    if (e.key === "F2" && wm.focused()?.id === "chess") {
+    if (
+      (e.key === "F2" || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d")) &&
+      wm.focused()?.id === "chess"
+    ) {
       e.preventDefault();
       newGame();
     }

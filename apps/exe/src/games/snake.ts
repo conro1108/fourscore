@@ -153,7 +153,7 @@ export function openSnake(wm: WM): void {
       return;
     }
     if (wm.focused()?.id !== "snake") return;
-    if (e.key === "F2") {
+    if (e.key === "F2" || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d")) {
       e.preventDefault();
       reset();
       return;
@@ -185,7 +185,7 @@ export function openSnake(wm: WM): void {
   );
 
   const bar = menubar([
-    { label: "Game", items: [["New\tF2", reset], ["-", () => {}], ["Exit", () => win.close()]] },
+    { label: "Game", items: [["New\tCtrl+D", reset], ["-", () => {}], ["Exit", () => win.close()]] },
     {
       label: "Help",
       items: [[

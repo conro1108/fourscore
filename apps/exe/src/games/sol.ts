@@ -950,7 +950,7 @@ export function openSol(wm: WM, rig?: string): void {
   }
 
   const bar = menubar([
-    { label: "Game", items: [["Deal\tF2", newDeal], ["Undo\tCtrl+Z", undo], ["-", () => {}], ["Exit", () => win.close()]] },
+    { label: "Game", items: [["Deal\tCtrl+D", newDeal], ["Undo\tCtrl+Z", undo], ["-", () => {}], ["Exit", () => win.close()]] },
     {
       label: "Help",
       items: [[
@@ -1014,10 +1014,12 @@ export function openSol(wm: WM, rig?: string): void {
       return;
     }
     if (wm.focused()?.id !== "sol") return;
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+    // the menu says Ctrl+, the period spelling; Cmd answers too, like undo
+    const cmd = e.metaKey || e.ctrlKey;
+    if (cmd && e.key.toLowerCase() === "z") {
       e.preventDefault();
       undo();
-    } else if (e.key === "F2") {
+    } else if (e.key === "F2" || (cmd && e.key.toLowerCase() === "d")) {
       e.preventDefault();
       newDeal();
     }

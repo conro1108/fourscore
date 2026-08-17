@@ -175,7 +175,10 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       removeEventListener("keydown", onKey);
       return;
     }
-    if (e.key === "F2" && deps.wm.focused()?.id === "board") {
+    if (
+      (e.key === "F2" || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d")) &&
+      deps.wm.focused()?.id === "board"
+    ) {
       e.preventDefault();
       newGame();
     }
@@ -197,7 +200,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     menubar.append(gameBtn, oppBtn, helpBtn, forfeitBtn);
 
     const gamePopup = el(`<div class="popup" style="left:4px;display:none"></div>`);
-    const newItem = el(`<div class="has-accel">New game<span class="accel">F2</span></div>`);
+    const newItem = el(`<div class="has-accel">New game<span class="accel">Ctrl+D</span></div>`);
     newItem.addEventListener("click", () => newGame());
     gamePopup.appendChild(newItem);
     gamePopup.appendChild(el(`<hr>`));

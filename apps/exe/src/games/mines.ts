@@ -335,7 +335,7 @@ export function openMines(wm: WM): void {
       {
         label: "Game",
         items: [
-          ["New\tF2", () => reset()],
+          ["New\tCtrl+D", () => reset()],
           ["-", () => {}],
           ...LEVELS.map(
             (l) => [l.label, () => setLevel(l), l.id === level.id] as const,
@@ -411,7 +411,10 @@ export function openMines(wm: WM): void {
       removeEventListener("keydown", onKey);
       return;
     }
-    if (e.key === "F2" && wm.focused()?.id === "mines") {
+    if (
+      (e.key === "F2" || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d")) &&
+      wm.focused()?.id === "mines"
+    ) {
       e.preventDefault();
       reset();
     }
