@@ -9,7 +9,11 @@
  * seed to hold them together):
  *
  *   Types      int and char are both one 16-bit word; pointers and arrays
- *              are word addresses. void is a courtesy.
+ *              are word addresses. void is a courtesy. struct names a
+ *              layout: every field is one word (a struct-typed field must
+ *              be a pointer), x.f and p->f are the same arithmetic, and
+ *              sizeof(struct S) counts fields. Define a struct before it
+ *              is used; a struct value is its address, the way an array is.
  *   Functions  arguments and locals, recursion works. main() is the program.
  *   Statements if/else, while, do/while, for, break, continue, return,
  *              asm("...") passes a line straight to the assembler.
@@ -17,7 +21,13 @@
  *              ?:, || && | ^ &, comparisons, shifts, arithmetic, !, ~,
  *              unary -, * and & on pointers, ++ and --, [] and calls.
  *   Builtins   putc(c) putn(n) puts(s) getc() key() rand() — the hardware
- *              ports, wearing C. getc waits; key does not.
+ *              ports, wearing C. getc waits; key does not. malloc(n) hands
+ *              out n words from a heap that starts where the program ends;
+ *              the words arrive zeroed and are never reused — free() is
+ *              accepted and does nothing.
+ *   Data       int a[4] = {1, 2, 3}; fills in order and pads with zeros;
+ *              int a[] = {...} counts for you. Constants only, but local
+ *              and global alike.
  *   #define    NAME value, one token, numbers only.
  *
  * How it lands on the processor: R0 is the accumulator, R1 the second
@@ -52,19 +62,20 @@ interface Tok {
 
 const PUNCTS = [
   "<<=", ">>=",
-  "==", "!=", "<=", ">=", "&&", "||", "++", "--",
+  "==", "!=", "<=", ">=", "&&", "||", "++", "--", "->",
   "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<", ">>",
   "+", "-", "*", "/", "%", "&", "|", "^", "~", "!", "<", ">", "=",
-  "(", ")", "[", "]", "{", "}", ",", ";", "?", ":",
+  "(", ")", "[", "]", "{", "}", ",", ";", "?", ":", ".",
 ];
 
 const KEYWORDS = new Set([
-  "int", "char", "void", "if", "else", "while", "do", "for",
+  "int", "char", "void", "struct", "sizeof", "if", "else", "while", "do", "for",
   "return", "break", "continue", "asm",
 ]);
 
-/** The hardware, wearing C. A program may not redefine these. */
-const BUILTINS = new Set(["putc", "putn", "puts", "getc", "key", "rand"]);
+/** The hardware, wearing C. A program may not redefine these. malloc and
+    free live here too: the heap is the machine's, not the program's. */
+const BUILTINS = new Set(["putc", "putn", "puts", "getc", "key", "rand", "malloc", "free"]);
 
 class Stop {
   constructor(readonly error: CcError) {}
@@ -213,11 +224,27 @@ type Expr =
   | { kind: "cond"; c: Expr; t: Expr; f: Expr; line: number }
   | { kind: "incdec"; op: "++" | "--"; pre: boolean; lv: Expr; line: number }
   | { kind: "index"; base: Expr; idx: Expr; line: number }
+  | { kind: "field"; base: Expr; name: string; line: number }
   | { kind: "call"; name: string; args: Expr[]; line: number };
+
+/** One declared name. `words` is its whole footprint (array size, struct
+    field count, or 1); `s` is its struct type, pointer or value alike —
+    both evaluate to an address of an S, so one tag serves. */
+interface DeclName {
+  name: string;
+  size: number | null; // null: scalar; number: array of that many words
+  words: number;
+  s: string | null;
+  /** A struct held by value — the name is its address, the way an array is. */
+  val: boolean;
+  init: Expr | null;
+  list: number[] | null;
+  line: number;
+}
 
 type Stmt =
   | { kind: "expr"; e: Expr; line: number }
-  | { kind: "decl"; names: { name: string; size: number | null; init: Expr | null; line: number }[]; line: number }
+  | { kind: "decl"; names: DeclName[]; line: number }
   | { kind: "if"; c: Expr; t: Stmt; f: Stmt | null; line: number }
   | { kind: "while"; c: Expr; body: Stmt; line: number }
   | { kind: "do"; c: Expr; body: Stmt; line: number }
@@ -231,14 +258,26 @@ type Stmt =
 
 interface FnDecl {
   name: string;
-  params: string[];
+  params: { name: string; s: string | null }[];
+  /** Struct type of the return value, when the function returns one. */
+  retS: string | null;
   body: Stmt[];
   line: number;
 }
 interface GlobalDecl {
   name: string;
   size: number | null; // null: scalar; number: array of that many words
+  words: number;
+  s: string | null;
+  val: boolean;
   init: number | { str: number } | null;
+  list: number[] | null;
+  line: number;
+}
+/** A struct layout: field order is field offset; `s` is the struct a
+    pointer field points at, for the chains (p->next->val). */
+interface StructDecl {
+  fields: { name: string; s: string | null }[];
   line: number;
 }
 
@@ -259,7 +298,7 @@ const BIN_LEVELS: string[][] = [
 
 const ASSIGN_OPS = new Set(["=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="]);
 
-function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
+function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[]; structs: Map<string, StructDecl> } {
   let p = 0;
   const peek = (): Tok => toks[p]!;
   const next = (): Tok => toks[p++]!;
@@ -271,13 +310,30 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
   };
   const describe = (t: Tok): string =>
     t.kind === "eof" ? "the end of the file" : t.kind === "str" ? "a string" : `'${t.text}'`;
-  const isType = (t: Tok): boolean => t.kind === "id" && (t.text === "int" || t.text === "char" || t.text === "void");
+  const isType = (t: Tok): boolean =>
+    t.kind === "id" && (t.text === "int" || t.text === "char" || t.text === "void" || t.text === "struct");
 
   const expectName = (): Tok => {
     const t = next();
     if (t.kind !== "id" || KEYWORDS.has(t.text))
       throw new Stop({ line: t.line, msg: `Expected a name, got ${describe(t)}` });
     return t;
+  };
+
+  const structs = new Map<string, StructDecl>();
+  const structSize = (name: string, line: number): number => {
+    const s = structs.get(name);
+    if (!s) throw new Stop({ line, msg: `Unknown struct: ${name} (define it before it is used)` });
+    return s.fields.length;
+  };
+
+  /** Consume int/char/void or struct Name; the stars come per declared name. */
+  const typeSpec = (): { s: string | null } => {
+    const t = next();
+    if (t.text !== "struct") return { s: null };
+    const nameTok = expectName();
+    structSize(nameTok.text, nameTok.line); // it must exist
+    return { s: nameTok.text };
   };
 
   function primary(): Expr {
@@ -311,6 +367,11 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
         const idx = expr();
         expect("]");
         e = { kind: "index", base: e, idx, line };
+      } else if (at(".") || at("->")) {
+        // one word per field, so . and -> are the same arithmetic; the
+        // compiler accepts either and does not tell on you
+        next();
+        e = { kind: "field", base: e, name: expectName().text, line };
       } else if (at("++") || at("--")) {
         const op = next().text as "++" | "--";
         e = { kind: "incdec", op, pre: false, lv: e, line };
@@ -321,6 +382,29 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
 
   function unary(): Expr {
     const t = peek();
+    if (t.kind === "id" && t.text === "sizeof") {
+      // sizeof takes a type and answers in words, which is what a word
+      // machine means by size. sizeof(struct S) counts fields.
+      next();
+      expect("(");
+      let words = 1;
+      if (at("struct")) {
+        next();
+        const n = expectName();
+        words = structSize(n.text, n.line);
+        if (eat("*")) words = 1;
+        while (eat("*")) {
+          /* a pointer is a word */
+        }
+      } else if (isType(peek())) {
+        next();
+        while (eat("*")) {
+          /* a pointer is a word */
+        }
+      } else throw new Stop({ line: t.line, msg: "sizeof wants a type" });
+      expect(")");
+      return { kind: "num", value: words, line: t.line };
+    }
     if (t.kind === "punct") {
       if (t.text === "++" || t.text === "--") {
         next();
@@ -334,11 +418,12 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
         return { kind: "un", op: t.text, e, line: t.line };
       }
       if (t.text === "(") {
-        // a cast is punctuation to this machine: (int), (char *), (void*) vanish
+        // a cast is punctuation to this machine: (int), (char *),
+        // (struct Node *) all vanish
         const save = p;
         next();
         if (isType(peek())) {
-          next();
+          if (next().text === "struct") expectName();
           while (eat("*")) {
             /* pointers are words too */
           }
@@ -387,25 +472,70 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
     return assignExpr();
   }
 
-  function declStmt(line: number): Stmt {
-    const names: { name: string; size: number | null; init: Expr | null; line: number }[] = [];
+  /** [N], [] (the initialiser list counts for you), or nothing (null).
+      -1 stands for "counted later". */
+  function arraySuffix(): number | null {
+    if (!eat("[")) return null;
+    if (eat("]")) return -1;
+    const sz = next();
+    if (sz.kind !== "num" || sz.value === 0 || sz.value > 0x0e00)
+      throw new Stop({ line: sz.line, msg: "An array wants a fixed size" });
+    expect("]");
+    return sz.value;
+  }
+
+  /** { 1, -2, 'a' } — constants only; the program hasn't started yet. */
+  function initList(line: number): number[] {
+    expect("{");
+    const vals: number[] = [];
     do {
-      while (eat("*")) {
-        /* a pointer is a word */
-      }
-      const nameTok = expectName();
-      let size: number | null = null;
-      let init: Expr | null = null;
-      if (eat("[")) {
-        const sz = next();
-        if (sz.kind !== "num" || sz.value === 0 || sz.value > 0x0e00)
-          throw new Stop({ line: sz.line, msg: "An array wants a fixed size" });
-        size = sz.value;
-        expect("]");
-      } else if (eat("=")) {
-        init = assignExpr();
-      }
-      names.push({ name: nameTok.text, size, init, line: nameTok.line });
+      if (at("}")) break; // a trailing comma is legal C and stays legal here
+      const neg = eat("-");
+      const t = next();
+      if (t.kind !== "num")
+        throw new Stop({ line: t.line, msg: "An initialiser list wants numbers" });
+      vals.push(neg ? (0x10000 - t.value) & 0xffff : t.value);
+    } while (eat(","));
+    expect("}");
+    if (!vals.length)
+      throw new Stop({ line, msg: "An initialiser list wants at least one value" });
+    return vals;
+  }
+
+  /** The declared-name suffix grammar locals and globals share: stars, the
+      name, [N] or [] = {...} or = init. The caller supplies the base type. */
+  function declName(s: string | null): Omit<DeclName, "init"> & { sawEq: boolean } {
+    let stars = 0;
+    while (eat("*")) stars++;
+    const nameTok = expectName();
+    const val = s !== null && stars === 0;
+    let size = arraySuffix();
+    let list: number[] | null = null;
+    let sawEq = false;
+    if (val && size !== null)
+      throw new Stop({ line: nameTok.line, msg: "An array of structs wants pointers" });
+    if (size !== null && at("=")) {
+      next();
+      list = initList(nameTok.line);
+      if (size === -1) size = list.length;
+      if (list.length > size)
+        throw new Stop({ line: nameTok.line, msg: `${list.length} values into ${size} slots` });
+    } else if (size === -1) {
+      throw new Stop({ line: nameTok.line, msg: "[] wants an initialiser list to count" });
+    } else if (size === null && eat("=")) {
+      if (val) throw new Stop({ line: nameTok.line, msg: "A struct starts empty — fill its fields" });
+      sawEq = true;
+    }
+    const words = size ?? (val ? structSize(s!, nameTok.line) : 1);
+    return { name: nameTok.text, size, words, s, val, list, line: nameTok.line, sawEq };
+  }
+
+  function declStmt(line: number, s: string | null): Stmt {
+    const names: DeclName[] = [];
+    do {
+      const d = declName(s);
+      const init = d.sawEq ? assignExpr() : null;
+      names.push({ ...d, init });
     } while (eat(","));
     expect(";");
     return { kind: "decl", names, line };
@@ -415,8 +545,7 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
     const t = peek();
     const line = t.line;
     if (isType(t)) {
-      next();
-      return declStmt(line);
+      return declStmt(line, typeSpec().s);
     }
     if (t.kind === "id" && KEYWORDS.has(t.text)) {
       if (eat("if")) {
@@ -498,31 +627,71 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
     throw new Stop({ line, msg: "A global starts as a number or a string" });
   }
 
+  /** struct Name { int val; struct Name *next; }; — a layout. A field is
+      one word, so a struct-typed field must be a pointer, which is also
+      what lets a list point at itself before its own } arrives. */
+  function structDef(): void {
+    next(); // struct
+    const nameTok = expectName();
+    if (structs.has(nameTok.text))
+      throw new Stop({ line: nameTok.line, msg: `Defined twice: struct ${nameTok.text}` });
+    expect("{");
+    const fields: { name: string; s: string | null }[] = [];
+    while (!eat("}")) {
+      if (peek().kind === "eof")
+        throw new Stop({ line: nameTok.line, msg: "A { opened and never closed" });
+      const ft = peek();
+      if (!isType(ft)) throw new Stop({ line: ft.line, msg: "A field starts with its type" });
+      // fields skip typeSpec's exists-check so a struct can point at itself
+      const fs = next().text === "struct" ? expectName().text : null;
+      do {
+        let stars = 0;
+        while (eat("*")) stars++;
+        const fname = expectName();
+        if (fs !== null && stars === 0)
+          throw new Stop({ line: fname.line, msg: "A struct field holds one word — use a pointer" });
+        if (fields.some((f) => f.name === fname.text))
+          throw new Stop({ line: fname.line, msg: `Defined twice: ${fname.text}` });
+        fields.push({ name: fname.text, s: fs });
+      } while (eat(","));
+      expect(";");
+    }
+    expect(";");
+    if (!fields.length)
+      throw new Stop({ line: nameTok.line, msg: "A struct wants at least one field" });
+    structs.set(nameTok.text, { fields, line: nameTok.line });
+  }
+
   const fns: FnDecl[] = [];
   const globals: GlobalDecl[] = [];
   while (peek().kind !== "eof") {
     const t = peek();
     if (!isType(t))
-      throw new Stop({ line: t.line, msg: `Expected int, char or void, got ${describe(t)}` });
-    next();
+      throw new Stop({ line: t.line, msg: `Expected int, char, void or struct, got ${describe(t)}` });
+    if (t.text === "struct" && toks[p + 2]?.text === "{") {
+      structDef();
+      continue;
+    }
+    const spec = typeSpec();
+    const save = p;
     while (eat("*")) {
       /* a pointer is a word */
     }
     const nameTok = expectName();
     if (at("(")) {
       next();
-      const params: string[] = [];
+      const params: { name: string; s: string | null }[] = [];
       if (!at(")")) {
         if (at("void") && toks[p + 1]!.text === ")") next();
         else
           do {
             const pt = peek();
             if (!isType(pt)) throw new Stop({ line: pt.line, msg: "A parameter starts with its type" });
-            next();
+            const ps = typeSpec().s;
             while (eat("*")) {
               /* a pointer is a word */
             }
-            params.push(expectName().text);
+            params.push({ name: expectName().text, s: ps });
           } while (eat(","));
       }
       expect(")");
@@ -533,36 +702,24 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
           throw new Stop({ line: nameTok.line, msg: "A { opened and never closed" });
         body.push(stmt());
       }
-      fns.push({ name: nameTok.text, params, body, line: nameTok.line });
+      fns.push({ name: nameTok.text, params, retS: spec.s, body, line: nameTok.line });
     } else {
-      // a global — possibly several on the line
-      let first = true;
+      // a global — possibly several on the line, same suffix grammar as a local
+      p = save;
       do {
-        let name = nameTok;
-        if (!first) {
-          while (eat("*")) {
-            /* a pointer is a word */
-          }
-          name = expectName();
-        }
-        first = false;
-        let size: number | null = null;
-        let init: number | { str: number } | null = null;
-        if (eat("[")) {
-          const sz = next();
-          if (sz.kind !== "num" || sz.value === 0 || sz.value > 0x0e00)
-            throw new Stop({ line: sz.line, msg: "An array wants a fixed size" });
-          size = sz.value;
-          expect("]");
-        } else if (eat("=")) {
-          init = constInit(name.line);
-        }
-        globals.push({ name: name.text, size, init, line: name.line });
+        const d = declName(spec.s);
+        const init = d.sawEq ? constInit(d.line) : null;
+        globals.push({ ...d, init });
       } while (eat(","));
       expect(";");
     }
   }
-  return { fns, globals };
+  // a field may name a struct defined later; by here, later has happened
+  for (const [sname, sd] of structs)
+    for (const f of sd.fields)
+      if (f.s !== null && !structs.has(f.s))
+        throw new Stop({ line: sd.line, msg: `Unknown struct: ${f.s} (a field of ${sname})` });
+  return { fns, globals, structs };
 }
 
 /* ---- code generation ---- */
@@ -570,12 +727,14 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[] } {
 interface Local {
   slot: number; // frame slot index; scalar at fp-(1+slot), array base fp-(slot+size)
   size: number | null;
+  /** Struct type, pointer and value alike — either way the id names an S. */
+  s: string | null;
 }
 
 function countSlots(body: Stmt[]): number {
   let n = 0;
   const walk = (s: Stmt): void => {
-    if (s.kind === "decl") for (const d of s.names) n += d.size ?? 1;
+    if (s.kind === "decl") for (const d of s.names) n += d.words;
     else if (s.kind === "block") s.body.forEach(walk);
     else if (s.kind === "if") {
       walk(s.t);
@@ -590,20 +749,27 @@ export function compileC(src: string): CcResult {
   try {
     const defines = new Map<string, number>();
     const { toks, strings } = lex(src, defines);
-    const { fns, globals } = parse(toks);
-    return emit(fns, globals, strings);
+    const { fns, globals, structs } = parse(toks);
+    return emit(fns, globals, strings, structs);
   } catch (e) {
     if (e instanceof Stop) return { ok: false, errors: [e.error] };
     throw e;
   }
 }
 
-function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult {
+function emit(
+  fns: FnDecl[],
+  globals: GlobalDecl[],
+  strings: string[],
+  structs: Map<string, StructDecl>,
+): CcResult {
   const errors: CcError[] = [];
   const out: string[] = [];
   const rt = new Set<string>();
   let labelSeq = 0;
   const label = (): string => `l${labelSeq++}`;
+  /** A word as the assembler likes it: hex once the sign bit is riding. */
+  const imm = (v: number): string => (v >= 0x8000 ? `0x${v.toString(16)}` : String(v));
   const ln = (s: string): void => {
     out.push(s.startsWith(";") || s.endsWith(":") ? s : `        ${s}`);
   };
@@ -638,7 +804,38 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
     }
     return null;
   };
-  const argIndex = (name: string): number => curFn?.params.indexOf(name) ?? -1;
+  const argIndex = (name: string): number =>
+    curFn?.params.findIndex((pp) => pp.name === name) ?? -1;
+
+  /** The struct an expression's value addresses, or null. A pointer to an S
+      and an S held by value both answer S — both are an address of one. */
+  const structOf = (e: Expr): string | null => {
+    switch (e.kind) {
+      case "id": {
+        const l = findLocal(e.name);
+        if (l) return l.s;
+        const ai = argIndex(e.name);
+        if (ai >= 0) return curFn!.params[ai]!.s;
+        return globalByName.get(e.name)?.s ?? null;
+      }
+      case "field": {
+        const s = structOf(e.base);
+        return s ? (structs.get(s)?.fields.find((f) => f.name === e.name)?.s ?? null) : null;
+      }
+      case "call":
+        return fnByName.get(e.name)?.retS ?? null;
+      case "un":
+        return e.op === "*" ? structOf(e.e) : null;
+      case "index":
+        return structOf(e.base);
+      case "assign":
+        return structOf(e.lv);
+      case "cond":
+        return structOf(e.t) ?? structOf(e.f);
+      default:
+        return null;
+    }
+  };
 
   /** r0 = the address of an lvalue (or of an array/string, which is a value). */
   function emitAddr(e: Expr): void {
@@ -677,15 +874,34 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
       ln(`add r0, r1`);
       return;
     }
+    if (e.kind === "field") {
+      // the base's value is the struct's address, whether it was a pointer
+      // or the struct itself; the field is an offset on top
+      const s = structOf(e.base);
+      emitExpr(e.base);
+      if (!s) {
+        errors.push({ line: e.line, msg: `Only a struct has a field: ${e.name}` });
+        return;
+      }
+      const off = structs.get(s)!.fields.findIndex((f) => f.name === e.name);
+      if (off < 0) {
+        errors.push({ line: e.line, msg: `No field ${e.name} in struct ${s}` });
+        return;
+      }
+      if (off) ln(`add r0, ${off}`);
+      return;
+    }
     errors.push({ line: e.line, msg: "That cannot be assigned to" });
     ln(`mov r0, 0`);
   }
 
+  /** Ids whose value is their address: arrays, and structs held by value. */
   const isArray = (e: Expr): boolean => {
     if (e.kind !== "id") return false;
     const l = findLocal(e.name);
     if (l) return l.size !== null;
-    return (globalByName.get(e.name)?.size ?? null) !== null;
+    const g = globalByName.get(e.name);
+    return g ? g.size !== null || g.val : false;
   };
 
   /** cmp with signed meaning: biases both sides so JC reads as "less than". */
@@ -747,7 +963,9 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
   }
 
   function emitCall(e: Extract<Expr, { kind: "call" }>): void {
-    const arity: Record<string, number> = { putc: 1, putn: 1, puts: 1, getc: 0, key: 0, rand: 0 };
+    const arity: Record<string, number> = {
+      putc: 1, putn: 1, puts: 1, getc: 0, key: 0, rand: 0, malloc: 1, free: 1,
+    };
     if (BUILTINS.has(e.name)) {
       if (e.args.length !== arity[e.name])
         errors.push({ line: e.line, msg: `${e.name} takes ${arity[e.name]} argument(s)` });
@@ -757,6 +975,13 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
         case "putn": ln(`st r0, [num]`); return;
         case "key": ln(`ld r0, [key]`); return;
         case "rand": ln(`ld r0, [rnd]`); return;
+        case "malloc":
+          rt.add("malloc");
+          ln(`call rt_malloc`);
+          return;
+        case "free":
+          // accepted, and nothing happens. The heap does not take things back.
+          return;
         case "getc": {
           const t = label();
           ln(`${t}:`);
@@ -793,7 +1018,7 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
   function emitExpr(e: Expr): void {
     switch (e.kind) {
       case "num":
-        ln(`mov r0, ${e.value >= 0x8000 ? `0x${e.value.toString(16)}` : e.value}`);
+        ln(`mov r0, ${imm(e.value)}`);
         return;
       case "str":
         ln(`mov r0, s${e.index}`);
@@ -902,6 +1127,7 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
         return;
       }
       case "index":
+      case "field":
         emitAddr(e);
         ln(`mov r6, r0`);
         ln(`ld r0, [r6]`);
@@ -928,13 +1154,28 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
           if (scope.has(d.name) || argIndex(d.name) >= 0)
             errors.push({ line: d.line, msg: `Defined twice: ${d.name}` });
           const slot = slotWater;
-          slotWater += d.size ?? 1;
-          scope.set(d.name, { slot, size: d.size });
+          slotWater += d.words;
+          scope.set(d.name, {
+            slot,
+            size: d.size !== null || d.val ? d.words : null,
+            s: d.s,
+          });
           if (d.init) {
             emitExpr(d.init);
             ln(`mov r6, r5`);
             ln(`sub r6, ${1 + slot}`);
             ln(`st r0, [r6]`);
+          }
+          if (d.list) {
+            // element i of the array at fp-(slot+words) is fp-(slot+words-i).
+            // The whole array is written: the pad is zeros, as C promises,
+            // and stack slots arrive holding whatever died there last.
+            for (let i = 0; i < d.words; i++) {
+              ln(`mov r0, ${imm(d.list[i] ?? 0)}`);
+              ln(`mov r6, r5`);
+              ln(`sub r6, ${slot + d.words - i}`);
+              ln(`st r0, [r6]`);
+            }
           }
         }
         return;
@@ -1041,7 +1282,7 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
     slotWater = 0;
     retLabel = `fn_${f.name}_ret`;
     const nslots = countSlots(f.body);
-    ln(`; --- ${f.name}(${f.params.join(", ")})`);
+    ln(`; --- ${f.name}(${f.params.map((pp) => pp.name).join(", ")})`);
     ln(`fn_${f.name}:`);
     ln(`sub r7, 1`);
     ln(`st r5, [r7]`);
@@ -1056,6 +1297,19 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
     ln(`ret`);
   }
 
+  if (rt.has("malloc")) {
+    // a bump allocator: the heap starts where the image ends and only grows.
+    // Fresh memory is zeroed because nothing has ever been there. It shares
+    // the room with the stacks and nobody referees — like the period.
+    ln(`; --- runtime: the heap. It grows and does not give back.`);
+    ln(`rt_malloc:`);
+    ln(`ld r1, [rt_hp]`);
+    ln(`add r0, r1`);
+    ln(`st r0, [rt_hp]`);
+    ln(`mov r0, r1`);
+    ln(`ret`);
+    out.push(`rt_hp:  .word heap0`);
+  }
   if (rt.has("puts")) {
     ln(`; --- runtime: write the zero-ended string at r1`);
     ln(`rt_puts:`);
@@ -1115,11 +1369,17 @@ function emit(fns: FnDecl[], globals: GlobalDecl[], strings: string[]): CcResult
     }
   });
   for (const g of globals) {
-    if (g.size !== null) out.push(`g_${g.name}: .space ${g.size}`);
+    if (g.list) {
+      const words = [...g.list];
+      while (words.length < g.words) words.push(0);
+      out.push(`g_${g.name}: .word ${words.join(", ")}`);
+    } else if (g.size !== null || g.val) out.push(`g_${g.name}: .space ${g.words}`);
     else if (g.init === null || g.init === 0) out.push(`g_${g.name}: .word 0`);
     else if (typeof g.init === "number") out.push(`g_${g.name}: .word ${g.init}`);
     else out.push(`g_${g.name}: .word s${g.init.str}`);
   }
+  // the heap begins where the program ends — this word is its first
+  if (rt.has("malloc")) out.push(`heap0:  .word 0`);
 
   if (errors.length) return { ok: false, errors };
   return { ok: true, asm: out.join("\n") };

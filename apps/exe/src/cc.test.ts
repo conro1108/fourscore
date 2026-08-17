@@ -182,6 +182,113 @@ describe("the hardware, wearing C", () => {
   });
 });
 
+describe("structs, the heap and initialiser lists", () => {
+  it("reads and writes fields through values and pointers alike", () => {
+    expect(
+      runC(`
+        struct Point { int x; int y; };
+        int main() {
+          struct Point p;
+          struct Point *q;
+          p.x = 3; p.y = 4;
+          q = &p;
+          putn(q->x * q->x + q->y * q->y);
+          q->y = 10;
+          putn(p.y);
+        }`),
+    ).toBe("2510");
+  });
+
+  it("builds and walks a linked list on the heap", () => {
+    expect(
+      runC(`
+        struct Node { int val; struct Node *next; };
+        struct Node *push(struct Node *head, int v) {
+          struct Node *n;
+          n = malloc(sizeof(struct Node));
+          n->val = v;
+          n->next = head;
+          return n;
+        }
+        int main() {
+          struct Node *head;
+          struct Node *p;
+          int i;
+          head = 0;
+          for (i = 1; i <= 4; i++) head = push(head, i);
+          for (p = head; p; p = p->next) putn(p->val);
+          putn(head->next->val); // the chain types itself
+          putn(push(0, 9)->val); // and so does a call
+        }`),
+    ).toBe("432139");
+  });
+
+  it("hands out distinct zeroed blocks, and free is a courtesy", () => {
+    expect(
+      runC(`
+        int main() {
+          int *a;
+          int *b;
+          a = malloc(3);
+          b = malloc(2);
+          putn(b - a);
+          putn(a[0] + a[1] + a[2]);
+          a[0] = 7;
+          putn(b[0]);
+          free(a);
+          putn(a[0]);
+        }`),
+    ).toBe("3007");
+  });
+
+  it("sizeof counts words", () => {
+    expect(
+      runC(`
+        struct Pair { int a; int b; };
+        int main() {
+          putn(sizeof(struct Pair));
+          putn(sizeof(int));
+          putn(sizeof(struct Pair *));
+        }`),
+    ).toBe("211");
+  });
+
+  it("fills arrays from initialiser lists, global and local, padding with zeros", () => {
+    expect(
+      runC(`
+        int g[] = {2, 7, 11, 15};
+        int h[6] = {1, 2, 3};
+        int main() {
+          int a[4] = {5, 6};
+          int m[] = {-4, 'A'};
+          putn(g[0] + g[1] + g[2] + g[3]);
+          putn(h[2] + h[5]);
+          putn(a[0] + a[1] + a[2] + a[3]);
+          putn(m[0]);
+          putc(m[1]);
+        }`),
+    ).toBe("35311-4A");
+  });
+
+  it("complains usefully about struct mistakes", () => {
+    expect(
+      errorsOf(`struct P { int x; }; int main() { struct P p; putn(p.z); }`),
+    ).toContainEqual(expect.stringContaining("No field z"));
+    expect(errorsOf(`struct P { struct P inner; }; int main() {}`)).toContainEqual(
+      expect.stringContaining("use a pointer"),
+    );
+    expect(errorsOf(`struct P { int x; }; int main() { struct P a[3]; }`)).toContainEqual(
+      expect.stringContaining("wants pointers"),
+    );
+    expect(errorsOf(`int main() { struct Ghost *p; }`)).toContainEqual(
+      expect.stringContaining("define it before"),
+    );
+    expect(errorsOf(`int main() { putn(sizeof(3)); }`)).toContainEqual(
+      expect.stringContaining("sizeof wants a type"),
+    );
+  });
+});
+
 describe("the preprocessor, all of it", () => {
   it("substitutes #define constants", () => {
     expect(runC(`#define WIDTH 7\n#define GAP 0x20\nint main() { putn(WIDTH * 2); putc(GAP); putn(WIDTH); }`)).toBe(
@@ -223,6 +330,20 @@ describe("complaints", () => {
 });
 
 describe("the seed", () => {
+  it("list.c compiles, runs and goes both ways", () => {
+    const src = SEED_FILES.find((f) => f.name.endsWith("list.c"))!.text;
+    const out = runC(src);
+    expect(out).toBe("25 16 9 4 1 \n1 4 9 16 25 \nTHE LIST WENT BOTH WAYS.\n");
+  });
+
+  it("map.c compiles, runs and finds both pairs", () => {
+    const src = SEED_FILES.find((f) => f.name.endsWith("map.c"))!.text;
+    const out = runC(src);
+    expect(out).toBe(
+      "TWO SUM. TARGET 9.\n2 + 7 (slots 0 and 1)\n1 + 8 (slots 4 and 5)\nTHE MAP REMEMBERS WHAT IT WAS TOLD.\n",
+    );
+  });
+
   it("fizz.c compiles, runs and follows the rules", () => {
     const src = SEED_FILES.find((f) => f.name.endsWith("fizz.c"))!.text;
     const out = runC(src);
