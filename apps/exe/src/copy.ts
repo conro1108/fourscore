@@ -410,7 +410,7 @@ export const GAMES_COPY = {
     win: { title: "SOL.EXE", body: "The cards have been freed.<br>They will be recaptured." },
     stuckDeal: "The deck has started over. It does this.",
     nothingToUndo: "Nothing to take back.",
-    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back." },
+    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back.<br>Click a card, then where it should go. Dragging is also permitted." },
   },
   checkers: {
     mustCapture: "A capture is available. It is not optional.",

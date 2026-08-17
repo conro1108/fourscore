@@ -12,6 +12,7 @@
  */
 
 import { el } from "../dom.js";
+import { px } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
 import { centered, fieldScaler, type WM } from "../wm.js";
@@ -513,13 +514,130 @@ export function sharpness(s: ChessState, swing = 0): Sharpness {
 
 /* ---- the window ---- */
 
-const GLYPH: Record<PieceT, string> = {
-  k: "♚︎",
-  q: "♛︎",
-  r: "♜︎",
-  b: "♝︎",
-  n: "♞︎",
-  p: "♟︎",
+/* The men are drawn, not typeset — 16x16 sprites through the same px() the
+   desk's icons go through, because an antialiased font glyph is the one
+   thing on this machine that could never have shipped in 1995. One shape
+   per man; the sides are palettes (k outline, f fill, s shade). */
+const PIECE_ART: Record<PieceT, readonly string[]> = {
+  p: [
+    "................",
+    "................",
+    "......kkkk......",
+    ".....kffffk.....",
+    ".....ksfffk.....",
+    ".....kffffk.....",
+    "......kffk......",
+    ".....kffffk.....",
+    "......kffk......",
+    "......kffk......",
+    ".....ksfffk.....",
+    ".....kffffk.....",
+    "....ksfffffk....",
+    "...kffffffffk...",
+    "...kkkkkkkkkk...",
+    "................",
+  ],
+  r: [
+    "................",
+    "..kkk.kkkk.kkk..",
+    "..kfk.kffk.kfk..",
+    "..kfkkkffkkkfk..",
+    "..kffffffffffk..",
+    "...ksffffffsk...",
+    "....ksffffk.....",
+    "....kfffffk.....",
+    "....ksffffk.....",
+    "....kfffffk.....",
+    "....ksffffk.....",
+    "...ksffffffk....",
+    "..ksffffffffk...",
+    "..kffffffffffk..",
+    "..kkkkkkkkkkkk..",
+    "................",
+  ],
+  n: [
+    "................",
+    ".....kk..kk.....",
+    "....kfkkkffk....",
+    "...kffffffffk...",
+    "..kffffffffffk..",
+    ".kffkffffffffk..",
+    ".kfffffffffffk..",
+    ".kkffkkfffffk...",
+    "..kk...kffffk...",
+    "......ksffffk...",
+    ".....ksfffffk...",
+    "....ksffffffk...",
+    "...ksffffffffk..",
+    "...kfffffffffk..",
+    "...kkkkkkkkkkk..",
+    "................",
+  ],
+  b: [
+    "................",
+    ".......kk.......",
+    "......kffk......",
+    ".......kk.......",
+    "......kkkk......",
+    ".....kffffk.....",
+    "....ksffkffk....",
+    "....kffkfffk....",
+    "....ksfffffk....",
+    ".....kffffk.....",
+    "......kffk......",
+    "......kffk......",
+    ".....kffffk.....",
+    "...ksfffffffk...",
+    "...kkkkkkkkkk...",
+    "................",
+  ],
+  q: [
+    "................",
+    "...k...kk...k...",
+    "..kfk.kffk.kfk..",
+    "..kfk.kffk.kfk..",
+    "..kfkkkffkkkfk..",
+    "..kffffffffffk..",
+    "...ksffffffsk...",
+    "....kffffffk....",
+    ".....kffffk.....",
+    ".....ksfffk.....",
+    ".....kffffk.....",
+    "....ksfffffk....",
+    "....kffffffk....",
+    "...kffffffffk...",
+    "...kkkkkkkkkk...",
+    "................",
+  ],
+  k: [
+    ".......kk.......",
+    "......kkkk......",
+    ".......kk.......",
+    "......kkkk......",
+    ".....kffffk.....",
+    "....ksfffffk....",
+    "....kffffffk....",
+    ".....kffffk.....",
+    ".....ksfffk.....",
+    ".....kffffk.....",
+    ".....kffffk.....",
+    "....ksfffffk....",
+    "....kffffffk....",
+    "...kffffffffk...",
+    "...kkkkkkkkkk...",
+    "................",
+  ],
+};
+
+const PIECE_PAL: readonly Record<string, string>[] = [
+  { k: "#000", f: "#fff", s: "#a8a8a8" }, // white: paper and pencil
+  { k: "#000", f: "#404040", s: "#6a6a6a" }, // black: coal with a sheen
+];
+
+const pieceCanvas = (t: PieceT, side: 0 | 1): HTMLCanvasElement => {
+  const cv = el(`<canvas class="pix" width="16" height="16"></canvas>`) as HTMLCanvasElement;
+  px(cv, PIECE_ART[t], PIECE_PAL[side]!);
+  return cv;
 };
 
 const repKey = (s: ChessState): string =>
@@ -648,7 +766,8 @@ export function openChess(wm: WM, fen?: string): void {
           sq.classList.add("last");
         const p = s.board[r]![c];
         if (p) {
-          const pc = el(`<div class="chpc ${p.s === 0 ? "w" : "b"}">${GLYPH[p.t]}</div>`);
+          const pc = el(`<div class="chpc"></div>`);
+          pc.appendChild(pieceCanvas(p.t, p.s));
           sq.appendChild(pc);
         }
         // the result, redrawn with the board so it survives every re-render

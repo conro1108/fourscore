@@ -8,6 +8,7 @@
  */
 
 import { el } from "../dom.js";
+import { PAL } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
 import { deskHeight, deskWidth, fieldScaler, stageScale, taskbarH, type WM } from "../wm.js";
@@ -77,7 +78,6 @@ export const isWon = (s: SolState): boolean => s.found.every((p) => p.length ===
 
 /* ---- the cards as things ---- */
 
-const SUITS = ["♠", "♥", "♦", "♣"] as const;
 const RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const;
 /* The authored table, in one unit: the column pitch. Everything else on the
    felt is a fixed fraction of it, so dragging the window bigger deals a bigger
@@ -89,11 +89,326 @@ const CARD_H = 84;
 const FELT_H = 560;
 const scaleOf = (u: number, at68: number): number => Math.round((u * at68) / PITCH);
 
-function cardEl(c: Card, faceUp: boolean): HTMLElement {
-  if (!faceUp) return el(`<div class="card back"></div>`);
-  const d = el(`<div class="card ${isRed(c.suit) ? "red" : "blk"}"></div>`);
-  d.innerHTML = `<span class="rk">${RANKS[c.rank]}${SUITS[c.suit]}</span><span class="pip">${SUITS[c.suit]}</span>`;
-  return d;
+/* The faces are drawn, not typeset — the period's cards were bitmaps
+   (CARDS.DLL), and a font glyph in a div is the tell of a modern deck.
+   Suits come in the two sizes the bitmaps came in: a small one for the
+   corner index, a large one for the pip field. */
+const CARD_RED = "#c00000";
+
+const SUIT_SM: readonly (readonly string[])[] = [
+  // spade
+  ["...X...", "..XXX..", ".XXXXX.", "XXXXXXX", "XXXXXXX", "XX.X.XX", "...X...", "..XXX.."],
+  // heart
+  [".XX.XX.", "XXXXXXX", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."],
+  // diamond
+  ["...X...", "..XXX..", ".XXXXX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."],
+  // club
+  ["..XXX..", ".XXXXX.", "XXXXXXX", "XX.X.XX", "...X...", "..XXX.."],
+];
+
+const SUIT_LG: readonly (readonly string[])[] = [
+  [
+    ".....X.....",
+    "....XXX....",
+    "...XXXXX...",
+    "..XXXXXXX..",
+    ".XXXXXXXXX.",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    ".XXX.X.XXX.",
+    ".....X.....",
+    "....XXX....",
+    "..XXXXXXX..",
+  ],
+  [
+    ".XXX...XXX.",
+    "XXXXX.XXXXX",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    ".XXXXXXXXX.",
+    "..XXXXXXX..",
+    "...XXXXX...",
+    "....XXX....",
+    ".....X.....",
+  ],
+  [
+    ".....X.....",
+    "....XXX....",
+    "...XXXXX...",
+    "..XXXXXXX..",
+    ".XXXXXXXXX.",
+    "XXXXXXXXXXX",
+    ".XXXXXXXXX.",
+    "..XXXXXXX..",
+    "...XXXXX...",
+    "....XXX....",
+    ".....X.....",
+  ],
+  [
+    "....XXX....",
+    "...XXXXX...",
+    "...XXXXX...",
+    ".XX.XXX.XX.",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    ".XXX.X.XXX.",
+    ".....X.....",
+    "....XXX....",
+    "..XXXXXXX..",
+  ],
+];
+
+/* The standard pip arrangement, as fractions of the card; `true` marks the
+   bottom half, whose pips hang upside down like a real deck's. */
+type Pip = readonly [number, number, boolean?];
+const L = 0.32;
+const C = 0.5;
+const R = 0.68;
+const PIP_LAYOUT: readonly (readonly Pip[])[] = [
+  [],
+  [[C, 0.5]],
+  [[C, 0.24], [C, 0.76, true]],
+  [[C, 0.24], [C, 0.5], [C, 0.76, true]],
+  [[L, 0.24], [R, 0.24], [L, 0.76, true], [R, 0.76, true]],
+  [[L, 0.24], [R, 0.24], [C, 0.5], [L, 0.76, true], [R, 0.76, true]],
+  [[L, 0.24], [R, 0.24], [L, 0.5], [R, 0.5], [L, 0.76, true], [R, 0.76, true]],
+  [[L, 0.24], [R, 0.24], [C, 0.37], [L, 0.5], [R, 0.5], [L, 0.76, true], [R, 0.76, true]],
+  [[L, 0.24], [R, 0.24], [C, 0.37], [L, 0.5], [R, 0.5], [C, 0.63, true], [L, 0.76, true], [R, 0.76, true]],
+  [[L, 0.22], [R, 0.22], [L, 0.41], [R, 0.41], [C, 0.5], [L, 0.59, true], [R, 0.59, true], [L, 0.78, true], [R, 0.78, true]],
+  [[L, 0.22], [R, 0.22], [C, 0.315], [L, 0.41], [R, 0.41], [L, 0.59, true], [R, 0.59, true], [C, 0.685, true], [L, 0.78, true], [R, 0.78, true]],
+];
+
+/* The courts: a bust in the machine's own palette, point-symmetric like a
+   real court card — the bottom half is the top half rotated, so only the top
+   is authored. One figure per rank; the deck the period shipped recolored
+   nobody per suit either. */
+const mirror = (top: readonly string[]): string[] => [
+  ...top,
+  ...[...top].reverse().map((r) => [...r].reverse().join("")),
+];
+
+const COURT: Record<number, readonly string[]> = {
+  11: mirror([
+    // jack: the flat cap and the feather, tunic with a badge. Every patch of
+    // face is fenced in k — white skin on a white card otherwise dissolves.
+    "......nn........",
+    ".....nnn........",
+    "...rrrrrrrrrr...",
+    "..rrrrrrrrrrrr..",
+    "...kwwwwwwwwk...",
+    "...kwkwwwwkwk...",
+    "...kwwwwwwwwk...",
+    "...kwwwkkwwwk...",
+    "....kwwwwwwk....",
+    "...ggkwwwwkgg...",
+    "..ggggkwwkgggg..",
+    ".gggggkrrkggggg.",
+    "ggggggkrrkgggggg",
+    "gggggkrrrrkggggg",
+    "gggggkrrrrkggggg",
+  ]),
+  12: mirror([
+    // queen: the tiara, the hair around the face, the gold panel gown
+    "................",
+    ".....y..y..y....",
+    "....yyyyyyyy....",
+    "...kkwwwwwwkk...",
+    "...kkwkwwkwkk...",
+    "...kkwwwwwwkk...",
+    "...kkwwkkwwkk...",
+    "....kwwwwwwk....",
+    "....kkkwwkkk....",
+    "...bbbkwwkbbb...",
+    "..bbbbkyykbbbb..",
+    ".bbbbkyyyykbbbb.",
+    "bbbbbkyyyykbbbbb",
+    "bbbbkyyyyyykbbbb",
+    "bbbbkyyyyyykbbbb",
+  ]),
+  13: mirror([
+    // king: the banded crown, the beard, the trimmed robe
+    "...y..y..y..y...",
+    "...yyyyyyyyyy...",
+    "...kwwwwwwwwk...",
+    "...kwkwwwwkwk...",
+    "...kwwwwwwwwk...",
+    "...kwwwkkwwwk...",
+    "..kddwwwwwwddk..",
+    "..kddddddddddk..",
+    ".rrkddddddddkrr.",
+    ".rrrkddddddkrrr.",
+    "rrrrrkyyyykrrrrr",
+    "rrrrrkyyyykrrrrr",
+    "rrrrbkyyyykbrrrr",
+    "rrrbbkyyyykbbrrr",
+    "rrrbbkyyyykbbrrr",
+  ]),
+};
+
+/* the back: a drawn lattice, the way the deck's backs were drawings */
+const BACK_TILE: readonly string[] = [
+  "X......X",
+  ".X....X.",
+  "..X..X..",
+  "...XX...",
+  "...XX...",
+  "..X..X..",
+  ".X....X.",
+  "X......X",
+];
+const BACK_FIELD = "#1058c8";
+const BACK_LINE = "#c8dcf8";
+
+/* 1px-per-cell sprite canvases, cached — the painter scales them out with
+   smoothing off, which is the same nearest-neighbour the icons get. */
+const sprCache = new Map<string, HTMLCanvasElement>();
+function spr(key: string, rows: readonly string[], pal: Record<string, string>): HTMLCanvasElement {
+  let c = sprCache.get(key);
+  if (c) return c;
+  c = document.createElement("canvas");
+  c.width = Math.max(...rows.map((r) => r.length));
+  c.height = rows.length;
+  const ctx = c.getContext("2d")!;
+  rows.forEach((row, y) =>
+    [...row].forEach((ch, x) => {
+      if (ch === ".") return;
+      ctx.fillStyle = pal[ch]!;
+      ctx.fillRect(x, y, 1, 1);
+    }),
+  );
+  sprCache.set(key, c);
+  return c;
+}
+const suitSpr = (suit: number, large: boolean): HTMLCanvasElement =>
+  spr(`s${suit}${large ? "L" : "S"}`, (large ? SUIT_LG : SUIT_SM)[suit]!, {
+    X: isRed(suit) ? CARD_RED : "#000",
+  });
+const courtSpr = (rank: number): HTMLCanvasElement => spr(`c${rank}`, COURT[rank]!, PAL);
+const backTile = (): HTMLCanvasElement => spr("back", BACK_TILE, { X: BACK_LINE });
+
+/** A filled rectangle with the bitmap deck's stepped corners. */
+function stepRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.fillRect(x + 2, y, w - 4, h);
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillRect(x, y + 2, w, h - 4);
+}
+
+function drawSpr(
+  ctx: CanvasRenderingContext2D,
+  s: HTMLCanvasElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(s, Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+}
+
+/**
+ * The one card renderer — the table, the drag ghost and the win ceremony all
+ * paint through here, so the cards bouncing across the desk are the cards you
+ * were holding. `c` null is the back. Everything is a rounded fraction of the
+ * live pitch `u`, at68 numbers like the rest of the felt.
+ */
+export function paintCard(
+  ctx: CanvasRenderingContext2D,
+  c: Card | null,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  u: number,
+): void {
+  const S = (n: number): number => Math.max(1, scaleOf(u, n));
+  stepRect(ctx, x, y, w, h, "#000");
+  stepRect(ctx, x + 1, y + 1, w - 2, h - 2, "#fff");
+
+  if (!c) {
+    // the back: a white margin, a rule, the lattice
+    const m = S(4);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x + m - 1, y + m - 1, w - 2 * m + 2, h - 2 * m + 2);
+    ctx.fillStyle = BACK_FIELD;
+    ctx.fillRect(x + m, y + m, w - 2 * m, h - 2 * m);
+    const t = S(8);
+    const tile = document.createElement("canvas");
+    tile.width = t;
+    tile.height = t;
+    const tctx = tile.getContext("2d")!;
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(backTile(), 0, 0, t, t);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + m, y + m, w - 2 * m, h - 2 * m);
+    ctx.clip();
+    ctx.translate(x + m, y + m);
+    ctx.fillStyle = ctx.createPattern(tile, "repeat")!;
+    ctx.fillRect(0, 0, w - 2 * m, h - 2 * m);
+    ctx.restore();
+    return;
+  }
+
+  const ink = isRed(c.suit) ? CARD_RED : "#000";
+  const sm = suitSpr(c.suit, false);
+  const smW = S(7);
+  const smH = Math.round((smW * sm.height) / sm.width);
+
+  // the corner index — rank over a small pip, and the same again rotated,
+  // because a card in a fan is read from whichever end is showing
+  const index = (): void => {
+    ctx.fillStyle = ink;
+    ctx.font = `bold ${S(11)}px "Times New Roman",serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(RANKS[c.rank]!, S(8), S(12));
+    drawSpr(ctx, sm, S(8) - smW / 2, S(14), smW, smH);
+  };
+  ctx.save();
+  ctx.translate(x, y);
+  index();
+  ctx.translate(w, h);
+  ctx.rotate(Math.PI);
+  index();
+  ctx.restore();
+
+  if (c.rank <= 10) {
+    const lg = suitSpr(c.suit, true);
+    const pw = c.rank === 1 ? S(22) : S(12);
+    const ph = Math.round((pw * lg.height) / lg.width);
+    for (const [fx, fy, flip] of PIP_LAYOUT[c.rank]!) {
+      const cx = x + fx * w;
+      const cy = y + fy * h;
+      if (flip) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(Math.PI);
+        drawSpr(ctx, lg, -pw / 2, -ph / 2, pw, ph);
+        ctx.restore();
+      } else {
+        drawSpr(ctx, lg, cx - pw / 2, cy - ph / 2, pw, ph);
+      }
+    }
+  } else {
+    // a court card: the framed figure, a pip in each corner of the frame
+    const fx = x + S(14);
+    const fy = y + S(11);
+    const fw = w - 2 * S(14);
+    const fh = h - 2 * S(11);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
+    drawSpr(ctx, courtSpr(c.rank), fx + 1, fy + 1, fw - 2, fh - 2);
+    drawSpr(ctx, sm, fx + 2, fy + 2, smW, smH);
+    ctx.save();
+    ctx.translate(fx + fw - 2, fy + fh - 2);
+    ctx.rotate(Math.PI);
+    drawSpr(ctx, sm, 0, 0, smW, smH);
+    ctx.restore();
+  }
 }
 
 type PileRef =
@@ -158,6 +473,20 @@ export function openSol(wm: WM, rig?: string): void {
   const UP_DY = (): number => scaleOf(u, 20);
   const DOWN_DY = (): number => scaleOf(u, 6);
 
+  /** A card as a DOM thing: a div holding its own painted canvas, at the
+      live pitch. Rebuilt by every render, so a resize re-deals crisp faces. */
+  function cardEl(c: Card, faceUp: boolean): HTMLElement {
+    const d = el(`<div class="card"></div>`);
+    const cv = document.createElement("canvas");
+    const w = cardW();
+    const h = cardH();
+    cv.width = w;
+    cv.height = h;
+    paintCard(cv.getContext("2d")!, faceUp ? c : null, 0, 0, w, h, u);
+    d.appendChild(cv);
+    return d;
+  }
+
   /* drag state: a run of cards riding the cursor while its originals hide */
   let drag: {
     cards: Card[];
@@ -169,13 +498,59 @@ export function openSol(wm: WM, rig?: string): void {
     moved: boolean;
   } | null = null;
 
+  /* click-to-move state: the tag of the chosen run's head card. The chosen
+     cards wear the OS's own selection — the blue dither an icon puts on. */
+  let selTag: string | null = null;
+
+  /** The run a drag tag names, read off the live state. */
+  const runOf = (tag: string): { from: PileRef; cards: Card[] } | null => {
+    if (tag === "waste") {
+      if (!s.waste.length) return null;
+      return { from: { kind: "waste" }, cards: [s.waste[s.waste.length - 1]!] };
+    }
+    if (tag.startsWith("f")) {
+      const i = Number(tag.slice(1));
+      const pile = s.found[i]!;
+      if (!pile.length) return null;
+      return { from: { kind: "found", i }, cards: [pile[pile.length - 1]!] };
+    }
+    const [i, j] = tag.slice(1).split(":").map(Number) as [number, number];
+    const cards = s.tab[i]!.up.slice(j);
+    return cards.length ? { from: { kind: "tab", i }, cards } : null;
+  };
+
+  const selEls = (): HTMLElement[] => {
+    if (!selTag) return [];
+    if (selTag.startsWith("t")) {
+      const [pile, j] = selTag.split(":") as [string, string];
+      return [...felt.querySelectorAll<HTMLElement>(`[data-drag^="${pile}:"]`)].filter(
+        (c) => Number(c.dataset.drag!.split(":")[1]) >= Number(j),
+      );
+    }
+    const one = felt.querySelector<HTMLElement>(`[data-drag="${selTag}"]`);
+    return one ? [one] : [];
+  };
+  const clearSel = (): void => {
+    selTag = null;
+    felt.querySelectorAll(".card.sel").forEach((c) => c.classList.remove("sel"));
+  };
+  const applySel = (): void => {
+    const els = selEls();
+    if (!els.length) {
+      selTag = null;
+      return;
+    }
+    for (const c of els) c.classList.add("sel");
+  };
+
   function render(): void {
     felt.innerHTML = "";
 
-    // stock
+    // stock — empty, it wears the period's circle: the deck goes around again
     const top = scaleOf(u, 10);
     const stock = el(`<div class="slot" data-pile="stock" style="left:${COL_X(0)}px;top:${top}px"></div>`);
     if (s.stock.length) stock.appendChild(cardEl(s.stock[s.stock.length - 1]!, false));
+    else stock.appendChild(el(`<span class="redeal"></span>`));
     felt.appendChild(stock);
 
     // waste
@@ -188,10 +563,10 @@ export function openSol(wm: WM, rig?: string): void {
     }
     felt.appendChild(waste);
 
-    // foundations
+    // foundations — empty ones are plain outlined slots, like the real table
     for (let i = 0; i < 4; i++) {
       const f = el(
-        `<div class="slot found" data-pile="f${i}" style="left:${COL_X(3 + i)}px;top:${top}px"><span class="ghostpip">${SUITS[i]}</span></div>`,
+        `<div class="slot found" data-pile="f${i}" style="left:${COL_X(3 + i)}px;top:${top}px"></div>`,
       );
       const pile = s.found[i]!;
       if (pile.length) {
@@ -225,6 +600,8 @@ export function openSol(wm: WM, rig?: string): void {
       if (!pile.down.length && !pile.up.length) col.classList.add("empty");
       felt.appendChild(col);
     }
+    // a rebuilt table keeps its chosen run, if the run is still there
+    applySel();
   }
 
   /* ---- resolving piles ---- */
@@ -254,7 +631,7 @@ export function openSol(wm: WM, rig?: string): void {
 
   function tryDrop(cards: Card[], from: PileRef, to: PileRef): boolean {
     if (to.kind === "found") {
-      if (cards.length !== 1) return false;
+      if (cards.length !== 1 || from.kind === "found") return false;
       if (!canFoundation(cards[0]!, s.found[cards[0]!.suit]!)) return false;
       // foundations are one per suit; any foundation slot accepts the card home
       snap();
@@ -293,6 +670,7 @@ export function openSol(wm: WM, rig?: string): void {
     const target = e.target as HTMLElement;
     if (pileAt(e.clientX, e.clientY) === "stock") {
       play("click", 0.5);
+      clearSel();
       if (s.stock.length || s.waste.length) snap();
       const recycled = drawFromStock(s);
       if (recycled) statusEl.textContent = GAMES_COPY.sol.stuckDeal;
@@ -303,26 +681,15 @@ export function openSol(wm: WM, rig?: string): void {
     if (!tag) return;
     e.preventDefault();
 
-    let from: PileRef;
-    let cards: Card[];
-    let hidden: HTMLElement[];
-    if (tag === "waste") {
-      from = { kind: "waste" };
-      cards = [s.waste[s.waste.length - 1]!];
-      hidden = [target.closest<HTMLElement>("[data-drag]")!];
-    } else if (tag.startsWith("f")) {
-      from = { kind: "found", i: Number(tag.slice(1)) };
-      const pile = s.found[from.i]!;
-      cards = [pile[pile.length - 1]!];
-      hidden = [target.closest<HTMLElement>("[data-drag]")!];
-    } else {
-      const [i, j] = tag.slice(1).split(":").map(Number) as [number, number];
-      from = { kind: "tab", i };
-      cards = s.tab[i]!.up.slice(j);
-      hidden = [...felt.querySelectorAll<HTMLElement>(`[data-drag^="t${i}:"]`)].filter(
-        (c) => Number(c.dataset.drag!.split(":")[1]) >= j,
-      );
-    }
+    const src = runOf(tag);
+    if (!src) return;
+    const { from, cards } = src;
+    const hidden =
+      from.kind === "tab"
+        ? [...felt.querySelectorAll<HTMLElement>(`[data-drag^="t${from.i}:"]`)].filter(
+            (c) => Number(c.dataset.drag!.split(":")[1]) >= Number(tag.split(":")[1]),
+          )
+        : [target.closest<HTMLElement>("[data-drag]")!];
 
     // the run rides the cursor in a ghost pile
     // the ghost rides the stage, not the felt, so it carries the table's size
@@ -356,8 +723,10 @@ export function openSol(wm: WM, rig?: string): void {
     if (!drag) return;
     if (!drag.moved) {
       // the originals lift only once the drag is real, so a plain double-
-      // click never disturbs the DOM under the cursor
+      // click never disturbs the DOM under the cursor — and a real drag
+      // supersedes whatever the last click had chosen
       drag.moved = true;
+      clearSel();
       for (const hEl of drag.hidden) hEl.style.visibility = "hidden";
     }
     const stageR = wm.stage.getBoundingClientRect();
@@ -393,6 +762,33 @@ export function openSol(wm: WM, rig?: string): void {
     // nothing changed: put the originals back without a rebuild, so a
     // double-click still lands on the same element
     for (const hEl of hidden) hEl.style.visibility = "";
+  });
+
+  /* the other grammar: click the run, then click where it goes. Same legality,
+     same knock — dragging never stopped working, this is for the hand that
+     would rather point twice than hold. */
+  felt.addEventListener("pointerup", (e) => {
+    if (won || e.button !== 0 || !e.isPrimary || drag?.moved) return;
+    const to = pileAt(e.clientX, e.clientY);
+    if (to === "stock") return; // pointerdown already drew
+    if (selTag) {
+      const src = runOf(selTag);
+      if (src && to && tryDrop(src.cards, src.from, to)) {
+        play("disc-land", 0.4);
+        clearSel();
+        render();
+        checkWin();
+        return;
+      }
+    }
+    const tag = (e.target as HTMLElement).closest<HTMLElement>("[data-drag]")?.dataset.drag ?? null;
+    if (!tag || tag === selTag) {
+      clearSel();
+      return;
+    }
+    clearSel();
+    selTag = tag;
+    applySel();
   });
 
   const autoHome = (target: HTMLElement): void => {
@@ -479,17 +875,10 @@ export function openSol(wm: WM, rig?: string): void {
     let card: { c: Card; x: number; y: number; vx: number; vy: number } | null = null;
     let done = false;
 
-    const paint = (c: Card, x: number, y: number): void => {
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(x, y, cw, ch);
-      ctx.strokeStyle = "#000";
-      ctx.strokeRect(x + 0.5, y + 0.5, cw - 1, ch - 1);
-      ctx.fillStyle = isRed(c.suit) ? "#c00000" : "#000";
-      ctx.font = `bold ${scaleOf(u, 13)}px Tahoma`;
-      ctx.fillText(`${RANKS[c.rank]}${SUITS[c.suit]}`, x + scaleOf(u, 5), y + scaleOf(u, 16));
-      ctx.font = `${scaleOf(u, 26)}px Tahoma`;
-      ctx.fillText(SUITS[c.suit]!, x + cw / 2 - scaleOf(u, 9), y + ch / 2 + scaleOf(u, 10));
-    };
+    // the ceremony paints the same faces the table deals — one renderer,
+    // whole pixels, so the smears it leaves are smears of real cards
+    const paint = (c: Card, x: number, y: number): void =>
+      paintCard(ctx, c, Math.round(x), Math.round(y), cw, ch, u);
 
     const frame = (): void => {
       if (done) return;

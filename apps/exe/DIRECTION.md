@@ -168,6 +168,18 @@
 > harnesses (`live`/`fever`/`mobile`) now start BOARD.EXE from its desk icon,
 > because the machine boots to a desk and they had never been told.
 
+> **The shelf games got their faces (2026-08-16).** SOL.EXE's deck was the
+> one modern thing on the machine — a font pip centred in a div, a CSS-stripe
+> back — and now it's drawn: one canvas painter (`paintCard`) for the table,
+> the drag ghost and the ceremony alike, with the real pip layouts, mirrored
+> serif indices, pixel suits in two sizes, point-symmetric court busts in the
+> icons' own palette, a drawn lattice back and stepped corners. The table
+> answers a second grammar — click the run, then click where it goes, same
+> legality as the drag — and the chosen cards wear the blue dither a selected
+> icon wears; an empty stock shows the period's go-around circle. CHESS.EXE's
+> men stopped being antialiased font glyphs: 16x16 sprites through the same
+> `px()` as every icon on the desk, landing 2x at the natural square.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

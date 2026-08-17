@@ -223,19 +223,19 @@ canvas.pix{image-rendering:pixelated;display:block}
 
 /* SOL.EXE — the felt and the cards. --cw/--ch are the live card (sol.ts):
    the authored 62x84 until the window is dragged, then a whole-pixel step off
-   the column pitch, with every glyph a fraction of the width. */
+   the column pitch. A card is a painted canvas (paintCard), not styled DOM. */
 .felt{position:relative;margin:6px 10px 4px;height:560px;background:#008000;overflow:hidden}
-.slot{position:absolute;width:var(--cw,62px);height:var(--ch,84px);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
-.slot .ghostpip{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw,62px)*13/31);color:rgba(255,255,255,.35)}
+.slot{position:absolute;width:var(--cw,62px);height:var(--ch,84px);box-shadow:inset 0 0 0 1px #006000}
+/* an empty stock wears the go-around circle */
+.slot .redeal{position:absolute;left:50%;top:50%;width:calc(var(--cw,62px)*3/7);height:calc(var(--cw,62px)*3/7);
+      transform:translate(-50%,-50%);border:2px solid #006000;border-radius:50%}
 .tabcol{position:absolute;width:var(--cw,62px);bottom:6px}
-.tabcol.empty{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);height:var(--ch,84px);bottom:auto}
-.card{position:absolute;left:0;top:0;width:var(--cw,62px);height:var(--ch,84px);background:#fff;border:1px solid #000;
-      border-radius:3px;box-sizing:border-box}
-.card .rk{position:absolute;left:4px;top:2px;font-weight:bold;font-size:calc(var(--cw,62px)*6/31);font-family:Tahoma,sans-serif}
-.card .pip{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw,62px)*13/31)}
-.card.red{color:#c00000}
-.card.blk{color:#000}
-.card.back{background:#1058c8;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 2px,transparent 2px 6px)}
+.tabcol.empty{box-shadow:inset 0 0 0 1px #006000;height:var(--ch,84px);bottom:auto}
+.card{position:absolute;left:0;top:0;width:var(--cw,62px);height:var(--ch,84px)}
+.card canvas{display:block;width:100%;height:100%}
+/* the chosen run, selected the way the OS selects anything: the blue dither */
+.card.sel::after{content:"";position:absolute;inset:1px;
+      background:conic-gradient(#000080 0 25%,#0000 0 50%,#000080 0 75%,#0000 0) 0 0/2px 2px}
 .solghost{position:absolute;width:var(--cw,62px);z-index:500;pointer-events:none}
 .solbounce{position:absolute;inset:0;z-index:210}
 
@@ -269,10 +269,10 @@ canvas.pix{image-rendering:pixelated;display:block}
 .ckpc.r.king::after{color:#7a0f14}
 .ckpc.y.king::after{color:#8a5c00}
 
-/* CHESS.EXE — same board family, glyph pieces */
-.chpc{font-size:calc(var(--sq,40px)*3/4);line-height:1;user-select:none}
-.chpc.w{color:#fff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000,1px 1px #000,-1px -1px #000,1px -1px #000,-1px 1px #000}
-.chpc.b{color:#141414}
+/* CHESS.EXE — same board family, sprite pieces (16x16 through px(), like
+   every icon on the desk; 32px at the natural square, so the art lands 2x) */
+.chpc{line-height:0;user-select:none}
+.chpc .pix{width:calc(var(--sq,40px)*4/5);height:calc(var(--sq,40px)*4/5)}
 .cksq.chk{box-shadow:inset 0 0 0 2px #e03030}
 .cksq.last{box-shadow:inset 0 0 0 2px #d8a030}
 
