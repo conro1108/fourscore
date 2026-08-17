@@ -78,6 +78,12 @@ export const ICONS = {
     "k.......kkkkkkk.","k..............k","k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k",
     "k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k",
     "k..............k",".kkkkkkkkkkkkkk.","................","................"],
+  // the drive itself — the box the whole tree lives in, light and all
+  drive: [
+    "................","................","................",".kkkkkkkkkkkkkk.",
+    ".kcccccccccccck.",".kcwwwwwwwwwwck.",".kcccccccccccck.",".kcssssssssssck.",
+    ".kcccccccccccck.",".kckkkkkkk.cnck.",".kcccccccccccck.",".kkkkkkkkkkkkkk.",
+    "................","................","................","................"],
   start: [
     "................",".rrrr..ggggg....",".rrrr..ggggg....",".rrrr..ggggg....",
     ".rrrr..ggggg....","................",".bbbb..yyyyy....",".bbbb..yyyyy....",

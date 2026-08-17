@@ -41,6 +41,11 @@ page.on("pageerror", (e) => fail(`pageerror: ${e.message}`));
 await page.goto(`${BASE}/`);
 await page.waitForTimeout(1200);
 
+// the machine boots to a desk; the player's first act is BOARD.EXE itself
+await page.locator("#stage > .icon", { hasText: "BOARD.EXE" }).dblclick();
+await page.locator("#grid .cell").first().waitFor({ timeout: 10000 });
+await page.waitForTimeout(400);
+
 const discs = async () => page.locator("#grid .disc").count();
 
 // play three moves against the real MOSS
@@ -140,8 +145,8 @@ const back = {
 };
 console.log("after restart:", { ...back, disk: `${(back.disk ?? "").length} bytes` });
 if (/[?#]/.test(back.url)) fail(`restart kept the pose: ${back.url}`);
-// the boot order: moves.txt, flames.scr, BOARD.EXE — and nothing else
-if (back.wins !== 3) fail(`expected 3 windows after a restart, got ${back.wins}`);
+// the machine boots to a desk — a restart opens nothing at all
+if (back.wins !== 0) fail(`expected 0 windows after a restart, got ${back.wins}`);
 if (back.smears) fail("drag ghosts survived the restart");
 if (back.clock !== "6:66 PM") fail(`clock did not reset: ${back.clock}`);
 // no fake data loss: C:\ is not the machine's runtime and does not go with it

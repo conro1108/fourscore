@@ -568,6 +568,7 @@ export const TITLES = {
   help: "help.txt — Notepad",
   bin: "the rest",
   games: "games",
+  drive: "(C:)",
   mines: "MINES.EXE",
   sol: "SOL.EXE",
   snake: "SNAKE.EXE",
@@ -672,9 +673,10 @@ export const CLOCK_BASE = { h: 6, m: 66 } as const;
  */
 export const TERM = {
   banner: ["BOARD 95 [Version 4.00.666]", "The disk is genuine. Type HELP.", ""],
-  prompt: "C:\\>",
+  promptFor: (cwd: string): string => (cwd ? `C:\\${cwd}>` : "C:\\>"),
   help: [
-    "DIR              the disk's contents",
+    "DIR [path]       a directory's contents",
+    "CD path          go there; CD .. goes up",
     "TYPE file        print a file",
     "EDIT file        open a file in Notepad",
     "PAINT file.spr   open a picture in Paint",
@@ -682,7 +684,7 @@ export const TERM = {
     "ASM file.asm     assemble only, and report",
     "CC file.c        compile C; file.asm appears",
     "DEL, REN, COPY   what they always did",
-    "MKDIR name       a folder; it lands on the desk",
+    "MKDIR, RMDIR     directories arrive and leave",
     "ECHO text        it comes back",
     "CLS              a clean screen",
     "VER, TIME        facts about the machine",
@@ -692,20 +694,27 @@ export const TERM = {
     "The machine does not ask where you learned them.",
     "",
     "A running program stops on ESC.",
-    "TYPE ASM.TXT explains the processor.",
-    "TYPE C.TXT explains the other language.",
+    "The desk is the directory C:\\DESKTOP.",
+    "TYPE \\DOCS\\ASM.TXT explains the processor.",
+    "TYPE \\DOCS\\C.TXT explains the other language.",
   ],
   badCommand: "Bad command or file name",
   fileNotFound: "File not found",
   duplicateOrMissing: "Duplicate file name or file not found",
   dirExists: "Directory already exists",
+  badDir: "Invalid directory",
+  rmdirRefused: "Invalid path, not directory, or directory not empty",
   copied: "        1 file(s) copied",
   deleted: (name: string): string => `${name} has been deleted. It is not in the rest.`,
   ver: "BOARD 95 [Version 4.00.666]",
   time: "The current time is 6:66 PM.",
   date: "It has been 8/14/96 for some time now.",
   needsFile: (cmd: string): string => `${cmd} needs a file name`,
-  dirHeader: [" Volume in drive C is POSSESSED", " Directory of C:\\", ""],
+  dirHeader: (path: string): string[] => [
+    " Volume in drive C is POSSESSED",
+    ` Directory of C:\\${path}`,
+    "",
+  ],
   dirFooter: (count: number, bytes: string, free: string): string[] => [
     "",
     `        ${count} file(s)          ${bytes} bytes`,
@@ -724,44 +733,99 @@ export const TERM = {
 } as const;
 
 /**
- * What a fresh disk arrives holding: the machine's own documentation and two
- * programs known to work. asm.txt is real documentation — it must agree with
+ * What a fresh disk arrives holding: the machine's own documentation, its
+ * programs as actual files, and two programs known to work. Names are full
+ * paths now — the desk is C:\DESKTOP, the manuals live in C:\DOCS, the
+ * sources in C:\SRC. asm.txt is real documentation — it must agree with
  * vm.ts, and vm.test.ts assembles both .asm seeds to keep everyone honest.
  */
+
+/** The directories a fresh (or amnesiac) volume always has. */
+export const SEED_DIRS: readonly string[] = [
+  "DESKTOP",
+  "DESKTOP\\games",
+  "DESKTOP\\RECYCLED",
+  "DOCS",
+  "SRC",
+];
+
+/**
+ * A program file's text. The MZ line names what runs — dispatch reads the
+ * file, not the file name, so COPY BOARD.EXE ME.EXE still boots the board.
+ * The rest is what TYPE always printed when you typed a binary at it.
+ */
+const programBody = (token: string): string =>
+  [
+    `MZ ${token}`,
+    "ÉÍÍÍÍ»°±²Û²±°ÈÍÍÍͼ" + token.toUpperCase().split("").reverse().join(""),
+    "This program can only be run in this mode.",
+  ].join("\n");
+
+/** The MZ token, if this text is a program. The other half of programBody. */
+export const programTokenOf = (text: string): string | null =>
+  /^MZ ([a-z]+)(\n|$)/.exec(text)?.[1] ?? null;
+
 export const SEED_FILES: readonly { name: string; text: string }[] = [
+  { name: "PAINT.EXE", text: programBody("paint") },
+  { name: "REVIEW.EXE", text: programBody("review") },
+  { name: "DESKTOP\\BOARD.EXE", text: programBody("board") },
+  { name: "DESKTOP\\flames.scr", text: programBody("flames") },
+  { name: "DESKTOP\\COMMAND.COM", text: programBody("terminal") },
+  { name: "DESKTOP\\games\\MINES.EXE", text: programBody("mines") },
+  { name: "DESKTOP\\games\\SOL.EXE", text: programBody("sol") },
+  { name: "DESKTOP\\games\\SNAKE.EXE", text: programBody("snake") },
+  { name: "DESKTOP\\games\\CHECKERS.EXE", text: programBody("checkers") },
+  { name: "DESKTOP\\games\\CHESS.EXE", text: programBody("chess") },
   {
-    name: "readme.txt",
+    name: "DESKTOP\\readme.txt",
     text: [
       "README.TXT",
       "----------",
       "",
-      "This computer has a disk now. The files on it are",
-      "real: they survive the machine turning off, which",
-      "the machine does not do, but still.",
+      "This computer has directories now. The desk you",
+      "are looking at is one of them: C:\\DESKTOP. Put a",
+      "file there and it grows an icon; drag an icon",
+      "into a folder and the file moves. Same disk, two",
+      "doors.",
       "",
       "COMMAND.COM is on the desk. Things to type into it:",
       "",
-      "  DIR              what is on the disk",
-      "  TYPE ASM.TXT     how to program this computer",
-      "  TYPE C.TXT       the other language",
-      "  EDIT HELLO.ASM   look at a program",
-      "  RUN HELLO.ASM    run it",
-      "  CC FIZZ.C        compile the C one",
-      "  HELP             the rest",
+      "  DIR                  what is here",
+      "  CD DOCS              go there (CD .. comes back)",
+      "  TYPE \\DOCS\\ASM.TXT   how to program this computer",
+      "  TYPE \\DOCS\\C.TXT     the other language",
+      "  CD \\SRC              where the programs live",
+      "  RUN HELLO.ASM        run one",
+      "  HELP                 the rest",
+      "",
+      "The programs are files too. BOARD.EXE on the desk",
+      "is BOARD.EXE on the disk; the games are in the",
+      "games folder; COPY and DEL work on all of them.",
+      "Deleting something the machine came with is",
+      "allowed. It comes back at the next boot. The",
+      "machine keeps its things.",
       "",
       "Notepad opens and saves files now (the File menu).",
-      "Anything you save is on C:\\ with everything else.",
+      "PAINT.EXE draws pictures. A picture is a .SPR",
+      "file, which is text, like everything here — TYPE",
+      "one and see. rocket.spr came with the machine.",
+      "Right-click a picture on the desk to pin it up.",
       "",
-      "PAINT.EXE draws pictures. A picture is a .SPR file,",
-      "which is text, like everything here — TYPE one and",
-      "see. rocket.spr came with the machine. Right-click",
-      "a picture on the desk to pin it up.",
-      "",
-      "The processor is real. See ASM.TXT.",
+      "The processor is real. See \\DOCS\\ASM.TXT.",
     ].join("\n"),
   },
   {
-    name: "asm.txt",
+    /* The pad (notepad.ts) writes the game's minutes here as they happen;
+       the seed just makes sure the file exists before the first game does. */
+    name: "DESKTOP\\moves.txt",
+    text: "",
+  },
+  {
+    name: "DOCS\\help.txt",
+    text: HELP_TEXT,
+  },
+  {
+    name: "DOCS\\asm.txt",
     text: [
       "ASM.TXT — the processor",
       "=======================",
@@ -825,13 +889,13 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "  RND  0x0F03  read 16 random bits",
       "",
       "The stack starts under the hardware at 0x0F00 and",
-      "grows down. HELLO.ASM and GUESS.ASM on this disk are",
-      "known to work. Programs you write are between you",
-      "and the machine.",
+      "grows down. \\SRC\\HELLO.ASM and \\SRC\\GUESS.ASM on",
+      "this disk are known to work. Programs you write are",
+      "between you and the machine.",
     ].join("\n"),
   },
   {
-    name: "c.txt",
+    name: "DOCS\\c.txt",
     text: [
       "C.TXT — the other language",
       "==========================",
@@ -879,14 +943,14 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "  zeros. Arguments and locals live under 0x0E00",
       "  and grow down; a large enough program can walk",
       "  into them. The compiler will not stop you.",
-      "  FIZZ.C on this disk is known to work.",
+      "  \\SRC\\FIZZ.C on this disk is known to work.",
     ].join("\n"),
   },
   {
-    name: "fizz.c",
+    name: "SRC\\fizz.c",
     text: [
       "/* fizz.c — the machine counts to 30 and follows the rules.",
-      "   CC FIZZ.C in COMMAND.COM makes FIZZ.ASM; RUN FIZZ runs it. */",
+      "   CD \\SRC in COMMAND.COM; CC FIZZ.C makes FIZZ.ASM; RUN FIZZ runs it. */",
       "",
       "int main() {",
       "    int i;",
@@ -903,10 +967,10 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     ].join("\n"),
   },
   {
-    name: "hello.asm",
+    name: "SRC\\hello.asm",
     text: [
       "; hello.asm — the disk says hello.",
-      "; RUN HELLO.ASM in COMMAND.COM, or EDIT HELLO.ASM to change it.",
+      "; RUN \\SRC\\HELLO.ASM in COMMAND.COM, or EDIT it to change it.",
       "",
       "        mov r1, msg      ; r1 walks the string",
       "loop:   ld  r0, [r1]",
@@ -921,7 +985,7 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     ].join("\n"),
   },
   {
-    name: "guess.asm",
+    name: "SRC\\guess.asm",
     text: [
       "; guess.asm — the machine has thought of a number from 1 to 100.",
       "; Type a guess and press Enter. ESC stops any program.",
@@ -982,7 +1046,7 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     /* The rocket used to be chrome nobody asked for; now it is a file. It
        arrives on every disk in the picture format, where it can be repainted,
        pinned up, filed away, or thrown in the rest like anything else. */
-    name: "rocket.spr",
+    name: "DESKTOP\\rocket.spr",
     text: [
       ".....rr.....",
       "....rrrr....",

@@ -10,13 +10,14 @@ import { GAME_ITEMS } from "./games/folder.js";
 import { START_MENU } from "./copy.js";
 import { play } from "./audio/index.js";
 import { installTray } from "./sounds.js";
-import { deskHeight, deskWidth, onDeskResize, stageScale, taskbarH } from "./wm.js";
+import { stageScale } from "./wm.js";
 
 export interface DesktopApps {
   openBoard(): void;
   openFlames(): void;
   openMoves(): void;
   openBin(): void;
+  openDrive(): void;
   openHelp(): void;
   openPieces(): void;
   openGames(): void;
@@ -81,17 +82,10 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   stage.appendChild(el(`<div id="smears"></div>`));
   stage.appendChild(el(`<div id="trail"></div>`));
 
-  /* ---- icons ---- */
-  const iconDefs: { rows: readonly string[]; label: string; top: number; launch(): void; drop?: string }[] = [
-    { rows: ICONS.board, label: "BOARD.EXE", top: 22, launch: () => apps().openBoard() },
-    { rows: ICONS.flame, label: "flames.scr", top: 122, launch: () => apps().openFlames() },
-    { rows: ICONS.moves, label: "moves.txt", top: 222, launch: () => apps().openMoves() },
-    { rows: ICONS.bin, label: "the rest", top: 322, launch: () => apps().openBin(), drop: "bin" },
-    { rows: ICONS.gamesFolder, label: "games", top: 422, launch: () => apps().openGames(), drop: "games" },
-    // untitled.txt is no longer furniture — real files on C:\ grow their own
-    // desk icons now (main.ts), and untitled.txt is only real once saved
-    { rows: ICONS.term, label: "COMMAND.COM", top: 522, launch: () => apps().openTerminal() },
-  ];
+  /* ---- icons ----
+     The desk stopped owning a list: it renders C:\DESKTOP (main.ts grows an
+     icon per entry through addIcon), plus main's two fixtures — moves.txt
+     and the drive. This file only knows how an icon behaves. */
   const iconEls: HTMLElement[] = [];
   function makeIcon(spec: DeskIconSpec): DeskIcon {
     const icon = el(`<div class="icon" style="left:${spec.x}px;top:${spec.y}px"></div>`);
@@ -161,25 +155,6 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       },
     };
   }
-  for (const def of iconDefs)
-    makeIcon({ rows: def.rows, label: def.label, x: 20, y: def.top, launch: def.launch, drop: def.drop });
-  /* On a desk narrower than the authored 1280 (a phone), the left column
-     disappears behind BOARD.EXE. The icons keep to the open ground instead —
-     a row above the taskbar, where a thumb lives. Dragged icons stay put. */
-  const layoutIcons = (): void => {
-    iconEls.slice(0, iconDefs.length).forEach((icon, i) => {
-      if (icon.dataset.dragged) return;
-      if (deskWidth() < 1280) {
-        icon.style.left = `${8 + (i % 6) * Math.max(80, Math.floor((deskWidth() - 16) / 6))}px`;
-        icon.style.top = `${deskHeight() - taskbarH() - 100 - Math.floor(i / 6) * 96}px`;
-      } else {
-        icon.style.left = "20px";
-        icon.style.top = `${iconDefs[i]!.top}px`;
-      }
-    });
-  };
-  layoutIcons();
-  onDeskResize(layoutIcons);
   stage.addEventListener("click", (e) => {
     if (e.target === stage) iconEls.forEach((i) => i.classList.remove("sel"));
   });
@@ -323,8 +298,9 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       renderClock();
     },
     shiftIcons(shifts) {
+      // the pattern cycles over however many icons the desk currently has
       iconEls.forEach((icon, i) => {
-        const [dx, dy] = shifts[i] ?? [0, 0];
+        const [dx, dy] = shifts.length ? shifts[i % shifts.length]! : [0, 0];
         icon.style.transform = `translate(${dx}px,${dy}px)`;
       });
     },

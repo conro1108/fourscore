@@ -29,7 +29,8 @@ function run(src: string, opts: { keys?: string; rand?: number; maxSteps?: numbe
   return { vm, out };
 }
 
-const seed = (name: string): string => SEED_FILES.find((f) => f.name === name)!.text;
+const seed = (name: string): string =>
+  SEED_FILES.find((f) => f.name.toLowerCase().endsWith(name.toLowerCase()))!.text;
 
 describe("assembler", () => {
   it("reports unknown instructions with their line", () => {

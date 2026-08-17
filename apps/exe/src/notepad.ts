@@ -8,7 +8,7 @@ import { el } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { GAMES_COPY, TITLES } from "./copy.js";
 import { menubar } from "./games/ui.js";
-import type { Disk } from "./fs.js";
+import { baseName, normPath, parentOf, type Disk } from "./fs.js";
 import type { AnchorX, WM, Win } from "./wm.js";
 
 export interface MovesPad {
@@ -18,17 +18,31 @@ export interface MovesPad {
   reset(): void;
 }
 
-export function makeMovesPad(wm: WM): MovesPad {
+/** The pad's minutes are a real file too — TYPE it and see. */
+export const MOVES_PATH = "DESKTOP\\moves.txt";
+
+export function makeMovesPad(wm: WM, disk?: Disk): MovesPad {
   let notesLines: string[] = [];
   let lineBuf: (number | string)[] = [];
   let win: Win | null = null;
   let bodyEl: HTMLElement | null = null;
 
-  function render(): void {
-    if (!bodyEl) return;
+  const text = (): string => {
     const all = [...notesLines];
     if (lineBuf.length) all.push(lineBuf.join(" "));
-    bodyEl.textContent = all.join("\n") || " ";
+    return all.join("\n");
+  };
+
+  let written: string | null = null;
+  function render(): void {
+    // the OS keeps its minutes on the disk whether or not the window is up;
+    // an edit someone makes in Notepad lasts until the pad's next entry
+    if (text() !== written) {
+      written = text();
+      disk?.write(MOVES_PATH, written);
+    }
+    if (!bodyEl) return;
+    bodyEl.textContent = text() || " ";
     bodyEl.scrollTop = bodyEl.scrollHeight;
   }
 
@@ -91,13 +105,15 @@ export function makeMovesPad(wm: WM): MovesPad {
  * Notepad's Edit did, including inserting the time and date, both of which
  * are wrong in the usual direction.
  *
- * One window per file, tracked here by name — window ids are a running
- * counter so Save As can rename a window without reopening it.
+ * One window per file, tracked here by canonical path — window ids are a
+ * running counter so Save As can rename a window without reopening it.
  */
 const openEditors = new Map<string, Win>();
 let editorSeq = 0;
 
-const editorKey = (name: string | null): string => name?.toLowerCase() ?? "untitled";
+/** "\0" can't be typed into a name field, so a new file can't collide. */
+const editorKey = (name: string | null): string =>
+  name === null ? "\0new" : normPath(name).toLowerCase();
 
 /* ---- typing help for source files ----
    Notepad stays Notepad for prose, but a file the processor is going to read
@@ -169,6 +185,7 @@ function installCodeKeys(ta: HTMLTextAreaElement, fileName: () => string | null)
 }
 
 export function openEditor(wm: WM, disk: Disk, name: string | null): void {
+  if (name !== null) name = normPath(name);
   const existing = openEditors.get(editorKey(name));
   if (existing?.isOpen()) {
     existing.focus();
@@ -196,11 +213,11 @@ export function openEditor(wm: WM, disk: Disk, name: string | null): void {
         fileName = n;
         openEditors.set(editorKey(n), win);
         disk.write(n, ta.value);
-        win.setTitle(TITLES.notepad(n));
+        win.setTitle(TITLES.notepad(baseName(n)));
         saveDialog(n);
       };
       // saving over a different existing file asks first, like it did
-      if (editorKey(fileName) !== n.toLowerCase() && disk.exists(n))
+      if (editorKey(fileName) !== editorKey(n) && disk.exists(n))
         wm.dialog({
           ...GAMES_COPY.notepad.replace(n),
           icon: "!",
@@ -256,7 +273,7 @@ export function openEditor(wm: WM, disk: Disk, name: string | null): void {
   body.append(bar, wrap);
   const win = wm.open({
     id: `edit${editorSeq++}`,
-    title: TITLES.notepad(fileName ?? "untitled"),
+    title: TITLES.notepad(fileName === null ? "untitled" : baseName(fileName)),
     icon: ICONS.moves,
     x: 214 + (editorSeq % 5) * 22,
     y: 138 + (editorSeq % 5) * 20,
@@ -275,10 +292,12 @@ export function openEditor(wm: WM, disk: Disk, name: string | null): void {
 }
 
 /**
- * The Open / Save As picker: the disk's contents in a listbox and a name to
- * type, in the period's own furniture. One at a time — a second request
- * replaces the first. PAINT.EXE borrows it too; there is one disk, so there
- * is one picker.
+ * The Open / Save As picker: one directory's contents in a listbox and a name
+ * to type, in the period's own furniture. Folder rows walk in, [..] walks
+ * out, and the label above the listbox says where you are — a typed path is
+ * honored, a bare name lands in the directory shown. One at a time — a
+ * second request replaces the first. PAINT.EXE borrows it too; there is one
+ * disk, so there is one picker.
  */
 export function openFilePicker(
   wm: WM,
@@ -288,30 +307,52 @@ export function openFilePicker(
   cb: (name: string) => void,
 ): void {
   wm.get("filepick")?.close();
+  const start = normPath(initial);
   const body = el(`<div style="padding:6px 8px 2px"></div>`);
+  const where = el(`<div style="margin-bottom:4px;overflow:hidden;white-space:nowrap"></div>`);
   const list = el(`<div class="listbox" style="height:110px;margin-bottom:6px"></div>`);
   const input = el(`<input class="pickin" spellcheck="false" autocomplete="off">`) as HTMLInputElement;
-  input.value = initial;
+  input.value = baseName(start);
+  let cwd = start === "" ? "DESKTOP" : parentOf(start);
+  if (!disk.isDir(cwd)) cwd = "";
   const ok = (): void => {
     const n = input.value.trim();
     if (!n) {
       wm.dialog({ ...GAMES_COPY.notepad.noName, x: 360, y: 320, w: 320 });
       return;
     }
+    const full = /^[\\/]|^[cC]:/.test(n) ? normPath(n) : normPath(`${cwd}\\${n}`);
+    if (disk.isDir(full)) {
+      // naming a folder walks into it, like the period's picker did
+      show(full);
+      input.value = "";
+      return;
+    }
     win.close();
-    cb(n);
+    cb(full);
   };
-  for (const f of disk.list()) {
+  const addRow = (label: string, click: () => void, dbl?: () => void): void => {
     const row = el(`<div class="lrow"></div>`);
-    row.textContent = f.name;
+    row.textContent = label;
     row.addEventListener("click", () => {
       for (const r of list.children) r.classList.remove("sel");
       row.classList.add("sel");
-      input.value = f.name;
+      click();
     });
-    row.addEventListener("dblclick", ok);
+    if (dbl) row.addEventListener("dblclick", dbl);
     list.appendChild(row);
-  }
+  };
+  const show = (dir: string): void => {
+    cwd = dir;
+    where.textContent = cwd ? `C:\\${cwd}` : "C:\\";
+    list.textContent = "";
+    if (cwd !== "") addRow("[..]", () => show(parentOf(cwd)));
+    const here = disk.listDir(cwd) ?? { dirs: [], files: [] };
+    for (const d of here.dirs) addRow(`[${baseName(d)}]`, () => show(d));
+    for (const f of here.files)
+      addRow(baseName(f.name), () => void (input.value = baseName(f.name)), ok);
+  };
+  show(cwd);
   const nameRow = el(
     `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><span>File name:</span></div>`,
   );
@@ -322,7 +363,7 @@ export function openFilePicker(
   okBtn.addEventListener("click", ok);
   cancelBtn.addEventListener("click", () => win.close());
   buttons.append(okBtn, cancelBtn);
-  body.append(list, nameRow, buttons);
+  body.append(where, list, nameRow, buttons);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") ok();
   });

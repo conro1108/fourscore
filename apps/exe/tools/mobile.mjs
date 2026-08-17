@@ -71,6 +71,26 @@ async function phone(viewport, tag) {
   await page.goto(`${BASE}/`);
   await page.waitForTimeout(1500);
 
+  // the machine boots to a desk; a phone user taps BOARD.EXE to play
+  // (a tap launches an icon — no double-click on a touchscreen)
+  const boardIcon = await page.evaluate(() => {
+    const ic = [...document.querySelectorAll(".icon")].find(
+      (i) => i.querySelector(".lbl")?.textContent === "BOARD.EXE",
+    );
+    const r = ic?.getBoundingClientRect();
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+  });
+  if (!boardIcon) fail("no BOARD.EXE icon on the phone desk");
+  await page.touchscreen.tap(boardIcon.x, boardIcon.y);
+  try {
+    await page.waitForFunction(() => !!document.querySelector("#grid .cell"), null, {
+      timeout: 10000,
+    });
+  } catch {
+    fail("tapping BOARD.EXE never opened the board");
+  }
+  await page.waitForTimeout(500);
+
   // the small-desk fit engaged: a 64px cell must be finger-sized on screen
   const cellPx = await page.evaluate(() => {
     const c = document.querySelector(".cell");

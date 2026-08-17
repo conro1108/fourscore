@@ -49,6 +49,11 @@ page.on("pageerror", (e) => console.error("PAGEERROR:", e.message));
 await page.goto(`${BASE}/`);
 await page.waitForTimeout(1200);
 
+// the machine boots to a desk; the game the fever answers starts by hand
+await page.locator("#stage > .icon", { hasText: "BOARD.EXE" }).dblclick();
+await page.locator("#grid .cell").first().waitFor({ timeout: 10000 });
+await page.waitForTimeout(400);
+
 /** One sample of everything a beat or a tier can visibly change. */
 const sample = () =>
   page.evaluate(() => ({
@@ -84,7 +89,7 @@ const watch = setInterval(async () => {
   if (closed.length) events.push(`${at()}s  - ${closed.join(", ")}`);
   if (now.clock !== prev.clock) events.push(`${at()}s  clock ${prev.clock} -> ${now.clock}`);
   if (now.boardTitle !== prev.boardTitle) events.push(`${at()}s  title "${now.boardTitle}"`);
-  if (now.icons !== prev.icons && now.icons !== "none|none|none|none|none|none")
+  if (now.icons !== prev.icons && now.icons.split("|").some((v) => v !== "none"))
     events.push(`${at()}s  icons off-grid`);
   if (now.notes !== prev.notes) events.push(`${at()}s  moves.txt now ${now.notes} lines`);
   if (now.trail !== prev.trail) events.push(`${at()}s  cursor ghosts ${prev.trail} -> ${now.trail}`);

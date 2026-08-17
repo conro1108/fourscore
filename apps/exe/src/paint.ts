@@ -23,17 +23,19 @@ import {
   parseSprite,
   serializeCells,
 } from "./sprite.js";
-import type { Disk } from "./fs.js";
+import { baseName, normPath, type Disk } from "./fs.js";
 import type { WM, Win } from "./wm.js";
 
 const openPainters = new Map<string, Win>();
 let painterSeq = 0;
-const painterKey = (name: string | null): string => name?.toLowerCase() ?? "untitled";
+const painterKey = (name: string | null): string =>
+  name === null ? "\0new" : normPath(name).toLowerCase();
 
 /** The checker that means "nothing here" — kept apart from every PAL gray. */
 const CHECKER = ["#f4f4f4", "#dcdcdc"] as const;
 
 export function openPaint(wm: WM, disk: Disk, name: string | null): void {
+  if (name !== null) name = normPath(name);
   const existing = openPainters.get(painterKey(name));
   if (existing?.isOpen()) {
     existing.focus();
@@ -179,16 +181,16 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
   const saveAs = (): void => {
     openFilePicker(wm, disk, "save", fileName ?? "", (typed) => {
       // a name with no extension is a picture; say so on its behalf
-      const n = typed.includes(".") ? typed : `${typed}.spr`;
+      const n = baseName(typed).includes(".") ? typed : `${typed}.spr`;
       const commit = (): void => {
         openPainters.delete(painterKey(fileName));
         fileName = n;
         openPainters.set(painterKey(n), win);
         disk.write(n, serializeCells(cells));
-        win.setTitle(TITLES.paint(n));
+        win.setTitle(TITLES.paint(baseName(n)));
         savedDialog(n);
       };
-      if (painterKey(fileName) !== n.toLowerCase() && disk.exists(n))
+      if (painterKey(fileName) !== painterKey(n) && disk.exists(n))
         wm.dialog({
           ...GAMES_COPY.paint.replace(n),
           icon: "!",
@@ -252,7 +254,7 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
 
   const win = wm.open({
     id: `paint${painterSeq++}`,
-    title: TITLES.paint(fileName ?? "untitled"),
+    title: TITLES.paint(fileName === null ? "untitled" : baseName(fileName)),
     icon: ICONS.paint,
     x: 240 + (painterSeq % 5) * 24,
     y: 110 + (painterSeq % 5) * 20,

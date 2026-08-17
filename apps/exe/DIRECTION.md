@@ -144,6 +144,30 @@
 > pins, reloads and takes it down. `sprite.test.ts` pins the format against
 > what Notepad could plausibly type at it.
 
+> **C:\ grew directories, and the desk is one of them (2026-08-16).** The
+> volume (`fs.ts`) is a tree now — paths, mkdir/rmdir, dir renames that
+> carry children and announce every file — and the desktop renders
+> `C:\DESKTOP`: put a file there and it grows an icon, drag an icon into a
+> folder and the file moves. The programs are files too — BOARD.EXE, the
+> games, flames.scr all seed the disk with an `MZ <token>` first line, and
+> dispatch reads the file, not the name, so COPY keeps a program runnable
+> and DEL BOARD.EXE just meets the seed law (presence judged by basename
+> anywhere, so a *filed-away* seed doesn't come back as a twin). shellfs is
+> gone; what remains is `deskpos.ts` (icon [x,y] per path) and an authored
+> boot arrangement in main.ts — machine things down the left, papers in a
+> second column with the `(C:)` drive icon, manuals in `\DOCS`, sources in
+> `\SRC`. COMMAND.COM has a cwd in its prompt, CD/MKDIR/RMDIR, `DIR` of any
+> path, and a tiny PATH (cwd → root → DESKTOP → games) so typing `MINES`
+> works from anywhere; Notepad/Paint's shared picker walks `[..]`/`[DIR]`
+> rows; moves.txt is a real file the pad writes through. Flat-era volumes
+> are **formatted, not migrated** — version-gated, the one deliberate data
+> loss, decided with the desk's owner. `fs.test.ts`/`deskpos.test.ts` pin
+> the tree, the format and the tokens; `npm run files` is the hands — a real
+> browser CDs around, RUNs a program, walks the drive window, saves across
+> directories through the picker and drags a file into a folder. The live
+> harnesses (`live`/`fever`/`mobile`) now start BOARD.EXE from its desk icon,
+> because the machine boots to a desk and they had never been told.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

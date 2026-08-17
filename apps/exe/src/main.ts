@@ -51,9 +51,13 @@ import { openSol } from "./games/sol.js";
 import { openCheckers } from "./games/checkers.js";
 import { openChess } from "./games/chess.js";
 import { GAME_ITEMS } from "./games/folder.js";
-import { itemFace, locOfKey, openContainer, syncContainers, type ContainerDeps, type ContainerKey } from "./containers.js";
-import { fileItemId, fileOf, gameOf, makeShellFs } from "./shellfs.js";
-import { deskHeight, deskWidth, stageScale, taskbarH } from "./wm.js";
+import { DROP_PREFIX, openContainer, syncContainers, type ContainerDeps } from "./containers.js";
+import { makeDeskPos } from "./deskpos.js";
+import { baseName, normPath } from "./fs.js";
+import { ICONS } from "./icons.js";
+import { programTokenOf } from "./copy.js";
+import { MOVES_PATH } from "./notepad.js";
+import { deskHeight, deskWidth, onDeskResize, stageScale, taskbarH } from "./wm.js";
 import type { DeskIcon } from "./desktop.js";
 
 const stage = q("#stage");
@@ -75,8 +79,8 @@ const wm = makeWM(stage, shell.tasksEl);
 const engine = engineClient();
 const analysis = analysisClient();
 const director = makeDirector();
-const movesPad = makeMovesPad(wm);
 const disk = makeDisk(localStorage);
+const movesPad = makeMovesPad(wm, disk);
 
 /* The scheme. Nothing is built until the first gesture (the autoplay law), and
    fever is pulled rather than pushed so the director never learns audio exists. */
@@ -164,23 +168,59 @@ const gameLaunchers = {
   chess: () => openChess(wm),
 };
 
-/* ---- the desk's shell objects: games out of their folder, folders the
-   player makes, and the rest as a place things actually go ---- */
-const shellFs = makeShellFs(
-  localStorage,
-  GAME_ITEMS.map((g) => g.id),
-  () => disk.list().map((f) => f.name),
-);
+/* ---- the desk is C:\DESKTOP ----
+   The disk owns what exists; deskpos remembers where an icon was dropped;
+   everything else about the boot arrangement is authored right here. */
+const deskPos = makeDeskPos(localStorage);
 const deskIcons = new Map<string, DeskIcon>();
+
+/** The programs, by the token their files carry (the MZ line). The rows are
+    the faces their desk icons wear. */
+const PROGRAMS: Record<string, { rows: readonly string[]; launch(): void }> = {
+  board: { rows: ICONS.board, launch: () => desktopApps.openBoard() },
+  flames: { rows: ICONS.flame, launch: () => desktopApps.openFlames() },
+  terminal: { rows: ICONS.term, launch: () => desktopApps.openTerminal() },
+  paint: { rows: ICONS.paint, launch: () => desktopApps.openPaint() },
+  review: { rows: ICONS.moves, launch: () => desktopApps.openReview() },
+  ...Object.fromEntries(
+    GAME_ITEMS.map((g) => [g.id, { rows: g.rows, launch: () => gameLaunchers[g.id]() }]),
+  ),
+};
+
+/** The boot arrangement: the machine's own things down the left, the papers
+    in a second column. Lowercased desk keys; ":drive" is the one fixture
+    that isn't a file. Anything not listed takes nextSeat. */
+const DESK_ORDER: readonly string[] = [
+  "desktop\\board.exe",
+  "desktop\\flames.scr",
+  "desktop\\moves.txt",
+  "desktop\\recycled",
+  "desktop\\games",
+  "desktop\\command.com",
+  "desktop\\readme.txt",
+  "desktop\\rocket.spr",
+  ":drive",
+];
+/** On a desk narrower than the authored 1280 (a phone), the left column
+    disappears behind BOARD.EXE — authored seats become a dock above the
+    taskbar instead, where a thumb lives. Dragged icons stay put. */
+const defaultSeat = (key: string): [number, number] | undefined => {
+  const i = DESK_ORDER.indexOf(key.toLowerCase());
+  if (i < 0) return undefined;
+  if (deskWidth() < 1280)
+    return [
+      8 + (i % 6) * Math.max(80, Math.floor((deskWidth() - 16) / 6)),
+      deskHeight() - taskbarH() - 100 - Math.floor(i / 6) * 96,
+    ];
+  return i < 6 ? [20, 22 + i * 100] : [112, 22 + (i - 6) * 100];
+};
 
 /** A free desk spot for something that has never been placed — files the
     terminal just made, folders MKDIR made. Columns to the right of the
-    built-in icons, filled top to bottom. */
+    left rank, filled top to bottom. */
 function nextSeat(): [number, number] {
-  const taken = shellFs
-    .itemsIn("desk")
-    .map((i) => shellFs.deskPos(i))
-    .filter((p): p is [number, number] => !!p);
+  const taken: [number, number][] = [];
+  for (const ic of deskIcons.values()) taken.push([ic.el.offsetLeft, ic.el.offsetTop]);
   for (let col = 0; col < 8; col++)
     for (let row = 0; row < 7; row++) {
       const x = 112 + col * 92;
@@ -202,14 +242,30 @@ const stagePoint = (ev: { clientX: number; clientY: number }): [number, number] 
   return [(ev.clientX - r.left) / k, (ev.clientY - r.top) / k];
 };
 
-/** What container is under the pointer — an open window or a desk icon. */
-const dropTargetAt = (ev: PointerEvent): ContainerKey | null =>
-  (document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-drop]")
-    ?.dataset.drop as ContainerKey) ?? null;
+/** What directory is under the pointer — an open container window, a folder
+    icon, anything wearing a data-drop. "" is the root; null is nothing. */
+const dropTargetAt = (ev: PointerEvent): string | null => {
+  const d = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-drop]")
+    ?.dataset.drop;
+  return d !== undefined && d.startsWith(DROP_PREFIX) ? d.slice(DROP_PREFIX.length) : null;
+};
 
-/** A picture opens in Paint, words open in Notepad — the desk knows which. */
-const openFile = (name: string): void =>
-  isSpriteFile(name) ? openPaint(wm, disk, name) : openEditor(wm, disk, name);
+/** Opening a file: a program file boots its program, moves.txt is the pad's
+    door, a picture opens in Paint, words open in Notepad. */
+const openFile = (name: string): void => {
+  const path = normPath(name);
+  if (path.toLowerCase() === MOVES_PATH.toLowerCase()) {
+    movesPad.open();
+    return;
+  }
+  const token = programTokenOf(disk.read(path) ?? "");
+  if (token && PROGRAMS[token]) {
+    PROGRAMS[token].launch();
+    return;
+  }
+  if (isSpriteFile(path)) openPaint(wm, disk, path);
+  else openEditor(wm, disk, path);
+};
 
 /** A .spr file's own art, for icons that wear their drawing. */
 const sprFace = (name: string): readonly string[] | null => {
@@ -218,65 +274,63 @@ const sprFace = (name: string): readonly string[] | null => {
   return cells ? cellsToRows(cells) : null;
 };
 
-const openItem = (id: string): void => {
-  const g = gameOf(id);
-  const f = fileOf(id);
-  if (g !== null) gameLaunchers[g as keyof typeof gameLaunchers]();
-  else if (f !== null) openFile(f);
-  else openContainer(containerDeps, id);
+/** What an item looks like, wherever it appears — the desk and every
+    container window ask here. A picture's icon is the picture; a program's
+    is its own face; a reserved folder keeps its dress. */
+const itemFaceOf = (path: string, isDir: boolean): { rows: readonly string[]; label: string } => {
+  const lower = path.toLowerCase();
+  if (isDir) {
+    if (lower === "desktop\\recycled") return { rows: ICONS.bin, label: TITLES.bin };
+    if (lower === "desktop\\games") return { rows: ICONS.gamesFolder, label: TITLES.games };
+    if (path === "") return { rows: ICONS.drive, label: TITLES.drive };
+    return { rows: ICONS.folder, label: baseName(path) };
+  }
+  if (lower === MOVES_PATH.toLowerCase()) return { rows: ICONS.moves, label: baseName(path) };
+  const token = programTokenOf(disk.read(path) ?? "");
+  if (token && PROGRAMS[token]) return { rows: PROGRAMS[token].rows, label: baseName(path) };
+  return { rows: sprFace(path) ?? ICONS.file, label: baseName(path) };
 };
 
-function makeDeskIcon(id: string): DeskIcon {
-  const face = itemFace(shellFs, id, sprFace);
-  const stored = shellFs.deskPos(id);
-  const [x, y] = stored ?? nextSeat();
-  if (!stored) shellFs.move(id, "desk", [x, y]);
+function makeDeskIcon(path: string, isDir: boolean): DeskIcon {
+  const key = path.toLowerCase();
+  const face = itemFaceOf(path, isDir);
+  const [x, y] = deskPos.get(key) ?? defaultSeat(key) ?? nextSeat();
   return shell.addIcon({
     rows: face.rows,
     label: face.label,
     x,
     y,
-    drop: shellFs.isFolder(id) ? id : undefined,
-    launch: () => openItem(id),
-    onMove: (nx, ny) => void shellFs.move(id, "desk", [nx, ny]),
+    drop: isDir ? DROP_PREFIX + path : undefined,
+    launch: () => (isDir ? openContainer(containerDeps, path) : openFile(path)),
+    onMove: (nx, ny) => deskPos.set(key, [nx, ny]),
     onDrop(ev) {
       const target = dropTargetAt(ev);
-      if (!target || target === id) return false;
-      if (!shellFs.move(id, locOfKey(target))) return false;
+      if (target === null || target.toLowerCase() === key) return false;
+      if (!disk.rename(path, normPath(`${target}\\${baseName(path)}`))) return false;
       syncShell();
       return true;
     },
-    onContext: shellFs.isFolder(id)
-      ? (e) => folderMenu(e, id)
-      : (() => {
-          const f = fileOf(id);
-          return f !== null && isSpriteFile(f) ? (e: MouseEvent) => sprMenu(e, f) : undefined;
-        })(),
+    onContext: (e) => itemMenu(e, path, isDir),
   });
 }
 
-/** A picture's own menu: open it, or put it up on the desk big. */
-function sprMenu(e: MouseEvent, name: string): void {
-  contextMenu(e, [
-    ["Open", () => openPaint(wm, disk, name)],
-    pins.isPinned(name)
-      ? ["Take down", () => pins.unpin(name)]
-      : ["Pin to desk", () => {
-          const [px, py] = stagePoint(e);
-          pins.pin(name, ...clampDesk(px - 30, py - 30));
-        }],
-  ]);
-}
-
-/** The desk re-reads the shell: icons appear, leave, and that is all. */
+/** The desk re-reads C:\DESKTOP: icons appear, leave, and that is all. */
 function syncDesk(): void {
-  const items = shellFs.itemsIn("desk");
-  for (const [id, ic] of deskIcons)
-    if (!items.includes(id)) {
+  const listing = disk.listDir("DESKTOP") ?? { dirs: [], files: [] };
+  const items = [
+    ...listing.dirs.map((d) => ({ path: d, isDir: true })),
+    ...listing.files.map((f) => ({ path: f.name, isDir: false })),
+  ];
+  const present = new Set(items.map((it) => it.path.toLowerCase()));
+  for (const [key, ic] of deskIcons)
+    if (!key.startsWith(":") && !present.has(key)) {
       ic.remove();
-      deskIcons.delete(id);
+      deskIcons.delete(key);
     }
-  for (const id of items) if (!deskIcons.has(id)) deskIcons.set(id, makeDeskIcon(id));
+  for (const it of items) {
+    const key = it.path.toLowerCase();
+    if (!deskIcons.has(key)) deskIcons.set(key, makeDeskIcon(it.path, it.isDir));
+  }
 }
 const syncShell = (): void => {
   syncDesk();
@@ -285,39 +339,62 @@ const syncShell = (): void => {
 
 const containerDeps: ContainerDeps = {
   wm,
-  fs: shellFs,
-  launch: gameLaunchers,
+  disk,
+  face: itemFaceOf,
   openFile,
-  sprFace,
-  drop(id, ev, from) {
+  drop(path, isDir, ev, from) {
     const target = dropTargetAt(ev);
-    if (target && target !== from && target !== id) {
-      shellFs.move(id, locOfKey(target)); // a refused move just goes back
-      syncShell();
+    if (target !== null && target.toLowerCase() !== from.toLowerCase() &&
+        target.toLowerCase() !== path.toLowerCase()) {
+      // a refused move just goes back
+      if (disk.rename(path, normPath(`${target}\\${baseName(path)}`))) syncShell();
       return;
     }
+    // onto the open desk: the file moves to DESKTOP and sits where it landed
+    const dest = normPath(`DESKTOP\\${baseName(path)}`);
     const [px, py] = stagePoint(ev);
-    shellFs.move(id, "desk", clampDesk(px - 24, py - 20));
-    syncShell();
+    const seat = clampDesk(px - 24, py - 20);
+    if (dest.toLowerCase() === path.toLowerCase() || disk.rename(path, dest)) {
+      deskPos.set(dest, seat);
+      deskIcons.get(dest.toLowerCase())?.moveTo(...seat);
+      syncShell();
+    }
+    void isDir;
   },
 };
+
+/* ---- the desk's own furniture: the drive ---- */
+deskIcons.set(":drive", shell.addIcon({
+  rows: ICONS.drive,
+  label: TITLES.drive,
+  x: (deskPos.get(":drive") ?? defaultSeat(":drive")!)[0],
+  y: (deskPos.get(":drive") ?? defaultSeat(":drive")!)[1],
+  launch: () => openContainer(containerDeps, ""),
+  onMove: (nx, ny) => deskPos.set(":drive", [nx, ny]),
+}));
 syncDesk();
+/* Undragged icons follow the desk when it changes shape (the phone dock). */
+onDeskResize(() => {
+  for (const [key, ic] of deskIcons) {
+    if (deskPos.get(key)) continue;
+    const seat = defaultSeat(key);
+    if (seat) ic.moveTo(...seat);
+  }
+});
 
 /* The other door into the same disk: a file the terminal or Notepad just
    made grows an icon; one they deleted stops existing everywhere; a rename
    keeps its spot. */
 disk.onChange((ev) => {
-  if (ev.kind === "rename" && ev.to) shellFs.migrate(fileItemId(ev.name), fileItemId(ev.to));
+  if (ev.kind === "rename" && ev.to) deskPos.migrate(ev.name, ev.to);
+  if (ev.kind === "remove") deskPos.drop(ev.name);
   // a repainted picture gets its desk icon repainted: drop it and let the
-  // sync grow it back wearing the new art (its spot is shellfs's memory)
-  if (ev.kind === "write" && isSpriteFile(ev.name))
-    for (const [id, ic] of deskIcons) {
-      const f = fileOf(id);
-      if (f && f.toLowerCase() === ev.name.toLowerCase()) {
-        ic.remove();
-        deskIcons.delete(id);
-      }
-    }
+  // sync grow it back wearing the new art (its spot is deskpos's memory)
+  if (ev.kind === "write" && isSpriteFile(ev.name)) {
+    const key = normPath(ev.name).toLowerCase();
+    deskIcons.get(key)?.remove();
+    deskIcons.delete(key);
+  }
   syncShell();
 });
 
@@ -328,17 +405,6 @@ const pins = installPins({
   edit: (name) => openPaint(wm, disk, name),
   menu: (e, entries) => contextMenu(e, entries),
 });
-
-/** Folders the prompt should admit to: everything not in the rest. */
-const folderInBin = (id: string): boolean => {
-  let l = shellFs.locOf(id);
-  for (let hops = 0; hops < 100; hops++) {
-    if (l === "bin") return true;
-    if (typeof l === "string") return false;
-    l = shellFs.locOf(l.folder);
-  }
-  return true;
-};
 
 /* ---- context menus: the desk makes folders, folders have their say ---- */
 let ctxMenu: HTMLElement | null = null;
@@ -367,35 +433,51 @@ function contextMenu(e: MouseEvent, entries: [string, () => void][]): void {
   stage.appendChild(m);
   ctxMenu = m;
 }
-function folderMenu(e: MouseEvent, id: string): void {
-  contextMenu(e, [
-    ["Open", () => openItem(id)],
-    ["Rename", () => renameFolder(id)],
-    ["Delete", () => {
-      shellFs.move(id, "bin");
-      syncShell();
-    }],
-  ]);
+/** Every desk item's menu: open it, name it, lose it — and a picture's own
+    entries, because a drawing can also go up on the wall. */
+function itemMenu(e: MouseEvent, path: string, isDir: boolean): void {
+  const key = path.toLowerCase();
+  const entries: [string, () => void][] = [
+    ["Open", () => (isDir ? openContainer(containerDeps, path) : openFile(path))],
+  ];
+  if (!isDir && isSpriteFile(path))
+    entries.push(
+      pins.isPinned(path)
+        ? ["Take down", () => pins.unpin(path)]
+        : ["Pin to desk", () => {
+            const [px, py] = stagePoint(e);
+            pins.pin(path, ...clampDesk(px - 30, py - 30));
+          }],
+    );
+  entries.push(["Rename", () => renameItem(path)]);
+  // the rest can hold anything except itself
+  if (key !== "desktop\\recycled")
+    entries.push(["Delete", () => {
+      if (disk.rename(path, normPath(`DESKTOP\\RECYCLED\\${baseName(path)}`))) syncShell();
+    }]);
+  contextMenu(e, entries);
 }
-function renameFolder(id: string): void {
-  const ic = deskIcons.get(id);
-  if (!ic) return;
-  const lbl = ic.el.querySelector<HTMLElement>(".lbl");
-  if (!lbl) return;
+/** Rename in place, desk-style: the label becomes a text box. The disk has
+    the final word — a taken name just puts the old label back. */
+function renameItem(path: string): void {
+  const ic = deskIcons.get(path.toLowerCase());
+  const lbl = ic?.el.querySelector<HTMLElement>(".lbl");
+  if (!ic || !lbl) return;
   const input = el<HTMLInputElement>(`<input class="ren" type="text">`);
-  input.value = shellFs.folderName(id);
+  input.value = baseName(path);
   lbl.textContent = "";
   lbl.appendChild(input);
   const commit = (keep: boolean): void => {
-    if (keep) shellFs.rename(id, input.value);
-    lbl.textContent = shellFs.folderName(id);
-    syncContainers(); // its own open window re-reads the name
+    const clean = input.value.trim().slice(0, 32);
+    lbl.textContent = baseName(path);
+    if (keep && clean && clean.toLowerCase() !== baseName(path).toLowerCase())
+      if (disk.rename(path, normPath(`DESKTOP\\${clean}`))) syncShell();
   };
   input.addEventListener("keydown", (e) => {
     e.stopPropagation();
     if (e.key === "Enter") input.blur();
     if (e.key === "Escape") {
-      input.value = shellFs.folderName(id);
+      input.value = baseName(path);
       input.blur();
     }
   });
@@ -409,21 +491,21 @@ stage.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   contextMenu(e, [
     ["New Folder", () => {
+      // terminal-typable names, the untitled.txt precedent: folder, folder2, …
+      let name = "folder";
+      for (let n = 2; disk.isDir(`DESKTOP\\${name}`) || disk.exists(`DESKTOP\\${name}`); n++)
+        name = `folder${n}`;
       const [px, py] = stagePoint(e);
-      shellFs.createFolder(...clampDesk(px - 24, py - 20));
-      syncShell();
+      deskPos.set(`desktop\\${name}`, clampDesk(px - 24, py - 20));
+      disk.mkdir(`DESKTOP\\${name}`); // onChange grows the icon at that seat
     }],
     ["New Text Document", () => {
-      // terminal-typable names: untitled.txt, untitled2.txt, …
       let name = "untitled.txt";
-      for (let n = 2; disk.exists(name); n++) name = `untitled${n}.txt`;
-      disk.write(name, ""); // onChange grows the icon; then walk it to the click
-      const id = fileItemId(name);
+      for (let n = 2; disk.exists(`DESKTOP\\${name}`); n++) name = `untitled${n}.txt`;
       const [px, py] = stagePoint(e);
-      const seat = clampDesk(px - 24, py - 20);
-      shellFs.move(id, "desk", seat);
-      deskIcons.get(id)?.moveTo(...seat);
-      openEditor(wm, disk, name);
+      deskPos.set(`desktop\\${name}`, clampDesk(px - 24, py - 20));
+      disk.write(`DESKTOP\\${name}`, ""); // onChange grows the icon at that seat
+      openEditor(wm, disk, `DESKTOP\\${name}`);
     }],
   ]);
 });
@@ -443,13 +525,15 @@ const desktopApps: DesktopApps = {
   },
   openFlames: () => effects.openFlames(),
   openMoves: () => movesPad.open(),
-  openBin: () => openContainer(containerDeps, "bin"),
-  openHelp: () => textWindow(wm, "help", TITLES.help, HELP_TEXT, 180, 120, 230),
+  openBin: () => openContainer(containerDeps, "DESKTOP\\RECYCLED"),
+  openDrive: () => openContainer(containerDeps, ""),
+  openHelp: () =>
+    textWindow(wm, "help", TITLES.help, disk.read("DOCS\\help.txt") ?? HELP_TEXT, 180, 120, 230),
   openPieces: () =>
     openPieces(wm, () => localStorage.getItem("exe.chips") ?? "flat", (s) => board.setChips(s)),
-  openGames: () => openContainer(containerDeps, "games"),
-  openUntitled: () => openEditor(wm, disk, "untitled.txt"),
-  openReadme: () => openEditor(wm, disk, "readme.txt"),
+  openGames: () => openContainer(containerDeps, "DESKTOP\\games"),
+  openUntitled: () => openEditor(wm, disk, "DESKTOP\\untitled.txt"),
+  openReadme: () => openEditor(wm, disk, "DESKTOP\\readme.txt"),
   openPaint: () => openPaint(wm, disk, null),
   openTerminal: () =>
     openTerminal({
@@ -457,12 +541,11 @@ const desktopApps: DesktopApps = {
       disk,
       edit: (name) => openEditor(wm, disk, name),
       paint: (name) => openPaint(wm, disk, name),
-      folders: () =>
-        shellFs.folders().filter((f) => !folderInBin(f.id)).map((f) => f.name),
-      mkdir(name) {
-        const id = shellFs.createFolder(...nextSeat(), name);
-        if (id) syncShell();
-        return id !== null;
+      launch(text) {
+        const token = programTokenOf(text);
+        if (!token || !PROGRAMS[token]) return false;
+        PROGRAMS[token].launch();
+        return true;
       },
     }),
   openGame: (id) => gameLaunchers[id](),
@@ -575,7 +658,7 @@ if (state === "midgame") {
   desktopApps.openTerminal();
 } else if (state === "paint") {
   // the rocket, on the easel — the seed picture every disk arrives with
-  openPaint(wm, disk, "rocket.spr");
+  openPaint(wm, disk, "DESKTOP\\rocket.spr");
 } else if (state === "sol") {
   openSol(wm, param("rig") ?? undefined);
 } else if (state === "checkers") {

@@ -15,7 +15,7 @@ import { el } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { TERM, TITLES } from "./copy.js";
 import type { WM } from "./wm.js";
-import type { Disk } from "./fs.js";
+import { baseName, resolvePath, type Disk } from "./fs.js";
 import { assemble, makeVm, type AsmResult, type Vm } from "./vm.js";
 import { compileC } from "./cc.js";
 
@@ -26,12 +26,9 @@ export interface TerminalDeps {
   edit(name: string): void;
   /** PAINT hands it to PAINT.EXE. */
   paint(name: string): void;
-  /** The desk's folders, so DIR can list them — the same folders the mouse
-      makes. Directories aren't real places on the flat volume; they are how
-      the desk arranges it, and the prompt sees the same arrangement. */
-  folders(): readonly string[];
-  /** MKDIR: a new folder lands on the desk. False if the name is taken. */
-  mkdir(name: string): boolean;
+  /** A file whose text is a program (the MZ line) launches instead of
+      assembling — typing MINES runs MINES.EXE. False if it wasn't one. */
+  launch(text: string): boolean;
 }
 
 /** What the volume claims to hold — localStorage's usual 5MB, honestly. */
@@ -41,7 +38,7 @@ const STEPS_PER_FRAME = 30_000;
 /** How many assembler complaints fit on a period screen. */
 const MAX_ERRORS = 8;
 
-export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: TerminalDeps): void {
+export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): void {
   const existing = wm.get("terminal");
   if (existing?.isOpen()) {
     existing.focus();
@@ -55,7 +52,11 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
   const lineEl = el(`<div class="termline"></div>`);
   const promptEl = el(`<span class="termprompt"></span>`);
   const input = el(`<input class="termin" spellcheck="false" autocomplete="off">`) as HTMLInputElement;
-  promptEl.textContent = TERM.prompt;
+  /** The working directory — the prompt wears it, every path resolves off it. */
+  let cwd = "";
+  const prompt = (): string => TERM.promptFor(cwd);
+  const resolve = (arg: string): string => resolvePath(cwd, arg);
+  promptEl.textContent = prompt();
   lineEl.append(promptEl, input);
   well.append(outEl, tailEl, lineEl);
   body.appendChild(well);
@@ -105,7 +106,7 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
     flushTail();
     proc = null;
     cancelAnimationFrame(raf);
-    promptEl.textContent = TERM.prompt;
+    promptEl.textContent = prompt();
     scroll();
   };
 
@@ -126,12 +127,18 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
     }
   };
 
-  /** Resolve NAME to a file, trying NAME.asm and NAME.c too, RUN-style. */
+  /** Resolve NAME to a runnable file: against the cwd first, then — for a
+      bare name — the places programs live (a small, honest PATH), trying the
+      runnable extensions on each. */
   const findSource = (name: string): { name: string; text: string } | null => {
-    for (const n of [name, `${name}.asm`, `${name}.c`]) {
-      const text = disk.read(n);
-      if (text !== null) return { name: n, text };
-    }
+    const bases = [resolve(name)];
+    if (!/[\\/]/.test(name.trim()))
+      bases.push(name, `DESKTOP\\${name}`, `DESKTOP\\games\\${name}`);
+    for (const base of bases)
+      for (const ext of ["", ".exe", ".scr", ".com", ".asm", ".c"]) {
+        const text = disk.read(base + ext);
+        if (text !== null) return { name: base + ext, text };
+      }
     return null;
   };
 
@@ -161,6 +168,8 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
       print(TERM.fileNotFound);
       return;
     }
+    // a real program file boots its program; the processor gets the rest
+    if (launch(src.text)) return;
     const res = toWords(src);
     if (!res.ok) {
       printAsmErrors(res.errors);
@@ -173,24 +182,32 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
   };
 
   /* ---- the commands ---- */
-  const dir = (): void => {
-    for (const line of TERM.dirHeader) print(line);
-    for (const name of folders())
-      print(`${name.slice(0, 12).toUpperCase().padEnd(13)}<DIR>           08-14-96   6:66p`);
-    const files = disk.list();
+  const dir = (arg?: string): void => {
+    const path = arg ? resolve(arg) : cwd;
+    const listing = disk.listDir(path);
+    if (!listing) {
+      print(TERM.badDir);
+      return;
+    }
+    for (const line of TERM.dirHeader(path)) print(line);
+    for (const d of listing.dirs)
+      print(`${baseName(d).slice(0, 12).toUpperCase().padEnd(13)}<DIR>           08-14-96   6:66p`);
     let total = 0;
-    for (const f of files) {
+    for (const f of listing.files) {
       total += f.text.length;
-      const dot = f.name.lastIndexOf(".");
-      const base = (dot > 0 ? f.name.slice(0, dot) : f.name).toUpperCase();
-      const ext = (dot > 0 ? f.name.slice(dot + 1) : "").toUpperCase();
+      const name = baseName(f.name);
+      const dot = name.lastIndexOf(".");
+      const base = (dot > 0 ? name.slice(0, dot) : name).toUpperCase();
+      const ext = (dot > 0 ? name.slice(dot + 1) : "").toUpperCase();
       print(
         `${base.padEnd(8).slice(0, 12)} ${ext.padEnd(3)} ${f.text.length.toLocaleString("en-US").padStart(10)}  08-14-96   6:66p`,
       );
     }
-    const free = Math.max(0, DISK_BYTES - total);
+    // the footer's free bytes are the volume's, not the directory's
+    const used = disk.list().reduce((n, f) => n + f.text.length, 0);
+    const free = Math.max(0, DISK_BYTES - used);
     for (const line of TERM.dirFooter(
-      files.length,
+      listing.files.length,
       total.toLocaleString("en-US"),
       free.toLocaleString("en-US"),
     ))
@@ -198,10 +215,16 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
   };
 
   const runCommand = (raw: string): void => {
-    print(TERM.prompt + raw);
+    print(prompt() + raw);
     const parts = raw.trim().split(/\s+/);
-    const first = parts[0] ?? "";
+    let first = parts[0] ?? "";
     if (!first) return;
+    // the period's glued spellings: CD.. and CD\ arrive as one word
+    const glued = /^(CD|CHDIR)([\\.].*)$/i.exec(first);
+    if (glued) {
+      parts.splice(0, 1, glued[1]!, glued[2]!);
+      first = glued[1]!;
+    }
     const cmd = first.toUpperCase();
     const arg1 = parts[1];
     const arg2 = parts[2];
@@ -231,57 +254,99 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
       // the unix names work too — the owner's fingers predate the fiction
       case "DIR":
       case "LS":
-        dir();
+        dir(arg1);
         break;
+      case "CD":
+      case "CHDIR": {
+        if (!arg1) {
+          print(cwd ? `C:\\${cwd}` : "C:\\");
+          break;
+        }
+        const t = resolve(arg1);
+        if (disk.isDir(t)) {
+          cwd = t;
+          promptEl.textContent = prompt();
+        } else print(TERM.badDir);
+        break;
+      }
       case "TYPE":
       case "CAT": {
         if (!arg1) {
           print(TERM.needsFile(cmd));
           break;
         }
-        const text = disk.read(arg1);
+        const text = disk.read(resolve(arg1));
         if (text === null) print(TERM.fileNotFound);
         else for (const line of text.split("\n")) print(line);
         break;
       }
       case "DEL":
-      case "RM":
-        if (!arg1) print(TERM.needsFile(cmd));
-        else if (!disk.remove(arg1)) print(TERM.fileNotFound);
-        else print(TERM.deleted(arg1));
+      case "RM": {
+        if (!arg1) {
+          print(TERM.needsFile(cmd));
+          break;
+        }
+        const target = resolve(arg1);
+        if (!disk.remove(target)) print(TERM.fileNotFound);
+        else print(TERM.deleted(target));
         break;
+      }
       case "REN":
-      case "MV":
-        if (!arg1 || !arg2) print(TERM.needsFile(cmd));
-        else if (!disk.rename(arg1, arg2)) print(TERM.duplicateOrMissing);
+      case "MV": {
+        if (!arg1 || !arg2) {
+          print(TERM.needsFile(cmd));
+          break;
+        }
+        const src = resolve(arg1);
+        let dst = resolve(arg2);
+        // a directory target means "into it", the way mv always read it
+        if (disk.isDir(dst) && !disk.isDir(src)) dst = `${dst}\\${baseName(src)}`;
+        if (!disk.rename(src, dst)) print(TERM.duplicateOrMissing);
         break;
+      }
       case "COPY":
       case "CP": {
         if (!arg1 || !arg2) {
           print(TERM.needsFile(cmd));
           break;
         }
-        const text = disk.read(arg1);
-        if (text === null) print(TERM.fileNotFound);
-        else {
-          disk.write(arg2, text);
-          print(TERM.copied);
+        const text = disk.read(resolve(arg1));
+        if (text === null) {
+          print(TERM.fileNotFound);
+          break;
         }
+        let dst = resolve(arg2);
+        if (disk.isDir(dst)) dst = `${dst}\\${baseName(resolve(arg1))}`;
+        if (disk.write(dst, text)) print(TERM.copied);
+        else print(TERM.duplicateOrMissing);
         break;
       }
       case "EDIT":
         if (!arg1) print(TERM.needsFile("EDIT"));
-        else edit(arg1);
+        else edit(resolve(arg1));
         break;
       case "PAINT":
         if (!arg1) print(TERM.needsFile("PAINT"));
-        else paint(arg1);
+        else paint(resolve(arg1));
         break;
       case "MKDIR":
       case "MD":
         if (!arg1) print(TERM.needsFile(cmd));
-        else if (!mkdir(arg1)) print(TERM.dirExists);
+        else if (!disk.mkdir(resolve(arg1))) print(TERM.dirExists);
         break;
+      case "RMDIR":
+      case "RD": {
+        if (!arg1) {
+          print(TERM.needsFile(cmd));
+          break;
+        }
+        const t = resolve(arg1);
+        // the floor you stand on is not removable, even empty
+        const underfoot = t !== "" && (cwd.toLowerCase() === t.toLowerCase() ||
+          cwd.toLowerCase().startsWith(t.toLowerCase() + "\\"));
+        if (underfoot || !disk.rmdir(t)) print(TERM.rmdirRefused);
+        break;
+      }
       case "ASM": {
         if (!arg1) {
           print(TERM.needsFile("ASM"));
@@ -303,8 +368,8 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
           break;
         }
         // CC resolves the .c itself so CC FIZZ and CC FIZZ.C both compile
-        const cName = /\.c$/i.test(arg1) ? arg1 : `${arg1}.c`;
-        const text = disk.read(cName) ?? disk.read(arg1);
+        const cPath = resolve(/\.c$/i.test(arg1) ? arg1 : `${arg1}.c`);
+        const text = disk.read(cPath) ?? disk.read(resolve(arg1));
         if (text === null) {
           print(TERM.fileNotFound);
           break;
@@ -320,9 +385,10 @@ export function openTerminal({ wm, disk, edit, paint, folders, mkdir }: Terminal
           printAsmErrors(asm.errors);
           break;
         }
-        const outName = `${cName.replace(/\.c$/i, "")}.asm`;
+        // the .asm lands beside its source, wherever that was
+        const outName = `${cPath.replace(/\.c$/i, "")}.asm`;
         disk.write(outName, cc.asm);
-        print(TERM.ccOk(cName.toUpperCase(), outName.toUpperCase(), asm.words.length));
+        print(TERM.ccOk(cPath.toUpperCase(), outName.toUpperCase(), asm.words.length));
         break;
       }
       case "RUN":

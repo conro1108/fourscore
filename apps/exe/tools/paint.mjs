@@ -63,8 +63,9 @@ if (!dlg) fail("no saved dialog");
 await page.locator(".btn", { hasText: "OK" }).first().click();
 
 const savedRow = await page.evaluate(() => {
-  const files = JSON.parse(localStorage.getItem("exe.fs") ?? "[]");
-  return files.find((f) => f.name.toLowerCase() === "rocket.spr")?.text.split("\n")[0];
+  // the volume is a tree now: {v: 2, dirs, files} with path names
+  const files = JSON.parse(localStorage.getItem("exe.fs") ?? "{}").files ?? [];
+  return files.find((f) => f.name.toLowerCase() === "desktop\\rocket.spr")?.text.split("\n")[0];
 });
 console.log("disk now holds:", JSON.stringify(savedRow));
 if (!/^rrr/.test(savedRow ?? "")) fail(`the stroke never reached the disk: ${savedRow}`);

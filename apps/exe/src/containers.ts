@@ -1,62 +1,46 @@
 /**
- * Container windows: the games folder, the player's own folders, and the
- * rest. One implementation — a pane of icons over a status bar — because
- * they are all the same piece of furniture; only the title, the seed
- * position and what they'll accept differ (and acceptance is shellfs's law,
- * not the window's).
+ * Container windows: folder windows over real directories, and the drive
+ * window over the root. One implementation — a pane of icons over a status
+ * bar — because they are all the same piece of furniture; only the seat and
+ * the dressing differ, and what an item *is* lives on the disk (fs.ts), not
+ * in the window.
  *
  * The panes deliberately do not repack while you watch. An icon that leaves
  * goes invisible in place and an icon that returns lights back up in its old
  * slot, so nothing else jumps; a fresh open lays the survivors out packed.
- * The rest keeps its poem as the empty state — the fictional losses stay
- * unrestorable, the real ones drag right back out.
+ * The rest (C:\DESKTOP\RECYCLED) keeps its poem as the empty state — the
+ * fictional losses stay unrestorable, the real ones drag right back out.
  */
 
 import { el, onPointerDrag } from "./dom.js";
-import { ICONS, iconCanvas } from "./icons.js";
-import { BIN_TEXT, TITLES } from "./copy.js";
+import { iconCanvas, ICONS } from "./icons.js";
+import { BIN_TEXT } from "./copy.js";
 import { stageScale, type WM, type Win } from "./wm.js";
-import { GAME_ITEMS, type GameLaunchers } from "./games/folder.js";
-import { fileOf, gameOf, type ShellFs, type ShellLoc } from "./shellfs.js";
+import { normPath, type Disk } from "./fs.js";
 
-/** A container's key doubles as its window id; folder keys are the item id. */
-export type ContainerKey = "games" | "bin" | string;
+/** A container's key is the directory it shows; "" is the root. */
+export type ContainerKey = string;
 
-export const locOfKey = (key: ContainerKey): ShellLoc =>
-  key === "games" || key === "bin" ? key : { folder: key };
+/** Marks an element as "drops land in this directory" for elementFromPoint. */
+export const DROP_PREFIX = "dir:";
 
 export interface ContainerDeps {
   wm: WM;
-  fs: ShellFs;
-  launch: GameLaunchers;
-  /** A disk file was double-clicked — main opens it in Notepad or Paint. */
+  disk: Disk;
+  /** What an item looks like — main knows programs, pictures and the
+      reserved folders. */
+  face(path: string, isDir: boolean): { rows: readonly string[]; label: string };
+  /** A file was double-clicked — main launches, paints or edits it. */
   openFile(name: string): void;
-  /** A .spr file's own art, parsed off the disk — null for everything else. */
-  sprFace?(name: string): readonly string[] | null;
   /** An icon left this container on a drag — main decides where it lands. */
-  drop(id: string, ev: PointerEvent, from: ContainerKey): void;
+  drop(path: string, isDir: boolean, ev: PointerEvent, from: ContainerKey): void;
 }
 
-/** What an item looks like, wherever it appears. A picture file's icon is
-    the picture — the drawing wears itself. */
-export function itemFace(
-  fs: ShellFs,
-  id: string,
-  sprFace?: (name: string) => readonly string[] | null,
-): { rows: readonly string[]; label: string } {
-  const g = gameOf(id);
-  if (g !== null) {
-    const item = GAME_ITEMS.find((x) => x.id === g);
-    if (item) return { rows: item.rows, label: item.label };
-  }
-  const f = fileOf(id);
-  if (f !== null) return { rows: sprFace?.(f) ?? ICONS.file, label: f };
-  return { rows: ICONS.folder, label: fs.folderName(id) };
-}
+const open = new Map<string, { win: Win; sync(): void }>();
+const keyOf = (dir: string): string => normPath(dir).toLowerCase();
+const isBin = (key: ContainerKey): boolean => keyOf(key) === "desktop\\recycled";
 
-const open = new Map<ContainerKey, { win: Win; sync(): void }>();
-
-/** Every open container re-reads the shell — after any move or rename. */
+/** Every open container re-reads the disk — after any change. */
 export function syncContainers(): void {
   for (const [key, c] of open) {
     if (!c.win.isOpen()) open.delete(key);
@@ -64,25 +48,23 @@ export function syncContainers(): void {
   }
 }
 
-const title = (fs: ShellFs, key: ContainerKey): string =>
-  key === "games" ? TITLES.games : key === "bin" ? TITLES.bin : fs.folderName(key);
-
 let cascade = 0;
 
-export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
+export function openContainer(deps: ContainerDeps, dir: ContainerKey): void {
+  const path = normPath(dir);
+  const key = keyOf(path);
   const existing = open.get(key);
   if (existing?.win.isOpen()) {
     existing.win.focus();
     return;
   }
-  const { wm, fs, launch } = deps;
-  const loc = locOfKey(key);
+  const { wm, disk } = deps;
 
   const body = el(`<div></div>`);
   const pane = el(`<div class="sunken folderpane flexwell"></div>`);
   const poem = el(`<div class="binpoem"></div>`);
   poem.textContent = BIN_TEXT;
-  if (key === "bin") pane.appendChild(poem);
+  if (isBin(path)) pane.appendChild(poem);
   const count = el(`<div></div>`);
   const status = el(`<div class="statusbar"></div>`);
   status.appendChild(count);
@@ -90,17 +72,15 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
 
   const shown = new Map<string, HTMLElement>();
 
-  const openItem = (id: string): void => {
-    const g = gameOf(id);
-    const f = fileOf(id);
-    if (g !== null) launch[g as keyof GameLaunchers]();
-    else if (f !== null) deps.openFile(f);
-    else openContainer(deps, id);
+  const openItem = (p: string, dirItem: boolean): void => {
+    if (dirItem) openContainer(deps, p);
+    else deps.openFile(p);
   };
 
-  const makeIcon = (id: string): HTMLElement => {
-    const face = itemFace(fs, id, deps.sprFace);
+  const makeIcon = (p: string, dirItem: boolean): HTMLElement => {
+    const face = deps.face(p, dirItem);
     const ic = el(`<div class="fic"></div>`);
+    if (dirItem) ic.dataset.drop = DROP_PREFIX + p;
     ic.appendChild(iconCanvas(face.rows, 32));
     const lbl = el(`<span class="lbl"></span>`);
     lbl.textContent = face.label;
@@ -109,7 +89,7 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
       shown.forEach((x) => x.classList.remove("sel"));
       ic.classList.add("sel");
     });
-    ic.addEventListener("dblclick", () => openItem(id));
+    ic.addEventListener("dblclick", () => openItem(p, dirItem));
 
     // drag out: past a few pixels a ghost rides the cursor, and dropping it
     // off this window is main's problem to place. A finger-tap that never
@@ -139,7 +119,7 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
       },
       (ev, cancelled) => {
         if (!ghost) {
-          if (!cancelled && ev.pointerType === "touch") openItem(id);
+          if (!cancelled && ev.pointerType === "touch") openItem(p, dirItem);
           return;
         }
         ghost.remove();
@@ -149,15 +129,24 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
           ev.clientX >= winR.left && ev.clientX <= winR.right &&
           ev.clientY >= winR.top && ev.clientY <= winR.bottom;
         if (inHere) return; // put back; the folder does not rearrange
-        deps.drop(id, ev, key);
+        deps.drop(p, dirItem, ev, path);
       },
     );
     return ic;
   };
 
   const sync = (): void => {
-    const items = fs.itemsIn(loc);
-    const present = new Set(items);
+    const listing = disk.listDir(path);
+    if (!listing) {
+      // the directory left the disk from under its own window
+      win.close();
+      return;
+    }
+    const items: { p: string; dirItem: boolean }[] = [
+      ...listing.dirs.map((d) => ({ p: d, dirItem: true })),
+      ...listing.files.map((f) => ({ p: f.name, dirItem: false })),
+    ];
+    const present = new Set(items.map((it) => it.p.toLowerCase()));
     for (const [id, ic] of shown)
       if (!present.has(id)) {
         // gone, but its slot stays — everything else just chills
@@ -165,32 +154,36 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
         ic.style.pointerEvents = "none";
         ic.classList.remove("sel");
       }
-    for (const id of items) {
+    for (const it of items) {
+      const id = it.p.toLowerCase();
       const ic = shown.get(id);
       if (ic) {
         ic.style.visibility = "";
         ic.style.pointerEvents = "";
       } else {
-        const fresh = makeIcon(id);
+        const fresh = makeIcon(it.p, it.dirItem);
         shown.set(id, fresh);
         pane.appendChild(fresh);
       }
     }
     count.textContent = `${items.length} object(s)`;
-    if (key === "bin") poem.style.display = items.length ? "none" : "block";
-    win.setTitle(title(fs, key));
+    if (isBin(path)) poem.style.display = items.length ? "none" : "block";
+    win.setTitle(deps.face(path, true).label);
   };
 
+  const dress = deps.face(path, true);
   const seat =
-    key === "games"
+    keyOf(path) === "desktop\\games"
       ? { x: 330, y: 470 }
-      : key === "bin"
+      : isBin(path)
         ? { x: 470, y: 170 }
-        : { x: 260 + (cascade % 5) * 26, y: 190 + (cascade++ % 5) * 26 };
+        : path === ""
+          ? { x: 170, y: 140 }
+          : { x: 260 + (cascade % 5) * 26, y: 190 + (cascade++ % 5) * 26 };
   const win = wm.open({
-    id: key,
-    title: title(fs, key),
-    icon: key === "bin" ? ICONS.bin : key === "games" ? ICONS.gamesFolder : ICONS.folder,
+    id: `dir:${key}`,
+    title: dress.label,
+    icon: path === "" ? ICONS.drive : dress.rows,
     x: seat.x,
     y: seat.y,
     w: 420,
@@ -201,7 +194,7 @@ export function openContainer(deps: ContainerDeps, key: ContainerKey): void {
     minH: 120,
     onClose: () => open.delete(key),
   });
-  win.el.dataset.drop = key;
+  win.el.dataset.drop = DROP_PREFIX + path;
   open.set(key, { win, sync });
   sync();
 }

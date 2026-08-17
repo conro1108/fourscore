@@ -224,7 +224,7 @@ describe("complaints", () => {
 
 describe("the seed", () => {
   it("fizz.c compiles, runs and follows the rules", () => {
-    const src = SEED_FILES.find((f) => f.name === "fizz.c")!.text;
+    const src = SEED_FILES.find((f) => f.name.endsWith("fizz.c"))!.text;
     const out = runC(src);
     const lines = out.split("\n");
     expect(lines[0]).toBe("1");
