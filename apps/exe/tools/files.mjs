@@ -1,6 +1,6 @@
 /**
- * Live-drive the filesystem through a real browser: CD/DIR/TYPE/RUN and
- * MKDIR/RMDIR in COMMAND.COM, a program file launching by name, the drive
+ * Live-drive the filesystem through a real browser: cd/ls/cat/run and
+ * mkdir/rmdir in the terminal, a program file launching by name, the drive
  * window walking into DOCS, the picker saving across directories, and a
  * desk drag that moves a file on disk. `npm run files` is the hand.
  */
@@ -42,7 +42,7 @@ page.on("pageerror", (e) => fail(`pageerror: ${e.message}`));
 await page.goto(`${BASE}/`);
 await page.waitForTimeout(1200);
 
-/* ---- terminal: CD, DIR, TYPE across dirs, RUN, program launch ---- */
+/* ---- terminal: cd, ls, cat across dirs, run, program launch ---- */
 await page.locator("#stage > .icon", { hasText: "COMMAND.COM" }).dblclick();
 await page.waitForTimeout(400);
 const type = async (cmd) => {
@@ -52,41 +52,41 @@ const type = async (cmd) => {
 };
 const termText = () => page.locator(".termwell").innerText();
 
-await type("DIR");
+await type("ls");
 let out = await termText();
-if (!/DESKTOP\s+<DIR>/.test(out)) fail("DIR at root shows no DESKTOP <DIR>");
-if (!/PAINT\s+EXE/.test(out)) fail("DIR at root shows no PAINT.EXE");
+if (!/DESKTOP\//.test(out)) fail("ls at root shows no DESKTOP/");
+if (!/PAINT\.EXE/.test(out)) fail("ls at root shows no PAINT.EXE");
 
-await type("CD DOCS");
-if (!(await page.locator(".termprompt").last().textContent())?.includes("C:\\DOCS>"))
-  fail("prompt did not follow CD DOCS");
-await type("TYPE ASM.TXT");
+await type("cd docs");
+if (!(await page.locator(".termprompt").last().textContent())?.includes("docs %"))
+  fail("prompt did not follow cd docs");
+await type("cat asm.txt");
 out = await termText();
-if (!out.includes("REGISTERS")) fail("TYPE ASM.TXT in DOCS printed nothing");
+if (!out.includes("REGISTERS")) fail("cat asm.txt in docs printed nothing");
 
-await type("CD ..");
-await type("CD \\SRC");
-await type("RUN HELLO.ASM");
+await type("cd ..");
+await type("cd /src");
+await type("run hello.asm");
 await page.waitForTimeout(600);
 out = await termText();
-if (!out.includes("HELLO FROM THE DISK.")) fail("RUN HELLO.ASM did not say hello");
+if (!out.includes("HELLO FROM THE DISK.")) fail("run hello.asm did not say hello");
 
-await type("TYPE \\DESKTOP\\BOARD.EXE");
+await type("cat /desktop/BOARD.EXE");
 out = await termText();
-if (!out.includes("MZ board")) fail("TYPE on a program did not print its MZ line");
+if (!out.includes("MZ board")) fail("cat on a program did not print its MZ line");
 
 await type("MINES");
 await page.waitForTimeout(600);
 if (!(await page.locator(".win", { hasText: "MINES.EXE" }).count()))
   fail("typing MINES did not launch MINES.EXE");
 
-await type("MKDIR STUFF");
-await type("CD STUFF");
-await type("CD ..");
-await type("RMDIR STUFF");
-await type("DIR");
+await type("mkdir stuff");
+await type("cd stuff");
+await type("cd ..");
+await type("rmdir stuff");
+await type("ls");
 out = await termText();
-if (/STUFF\s+<DIR>/.test(out.split("RMDIR")[1] ?? "")) fail("RMDIR left STUFF behind");
+if (/stuff\//i.test(out.split("rmdir")[1] ?? "")) fail("rmdir left stuff behind");
 await page.screenshot({ path: `${SHOTS}/files-terminal.png` });
 
 /* ---- the drive window: root browser opens, DOCS opens from it ---- */
