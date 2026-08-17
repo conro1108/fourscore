@@ -21,10 +21,13 @@
  *              ?:, || && | ^ &, comparisons, shifts, arithmetic, !, ~,
  *              unary -, * and & on pointers, ++ and --, [] and calls.
  *   Builtins   putc(c) putn(n) puts(s) getc() key() rand() — the hardware
- *              ports, wearing C. getc waits; key does not. malloc(n) hands
- *              out n words from a heap that starts where the program ends;
- *              the words arrive zeroed and are never reused — free() is
- *              accepted and does nothing.
+ *              ports, wearing C. getc waits; key does not. The screen ports
+ *              wear C too: vpos(p) aims the cursor (cell 0..959 on 40x24),
+ *              vput(c) prints there and moves on, vsync() rests until the
+ *              display's next frame. malloc(n) hands out n words from a
+ *              heap that starts where the program ends; the words arrive
+ *              zeroed and are never reused — free() is accepted and does
+ *              nothing.
  *   Data       int a[4] = {1, 2, 3}; fills in order and pads with zeros;
  *              int a[] = {...} counts for you. Constants only, but local
  *              and global alike.
@@ -75,7 +78,9 @@ const KEYWORDS = new Set([
 
 /** The hardware, wearing C. A program may not redefine these. malloc and
     free live here too: the heap is the machine's, not the program's. */
-const BUILTINS = new Set(["putc", "putn", "puts", "getc", "key", "rand", "malloc", "free"]);
+const BUILTINS = new Set([
+  "putc", "putn", "puts", "getc", "key", "rand", "vpos", "vput", "vsync", "malloc", "free",
+]);
 
 class Stop {
   constructor(readonly error: CcError) {}
@@ -964,7 +969,8 @@ function emit(
 
   function emitCall(e: Extract<Expr, { kind: "call" }>): void {
     const arity: Record<string, number> = {
-      putc: 1, putn: 1, puts: 1, getc: 0, key: 0, rand: 0, malloc: 1, free: 1,
+      putc: 1, putn: 1, puts: 1, getc: 0, key: 0, rand: 0,
+      vpos: 1, vput: 1, vsync: 0, malloc: 1, free: 1,
     };
     if (BUILTINS.has(e.name)) {
       if (e.args.length !== arity[e.name])
@@ -975,6 +981,9 @@ function emit(
         case "putn": ln(`st r0, [num]`); return;
         case "key": ln(`ld r0, [key]`); return;
         case "rand": ln(`ld r0, [rnd]`); return;
+        case "vpos": ln(`st r0, [vpos]`); return;
+        case "vput": ln(`st r0, [vchr]`); return;
+        case "vsync": ln(`ld r0, [vsync]`); return;
         case "malloc":
           rt.add("malloc");
           ln(`call rt_malloc`);

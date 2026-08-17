@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assemble, makeVm, type VmIO } from "./vm.js";
+import { assemble, makeVm, SCREEN_H, SCREEN_W, type Vm, type VmIO } from "./vm.js";
 import { compileC } from "./cc.js";
 import { SEED_FILES } from "./copy.js";
 
@@ -38,6 +38,36 @@ const errorsOf = (src: string): string[] => {
   const cc = compileC(src);
   if (cc.ok) throw new Error("expected errors, compiled clean");
   return cc.errors.map((e) => e.msg);
+};
+
+/** Compile and hand back the machine itself — for programs that draw, which
+    runC's console string can't see. The caller drives run() frame by frame. */
+function vmOf(src: string, opts: { keys?: number[]; rand?: number } = {}): Vm {
+  const cc = compileC(src);
+  if (!cc.ok) throw new Error(cc.errors.map((e) => `line ${e.line}: ${e.msg}`).join("; "));
+  const res = assemble(cc.asm);
+  if (!res.ok) throw new Error("CC emitted bad asm");
+  const io: VmIO = {
+    putChar: () => {},
+    putNum: () => {},
+    key: () => opts.keys?.shift() ?? 0,
+    rand: () => opts.rand ?? 0,
+  };
+  return makeVm(res.words, io);
+}
+
+/** The screen the way the terminal would draw it: 24 strings of 40. */
+const screenRows = (vm: Vm): string[] => {
+  const rows: string[] = [];
+  for (let y = 0; y < SCREEN_H; y++) {
+    let row = "";
+    for (let x = 0; x < SCREEN_W; x++) {
+      const v = vm.screen[y * SCREEN_W + x]!;
+      row += v >= 32 && v < 127 ? String.fromCharCode(v) : " ";
+    }
+    rows.push(row);
+  }
+  return rows;
 };
 
 describe("expressions", () => {
@@ -329,6 +359,35 @@ describe("complaints", () => {
   });
 });
 
+describe("the screen, wearing C", () => {
+  it("vpos aims and vput lands characters", () => {
+    const vm = vmOf(
+      `int main() { vpos(0); vput('H'); vput('I'); vpos(3 * 40 + 5); vput('!'); return 0; }`,
+    );
+    vm.run(100_000);
+    expect(vm.halted).toBe(true);
+    expect(vm.screenOn).toBe(true);
+    const rows = screenRows(vm);
+    expect(rows[0]!.startsWith("HI")).toBe(true);
+    expect(rows[3]![5]).toBe("!");
+  });
+
+  it("vsync paces a loop to one pass per frame", () => {
+    const vm = vmOf(
+      `int main() { int i; for (i = 0; i < 3; i++) { vsync(); vpos(i); vput('X'); } return 0; }`,
+    );
+    vm.run(30_000); // frame 1: the program reaches its first rest, draws nothing
+    expect(vm.screen[0]).toBe(0);
+    vm.run(30_000); // frame 2: one X
+    expect(String.fromCharCode(vm.screen[0]!)).toBe("X");
+    expect(vm.screen[1]).toBe(0);
+    vm.run(30_000);
+    vm.run(30_000);
+    expect(vm.halted).toBe(true);
+    expect(String.fromCharCode(vm.screen[2]!)).toBe("X");
+  });
+});
+
 describe("the seed", () => {
   it("list.c compiles, runs and goes both ways", () => {
     const src = SEED_FILES.find((f) => f.name.endsWith("list.c"))!.text;
@@ -354,5 +413,60 @@ describe("the seed", () => {
     expect(lines[14]).toBe("FIZZBUZZ");
     expect(lines[29]).toBe("FIZZBUZZ");
     expect(lines[30]).toBe("THE RULES HAVE BEEN FOLLOWED.");
+  });
+
+  const pongSrc = (): string => SEED_FILES.find((f) => f.name.endsWith("pong.c"))!.text;
+  const STEPS = 30_000; // the terminal's per-frame budget
+
+  it("pong.c compiles and puts up a court", () => {
+    const vm = vmOf(pongSrc());
+    for (let f = 0; f < 10; f++) vm.run(STEPS);
+    expect(vm.fault).toBeNull();
+    expect(vm.screenOn).toBe(true);
+    const rows = screenRows(vm);
+    expect(rows[0]!.slice(0, 18)).toBe("==================");
+    expect(rows[0]!.slice(18, 21)).toBe("0:0");
+    expect(rows[0]!.slice(21)).toBe("===================");
+    expect(rows[23]).toContain(" W AND S ");
+    expect(rows[11]![20]).toBe("O"); // the serve, resting
+    expect(rows.filter((r) => r[2] === "|").length).toBe(4);
+    expect(rows.filter((r) => r[37] === "|").length).toBe(4);
+  });
+
+  it("pong.c: W moves your paddle, and the ball leaves the serve", () => {
+    const vm = vmOf(pongSrc(), { keys: [119, 119, 119] }); // w, w, w
+    for (let f = 0; f < 120; f++) vm.run(STEPS);
+    expect(vm.fault).toBeNull();
+    const tops = screenRows(vm)
+      .map((r, y) => (r[2] === "|" ? y : -1))
+      .filter((y) => y >= 0);
+    expect(tops).toEqual([7, 8, 9, 10]); // three taps up from 10
+    // the ball is one ball, and it does not sit still for 60 frames
+    const seen = new Set<string>();
+    for (let f = 0; f < 60; f++) {
+      vm.run(STEPS);
+      const cells: number[] = [];
+      screenRows(vm).forEach((r, y) => {
+        for (let x = 0; x < SCREEN_W; x++) if (r[x] === "O") cells.push(y * SCREEN_W + x);
+      });
+      expect(cells.length).toBe(1);
+      seen.add(String(cells[0]));
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it("pong.c: a rally ends and the score moves", () => {
+    // park the paddle at the bottom and let the rally resolve itself. The
+    // run is deterministic (rand is stubbed), and it happens to be the
+    // machine that misses first — the machine is honestly beatable.
+    const vm = vmOf(pongSrc(), { keys: Array(30).fill(115) }); // s, held
+    let scored = "";
+    for (let f = 0; f < 3000 && !scored; f++) {
+      vm.run(STEPS);
+      if (vm.fault) throw new Error(vm.fault);
+      const top = screenRows(vm)[0]!.slice(18, 21);
+      if (top !== "0:0") scored = top;
+    }
+    expect(scored).toBe("1:0");
   });
 });

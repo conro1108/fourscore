@@ -111,13 +111,19 @@ compute-bound):
 
 ## Roadmap
 
-**Phase 1 — Give the machine a screen.** New hardware in `vm.ts`'s MMIO page,
-in the style of the existing ports: a 40×24 character framebuffer and a VSYNC
-port a program reads to pace itself (today a program just burns its step
-budget flat-out). `key()` already covers input. *Exit: a human-written
-`PONG.C`, compiled by CC, playable in the terminal.* Not a warm-up — it's the
-reference implementation the corpus is graded against, and the critical path:
-the pong slice of training data is blocked on it. ~a day.
+**Phase 1 — Give the machine a screen.** ✅ **Done (2026-08-17).** Three ports
+in `vm.ts`'s MMIO page: `VPOS` (0x0F04, the cell cursor), `VCHR` (0x0F05,
+write-and-advance, readable), `VSYNC` (0x0F06 — a read ends the CPU's turn
+for that frame, which is how a program rests; the terminal meters frames to
+~60/sec by wall-clock so the game speed doesn't follow the monitor's refresh
+rate). CC wears them as `vpos()`/`vput()`/`vsync()`; asm.txt and c.txt
+document them; the terminal swaps its scrollback for the 40×24 grid while a
+program has the screen lit (the prompt line is clipped, not `display:none` —
+a hidden input drops focus and takes the keyboard with it). *Exit met:
+`SRC\pong.c` is seeded on every disk — human-written, compiled by CC, playable
+in the terminal (W/S, first to seven), and `cc.test.ts` plays it headless: the
+court goes up, the paddle answers keys, a rally resolves and the score moves.*
+It is the reference implementation the corpus gets graded against.
 
 **Phase 2 — Inference substrate, no model of ours yet.** Disk/paging port;
 int8 matvec kernel in `asm("...")` with carry-chain 32-bit accumulate; exp

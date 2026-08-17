@@ -293,6 +293,15 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 .termwell::-webkit-scrollbar-button{display:block;width:16px;height:16px;background:#c0c0c0;
      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .termout div{white-space:pre-wrap;word-break:break-all}
+/* the 40x24 screen a program can light (vm.ts VCHR): while it is on, it is
+   the whole terminal, the way a mode switch was. Its own type size, so the
+   whole court fits the well without scrolling */
+.termscreen{display:none;white-space:pre;font-size:11px;line-height:1.0;text-align:center}
+.termwell.screening .termscreen{display:block}
+.termwell.screening .termout{display:none}
+/* the prompt line is clipped, not display:none — a hidden input loses focus
+   and the program would lose the keyboard with it */
+.termwell.screening .termline{height:0;overflow:hidden}
 .termline{display:flex;white-space:pre}
 .termprompt{flex:none}
 .termin{flex:1;min-width:0;background:transparent;color:inherit;border:0;outline:0;padding:0;margin:0;

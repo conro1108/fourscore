@@ -180,6 +180,21 @@
 > men stopped being antialiased font glyphs: 16x16 sprites through the same
 > `px()` as every icon on the desk, landing 2x at the natural square.
 
+> **The machine has a screen now (2026-08-17).** Phase 1 of `llm_llm_llm.md`:
+> three new ports in `vm.ts`'s MMIO page — VPOS aims a cell cursor on a 40×24
+> character framebuffer, VCHR writes-and-advances (and reads back), and a
+> VSYNC read ends the CPU's turn for the frame, which is how a program rests
+> instead of burning its step budget flat-out. The terminal meters the
+> processor to ~60 frames/sec by wall-clock, so a paced program runs at the
+> same speed on every monitor, and while the screen is lit the grid *is* the
+> terminal — its own smaller type so the whole court fits, the scrollback
+> hidden, the prompt line clipped rather than `display:none` because a hidden
+> input drops focus and would take the program's keyboard with it. CC wears
+> the ports as `vpos()`/`vput()`/`vsync()`; asm.txt and c.txt teach them; and
+> `SRC\pong.c` seeds every disk — the human-written reference pong, compiled
+> by CC on the machine, W/S against a beatable house paddle, first to seven.
+> `vm.test.ts`/`cc.test.ts` pin the hardware and play the game headless.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

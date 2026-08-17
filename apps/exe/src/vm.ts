@@ -12,10 +12,17 @@
  *
  *   Memory   4096 16-bit words. Programs load at 0. The top page (0x0F00+)
  *            is the hardware:
- *              0x0F00 CON  write a character code, it prints
- *              0x0F01 NUM  write a value, it prints as a signed number
- *              0x0F02 KEY  read the next typed character, 0 if none
- *              0x0F03 RND  read 16 random bits
+ *              0x0F00 CON   write a character code, it prints
+ *              0x0F01 NUM   write a value, it prints as a signed number
+ *              0x0F02 KEY   read the next typed character, 0 if none
+ *              0x0F03 RND   read 16 random bits
+ *              0x0F04 VPOS  the screen cursor, a cell 0..959 (40x24,
+ *                           row-major). Writes wrap; reads answer it
+ *              0x0F05 VCHR  write a character, it lands at the cursor and
+ *                           the cursor moves on. Reading answers the cell.
+ *                           The first write turns the screen on
+ *              0x0F06 VSYNC read it and the processor rests until the next
+ *                           frame of the display; the value counts frames
  *   Regs     R0..R7, plus PC and a stack pointer. The stack starts at
  *            0x0F00 and grows down through ordinary RAM.
  *   Flags    Z (zero), N (bit 15), C (carry / borrow). CMP is a subtract
@@ -33,6 +40,12 @@ export const PORT_CON = 0x0f00;
 export const PORT_NUM = 0x0f01;
 export const PORT_KEY = 0x0f02;
 export const PORT_RND = 0x0f03;
+export const PORT_VPOS = 0x0f04;
+export const PORT_VCHR = 0x0f05;
+export const PORT_VSYNC = 0x0f06;
+export const SCREEN_W = 40;
+export const SCREEN_H = 24;
+export const SCREEN_CELLS = SCREEN_W * SCREEN_H;
 const SP_INIT = MMIO_BASE;
 
 /* ---- the instruction set, shared by assembler and CPU ---- */
@@ -77,7 +90,15 @@ const OPS: Record<string, { code: number; shape: Shape }> = {
 const CODE_TO_OP = new Map(Object.entries(OPS).map(([name, o]) => [o.code, { name, ...o }]));
 
 /** The hardware's names, usable anywhere a number is. A user label wins. */
-const PORTS: Record<string, number> = { CON: PORT_CON, NUM: PORT_NUM, KEY: PORT_KEY, RND: PORT_RND };
+const PORTS: Record<string, number> = {
+  CON: PORT_CON,
+  NUM: PORT_NUM,
+  KEY: PORT_KEY,
+  RND: PORT_RND,
+  VPOS: PORT_VPOS,
+  VCHR: PORT_VCHR,
+  VSYNC: PORT_VSYNC,
+};
 
 /* ---- assembler ---- */
 
@@ -284,12 +305,18 @@ export interface VmIO {
 export interface Vm {
   readonly mem: Uint16Array;
   readonly regs: Uint16Array;
+  /** The 40x24 character screen, row-major. Cells hold what was written. */
+  readonly screen: Uint16Array;
+  /** The screen lights at the first VCHR write and stays lit. */
+  screenOn: boolean;
   pc: number;
   sp: number;
   halted: boolean;
   /** A period fault message, or null while the program is behaving. */
   fault: string | null;
-  /** Execute up to `maxSteps` instructions; returns how many ran. */
+  /** Execute up to `maxSteps` instructions; returns how many ran. Each call
+      is one frame of the display: a VSYNC read ends the call early, which is
+      how a program rests until the next one. */
   run(maxSteps: number): number;
 }
 
@@ -302,17 +329,25 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
   let z = false;
   let n = false;
   let c = false;
+  const screen = new Uint16Array(SCREEN_CELLS);
+  let vpos = 0; // the screen cursor
+  let frame = 0; // one per run() call — the display's clock
+  let rested = false; // a VSYNC read ends the frame's turn
 
   const vm: Vm = {
     mem,
     regs,
+    screen,
+    screenOn: false,
     pc: 0,
     sp: SP_INIT,
     halted: false,
     fault: null,
     run(maxSteps: number): number {
+      frame = (frame + 1) & 0xffff;
+      rested = false;
       let steps = 0;
-      while (steps < maxSteps && !vm.halted && vm.fault === null) {
+      while (steps < maxSteps && !vm.halted && vm.fault === null && !rested) {
         step();
         steps++;
       }
@@ -341,6 +376,12 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
     }
     if (addr === PORT_KEY) return io.key() & 0xffff;
     if (addr === PORT_RND) return io.rand() & 0xffff;
+    if (addr === PORT_VPOS) return vpos;
+    if (addr === PORT_VCHR) return screen[vpos]!;
+    if (addr === PORT_VSYNC) {
+      rested = true;
+      return frame;
+    }
     if (addr === PORT_CON || addr === PORT_NUM) return 0; // write-only hardware
     return mem[addr]!;
   }
@@ -352,7 +393,14 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
     }
     if (addr === PORT_CON) io.putChar(v & 0xffff);
     else if (addr === PORT_NUM) io.putNum(v >= 0x8000 ? v - 0x10000 : v);
-    else mem[addr] = v;
+    else if (addr === PORT_VPOS) vpos = v % SCREEN_CELLS;
+    else if (addr === PORT_VCHR) {
+      screen[vpos] = v;
+      vm.screenOn = true;
+      vpos = (vpos + 1) % SCREEN_CELLS;
+    } else if (addr === PORT_VSYNC) {
+      // read-only hardware; the write lands nowhere
+    } else mem[addr] = v;
   }
 
   function push(v: number): void {

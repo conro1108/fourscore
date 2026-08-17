@@ -18,7 +18,7 @@ import { ICONS } from "./icons.js";
 import { TERM, TITLES } from "./copy.js";
 import type { WM } from "./wm.js";
 import { baseName, resolvePath, type Disk } from "./fs.js";
-import { assemble, makeVm, type AsmResult, type Vm } from "./vm.js";
+import { assemble, makeVm, SCREEN_H, SCREEN_W, type AsmResult, type Vm } from "./vm.js";
 import { compileC } from "./cc.js";
 
 export interface TerminalDeps {
@@ -48,6 +48,9 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
   const body = el(`<div></div>`);
   const well = el(`<div class="sunken termwell flexwell"></div>`);
   const outEl = el(`<div class="termout"></div>`);
+  /** The 40x24 screen (vm.ts's VCHR page). While a program has it lit, it
+      is the terminal; the console comes back when the program ends. */
+  const screenEl = el(`<div class="termscreen"></div>`);
   const tailEl = el(`<div class="termout"></div>`);
   const lineEl = el(`<div class="termline"></div>`);
   const promptEl = el(`<span class="termprompt"></span>`);
@@ -60,7 +63,7 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
   const disp = (p: string): string => "/" + p.replace(/\\/g, "/");
   promptEl.textContent = prompt();
   lineEl.append(promptEl, input);
-  well.append(outEl, tailEl, lineEl);
+  well.append(outEl, screenEl, tailEl, lineEl);
   body.appendChild(well);
 
   /* ---- output ---- */
@@ -100,6 +103,20 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     rand: (): number => Math.floor(Math.random() * 0x10000),
   };
 
+  /** The cell grid as text — codes the period font has; the rest are space. */
+  const renderScreen = (screen: Uint16Array): void => {
+    const rows: string[] = [];
+    for (let y = 0; y < SCREEN_H; y++) {
+      let row = "";
+      for (let x = 0; x < SCREEN_W; x++) {
+        const v = screen[y * SCREEN_W + x]!;
+        row += v >= 32 && v < 127 ? String.fromCharCode(v) : " ";
+      }
+      rows.push(row);
+    }
+    screenEl.textContent = rows.join("\n");
+  };
+
   const endRun = (): void => {
     if (tail) {
       print(tail);
@@ -108,25 +125,42 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     flushTail();
     proc = null;
     cancelAnimationFrame(raf);
+    // the monitor drops back to text mode; the console was there all along
+    well.classList.remove("screening");
+    screenEl.textContent = "";
     promptEl.textContent = prompt();
     scroll();
   };
 
-  const frame = (): void => {
+  /** The display's own clock. rAF follows the monitor (or nothing at all,
+      headless), so the machine meters itself: ~60 frames a second is what
+      STEPS_PER_FRAME's ~1.8M instructions/sec has always assumed, and it is
+      what a VSYNC-paced program's speed now hangs on. */
+  let lastFrame = 0;
+  const frame = (t: number): void => {
     if (!proc) return;
-    proc.run(STEPS_PER_FRAME);
-    flushTail();
-    scroll();
-    if (proc.fault !== null) {
-      const fault = proc.fault;
-      endRun();
-      print(TERM.faulted(fault));
+    if (t - lastFrame >= 14) {
+      lastFrame = t;
+      proc.run(STEPS_PER_FRAME);
+      if (proc.screenOn) {
+        well.classList.add("screening");
+        renderScreen(proc.screen);
+      }
+      flushTail();
       scroll();
-    } else if (proc.halted) {
-      endRun();
-    } else {
-      raf = requestAnimationFrame(frame);
+      if (proc.fault !== null) {
+        const fault = proc.fault;
+        endRun();
+        print(TERM.faulted(fault));
+        scroll();
+        return;
+      }
+      if (proc.halted) {
+        endRun();
+        return;
+      }
     }
+    raf = requestAnimationFrame(frame);
   };
 
   /** Resolve NAME to a runnable file: against the cwd first, then — for a

@@ -122,6 +122,62 @@ describe("cpu", () => {
     const { out } = run("ld r0, [key]\nst r0, [num]\nld r0, [rnd]\nst r0, [num]\nhlt", { rand: 777 });
     expect(out).toBe("0777");
   });
+
+  it("VPOS aims, VCHR lands and moves on, and both read back", () => {
+    const { vm, out } = run(
+      [
+        "mov r0, 41", // row 1, column 1
+        "st r0, [vpos]",
+        "mov r1, 'A'",
+        "st r1, [vchr]",
+        "st r1, [vchr]", // the cursor moved on by itself
+        "ld r2, [vpos]",
+        "st r2, [num]",
+        "mov r0, 41",
+        "st r0, [vpos]",
+        "ld r3, [vchr]", // reading answers the cell, and does not advance
+        "st r3, [con]",
+        "hlt",
+      ].join("\n"),
+    );
+    expect(vm.screen[41]).toBe(65);
+    expect(vm.screen[42]).toBe(65);
+    expect(vm.screenOn).toBe(true);
+    expect(out).toBe("43A");
+  });
+
+  it("the screen cursor wraps at 960 instead of faulting", () => {
+    const { vm } = run(
+      "mov r0, 959\nst r0, [vpos]\nmov r1, 'Z'\nst r1, [vchr]\nst r1, [vchr]\nhlt",
+    );
+    expect(vm.fault).toBeNull();
+    expect(vm.screen[959]).toBe(90);
+    expect(vm.screen[0]).toBe(90); // the write after the last cell is the first
+  });
+
+  it("the screen stays dark until something is drawn", () => {
+    const { vm } = run("mov r0, 100\nst r0, [vpos]\nhlt");
+    expect(vm.screenOn).toBe(false);
+  });
+
+  it("a VSYNC read rests the processor until the next run, and counts", () => {
+    const res = assemble("loop: ld r0, [vsync]\nst r0, [num]\njmp loop");
+    if (!res.ok) throw new Error("did not assemble");
+    let out = "";
+    const vm = makeVm(res.words, {
+      putChar: () => {},
+      putNum: (n) => (out += n),
+      key: () => 0,
+      rand: () => 0,
+    });
+    // each run is one frame; the read ends the turn with budget to spare
+    expect(vm.run(10_000)).toBeLessThan(10);
+    vm.run(10_000);
+    vm.run(10_000);
+    expect(out).toBe("12"); // frame 3's read has happened; its print is next frame
+    expect(vm.halted).toBe(false);
+    expect(vm.fault).toBeNull();
+  });
 });
 
 describe("the shipped programs", () => {
