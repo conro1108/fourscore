@@ -686,7 +686,8 @@ export const TERM = {
     "run file.asm     assemble and run a program",
     "asm file.asm     assemble only, and report",
     "cc file.c        compile C; file.asm appears",
-    "rm, mv, cp       what they always did",
+    "rm, mv, cp       what they always did; rm takes a",
+    "                 directory whole, -r assumed",
     "mkdir, rmdir     directories arrive and leave",
     "echo text        it comes back",
     "clear            a clean screen",
@@ -709,6 +710,7 @@ export const TERM = {
   badDir: (name: string): string => `cd: no such directory: ${name}`,
   rmdirRefused: (name: string): string =>
     `rmdir: ${name}: not empty, not a directory, or you are standing in it`,
+  rmRefused: (name: string): string => `rm: ${name}: you are standing in it`,
   uname: "BOARD95 board95 4.00.666 possessed",
   time: "The current time is 6:66 PM.",
   date: "It has been 8/14/96 for some time now.",

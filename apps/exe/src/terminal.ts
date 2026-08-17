@@ -184,6 +184,15 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
   };
 
   /* ---- the commands ---- */
+  /** rm on a directory: everything under it, deepest first, then the dir. */
+  const rmTree = (path: string): void => {
+    const listing = disk.listDir(path);
+    if (!listing) return;
+    for (const f of listing.files) disk.remove(f.name);
+    for (const d of listing.dirs) rmTree(d);
+    disk.rmdir(path);
+  };
+
   const ls = (arg?: string): void => {
     const path = arg ? resolve(arg) : cwd;
     const listing = disk.listDir(path);
@@ -278,12 +287,22 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
       }
       case "RM":
       case "DEL": {
-        if (!arg1) {
-          print(TERM.usage("rm file"));
+        // flags are muscle memory — rm -rf and rm read the same here
+        const target = parts.slice(1).find((a) => !a.startsWith("-"));
+        if (!target) {
+          print(TERM.usage("rm file-or-dir"));
           break;
         }
+        const t = resolve(target);
+        if (disk.isDir(t)) {
+          // a directory deletes whole (-r is assumed), but never the root
+          // or the floor you stand on
+          const underfoot = t === "" || cwd.toLowerCase() === t.toLowerCase() ||
+            cwd.toLowerCase().startsWith(t.toLowerCase() + "\\");
+          if (underfoot) print(TERM.rmRefused(target));
+          else rmTree(t);
+        } else if (!disk.remove(t)) print(TERM.noSuchFile("rm", target));
         // success is silence, the way rm always said it
-        if (!disk.remove(resolve(arg1))) print(TERM.noSuchFile("rm", arg1));
         break;
       }
       case "MV":

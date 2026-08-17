@@ -83,10 +83,12 @@ if (!(await page.locator(".win", { hasText: "MINES.EXE" }).count()))
 await type("mkdir stuff");
 await type("cd stuff");
 await type("cd ..");
-await type("rmdir stuff");
+await type("cp hello.asm stuff");
+await type("rm -r stuff");
 await type("ls");
 out = await termText();
-if (/stuff\//i.test(out.split("rmdir")[1] ?? "")) fail("rmdir left stuff behind");
+if (/stuff\//i.test(out.split("rm -r")[1] ?? "")) fail("rm -r left stuff behind");
+if (!out.includes("hello.asm")) fail("rm -r took hello.asm's original with it");
 await page.screenshot({ path: `${SHOTS}/files-terminal.png` });
 
 /* ---- the drive window: root browser opens, DOCS opens from it ---- */
