@@ -950,7 +950,7 @@ export function openSol(wm: WM, rig?: string): void {
   }
 
   const bar = menubar([
-    { label: "Game", items: [["Deal", newDeal], ["Undo", undo], ["-", () => {}], ["Exit", () => win.close()]] },
+    { label: "Game", items: [["Deal\tF2", newDeal], ["Undo\tCtrl+Z", undo], ["-", () => {}], ["Exit", () => win.close()]] },
     {
       label: "Help",
       items: [[
@@ -1013,9 +1013,13 @@ export function openSol(wm: WM, rig?: string): void {
       removeEventListener("keydown", onKey);
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && wm.focused()?.id === "sol") {
+    if (wm.focused()?.id !== "sol") return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
       e.preventDefault();
       undo();
+    } else if (e.key === "F2") {
+      e.preventDefault();
+      newDeal();
     }
   };
   addEventListener("keydown", onKey);

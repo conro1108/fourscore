@@ -169,6 +169,19 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   };
   const win = deps.wm.open(winSpec);
 
+  // outside build(): a variant change remakes the menu, not the binding
+  const onKey = (e: KeyboardEvent): void => {
+    if (!win.isOpen()) {
+      removeEventListener("keydown", onKey);
+      return;
+    }
+    if (e.key === "F2" && deps.wm.focused()?.id === "board") {
+      e.preventDefault();
+      newGame();
+    }
+  };
+  addEventListener("keydown", onKey);
+
   const name = (): string => byId(botId).name.toUpperCase();
   const voice = () => voiceOf(botId);
 
@@ -184,7 +197,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     menubar.append(gameBtn, oppBtn, helpBtn, forfeitBtn);
 
     const gamePopup = el(`<div class="popup" style="left:4px;display:none"></div>`);
-    const newItem = el(`<div>New game</div>`);
+    const newItem = el(`<div class="has-accel">New game<span class="accel">F2</span></div>`);
     newItem.addEventListener("click", () => newGame());
     gamePopup.appendChild(newItem);
     gamePopup.appendChild(el(`<hr>`));

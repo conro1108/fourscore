@@ -140,7 +140,10 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
   const frame = (t: number): void => {
     if (!proc) return;
     if (t - lastFrame >= 14) {
-      lastFrame = t;
+      // advance the clock by one frame, not to t — resetting to t discards
+      // the remainder and a 75/144Hz display would run the machine slow. The
+      // clamp keeps a throttled background tab from fast-forwarding on return.
+      lastFrame = Math.max(lastFrame + 1000 / 60, t - 40);
       proc.run(STEPS_PER_FRAME);
       if (proc.screenOn) {
         well.classList.add("screening");

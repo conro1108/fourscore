@@ -325,7 +325,7 @@ export function openCheckers(wm: WM): void {
   }
 
   const bar = menubar([
-    { label: "Game", items: [["New", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
+    { label: "Game", items: [["New\tF2", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
     {
       label: "Help",
       items: [[
@@ -371,6 +371,19 @@ export function openCheckers(wm: WM): void {
       for (const t of timers) clearTimeout(t);
     },
   });
+
+  const onKey = (e: KeyboardEvent): void => {
+    if (!win.isOpen()) {
+      removeEventListener("keydown", onKey);
+      return;
+    }
+    if (e.key === "F2" && wm.focused()?.id === "checkers") {
+      e.preventDefault();
+      newGame();
+    }
+  };
+  addEventListener("keydown", onKey);
+
   newGame();
   relayout();
 }

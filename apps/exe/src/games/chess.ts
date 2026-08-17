@@ -961,7 +961,7 @@ export function openChess(wm: WM, fen?: string): void {
 
   const makeBar = (): HTMLElement =>
     menubar([
-      { label: "Game", items: [["New", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
+      { label: "Game", items: [["New\tF2", newGame], ["-", () => {}], ["Exit", () => win.close()]] },
       {
         label: "Skill",
         items: SKILLS.map(([id, label]) => [label, () => setSkill(id), skill === id] as const),
@@ -1023,6 +1023,18 @@ export function openChess(wm: WM, fen?: string): void {
       for (const t of timers) clearTimeout(t);
     },
   });
+
+  const onKey = (e: KeyboardEvent): void => {
+    if (!win.isOpen()) {
+      removeEventListener("keydown", onKey);
+      return;
+    }
+    if (e.key === "F2" && wm.focused()?.id === "chess") {
+      e.preventDefault();
+      newGame();
+    }
+  };
+  addEventListener("keydown", onKey);
 
   statusEl.textContent = inCheck(s, 0) ? GAMES_COPY.chess.check : GAMES_COPY.chess.yourMove;
   render();

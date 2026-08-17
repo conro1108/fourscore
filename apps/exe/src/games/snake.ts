@@ -152,8 +152,14 @@ export function openSnake(wm: WM): void {
       removeEventListener("keydown", onKey);
       return;
     }
+    if (wm.focused()?.id !== "snake") return;
+    if (e.key === "F2") {
+      e.preventDefault();
+      reset();
+      return;
+    }
     const d = DIRS[e.key];
-    if (!d || wm.focused()?.id !== "snake") return;
+    if (!d) return;
     e.preventDefault();
     steer(d);
   };
@@ -179,7 +185,7 @@ export function openSnake(wm: WM): void {
   );
 
   const bar = menubar([
-    { label: "Game", items: [["New", reset], ["-", () => {}], ["Exit", () => win.close()]] },
+    { label: "Game", items: [["New\tF2", reset], ["-", () => {}], ["Exit", () => win.close()]] },
     {
       label: "Help",
       items: [[

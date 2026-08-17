@@ -78,6 +78,9 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .popup hr{border:0;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:2px 1px}
 .popup div .check{position:absolute;left:8px}
 .popup div .sub{position:absolute;right:6px}
+/* an accelerator rides its item's right edge, the way Win32 spelled it */
+.popup div.has-accel{display:flex;justify-content:space-between;gap:24px}
+.popup div .accel{flex:none}
 
 /* desktop icons */
 .icon{position:absolute;width:76px;text-align:center;color:#fff}

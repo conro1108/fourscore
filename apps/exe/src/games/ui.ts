@@ -8,7 +8,10 @@ import { el } from "../dom.js";
 
 export interface Menu {
   label: string;
-  /** [label, action, checked?] — "-" for a separator. */
+  /** [label, action, checked?] — "-" for a separator. A "\t" in the label
+      splits off an accelerator, shown right-aligned the way Win32 menus
+      always spelled it ("Deal\tF2"). The binding itself is the window's
+      business — the menu only wears the reminder. */
   items: readonly (readonly [string, () => void, boolean?])[];
 }
 
@@ -30,7 +33,14 @@ export function menubar(menus: readonly Menu[]): HTMLElement {
         continue;
       }
       const it = el(`<div></div>`);
-      it.textContent = label;
+      const tab = label.indexOf("\t");
+      it.textContent = tab === -1 ? label : label.slice(0, tab);
+      if (tab !== -1) {
+        it.classList.add("has-accel");
+        const accel = el(`<span class="accel"></span>`);
+        accel.textContent = label.slice(tab + 1);
+        it.appendChild(accel);
+      }
       if (checked) it.appendChild(el(`<span class="check">·</span>`));
       it.addEventListener("click", (e) => {
         e.stopPropagation();
