@@ -4,3 +4,4 @@ dist/
 *.local
 apps/fever/shots/
 shots/
+.cache/

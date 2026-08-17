@@ -13,7 +13,10 @@ interface Run {
   out: string;
 }
 
-function run(src: string, opts: { keys?: string; rand?: number; maxSteps?: number } = {}): Run {
+function run(
+  src: string,
+  opts: { keys?: string; rand?: number; maxSteps?: number; drive?: Uint8Array | null } = {},
+): Run {
   const res = assemble(src);
   if (!res.ok) throw new Error(res.errors.map((e) => `line ${e.line}: ${e.msg}`).join("; "));
   let out = "";
@@ -23,6 +26,7 @@ function run(src: string, opts: { keys?: string; rand?: number; maxSteps?: numbe
     putNum: (n) => (out += String(n)),
     key: () => keys.shift() ?? 0,
     rand: () => opts.rand ?? 0,
+    drive: () => opts.drive ?? null,
   };
   const vm = makeVm(res.words, io);
   vm.run(opts.maxSteps ?? 200_000);
@@ -177,6 +181,106 @@ describe("cpu", () => {
     expect(out).toBe("12"); // frame 3's read has happened; its print is next frame
     expect(vm.halted).toBe(false);
     expect(vm.fault).toBeNull();
+  });
+});
+
+describe("the drive", () => {
+  const media = (): Uint8Array => Uint8Array.from({ length: 300 }, (_, i) => (i * 7) & 0xff);
+
+  it("reads a byte and moves the head on", () => {
+    const { out } = run(
+      `mov r0, 5
+       st r0, [dpos]
+       ld r0, [dsk]
+       st r0, [num]
+       ld r0, [dsk]
+       st r0, [num]
+       hlt`,
+      { drive: media() },
+    );
+    expect(out).toBe("3542"); // bytes 5 and 6 of the pattern
+  });
+
+  it("writes, and the write is there to read back", () => {
+    const { out } = run(
+      `mov r0, 9
+       st r0, [dpos]
+       mov r0, 200
+       st r0, [dsk]
+       mov r0, 9
+       st r0, [dpos]
+       ld r0, [dsk]
+       st r0, [num]
+       hlt`,
+      { drive: media() },
+    );
+    expect(out).toBe("200");
+  });
+
+  it("carries from the low word of the address into the high one", () => {
+    // park the head one byte below a bank boundary and step over it
+    const { out } = run(
+      `mov r0, 0xffff
+       st r0, [dpos]
+       ld r0, [dsk]
+       ld r0, [dbnk]
+       st r0, [num]
+       ld r0, [dpos]
+       st r0, [num]
+       hlt`,
+      { drive: media() },
+    );
+    expect(out).toBe("10");
+  });
+
+  it("keeps the two halves of the address apart", () => {
+    const { out } = run(
+      `mov r0, 3
+       st r0, [dbnk]
+       mov r0, 7
+       st r0, [dpos]
+       ld r0, [dbnk]
+       st r0, [num]
+       ld r0, [dpos]
+       st r0, [num]
+       hlt`,
+      { drive: media() },
+    );
+    expect(out).toBe("37");
+  });
+
+  it("reads zero past the end of the media, and off an empty bay", () => {
+    const past = `mov r0, 299
+       st r0, [dpos]
+       ld r0, [dsk]
+       st r0, [num]
+       ld r0, [dsk]
+       st r0, [num]
+       hlt`;
+    expect(run(past, { drive: media() }).out).toBe("450"); // the last byte, then nothing
+    expect(run(past, { drive: null }).out).toBe("00");
+    expect(run(past, { drive: null }).vm.fault).toBeNull();
+  });
+
+  it("does not ask for the media until a program reaches for it", () => {
+    let asked = 0;
+    const io: VmIO = {
+      putChar: () => {},
+      putNum: () => {},
+      key: () => 0,
+      rand: () => 0,
+      drive: () => {
+        asked++;
+        return media();
+      },
+    };
+    const quiet = assemble(`mov r0, 1\nhlt`);
+    const loud = assemble(`ld r0, [dsk]\nld r0, [dsk]\nhlt`);
+    if (!quiet.ok || !loud.ok) throw new Error("bad test program");
+    makeVm(quiet.words, io).run(100);
+    expect(asked).toBe(0);
+    makeVm(loud.words, io).run(100);
+    expect(asked).toBe(1); // once, however many bytes it then reads
   });
 });
 

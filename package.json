@@ -12,6 +12,7 @@
     "preview": "npm run preview -w @fourscore/exe",
     "shots": "npm run shots -w @fourscore/exe",
     "trace": "npm run trace -w @fourscore/exe",
+    "llm": "npm run llm -w @fourscore/exe",
     "fever": "npm run fever -w @fourscore/exe",
     "audio": "npm run audio -w @fourscore/exe",
     "test": "vitest run",
@@ -23,6 +24,7 @@
     "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/exe --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

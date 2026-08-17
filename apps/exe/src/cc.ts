@@ -16,7 +16,12 @@
  *              is used; a struct value is its address, the way an array is.
  *   Functions  arguments and locals, recursion works. main() is the program.
  *   Statements if/else, while, do/while, for, break, continue, return,
- *              asm("...") passes a line straight to the assembler.
+ *              asm("...") passes a line straight to the assembler, and
+ *              $name in it is where the compiler put that name: a global, a
+ *              function, or — in a function that cannot be re-entered — one
+ *              of its own arguments or locals. That is how hand assembly and
+ *              the C around it agree on where things are without either one
+ *              counting words.
  *   Operators  the usual ones, with C precedence: assignment (and op=),
  *              ?:, || && | ^ &, comparisons, shifts, arithmetic, !, ~,
  *              unary -, * and & on pointers, ++ and --, [] and calls.
@@ -24,7 +29,9 @@
  *              ports, wearing C. getc waits; key does not. The screen ports
  *              wear C too: vpos(p) aims the cursor (cell 0..959 on 40x24),
  *              vput(c) prints there and moves on, vsync() rests until the
- *              display's next frame. malloc(n) hands out n words from a
+ *              display's next frame. The drive wears C too: dpos(a)/dbank(a)
+ *              aim the head, dget() reads a byte and dput(v) writes one, the
+ *              head moving on either way. malloc(n) hands out n words from a
  *              heap that starts where the program ends; the words arrive
  *              zeroed and are never reused — free() is accepted and does
  *              nothing.
@@ -41,6 +48,17 @@
  * frames it. Comparisons are signed by the 0x8000-bias trick; DIV and MOD
  * are unsigned hardware, so signed division is a small runtime routine
  * emitted only when a program divides.
+ *
+ * Except that most functions never get a frame at all. A function that
+ * cannot be re-entered — not on any cycle of the call graph, and this
+ * dialect has no function pointers, so the call graph is the whole truth —
+ * keeps its arguments and locals at fixed addresses instead, one label
+ * apiece. Then a local is an LD from a constant rather than three
+ * instructions of frame arithmetic, the prologue and epilogue disappear, and
+ * a call is a CALL. It costs a word of RAM per local in exchange, which on
+ * this machine is the right way round: llm.c does not fit otherwise and
+ * pong.c gets a third smaller for free. Anything that does recurse still
+ * gets the stack, so fib() keeps working, and cc.test.ts exercises both.
  */
 
 export interface CcError {
@@ -79,7 +97,8 @@ const KEYWORDS = new Set([
 /** The hardware, wearing C. A program may not redefine these. malloc and
     free live here too: the heap is the machine's, not the program's. */
 const BUILTINS = new Set([
-  "putc", "putn", "puts", "getc", "key", "rand", "vpos", "vput", "vsync", "malloc", "free",
+  "putc", "putn", "puts", "getc", "key", "rand", "vpos", "vput", "vsync",
+  "dpos", "dbank", "dget", "dput", "malloc", "free",
 ]);
 
 class Stop {
@@ -303,6 +322,23 @@ const BIN_LEVELS: string[][] = [
 
 const ASSIGN_OPS = new Set(["=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="]);
 
+/** Two constants and an operator are a constant. Worth doing because this
+    machine's #define holds one number and no arithmetic, so a program that
+    wants a derived size has to write it out as a sum — and paying for that
+    sum at run time, in a program that has 3840 words to live in, is the
+    difference between a formula and a magic number. Division stays out of
+    it: the sign rules are the runtime routine's business, not the parser's. */
+const FOLD: Record<string, (a: number, b: number) => number> = {
+  "+": (a, b) => a + b,
+  "-": (a, b) => a - b,
+  "*": (a, b) => a * b,
+  "&": (a, b) => a & b,
+  "|": (a, b) => a | b,
+  "^": (a, b) => a ^ b,
+  "<<": (a, b) => (b >= 16 ? 0 : a << b),
+  ">>": (a, b) => (b >= 16 ? 0 : a >> b),
+};
+
 function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[]; structs: Map<string, StructDecl> } {
   let p = 0;
   const peek = (): Tok => toks[p]!;
@@ -447,7 +483,11 @@ function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[]; structs: Ma
       const t = peek();
       if (t.kind === "punct" && BIN_LEVELS[level]!.includes(t.text)) {
         next();
-        e = { kind: "bin", op: t.text, l: e, r: binLevel(level + 1), line: t.line };
+        const r = binLevel(level + 1);
+        const fold = FOLD[t.text];
+        e = fold && e.kind === "num" && r.kind === "num"
+          ? { kind: "num", value: fold(e.value, r.value) & 0xffff, line: t.line }
+          : { kind: "bin", op: t.text, l: e, r, line: t.line };
       } else return e;
     }
   }
@@ -736,6 +776,98 @@ interface Local {
   s: string | null;
 }
 
+/** Every user function each function calls. There are no function pointers
+    in this dialect, so this is the entire call graph and nothing can be
+    reached that is not in it. */
+function callGraph(fns: FnDecl[]): Map<string, Set<string>> {
+  const known = new Set(fns.map((f) => f.name));
+  const graph = new Map<string, Set<string>>();
+  const inExpr = (e: Expr, out: Set<string>): void => {
+    switch (e.kind) {
+      case "call":
+        if (known.has(e.name)) out.add(e.name);
+        e.args.forEach((a) => inExpr(a, out));
+        return;
+      case "un":
+        return inExpr(e.e, out);
+      case "bin":
+        inExpr(e.l, out);
+        return inExpr(e.r, out);
+      case "assign":
+        inExpr(e.lv, out);
+        return inExpr(e.e, out);
+      case "cond":
+        inExpr(e.c, out);
+        inExpr(e.t, out);
+        return inExpr(e.f, out);
+      case "incdec":
+        return inExpr(e.lv, out);
+      case "index":
+        inExpr(e.base, out);
+        return inExpr(e.idx, out);
+      case "field":
+        return inExpr(e.base, out);
+      default:
+        return;
+    }
+  };
+  const inStmt = (s: Stmt, out: Set<string>): void => {
+    switch (s.kind) {
+      case "expr":
+        return inExpr(s.e, out);
+      case "decl":
+        for (const d of s.names) if (d.init) inExpr(d.init, out);
+        return;
+      case "if":
+        inExpr(s.c, out);
+        inStmt(s.t, out);
+        if (s.f) inStmt(s.f, out);
+        return;
+      case "while":
+      case "do":
+        inExpr(s.c, out);
+        return inStmt(s.body, out);
+      case "for":
+        if (s.init) inExpr(s.init, out);
+        if (s.c) inExpr(s.c, out);
+        if (s.step) inExpr(s.step, out);
+        return inStmt(s.body, out);
+      case "return":
+        if (s.e) inExpr(s.e, out);
+        return;
+      case "block":
+        s.body.forEach((b) => inStmt(b, out));
+        return;
+      default:
+        return;
+    }
+  };
+  for (const f of fns) {
+    const out = new Set<string>();
+    f.body.forEach((s) => inStmt(s, out));
+    graph.set(f.name, out);
+  }
+  return graph;
+}
+
+/** The functions that can reach themselves. Only those need a frame that
+    stacks; everything else can keep its locals at fixed addresses. */
+function recursiveFns(graph: Map<string, Set<string>>): Set<string> {
+  const reach = new Map<string, Set<string>>();
+  for (const name of graph.keys()) {
+    const seen = new Set<string>();
+    const stack = [...(graph.get(name) ?? [])];
+    while (stack.length) {
+      const n = stack.pop()!;
+      if (seen.has(n)) continue;
+      seen.add(n);
+      for (const m of graph.get(n) ?? []) stack.push(m);
+    }
+    reach.set(name, seen);
+  }
+  return new Set([...reach].filter(([n, s]) => s.has(n)).map(([n]) => n));
+}
+
 function countSlots(body: Stmt[]): number {
   let n = 0;
   const walk = (s: Stmt): void => {
@@ -771,6 +903,10 @@ function emit(
   const errors: CcError[] = [];
   const out: string[] = [];
   const rt = new Set<string>();
+  /** Only the strings something actually points at get to be in the image.
+      Every asm("...") is a string literal too, and a program that leans on
+      the escape hatch would otherwise carry a copy of its own assembly. */
+  const usedStrings = new Set<number>();
   let labelSeq = 0;
   const label = (): string => `l${labelSeq++}`;
   /** A word as the assembler likes it: hex once the sign bit is riding. */
@@ -793,6 +929,17 @@ function emit(
     globalByName.set(g.name, g);
   }
   if (!fnByName.has("main")) errors.push({ line: 0, msg: "The program needs a main()" });
+
+  /** Functions that cannot be re-entered, and so keep their arguments and
+      locals at fixed addresses instead of on the data stack. */
+  const statics = new Set(fns.map((f) => f.name));
+  for (const r of recursiveFns(callGraph(fns))) statics.delete(r);
+  /** How many words each static function's frame needs. */
+  const frameWords = new Map<string, number>();
+  for (const f of fns)
+    if (statics.has(f.name)) frameWords.set(f.name, f.params.length + countSlots(f.body));
+  /** Word k of a static function's frame: parameters first, then locals. */
+  const frameLabel = (fn: string, k: number): string => `v_${fn}_${k}`;
 
   /* ---- per-function state ---- */
   let scopes: Map<string, Local>[] = [];
@@ -842,9 +989,63 @@ function emit(
     }
   };
 
+  /**
+   * Three peepholes, and between them most of the program.
+   *
+   * A constant is already something the processor takes as a source operand,
+   * and so is a string's label; routing one through r1 and the hardware
+   * stack costs four extra words, and a program is mostly constants. A
+   * global's address is a label, so reading one is an LD and not a MOV, a
+   * MOV and an LD. Neither is cleverness — they are the difference between
+   * llm.c fitting in the RAM and not.
+   */
+  const directSrc = (e: Expr): string | null =>
+    e.kind === "num" ? imm(e.value) : e.kind === "str" ? `s${e.index}` : null;
+
+  /** The fixed address a name lives at, when there is one: a global's label,
+      or a slot of a static frame. Null means the frame pointer has to work
+      for it, which only happens inside a function that recurses. */
+  const nameLabel = (name: string): string | null => {
+    const l = findLocal(name);
+    const ai = argIndex(name);
+    if (l !== null || ai >= 0) {
+      if (!curFn || !statics.has(curFn.name)) return null;
+      return frameLabel(curFn.name, l !== null ? curFn.params.length + l.slot : ai);
+    }
+    return globalByName.has(name) ? `g_${name}` : null;
+  };
+
+  /** The same, for an index's base: `asValue` asks for the stronger thing, a
+      name whose value *is* its address, so that [] can add the index to the
+      label instead of loading a pointer first. */
+  const directAddr = (e: Expr, asValue: boolean): string | null => {
+    if (e.kind !== "id") return null;
+    const lbl = nameLabel(e.name);
+    if (lbl === null) return null;
+    return !asValue || isArray(e) ? lbl : null;
+  };
+
+  /** The ops that are one instruction, so an immediate can ride in them. */
+  const ONE_INSTR: Record<string, string> = {
+    "+": "add", "-": "sub", "*": "mul", "&": "and", "|": "or", "^": "xor",
+    "<<": "shl", ">>": "shr",
+  };
+  /** Where a constant on the left is as good as one on the right. */
+  const COMMUTES = new Set(["+", "*", "&", "|", "^", "==", "!="]);
+
+  /** A name the processor can read in one instruction without touching r0 —
+      a global, or a local of a function that does not stack its frame. */
+  const loadableLabel = (e: Expr): string | null =>
+    e.kind === "id" && !isArray(e) ? nameLabel(e.name) : null;
+
   /** r0 = the address of an lvalue (or of an array/string, which is a value). */
   function emitAddr(e: Expr): void {
     if (e.kind === "id") {
+      const lbl = nameLabel(e.name);
+      if (lbl !== null) {
+        ln(`mov r0, ${lbl}`);
+        return;
+      }
       const l = findLocal(e.name);
       if (l) {
         ln(`mov r0, r5`);
@@ -857,11 +1058,6 @@ function emit(
         ln(`add r0, ${curFn!.params.length - ai}`);
         return;
       }
-      const g = globalByName.get(e.name);
-      if (g) {
-        ln(`mov r0, g_${e.name}`);
-        return;
-      }
       errors.push({ line: e.line, msg: `Unknown name: ${e.name}` });
       ln(`mov r0, 0`);
       return;
@@ -871,6 +1067,27 @@ function emit(
       return;
     }
     if (e.kind === "index") {
+      // both halves of an index are added, and addition does not care which
+      // way round, so whichever side the assembler already knows rides free
+      const base = directAddr(e.base, true);
+      if (base !== null) {
+        emitExpr(e.idx);
+        ln(`add r0, ${base}`);
+        return;
+      }
+      const held = loadableLabel(e.base);
+      if (held !== null) {
+        emitExpr(e.idx);
+        ln(`ld r1, [${held}]`);
+        ln(`add r0, r1`);
+        return;
+      }
+      const idx = directSrc(e.idx);
+      if (idx !== null) {
+        emitExpr(e.base);
+        if (idx !== "0") ln(`add r0, ${idx}`);
+        return;
+      }
       emitExpr(e.base);
       ln(`push r0`);
       emitExpr(e.idx);
@@ -900,6 +1117,16 @@ function emit(
     ln(`mov r0, 0`);
   }
 
+  /** How far a scalar local or parameter sits from the frame pointer —
+      positive below it, negative above, null if the name is neither. */
+  const frameSlot = (e: Expr): number | null => {
+    if (e.kind !== "id") return null;
+    const l = findLocal(e.name);
+    if (l !== null) return l.size === null ? 1 + l.slot : null;
+    const ai = argIndex(e.name);
+    return ai >= 0 ? -(curFn!.params.length - ai) : null;
+  };
+
   /** Ids whose value is their address: arrays, and structs held by value. */
   const isArray = (e: Expr): boolean => {
     if (e.kind !== "id") return false;
@@ -909,11 +1136,84 @@ function emit(
     return g ? g.size !== null || g.val : false;
   };
 
+  /** Writing r0 to a plain name, when the name's address is a constant the
+      assembler or the frame pointer already knows. Null for anything else. */
+  function simpleStore(lv: Expr): (() => void) | null {
+    if (lv.kind !== "id" || isArray(lv)) return null;
+    const lbl = nameLabel(lv.name);
+    if (lbl !== null) return () => ln(`st r0, [${lbl}]`);
+    const slot = frameSlot(lv);
+    if (slot === null) return null;
+    return () => {
+      ln(`mov r6, r5`);
+      ln(`${slot < 0 ? "add" : "sub"} r6, ${slot < 0 ? -slot : slot}`);
+      ln(`st r0, [r6]`);
+    };
+  }
+
   /** cmp with signed meaning: biases both sides so JC reads as "less than". */
   function signedCmp(a: "r0" | "r1", b: "r0" | "r1"): void {
     ln(`xor r0, 0x8000`);
     ln(`xor r1, 0x8000`);
     ln(`cmp ${a}, ${b}`);
+  }
+
+  const CMP_OPS = new Set(["==", "!=", "<", ">", "<=", ">="]);
+
+  /**
+   * Jump to `target` when `cond` is (or is not) true, without ever building
+   * the 1 or the 0. A comparison already sets the flags the jump wants, and
+   * && and || are jumps by nature; materialising a truth value and then
+   * comparing it to zero costs four instructions per test, and a program is
+   * mostly tests.
+   */
+  function emitBranch(cond: Expr, target: string, jumpIf: boolean): void {
+    if (cond.kind === "un" && cond.op === "!") {
+      emitBranch(cond.e, target, !jumpIf);
+      return;
+    }
+    if (cond.kind === "bin" && (cond.op === "&&" || cond.op === "||")) {
+      if ((cond.op === "&&") === jumpIf) {
+        // "jump if both" and "jump if neither" both need somewhere to give up
+        const skip = label();
+        emitBranch(cond.l, skip, !jumpIf);
+        emitBranch(cond.r, target, jumpIf);
+        ln(`${skip}:`);
+      } else {
+        emitBranch(cond.l, target, jumpIf);
+        emitBranch(cond.r, target, jumpIf);
+      }
+      return;
+    }
+    if (cond.kind === "bin" && CMP_OPS.has(cond.op)) {
+      const { op, l, r } = cond;
+      emitExpr(l);
+      if (op === "==" || op === "!=") {
+        const d = directSrc(r);
+        if (d !== null) ln(`cmp r0, ${d}`);
+        else {
+          rhsToR1(r);
+          ln(`cmp r0, r1`);
+        }
+        ln(`${(op === "==") === jumpIf ? "jz" : "jnz"} ${target}`);
+        return;
+      }
+      // carry after a biased cmp A, B is "A is less than B", signed
+      const flip = op === ">" || op === "<=";
+      const wantCarry = op === "<" || op === ">";
+      ln(`xor r0, 0x8000`);
+      if (r.kind === "num") ln(`mov r1, ${imm((r.value ^ 0x8000) & 0xffff)}`);
+      else {
+        rhsToR1(r);
+        ln(`xor r1, 0x8000`);
+      }
+      ln(`cmp ${flip ? "r1, r0" : "r0, r1"}`);
+      ln(`${wantCarry === jumpIf ? "jc" : "jnc"} ${target}`);
+      return;
+    }
+    emitExpr(cond);
+    ln(`cmp r0, 0`);
+    ln(`${jumpIf ? "jnz" : "jz"} ${target}`);
   }
 
   function emitCompare(op: string): void {
@@ -937,6 +1237,39 @@ function emit(
     ln(`${wantCarry ? "jc" : "jnc"} ${t}`);
     ln(`mov r0, 0`);
     ln(`${t}:`);
+  }
+
+  /** The right-hand operand into r1, leaving r0 alone. Only an expression
+      that needs r0 to compute has to go through the stack. */
+  function rhsToR1(r: Expr): void {
+    const d = directSrc(r);
+    if (d !== null) {
+      ln(`mov r1, ${d}`);
+      return;
+    }
+    const lbl = loadableLabel(r);
+    if (lbl !== null) {
+      ln(`ld r1, [${lbl}]`);
+      return;
+    }
+    ln(`push r0`);
+    emitExpr(r);
+    ln(`mov r1, r0`);
+    ln(`pop r0`);
+  }
+
+  /** r0 = r0 `op` r, with the left already in r0. A constant right goes into
+      the instruction itself; a named one is one load; the rest take the
+      stack, as they always did. */
+  function emitRhs(op: string, r: Expr, line: number): void {
+    const d = directSrc(r);
+    const one = ONE_INSTR[op];
+    if (d !== null && one) {
+      ln(`${one} r0, ${d}`);
+      return;
+    }
+    rhsToR1(r);
+    emitBinOp(op, line);
   }
 
   function emitBinOp(op: string, line: number): void {
@@ -970,7 +1303,8 @@ function emit(
   function emitCall(e: Extract<Expr, { kind: "call" }>): void {
     const arity: Record<string, number> = {
       putc: 1, putn: 1, puts: 1, getc: 0, key: 0, rand: 0,
-      vpos: 1, vput: 1, vsync: 0, malloc: 1, free: 1,
+      vpos: 1, vput: 1, vsync: 0, dpos: 1, dbank: 1, dget: 0, dput: 1,
+      malloc: 1, free: 1,
     };
     if (BUILTINS.has(e.name)) {
       if (e.args.length !== arity[e.name])
@@ -984,6 +1318,10 @@ function emit(
         case "vpos": ln(`st r0, [vpos]`); return;
         case "vput": ln(`st r0, [vchr]`); return;
         case "vsync": ln(`ld r0, [vsync]`); return;
+        case "dpos": ln(`st r0, [dpos]`); return;
+        case "dbank": ln(`st r0, [dbnk]`); return;
+        case "dget": ln(`ld r0, [dsk]`); return;
+        case "dput": ln(`st r0, [dsk]`); return;
         case "malloc":
           rt.add("malloc");
           ln(`call rt_malloc`);
@@ -1014,6 +1352,15 @@ function emit(
     }
     if (fn.params.length !== e.args.length)
       errors.push({ line: e.line, msg: `${e.name} takes ${fn.params.length} argument(s)` });
+    if (statics.has(fn.name)) {
+      // a frame that cannot be re-entered can be written to directly
+      e.args.forEach((a, i) => {
+        emitExpr(a);
+        if (i < fn.params.length) ln(`st r0, [${frameLabel(fn.name, i)}]`);
+      });
+      ln(`call fn_${e.name}`);
+      return;
+    }
     for (const a of e.args) {
       emitExpr(a);
       ln(`sub r7, 1`);
@@ -1030,17 +1377,31 @@ function emit(
         ln(`mov r0, ${imm(e.value)}`);
         return;
       case "str":
+        usedStrings.add(e.index);
         ln(`mov r0, s${e.index}`);
         return;
-      case "id":
+      case "id": {
         if (isArray(e)) {
           emitAddr(e);
+          return;
+        }
+        const lbl = nameLabel(e.name);
+        if (lbl !== null) {
+          ln(`ld r0, [${lbl}]`);
+          return;
+        }
+        const slot = frameSlot(e);
+        if (slot !== null) {
+          ln(`mov r6, r5`);
+          ln(`${slot < 0 ? "add" : "sub"} r6, ${slot < 0 ? -slot : slot}`);
+          ln(`ld r0, [r6]`);
           return;
         }
         emitAddr(e);
         ln(`mov r6, r0`);
         ln(`ld r0, [r6]`);
         return;
+      }
       case "un":
         if (e.op === "&") {
           emitAddr(e.e);
@@ -1081,20 +1442,16 @@ function emit(
           ln(`${end}:`);
           return;
         }
-        emitExpr(e.l);
-        ln(`push r0`);
-        emitExpr(e.r);
-        ln(`mov r1, r0`);
-        ln(`pop r0`);
-        emitBinOp(e.op, e.line);
+        // a constant on the left of a commutative op is a constant on the right
+        const swap = COMMUTES.has(e.op) && directSrc(e.l) !== null && directSrc(e.r) === null;
+        emitExpr(swap ? e.r : e.l);
+        emitRhs(e.op, swap ? e.l : e.r, e.line);
         return;
       }
       case "cond": {
         const no = label();
         const end = label();
-        emitExpr(e.c);
-        ln(`cmp r0, 0`);
-        ln(`jz ${no}`);
+        emitBranch(e.c, no, false);
         emitExpr(e.t);
         ln(`jmp ${end}`);
         ln(`${no}:`);
@@ -1103,6 +1460,18 @@ function emit(
         return;
       }
       case "assign": {
+        // a plain name's address is a constant, so the value can be worked
+        // out first and the address never has to wait on the stack
+        const store = simpleStore(e.lv);
+        if (store) {
+          if (e.op === "=") emitExpr(e.e);
+          else {
+            emitExpr(e.lv);
+            emitRhs(e.op.slice(0, -1), e.e, e.line);
+          }
+          store();
+          return;
+        }
         emitAddr(e.lv);
         ln(`push r0`);
         if (e.op === "=") {
@@ -1123,6 +1492,15 @@ function emit(
         return;
       }
       case "incdec": {
+        const store = simpleStore(e.lv);
+        if (store) {
+          emitExpr(e.lv);
+          ln(`${e.op === "++" ? "add" : "sub"} r0, 1`);
+          store();
+          // the old value is one step back the way it came
+          if (!e.pre) ln(`${e.op === "++" ? "sub" : "add"} r0, 1`);
+          return;
+        }
         emitAddr(e.lv);
         ln(`push r0`);
         ln(`mov r6, r0`);
@@ -1154,9 +1532,28 @@ function emit(
       case "expr":
         emitExpr(s.e);
         return;
-      case "asm":
-        for (const line of s.text.split("\n")) out.push(`        ${line.trim()}`);
+      case "asm": {
+        // $name is the address of a global. Hand assembly and the C around
+        // it have to agree on where the arguments are; without this the
+        // assembly would have to spell the compiler's own label mangling,
+        // which is exactly the sort of thing that is right until it isn't.
+        const text = s.text.replace(/\$([A-Za-z_]\w*)/g, (_m, name: string) => {
+          if (fnByName.has(name)) return `fn_${name}`;
+          const lbl = nameLabel(name);
+          if (lbl === null) {
+            errors.push({
+              line: s.line,
+              msg: globalByName.has(name) || findLocal(name) !== null || argIndex(name) >= 0
+                ? `asm cannot name something on the stack: ${name}`
+                : `Unknown name: ${name}`,
+            });
+            return "0";
+          }
+          return lbl;
+        });
+        for (const line of text.split("\n")) out.push(`        ${line.trim()}`);
         return;
+      }
       case "decl":
         for (const d of s.names) {
           const scope = scopes[scopes.length - 1]!;
@@ -1169,13 +1566,24 @@ function emit(
             size: d.size !== null || d.val ? d.words : null,
             s: d.s,
           });
+          const stat = curFn !== null && statics.has(curFn.name)
+            ? (k: number): string => frameLabel(curFn!.name, curFn!.params.length + slot + k)
+            : null;
           if (d.init) {
             emitExpr(d.init);
-            ln(`mov r6, r5`);
-            ln(`sub r6, ${1 + slot}`);
-            ln(`st r0, [r6]`);
+            if (stat) ln(`st r0, [${stat(0)}]`);
+            else {
+              ln(`mov r6, r5`);
+              ln(`sub r6, ${1 + slot}`);
+              ln(`st r0, [r6]`);
+            }
           }
-          if (d.list) {
+          if (d.list && stat) {
+            for (let i = 0; i < d.words; i++) {
+              ln(`mov r0, ${imm(d.list[i] ?? 0)}`);
+              ln(`st r0, [${stat(i)}]`);
+            }
+          } else if (d.list) {
             // element i of the array at fp-(slot+words) is fp-(slot+words-i).
             // The whole array is written: the pad is zeros, as C promises,
             // and stack slots arrive holding whatever died there last.
@@ -1195,9 +1603,7 @@ function emit(
         return;
       case "if": {
         const no = label();
-        emitExpr(s.c);
-        ln(`cmp r0, 0`);
-        ln(`jz ${no}`);
+        emitBranch(s.c, no, false);
         emitStmt(s.t);
         if (s.f) {
           const end = label();
@@ -1212,9 +1618,7 @@ function emit(
         const top = label();
         const end = label();
         ln(`${top}:`);
-        emitExpr(s.c);
-        ln(`cmp r0, 0`);
-        ln(`jz ${end}`);
+        emitBranch(s.c, end, false);
         breaks.push(end);
         conts.push(top);
         emitStmt(s.body);
@@ -1235,9 +1639,7 @@ function emit(
         breaks.pop();
         conts.pop();
         ln(`${cond}:`);
-        emitExpr(s.c);
-        ln(`cmp r0, 0`);
-        ln(`jnz ${top}`);
+        emitBranch(s.c, top, true);
         ln(`${end}:`);
         return;
       }
@@ -1247,11 +1649,7 @@ function emit(
         const end = label();
         if (s.init) emitExpr(s.init);
         ln(`${top}:`);
-        if (s.c) {
-          emitExpr(s.c);
-          ln(`cmp r0, 0`);
-          ln(`jz ${end}`);
-        }
+        if (s.c) emitBranch(s.c, end, false);
         breaks.push(end);
         conts.push(step);
         emitStmt(s.body);
@@ -1291,18 +1689,23 @@ function emit(
     slotWater = 0;
     retLabel = `fn_${f.name}_ret`;
     const nslots = countSlots(f.body);
-    ln(`; --- ${f.name}(${f.params.map((pp) => pp.name).join(", ")})`);
+    const stacked = !statics.has(f.name);
+    ln(`; --- ${f.name}(${f.params.map((pp) => pp.name).join(", ")})${stacked ? " [recurses]" : ""}`);
     ln(`fn_${f.name}:`);
-    ln(`sub r7, 1`);
-    ln(`st r5, [r7]`);
-    ln(`mov r5, r7`);
-    if (nslots) ln(`sub r7, ${nslots}`);
+    if (stacked) {
+      ln(`sub r7, 1`);
+      ln(`st r5, [r7]`);
+      ln(`mov r5, r7`);
+      if (nslots) ln(`sub r7, ${nslots}`);
+    }
     f.body.forEach(emitStmt);
     ln(`mov r0, 0`);
     ln(`${retLabel}:`);
-    ln(`mov r7, r5`);
-    ln(`ld r5, [r7]`);
-    ln(`add r7, 1`);
+    if (stacked) {
+      ln(`mov r7, r5`);
+      ln(`ld r5, [r7]`);
+      ln(`add r7, 1`);
+    }
     ln(`ret`);
   }
 
@@ -1364,7 +1767,9 @@ function emit(
   }
 
   /* ---- data ---- */
+  for (const g of globals) if (g.init !== null && typeof g.init === "object") usedStrings.add(g.init.str);
   strings.forEach((s, i) => {
+    if (!usedStrings.has(i)) return;
     const safe = [...s].every((c) => {
       const v = c.charCodeAt(0);
       return (v >= 32 && v < 127) || v === 10;
@@ -1387,6 +1792,9 @@ function emit(
     else if (typeof g.init === "number") out.push(`g_${g.name}: .word ${g.init}`);
     else out.push(`g_${g.name}: .word s${g.init.str}`);
   }
+  // the frames of the functions that never stack: one word, one name
+  for (const [name, words] of frameWords)
+    for (let k = 0; k < words; k++) out.push(`${frameLabel(name, k)}: .word 0`);
   // the heap begins where the program ends — this word is its first
   if (rt.has("malloc")) out.push(`heap0:  .word 0`);
 

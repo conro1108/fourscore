@@ -36,6 +36,7 @@ import { installPins } from "./pins.js";
 import { cellsToRows, isSpriteFile, parseSprite } from "./sprite.js";
 import { makeDisk } from "./fs.js";
 import { openTerminal } from "./terminal.js";
+import { loadMedia } from "./drive.js";
 import { installGeneratedChips, openPieces } from "./chips.js";
 import { makeDirector, tierOf } from "./director.js";
 import { makeEffects } from "./effects.js";
@@ -80,6 +81,8 @@ const engine = engineClient();
 const analysis = analysisClient();
 const director = makeDirector();
 const disk = makeDisk(localStorage);
+// the drive spins up in the background; nothing waits for it
+loadMedia();
 const movesPad = makeMovesPad(wm, disk);
 
 /* The scheme. Nothing is built until the first gesture (the autoplay law), and

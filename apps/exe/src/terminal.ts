@@ -11,6 +11,9 @@
  * loop, so an infinite loop animates instead of hanging the desktop, and
  * ESC is always heard. Keys go to the KEY port's queue while a program
  * runs; the prompt comes back when it halts, faults, or is stopped.
+ *
+ * The drive is here too, in the sense that a program that reaches for it
+ * gets the machine's media (drive.ts) — llm.c is the one that does.
  */
 
 import { el } from "./dom.js";
@@ -20,6 +23,7 @@ import type { WM } from "./wm.js";
 import { baseName, resolvePath, type Disk } from "./fs.js";
 import { assemble, makeVm, SCREEN_H, SCREEN_W, type AsmResult, type Vm } from "./vm.js";
 import { compileC } from "./cc.js";
+import { mount } from "./drive.js";
 
 export interface TerminalDeps {
   wm: WM;
@@ -101,6 +105,9 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     },
     key: (): number => keyQueue.shift() ?? 0,
     rand: (): number => Math.floor(Math.random() * 0x10000),
+    // the drive is only asked for when a program actually touches it, so
+    // everything else on the disk pays nothing for it being there
+    drive: mount,
   };
 
   /** The cell grid as text — codes the period font has; the rest are space. */

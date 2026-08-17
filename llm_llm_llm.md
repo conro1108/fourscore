@@ -8,16 +8,19 @@ author to run a 27B locally; the local model helps build a fake computer; a
 writes the video game. Each layer down, the model shrinks three orders of
 magnitude and the hardware gets one notch more fictional.
 
-This doc is the shared memory for that project. Nothing here is built yet
-except the machine itself.
+This doc is the shared memory for that project. Phases 1 and 2 are built:
+the machine has a screen and a drive, and there is a language model on the
+drive that its own processor runs.
 
 ## The machine as it stands
 
 From `vm.ts` / `cc.ts` / `terminal.ts`, the parts that matter:
 
 - 16-bit CPU, **4096 words of memory total** (8KB). MMIO page at 0x0F00
-  (CON/NUM/KEY/RND), data stack at 0x0E00 down, so ~3.5K words are really
-  usable. Integer-only ALU; MUL/DIV are 16-bit; flags include a real carry.
+  (CON/NUM/KEY/RND, then VPOS/VCHR/VSYNC, then DPOS/DBNK/DSK), data stack at
+  0x0E00 down, so ~3.5K words are really usable. Integer-only ALU; MUL/DIV
+  are 16-bit and MUL gives only the low word, which is why every product in
+  the model is a byte times a byte; flags include a real carry.
 - `assemble()` in `vm.ts` turns assembly text into machine words; CC turns a
   small C dialect into that assembly. The toolchain C → asm → words → run is
   complete and shipping today.
@@ -32,22 +35,25 @@ From `vm.ts` / `cc.ts` / `terminal.ts`, the parts that matter:
 1. **Memory.** The smallest transformer that speaks coherently (TinyStories,
    ~260K params) is 260KB at int8 — 34× the entire address space. But
    inference is a stream: a matvec touches each weight once per token. So:
-   one new MMIO port, a disk controller backed by a file in `fs.ts`, and
-   weights (and the KV cache — the sneakier wall; even dim-32×2-layer×64-ctx
-   wants ~8K words) page through it. Period-authentic: this is EMS/overlay
-   paging, which is what a real 8KB-working-set machine did. The "disk" is a
-   JS Map, so a port read costs the same as any instruction.
-2. **No float.** int8 weights (127×127 fits a 16-bit product), 32-bit
-   accumulation as two words off the carry flag, exp via a 256-entry LUT,
-   RMSNorm's sqrt via Newton. The hot MAC loop is hand assembly through CC's
-   `asm("...")` escape hatch — the two-stack calling convention would triple
-   its cost otherwise.
-3. **Speed.** ~12–15 instructions per MAC hand-tuned ⇒ ~140K MACs/sec at the
-   period clock. A 260K-param model ≈ one pass over weights per token ⇒
-   **seconds per token**. That stutter is the demo, not the bug. For
-   development iteration: crank the clock, or add a math-coprocessor MMIO
-   port that does dot-products host-side (the empty socket next to a 486SX).
-   Where that line sits is a fiction call, not an engineering one.
+   a disk controller in the MMIO page, and weights (and the KV cache — the
+   sneakier wall) page through it. Period-authentic: this is EMS/overlay
+   paging, which is what a real 8KB-working-set machine did. A port read
+   costs the same as any instruction. ✅ Built: DPOS/DBNK/DSK, and the whole
+   361KB image is laid out in *stream order* so the machine seeks about 250
+   times a token and reads the rest sequentially.
+2. **No float.** ✅ Built, and closer to free than expected: int8 weights,
+   32-bit accumulation as two words off the carry flag, exp via a 256-entry
+   LUT, RMSNorm's root bit-by-bit rather than by Newton. Every scale is a
+   power of two, so putting a number back where it belongs is a shift and
+   never a multiply — which matters because MUL only gives the low word.
+   The one thing worth knowing that the plan did not: **bias both operands by
+   128.** Every product is then unsigned and fits, which removes the sign
+   extension from the inner loop and takes it from eleven instructions to
+   eight — a quarter of the whole runtime.
+3. **Speed.** ✅ Measured: 8 instructions per MAC, 301K MACs a token, 2.95M
+   instructions a token, **1.7 seconds a token** at the period clock. That
+   stutter is the demo, not the bug, and no coprocessor was needed — the
+   empty socket next to the 486SX stays empty, which is the better joke.
 
 Ceiling: TinyStories-class (≤~10M params). A 100M model is ~10 min/token
 pure-CPU; nothing that *knows things* will ever run here, and that's fine —
@@ -83,7 +89,7 @@ small BPE vocab (~512) cuts sequence length 3–4×. Decide before training.
 
 **Training happens on the Mac. The VM only ever infers.** Factory and
 appliance — models are made in datacenters and run on small devices, and the
-fake 1995 machine importing `C:\WEIGHTS.BIN` it could never have produced is
+fake 1995 machine reading a model off a disc it could never have produced is
 exactly how an appliance works. On-VM training is off the table three ways:
 
 - Compute: ~6 × params × tokens. 5M params × ~100M tokens ≈ 3×10¹⁵ ops; at
@@ -125,14 +131,46 @@ in the terminal (W/S, first to seven), and `cc.test.ts` plays it headless: the
 court goes up, the paddle answers keys, a rally resolves and the score moves.*
 It is the reference implementation the corpus gets graded against.
 
-**Phase 2 — Inference substrate, no model of ours yet.** Disk/paging port;
-int8 matvec kernel in `asm("...")` with carry-chain 32-bit accumulate; exp
-LUT; tokenizer; KV cache paged through the same port. *Exit: TinyStories-260K
-babbling in the terminal at seconds per token.* Proves the runtime end to end
-with someone else's checkpoint. Zero research risk; only takes time. **This
-milestone is publishable by itself** — "the 16-bit computer inside this fake
-Windows 95 is running a language model, watch the terminal" is the whole
-story, and the URL is the demo. Don't gate it on Phase 4.
+**Phase 2 — Inference substrate, no model of ours yet.** ✅ **Done
+(2026-08-17).** Three more ports in `vm.ts`'s MMIO page — `DPOS` (0x0F07),
+`DBNK` (0x0F08) and `DSK` (0x0F09), a byte-addressed drive with an
+auto-incrementing head — and `SRC\llm.c`, which runs Karpathy's stories260K
+on the 16-bit processor. *Exit met: `cd /src; cc llm.c; run llm` babbles
+TinyStories in the terminal at **1.7 seconds a token**, ~2.95M instructions
+each, and `llm.test.ts` checks its tokens against an integer oracle that
+reads the same drive image.* What it actually says, out of the machine:
+"Once upon a time, there was a little girl named Lily. She had an idea."
+
+The parts that were decided rather than planned:
+
+- **The drive is a device, not a file.** The plan wanted `C:\WEIGHTS.BIN` on
+  the volume. The volume is one localStorage key that is re-serialised on
+  every write, and 361KB of base64 in it would put a 400KB `JSON.stringify`
+  in front of every Notepad save. So the media is fetched from the origin at
+  boot (`drive.ts`) and `mount()` hands each program its own copy. Phase 3's
+  model will be bigger, not smaller, so this is the right way round; the `ls`
+  touch has to find another home.
+- **No coprocessor, and no float anywhere.** int8 weights with a per-row
+  power-of-two exponent, int8 activations, and both operands stored biased by
+  128 so every product is unsigned and 16 bits — that is what makes the inner
+  loop eight instructions instead of eleven. The bias comes back out once per
+  row from sums the packer wrote down. Softmax and sigmoid are one 256-entry
+  exp table; sampling is Gumbel-max, which is exact and needs nowhere to put
+  512 logits. Against the float model: **94% top-1 agreement, 0.06 nats KL**.
+  `tools/llm/grade.ts` is what that claim is made of; measure before retuning.
+- **The compiler had to get better, and everything got smaller.** llm.c first
+  compiled to 9,697 words for a 3,840-word machine. Constant folding,
+  branching straight off a comparison, immediates in the instruction rather
+  than through the stack, static frames for functions that cannot recurse,
+  and *not emitting string literals nothing points at* (every `asm("...")` is
+  one, so a program that used the escape hatch carried a copy of its own
+  assembly) took it to 3,290. pong.c fell 42% on the way past. This was the
+  single largest piece of work in the phase and none of it was foreseen.
+- **A program this size only just fits, and that is a real finding.** 3,290
+  words of program plus 428 of heap against 3,840, with the arithmetic
+  helpers, RMSNorm, softmax and the sampler already in `asm("...")`. Anything
+  much larger than a transformer is not writing itself in this dialect. The
+  MMIO page has 246 unused words in it if a future phase gets desperate.
 
 **Phase 3 — Distill a model that only knows this machine.** No corpus exists
 for the dialect, so manufacture one: host LLMs generate tens of thousands of
@@ -155,9 +193,13 @@ the prompt, with the possessed machine's usual editorial confidence.
 
 ## Risk ranking
 
-Phase 1 small and certain; Phase 2 fiddly, no unknowns; Phase 3 corpus
-quality is where the outcome is decided; Phase 4's pong success rate is the
-only genuine research risk, and guess-the-number sits in front of it as the
-checkpoint. Ship configuration: coprocessor/cranked clock for the playable
+Phase 1 small and certain; Phase 2 fiddly, no unknowns — which was true of
+the numerics and wrong about everything else: the work was code size, and the
+compiler, not the arithmetic. Phase 3 corpus quality is where the outcome is
+decided; Phase 4's pong success rate is the only genuine research risk, and
+guess-the-number sits in front of it as the checkpoint. One thing Phase 2
+learned that Phase 4 should believe: **write the oracle first.** The
+TypeScript integer reference in `tools/llm/intref.ts` caught a K-cache stride
+bug that had been producing plausible English for an hour. Ship configuration: coprocessor/cranked clock for the playable
 loop, then run the pure-CPU mode once overnight so the boast — *the 16-bit
 CPU wrote this* — is literally, instruction-by-instruction true.

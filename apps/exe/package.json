@@ -15,7 +15,8 @@
     "paint": "node tools/paint.mjs",
     "files": "node tools/files.mjs",
     "appicon": "node tools/appicon.mjs",
-    "audio": "node tools/audio.mjs"
+    "audio": "node tools/audio.mjs",
+    "llm": "node tools/llm.mjs"
   },
   "dependencies": {
     "@fourscore/engine": "*"

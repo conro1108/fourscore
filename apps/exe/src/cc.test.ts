@@ -388,6 +388,115 @@ describe("the screen, wearing C", () => {
   });
 });
 
+describe("the drive, wearing C", () => {
+  const media = Uint8Array.from({ length: 70000 }, (_, i) => (i * 3 + 1) & 0xff);
+
+  /** Like runC, but with something in the drive bay. */
+  const runDrive = (src: string, bytes: Uint8Array): string => {
+    const cc = compileC(src);
+    if (!cc.ok) throw new Error(cc.errors.map((e) => `line ${e.line}: ${e.msg}`).join("; "));
+    const res = assemble(cc.asm);
+    if (!res.ok) throw new Error("CC emitted bad asm");
+    let out = "";
+    const vm = makeVm(res.words, {
+      putChar: (c) => (out += String.fromCharCode(c)),
+      putNum: (n) => (out += String(n)),
+      key: () => 0,
+      rand: () => 0,
+      drive: () => bytes,
+    });
+    vm.run(500_000);
+    if (vm.fault) throw new Error(vm.fault);
+    return out;
+  };
+
+  it("aims the head, reads bytes, and writes them back", () => {
+    expect(
+      runDrive(
+        `int main() {
+           dpos(4); putn(dget()); putn(dget());
+           dpos(4); dput(99); dpos(4); putn(dget());
+         }`,
+        Uint8Array.from(media),
+      ),
+    ).toBe("131699");
+  });
+
+  it("addresses past a bank, and the head carries into it", () => {
+    expect(
+      runDrive(
+        `int main() {
+           dbank(1); dpos(2); putn(dget());
+           dbank(0); dpos(0xffff); dget(); putn(dbank_read());
+         }`.replace("dbank_read()", "0"),
+        Uint8Array.from(media),
+      ),
+    ).toBe(`${(65538 * 3 + 1) & 0xff}0`);
+  });
+});
+
+describe("what the compiler makes of it", () => {
+  it("works sums of constants out while compiling", () => {
+    expect(runC(`#define A 7\n#define B 6\nint main() { putn(A * B + 1 << 1); }`)).toBe("86");
+    // and the folded program is shorter than the one that adds at run time
+    const folded = compileC(`int main() { putn(2 * 3 * 4 * 5); }`);
+    const live = compileC(`int main() { int a; a = 2; putn(a * 3 * 4 * 5); }`);
+    if (!folded.ok || !live.ok) throw new Error("both should compile");
+    expect(assemble(folded.asm)).toMatchObject({ ok: true });
+    expect(folded.asm.split("\n").length).toBeLessThan(live.asm.split("\n").length);
+  });
+
+  it("keeps a function's locals at fixed addresses unless it recurses", () => {
+    const flat = compileC(`int f(int a) { int b; b = a + 1; return b; } int main() { putn(f(41)); }`);
+    const deep = compileC(`int f(int a) { if (a < 2) return a; return f(a - 1) + f(a - 2); }
+      int main() { putn(f(10)); }`);
+    if (!flat.ok || !deep.ok) throw new Error("both should compile");
+    expect(flat.asm).toContain("v_f_0");
+    expect(flat.asm).not.toContain("[recurses]");
+    expect(deep.asm).toContain("[recurses]");
+    expect(deep.asm).not.toContain("v_f_0");
+    // and both still give the right answer
+    expect(runC(`int f(int a) { int b; b = a + 1; return b; } int main() { putn(f(41)); }`)).toBe("42");
+    expect(runC(`int f(int a) { if (a < 2) return a; return f(a - 1) + f(a - 2); }
+      int main() { putn(f(10)); }`)).toBe("55");
+  });
+
+  it("spots recursion that goes the long way round", () => {
+    // f and g are each other's, which no amount of looking at one shows
+    const cc = compileC(`int f(int n) { return n > 0 ? g(n - 1) : 0; }
+      int g(int n) { return f(n); } int main() { putn(f(3)); }`);
+    if (!cc.ok) throw new Error(cc.errors.map((e) => e.msg).join("; "));
+    expect(cc.asm).toContain("[recurses]");
+  });
+
+  it("only puts a string in the image if something points at it", () => {
+    // every asm() is a string literal too; a program that leans on the
+    // escape hatch used to carry a copy of its own assembly
+    const cc = compileC(`int main() { asm("mov r0, 65"); asm("st r0, [con]"); }`);
+    if (!cc.ok) throw new Error("should compile");
+    expect(cc.asm).not.toContain(".str");
+    expect(runC(`int main() { asm("mov r0, 65"); asm("st r0, [con]"); }`)).toBe("A");
+  });
+
+  it("lets asm name a global, a function, and its own arguments", () => {
+    expect(
+      runC(`int total;
+        void add() { asm("ld r0, [$total]"); asm("add r0, 1"); asm("st r0, [$total]"); }
+        int twice(int v) { asm("ld r0, [$v]"); asm("add r0, r0"); asm("st r0, [$v]"); return v; }
+        int main() { asm("call $add"); asm("call $add"); putn(total); putn(twice(21)); }`),
+    ).toBe("242");
+  });
+
+  it("says so when asm names something it cannot reach", () => {
+    expect(errorsOf(`int main() { asm("ld r0, [$ghost]"); }`)).toContainEqual(
+      expect.stringContaining("Unknown name: ghost"),
+    );
+    expect(
+      errorsOf(`int f(int n) { asm("ld r0, [$n]"); return n < 1 ? 0 : f(n - 1); } int main() { f(2); }`),
+    ).toContainEqual(expect.stringContaining("cannot name something on the stack"));
+  });
+});
+
 describe("the seed", () => {
   it("list.c compiles, runs and goes both ways", () => {
     const src = SEED_FILES.find((f) => f.name.endsWith("list.c"))!.text;

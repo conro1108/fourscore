@@ -17,6 +17,11 @@ in git history if a reference is ever needed.
 
 `npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
 
+The checkpoint the language model is built from is not in the repo. Get it
+with `curl -L -o .cache/stories260K.bin https://huggingface.co/karpathy/tinyllamas/resolve/main/stories260K/stories260K.bin`
+(and `tok512.bin` beside it); the built `WEIGHTS.BIN` *is* committed, so
+nothing but rebuilding it needs them.
+
 ## Two tiers of checking, and the fast one is the default
 
 `npm run check` (~3s) is what an ordinary change gets: typecheck plus every test
@@ -29,6 +34,32 @@ Touch `packages/engine` and you owe the full `npm test`. Anything visual, audibl
 or live-driven owes more than that, and the whole ladder — the browser harnesses,
 the ladder sweeps — lives in the `/verify` skill, scoped by what changed. Ask for
 it by name (or "full verification"); don't run it on every iteration.
+
+## The machine inside the machine
+
+`vm.ts` is a real 16-bit CPU, `cc.ts` a real C compiler for it, and there is a
+language model on the drive that the CPU runs — `cd /src; cc llm.c; run llm`,
+about 1.7 seconds a word. The plan and the decisions behind it are in
+[llm_llm_llm.md](llm_llm_llm.md); read it before touching any of this.
+
+Two things that will bite otherwise:
+
+- **The program has 3840 words, and llm.c uses 3290 of them plus 428 of
+  heap.** Every compiler change moves that number. `llm.test.ts` asserts it
+  fits, and `apps/exe/tools/llm/` has the tooling; if you make CC emit more
+  code, that test is what tells you.
+- **`tools/llm/intref.ts` is the oracle, not a second implementation.** It
+  runs the identical fixed-point pipeline in TypeScript over the same drive
+  image, and `llm.test.ts` compares the machine to it token for token. When
+  they disagree, the oracle is right until proven otherwise — it has already
+  caught a cache-stride bug that read as fluent English. Any change to the
+  numerics has to be argued against `tools/llm/grade.ts`, which measures the
+  quantised model against the float one (currently 94% top-1, 0.06 nats).
+
+`npm run llm` drives the real browser through the whole thing and photographs
+it every five seconds, because a single screenshot cannot tell slow from
+stuck. Rebuilding the weights needs the checkpoint in `.cache/` — see
+`tools/llm/build.ts`.
 
 ## Geometry is a value, not a constant
 

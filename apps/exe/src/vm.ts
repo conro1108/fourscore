@@ -23,6 +23,11 @@
  *                           The first write turns the screen on
  *              0x0F06 VSYNC read it and the processor rests until the next
  *                           frame of the display; the value counts frames
+ *              0x0F07 DPOS  the drive head's address, low word
+ *              0x0F08 DBNK  the same address, high word
+ *              0x0F09 DSK   read a byte from the drive and the head moves
+ *                           on; write one and the same. Past the end of the
+ *                           media a read is 0 and a write goes nowhere
  *   Regs     R0..R7, plus PC and a stack pointer. The stack starts at
  *            0x0F00 and grows down through ordinary RAM.
  *   Flags    Z (zero), N (bit 15), C (carry / borrow). CMP is a subtract
@@ -43,6 +48,9 @@ export const PORT_RND = 0x0f03;
 export const PORT_VPOS = 0x0f04;
 export const PORT_VCHR = 0x0f05;
 export const PORT_VSYNC = 0x0f06;
+export const PORT_DPOS = 0x0f07;
+export const PORT_DBNK = 0x0f08;
+export const PORT_DSK = 0x0f09;
 export const SCREEN_W = 40;
 export const SCREEN_H = 24;
 export const SCREEN_CELLS = SCREEN_W * SCREEN_H;
@@ -98,6 +106,9 @@ const PORTS: Record<string, number> = {
   VPOS: PORT_VPOS,
   VCHR: PORT_VCHR,
   VSYNC: PORT_VSYNC,
+  DPOS: PORT_DPOS,
+  DBNK: PORT_DBNK,
+  DSK: PORT_DSK,
 };
 
 /* ---- assembler ---- */
@@ -300,6 +311,16 @@ export interface VmIO {
   key(): number;
   /** 16 random bits — the RND port. */
   rand(): number;
+  /**
+   * The drive's media, asked for once, the first time a program touches the
+   * drive — a program that never does pays nothing. Null is an empty bay,
+   * which reads as zeros rather than faulting, the way an empty drive did.
+   *
+   * The bytes are the drive: writes land in them and are not written back to
+   * anything, so a program can use the room past its data as scratch and the
+   * media is whole again next time it is mounted.
+   */
+  drive?(): Uint8Array | null;
 }
 
 export interface Vm {
@@ -333,6 +354,12 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
   let vpos = 0; // the screen cursor
   let frame = 0; // one per run() call — the display's clock
   let rested = false; // a VSYNC read ends the frame's turn
+  let dpos = 0; // the drive head, a byte address across DBNK:DPOS
+  let media: Uint8Array | null | undefined; // undefined until the bay is asked
+  const mounted = (): Uint8Array | null => {
+    if (media === undefined) media = io.drive?.() ?? null;
+    return media;
+  };
 
   const vm: Vm = {
     mem,
@@ -382,6 +409,14 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
       rested = true;
       return frame;
     }
+    if (addr === PORT_DPOS) return dpos & 0xffff;
+    if (addr === PORT_DBNK) return (dpos >>> 16) & 0xffff;
+    if (addr === PORT_DSK) {
+      const m = mounted();
+      const v = m !== null && dpos < m.length ? m[dpos]! : 0;
+      dpos = (dpos + 1) >>> 0;
+      return v;
+    }
     if (addr === PORT_CON || addr === PORT_NUM) return 0; // write-only hardware
     return mem[addr]!;
   }
@@ -398,6 +433,12 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
       screen[vpos] = v;
       vm.screenOn = true;
       vpos = (vpos + 1) % SCREEN_CELLS;
+    } else if (addr === PORT_DPOS) dpos = ((dpos & 0xffff0000) | v) >>> 0;
+    else if (addr === PORT_DBNK) dpos = (((v & 0xffff) * 0x10000 + (dpos & 0xffff)) >>> 0);
+    else if (addr === PORT_DSK) {
+      const m = mounted();
+      if (m !== null && dpos < m.length) m[dpos] = v & 0xff;
+      dpos = (dpos + 1) >>> 0;
     } else if (addr === PORT_VSYNC) {
       // read-only hardware; the write lands nowhere
     } else mem[addr] = v;
