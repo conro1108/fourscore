@@ -7,24 +7,20 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @fourscore/fever",
-    "build": "npm run build -w @fourscore/fever",
-    "preview": "npm run preview -w @fourscore/fever",
-    "dev:exe": "npm run dev -w @fourscore/exe",
-    "build:exe": "npm run build -w @fourscore/exe",
-    "shots:exe": "npm run shots -w @fourscore/exe",
-    "trace:exe": "npm run trace -w @fourscore/exe",
-    "fever:exe": "npm run fever -w @fourscore/exe",
-    "audio:exe": "npm run audio -w @fourscore/exe",
-    "db:push": "node db/push.mjs db/schema.sql",
+    "dev": "npm run dev -w @fourscore/exe",
+    "build": "npm run build -w @fourscore/exe",
+    "preview": "npm run preview -w @fourscore/exe",
+    "shots": "npm run shots -w @fourscore/exe",
+    "trace": "npm run trace -w @fourscore/exe",
+    "fever": "npm run fever -w @fourscore/exe",
+    "audio": "npm run audio -w @fourscore/exe",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && FAST=1 vitest run",
     "measure:solve": "vite-node packages/engine/tools/measure-solve.ts --",
     "measure:ladder": "vite-node packages/engine/tools/ladder.ts --",
     "measure:bench": "vite-node packages/engine/tools/bench-solve.ts",
-    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/fever --noEmit && tsc -p apps/exe --noEmit",
-    "db:verify": "node db/verify.mjs"
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/exe --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

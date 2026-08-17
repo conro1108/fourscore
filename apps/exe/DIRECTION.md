@@ -1,7 +1,7 @@
 # BOARD.EXE — direction
 
 > **State (2026-08-14):** v1 is built and lives in `src/`. The desktop runs
-> (`npm run dev:exe`), plays the real ladder over the worker protocol, and has
+> (`npm run dev`), plays the real ladder over the worker protocol, and has
 > the win cascade, fever escalation (director.ts + effects.ts), the flat-16
 > chips with the pieces.ctl lab, and the deep-link harness. `npm run shots`
 > (in apps/exe) screenshots every named state through its own dev server;
@@ -27,14 +27,14 @@
 > the way fever's `gags.ts` draws its gags. Eight acts, all reversible —
 > a dialog, a titlebar that changes its mind, a note in moves.txt, a flare,
 > the clock lurching, the taskbar stuttering, the icons flinching, a preview
-> that opens itself. `npm run trace:exe` prints the tier timeline over real
-> games; `npm run fever:exe` plays one in a real browser and reports what the
+> that opens itself. `npm run trace` prints the tier timeline over real
+> games; `npm run fever` plays one in a real browser and reports what the
 > desktop actually did.
 >
 > **The desktop makes noise now (2026-08-14).** `src/audio/` is a synthesized
 > period sound scheme — 23 sounds, no wav files anywhere (see below) — plus a
 > live machine bed that gets busier with fever. `sounds.ctl` is in Settings and
-> behind the tray speaker, and `npm run audio:exe` renders every recipe through
+> behind the tray speaker, and `npm run audio` renders every recipe through
 > real Chrome, writes them to `shots/audio/` (including `all.wav`, everything
 > back to back) and checks the laws from outside.
 
@@ -171,10 +171,11 @@
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 
-This is a sibling app to `apps/fever`, not a theme of it — same
+This began as a sibling app to `apps/fever`, not a theme of it — same
 `packages/engine`, its own world (the clickers-repo pattern: one repo, several
-games). Workspace name `@fourscore/exe`; root scripts follow the clickers
-convention (`dev:exe`, `build:exe`) when the scaffold lands. This doc is
+games). Fever has since been retired (it lives in git history); BOARD.EXE is
+now the repo's only app and owns the plain root scripts (`npm run dev`,
+`npm run build`). Workspace name `@fourscore/exe`. This doc is
 directional; the executing session owns every decision inside it.
 
 ## The law: don't draw the OS — run it
@@ -337,8 +338,9 @@ machine gets to be flat and declarative, because by then the game is over.
 
 ## Practical
 
-- Engine via the worker protocol (port from `apps/fever/src/engine/` — it was
-  itself ported from `apps/web`, it travels well). Engine stays I/O-free.
+- Engine via the worker protocol (ported from `apps/fever/src/engine/`, now
+  deleted — it was itself ported from `apps/web`, it travels well). Engine
+  stays I/O-free.
 - Geometry is a value: `BOARD.EXE`'s window sizes itself from `variant`.
   Connect 5+ is a bigger window, maybe a scrollbar — which is funny and free.
 - A Director-shaped module (fever 0..1 + events) drives degradation; port

@@ -1,22 +1,22 @@
 # Fourscore
 
-Connect 4 as a hectic fever dream — a ladder of opponents who all work at the
-same haunted bowling alley, for people who have run out of friends willing to
-play them. Also Connect 5, 6 and 7, on progressively bigger boards, where almost
-everything is harder — including for the solver.
+Connect 4 played inside a possessed Windows 95 that believes it is functioning
+normally. A ladder of opponents of increasing strength — each a personality,
+not just a deeper search — and then one that solves the position exactly and
+does not make mistakes. Also Connect 5, 6 and 7, on progressively bigger
+boards, where almost everything is harder — including for the solver.
 
-Seven bots of increasing strength, each with a distinct way of playing rather
-than just a deeper search, and then one that solves the position exactly and
-does not make mistakes. After a loss it will tell you which move actually lost
-it — usually about eight plies before the position looked bad.
+The game never leaves the operating system. As the position sharpens, the OS
+degrades: dialogs open themselves, the clock lurches, `moves.txt` editorializes,
+the screensaver asks to start early. After a loss, `REVIEW.EXE` will tell you
+which move actually lost it — usually about eight plies before the position
+looked bad.
 
-**Play it: [fourscore-fever-beta.vercel.app](https://fourscore-fever-beta.vercel.app)**
+![BOARD.EXE at high fever](shots/possessed.png)
 
-![Game over, with candles](shots/detonation.png)
-
-| The roster | The review |
+| The OS at rest | REVIEW.EXE |
 |---|---|
-| ![The Oracle's bio](shots/roster.png) | ![Move 10 lost it](shots/review.png) |
+| ![The desktop](shots/desktop.png) | ![The review](shots/review.png) |
 
 ## The four games
 
@@ -38,10 +38,10 @@ quietly make Vane's whole personality wrong.
 
 The engine takes any width, height and run length — `makeVariant` in `board.ts` —
 so Connect N is a config change rather than a rewrite. The four above are just
-the ones with art and a tuned roster. Fair warning about the biggest one: seven
-in a row is hard to finish against anyone competent, and between the strong bots
-most Connect 7 games fill the board. A draw there is not the game failing; it is
-the game.
+the ones with a tuned roster. Fair warning about the biggest one: seven in a
+row is hard to finish against anyone competent, and between the strong bots
+most Connect 7 games fill the board. A draw there is not the game failing; it
+is the game.
 
 ## Run it
 
@@ -62,7 +62,7 @@ npm run typecheck  # types only
 | **Moss** | tier 3 | Wants the centre columns more than it wants to win. |
 | **Bramble** | tier 4 | Builds threats compulsively and cashes about half of them. |
 | **Cinder** | tier 5 | Plays for positions where every reply loses. |
-| **Vane** | tier 6 | Plays the quiet positional game. Its face lies about how it's going. |
+| **Vane** | tier 6 | Plays the quiet positional game. |
 | **Quill** | tier 7 | Strong opening, then solves the endgame outright. |
 | **The Oracle** | — | Exact from ten discs on. Not strong play; proven play. |
 
@@ -82,14 +82,6 @@ everything, so it plays the slow game that actually wins Connect 4 between good
 players. `packages/engine/src/bots.test.ts` plays each rung against the one
 below it and fails if the ladder stops being a ladder — which it caught during
 development, when Moss's love of the centre made it lose to the tier beneath it.
-
-### Tells
-
-Bots emote from their own evaluation, not from a script. The eyes go wide when
-you set up a double threat, the smirk appears when a forced win has been found,
-and the shoulders drop when the position is gone. Vane is the exception: it
-shows its honest face about two thirds of the time and overplays its hand the
-rest, so reading it is worth something but not everything.
 
 ### The Oracle, precisely
 
@@ -166,27 +158,23 @@ engine reasoning out loud.
     finds where exact play becomes affordable on a board, `ladder.ts` sweeps
     every adjacent rung to check the roster is still ordered, `bench-solve.ts`
     is raw solver throughput. The numbers in this README come from these.
-- **`apps/fever`** — Vite + React + react-three-fiber. Owns rendering and the
-  match runtime; no game logic. The 3D stage (`stage/`, `props/`), the Director
-  that turns game truth into spectacle (`director/`), the WebAudio mangling bus
-  (`audio/`), the possessed-90s DOM chrome (`chrome/`), online play (`online/`),
-  and the search worker (`engine/`) — all search runs off the main thread,
-  because the thinking animation is exactly the thing that must not freeze
-  while the bot is thinking.
+- **`apps/exe`** — BOARD.EXE. Vite + TypeScript, no framework: the possessed
+  Win95 is built out of real DOM furniture (`wm.ts` windows, dialogs, a
+  taskbar, Notepad, a terminal, PAINT.EXE, a C compiler). Owns rendering and
+  the match runtime; no game logic. All search runs in a worker
+  (`src/engine/`), because the OS pretending to freeze is only funny if it
+  never actually does. `DIRECTION.md` in that directory is the law for
+  everything visual, audible and written.
 
 The engine is I/O-free and framework-free on purpose. That's the part that makes
 authoritative online play possible later: a server can import exactly the same
 module the client does, so optimistic prediction and server truth can't drift.
-React is there for the screens around the game, not for the game.
 
-## Rendering rules
+## Screenshot before you claim
 
-The look is governed by `redesign/VISION.md` — four pillars, and a taste law
-with two budgets: props are cheap by law (≤300 audited triangles, 64px
-nearest-filtered textures, flat shading, stepped 12fps timing), while the void,
-the board and the post stack are expensive by law (full resolution, smooth,
-genuinely beautiful). The collision of the two in one frame is the aesthetic.
-`apps/fever/preview.html` renders every named scene state against the dev
-server and `npm run shots` screenshots them, because this is the one class of
-bug a unit test cannot see. The shared outline ink (`#402e3a`) survives from
-the pixel-art era, same as cozy_sprites.
+Unit tests can't see any of the visual work, so the app carries its own
+harness: every named desktop state is a deep link (`?state=win&beat=6`),
+`npm run shots` screenshots them all through real Chrome, `npm run timeline`
+watches the ones that unfold over seconds, and `npm run audio` renders the
+synthesized sound scheme offline and checks it from outside. This is the one
+class of bug a unit test cannot see, and it has caught real ones.

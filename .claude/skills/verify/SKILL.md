@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the heavy verification ladder for fourscore — the full test suite plus the live browser harnesses (shots, audio, acceptance, ladder sweeps) scoped to what actually changed, then look at the output and report honestly. Use when the user asks for "full verification", "verify everything", "the full check", or before shipping something big. For ordinary iterative changes use `npm run check` instead (3s) and don't invoke this.
+description: Run the heavy verification ladder for fourscore — the full test suite plus the live browser harnesses (shots, timeline, audio, ladder sweeps) scoped to what actually changed, then look at the output and report honestly. Use when the user asks for "full verification", "verify everything", "the full check", or before shipping something big. For ordinary iterative changes use `npm run check` instead (3s) and don't invoke this.
 argument-hint: [what changed, if it isn't obvious from the diff]
 ---
 
@@ -10,16 +10,15 @@ The expensive pass. Everything here takes minutes, which is the whole reason
 it's a separate thing you have to ask for.
 
 **Scope it first.** Run `git status` / `git diff --stat` and work out which of
-the four areas changed: `packages/engine`, `apps/exe`, `apps/fever`, `db/`.
-Then run only the rungs that area owns. Running fever's six live harnesses
-because a sound changed in `apps/exe` is a waste of four minutes and teaches
-nobody anything.
+the two areas changed: `packages/engine`, `apps/exe`. Then run only the rungs
+that area owns. Sweeping the ladder because a sound changed in `apps/exe` is a
+waste of minutes and teaches nobody anything.
 
 ## Always
 
 ```
 npm test          # ~80s. The two engine files that play real games are the 80s.
-npm run typecheck # ~10s, all three projects
+npm run typecheck # ~10s, both projects
 ```
 
 `npm test` is the full suite — do not substitute `npm run check` here, that's
@@ -56,24 +55,6 @@ npm run timeline -- "?state=win" 3 8 14 18 40   # for anything that unfolds over
 
 `npm run shots` always looks at 1800ms, so it is blind to anything slower than
 that — `timeline` is the one that can see the fever rise and let go.
-
-## apps/fever changed
-
-```
-cd apps/fever
-npm run shots        # named scene states
-npm run acceptance   # drives the live app
-npm run bots ; npm run review ; npm run online ; npm run audio ; npm run slider
-```
-
-## db/schema.sql changed
-
-```
-npm run db:verify    # needs the live database; not part of npm test
-```
-
-RLS bugs typecheck fine and unit tests can't see them. Run it after **any**
-schema change.
 
 ## How to run it
 

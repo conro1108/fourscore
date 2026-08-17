@@ -1,18 +1,19 @@
 # CLAUDE.md
 
-Fourscore is Connect 4 — and now Connect 5 — against a ladder of bots, plus one
-that solves the position exactly, restaged as a fever dream. TypeScript, npm
-workspaces: `packages/engine` is the whole game as pure logic, `apps/fever` is
-the client (R3F scene + possessed-90s DOM chrome) and owns only rendering and
-the match runtime.
+Fourscore is Connect 4 — and Connect 5, 6 and 7 — against a ladder of bots,
+plus one that solves the position exactly. TypeScript, npm workspaces:
+`packages/engine` is the whole game as pure logic, `apps/exe` is the client
+(BOARD.EXE — the game never leaves a possessed Win95) and owns only rendering
+and the match runtime.
 
-The repo is growing more clients of the same engine (the clickers-repo
-pattern): `apps/exe` (BOARD.EXE — the game never leaves a possessed Win95) is
-the greenlit second app, with a `DIRECTION.md`, approved reference art in
-`reference/`, and an approved live proposal set in `proposals/` whose code is
-meant to be ported. Read DIRECTION.md before building there; the full pitch set (including
-dropped directions) lives in `redesign/proposals/index.html`. Fever's
-VISION.md/PLAN.md govern `apps/fever` only.
+Read `apps/exe/DIRECTION.md` before building in the app — it is the law for
+everything visual, audible and copy there. The approved reference art is in
+`apps/exe/reference/` and the approved live proposals in `apps/exe/proposals/`;
+the full original pitch set (including dropped directions) lives in
+`redesign/proposals/index.html`. Two earlier clients — `apps/web` (pixel art)
+and `apps/fever` (R3F fever dream, with its VISION.md/PLAN.md and the online
+multiplayer client plus its `db/` Supabase slice) — are deleted; everything is
+in git history if a reference is ever needed.
 
 `npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
 
@@ -26,15 +27,8 @@ test that never imports it.
 
 Touch `packages/engine` and you owe the full `npm test`. Anything visual, audible
 or live-driven owes more than that, and the whole ladder — the browser harnesses,
-the ladder sweeps, `db:verify` — lives in the `/verify` skill, scoped by what
-changed. Ask for it by name (or "full verification"); don't run it on every
-iteration.
-
-Before visual or copy work, read `redesign/VISION.md` (the aesthetic law: the
-four pillars, the two budgets, the taste law, the voice) and `redesign/PLAN.md`
-(the phase ledger and the completion log — the shared memory between sessions).
-The old pixel-art client (`apps/web`) is deleted; it's in git history if a
-reference is ever needed.
+the ladder sweeps — lives in the `/verify` skill, scoped by what changed. Ask for
+it by name (or "full verification"); don't run it on every iteration.
 
 ## Geometry is a value, not a constant
 
@@ -53,8 +47,8 @@ the search must read `p.variant`.
 ## Keep the engine I/O-free
 
 `packages/engine` imports nothing from the DOM, the network or the app. That's
-what makes authoritative online play possible later — a server would import the
-same module the client does. Game logic that leaks into `apps/fever` breaks
+what keeps authoritative online play possible later — a server would import the
+same module the client does. Game logic that leaks into `apps/exe` breaks
 that, so it goes in the engine even when the app is the only caller today.
 
 ## The bitboard packing lives in one file
@@ -164,22 +158,19 @@ the number.
 
 ## Screenshot before you claim
 
-Unit tests can't see any of the visual work; the harness is the eyes.
-`apps/fever/preview.html` renders named scene states (`?state=id` for one
-fullscreen), `npm run shots -- <ids>` screenshots them through real Chrome, and
-`npm run acceptance` / `npm run bots` / `npm run online` / `npm run review` /
-`npm run audio` / `npm run slider` drive the live app. This repo has repeatedly caught bugs this
-way that typechecked and passed tests — a shader composing off-screen, an
-invisible review marker, props framed at the wrong z. If you didn't look at it,
-it isn't done.
+Unit tests can't see any of the visual work; the harness is the eyes. BOARD.EXE
+deep-links every named desktop state (`?state=id`, plus `?fever=`, `?beat=`,
+`?demo=`, `?chips=`), `npm run shots` screenshots them through real Chrome, and
+the other live harnesses — `npm run timeline` (frames over seconds, which
+`shots`' fixed 1800ms is blind to), `npm run fever`, `npm run audio`,
+`npm run trace`, `npm run mobile`, `npm run paint`, `npm run files`,
+`node tools/live.mjs` — drive the real app. This repo has repeatedly caught
+bugs this way that typechecked and passed tests. If you didn't look at it, it
+isn't done.
 
-The taste law that replaced the old pixel-buffer rules lives in
-`redesign/VISION.md`: props are cheap by law (≤300 tris, 64px nearest, stepped
-12fps timing), the void and board are expensive by law (full-res, smooth), and
-the collision of the two budgets is the aesthetic. No default ease-in-out
-anywhere in the chrome; `steps()` or instant.
-
-Shared outline ink is `#402e3a`, the same as cozy_sprites and battle_clicker.
+The aesthetic law lives in `apps/exe/DIRECTION.md` — build the period artifact,
+never illustrate it — and that doc governs all visual, audio and copy work in
+the app.
 
 ## Say what the solver actually knows — without saying "solver"
 
@@ -230,38 +221,3 @@ proven play is close to an endgame rumour. That is not a bug to tune away, and
 the UI must not paper over it: `exactnessNote` in `bots.ts` generates the claim from the number so a bot
 can't go on advertising Connect 4's crossover on a Connect 5 board. If you add a
 variant, generate the claim, don't write one.
-
-## Multiplayer is client-authoritative on purpose
-
-`db/schema.sql` is Fourscore's slice of the shared toybox Supabase project (see
-the Shared Supabase section of `~/projects/CLAUDE.md`). It is a full rebuild, not
-a migration — pushing drops the schema and every in-progress match with it.
-
-There is no server that validates a move. Both clients own the engine and fold
-`moves` into a `Position` themselves, so an illegal move surfaces as a replay
-mismatch on the opponent's machine, not as a rejected write. That's the right
-trade for a game you play with friends, and it's why the engine still has to
-stay I/O-free: the day it isn't, the honest server becomes impossible.
-
-What the database *does* enforce is what breaks by accident — turn order, from
-`(ply + host_seat) % 2`, and one contiguous ply at a time. Both live in
-`db/schema.sql` and both are covered by `npm run db:verify`, which is not part of
-`npm test` because it needs the live database. Run it after any schema change:
-RLS bugs typecheck fine and unit tests can't see them. A policy on `moves` that
-subqueries `moves` is infinite recursion, and Postgres only says so on the first
-insert — that one shipped and was caught by `db:verify`, not by review.
-
-Move state is a list of column indices, same as `Match.history`. Never put a
-packed bitboard in Postgres; `board.ts` stays the only thing that knows the
-packing.
-
-The client lives in `apps/fever/src/online/` (pure `session.ts`, socket-owning
-`runtime.ts`) and `chrome/Online.tsx` — your opponent gets a roster identity
-chosen by hashing their user id, so a person looks like an opponent instead of
-a bare grid, but no persona lines: the software doesn't put words in a real
-person's mouth. Discs animate off the *move list*, not off the click, so a move
-arriving over the wire drops exactly like one you made; that's why `landed`
-lags `moves` by one animation. Realtime is an optimisation, not the transport —
-a 4s poll re-reads the row and move list because dropped UPDATEs really happen;
-don't remove it because the happy path works. Desyncs surface as an honest
-styled error dialog, never as rendered nonsense.
