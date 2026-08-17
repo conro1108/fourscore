@@ -445,7 +445,12 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         tasks.get(spec.id)?.remove();
         tasks.delete(spec.id);
         wins.delete(spec.id);
-        if (focusedWin === win) setFocus(undefined);
+        // the period focuses the next window down — which is what lets F2
+        // reach the game the moment its result dialog is dismissed
+        if (focusedWin === win)
+          setFocus(
+            [...order].reverse().find((s) => s.z === undefined && s.win.el.style.display !== "none")?.win,
+          );
         spec.onClose?.();
       },
       setTitle(title: string) {
