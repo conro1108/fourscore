@@ -335,8 +335,12 @@ const FOLD: Record<string, (a: number, b: number) => number> = {
   "&": (a, b) => a & b,
   "|": (a, b) => a | b,
   "^": (a, b) => a ^ b,
-  "<<": (a, b) => (b >= 16 ? 0 : a << b),
-  ">>": (a, b) => (b >= 16 ? 0 : a >> b),
+  // the shift count is what the processor makes of it, not what it says:
+  // SHL/SHR mask with 31 first (vm.ts), so 1 << 32 is 1 and not 0. A fold
+  // that disagreed with the ALU about that would be a compiler quietly
+  // giving two answers to one expression
+  "<<": (a, b) => ((b & 31) >= 16 ? 0 : a << (b & 31)),
+  ">>": (a, b) => ((b & 31) >= 16 ? 0 : a >> (b & 31)),
 };
 
 function parse(toks: Tok[]): { fns: FnDecl[]; globals: GlobalDecl[]; structs: Map<string, StructDecl> } {

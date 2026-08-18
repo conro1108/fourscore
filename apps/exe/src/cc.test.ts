@@ -564,9 +564,12 @@ describe("expressions, at random", () => {
 
   /** A random expression, and what a 16-bit machine owes for it. */
   function gen(depth: number): { c: string; v: number } {
-    const pick = rnd(depth <= 0 ? 2 : 10);
+    const pick = rnd(depth <= 0 ? 2 : 12);
     if (pick < 1) {
-      const n = rnd(0x10000);
+      // the sign boundary is where imm(), the compare bias and FOLD all
+      // change their minds, and a uniform draw over 65536 rarely lands there
+      const EDGES = [0, 1, 2, 15, 16, 31, 32, 127, 128, 0x7fff, 0x8000, 0x8001, 0xfffe, 0xffff];
+      const n = rnd(3) ? rnd(0x10000) : EDGES[rnd(EDGES.length)]!;
       return { c: String(n), v: n };
     }
     if (pick < 2) {
@@ -601,6 +604,14 @@ describe("expressions, at random", () => {
       const b = gen(depth - 1);
       return { c: `sum(${a.c}, ${b.c})`, v: U(a.v + b.v) };
     }
+    if (pick < 7) {
+      // a conditional as an operand puts emitBranch's labels and jumps
+      // inside whatever window the enclosing operator has opened
+      const c = gen(depth - 1);
+      const t = gen(depth - 1);
+      const f = gen(depth - 1);
+      return { c: `(${c.c}) ? (${t.c}) : (${f.c})`, v: c.v !== 0 ? t.v : f.v };
+    }
     const a = gen(depth - 1);
     const b = gen(depth - 1);
     const op = BIN[rnd(BIN.length)]!;
@@ -626,22 +637,79 @@ describe("expressions, at random", () => {
     return { c: `(${a.c}) ${op} (${b.c})`, v };
   }
 
-  it("come out the same on the processor as on paper", () => {
+  const PRELUDE =
+    `int g = ${G};\nint a[] = {${ARR.join(", ")}};\nint *p;\n` +
+    `int id(int v) { return v; }\nint sum(int x, int y) { return x + y; }\n`;
+
+  /** The same work in a frame that stacks. The self-call never runs — it is
+      there to put `say` on a cycle of the call graph, so its locals go on the
+      data stack and the frame-pointer half of the compiler gets exercised at
+      all. Without it every name in this test resolves to a fixed address. */
+  const HARNESSES = [
+    (body: string): string => `${PRELUDE}int main() { int l; l = ${L}; p = a;\n  ${body}\n}`,
+    (body: string): string =>
+      `${PRELUDE}int say(int n) { int l; l = ${L}; p = a;\n` +
+      `  if (n > 30000) return say(n - 1);\n  ${body}\n  return 0; }\n` +
+      `int main() { say(0); }`,
+  ];
+
+  it("come out the same on the processor as on paper, framed either way", () => {
     for (let round = 0; round < 10; round++) {
       const es = Array.from({ length: 30 }, () => gen(3));
       const body = es
         .map((e) => `putn(${e.c}); putc(44); if (${e.c}) putc(84); else putc(70); putc(59);`)
         .join("\n  ");
-      const out = runC(
-        `int g = ${G};\nint a[] = {${ARR.join(", ")}};\nint *p;\n` +
-          `int id(int v) { return v; }\nint sum(int x, int y) { return x + y; }\n` +
-          `int main() { int l; l = ${L}; p = a;\n  ${body}\n}`,
-        { maxSteps: 8_000_000 },
-      );
-      const got = out.split(";").filter((x) => x.length);
-      es.forEach((e, i) => {
-        expect(`${e.c} => ${got[i]}`).toBe(`${e.c} => ${S(e.v)},${e.v !== 0 ? "T" : "F"}`);
-      });
+      for (const [h, harness] of HARNESSES.entries()) {
+        const src = harness(body);
+        if (h === 1) expect(compileC(src)).toMatchObject({ ok: true });
+        const out = runC(src, { maxSteps: 8_000_000 });
+        const got = out.split(";").filter((x) => x.length);
+        es.forEach((e, i) => {
+          expect(`[${h}] ${e.c} => ${got[i]}`).toBe(`[${h}] ${e.c} => ${S(e.v)},${e.v !== 0 ? "T" : "F"}`);
+        });
+      }
+    }
+  });
+
+  it("folds a constant to whatever the ALU would have computed", () => {
+    // the compiler must not give two answers to one expression. Shifts are
+    // where this nearly went wrong: the processor masks the count with 31
+    // before looking at it, so 1 << 32 is 1, and a fold that read the count
+    // literally said 0. The ALU is canonical; FOLD follows it.
+    const OPS = ["+", "-", "*", "&", "|", "^", "<<", ">>"];
+    const VALUES = [0, 1, 2, 15, 16, 17, 31, 32, 33, 47, 64, 127, 0x7fff, 0x8000, 0xffff, 1234];
+    for (const op of OPS) {
+      const cases = VALUES.flatMap((a) => VALUES.map((b) => [a, b] as const));
+      // in chunks, because the unfolded version of all of them at once is a
+      // bigger program than the machine has room for — which is the point
+      for (let at = 0; at < cases.length; at += 40) {
+        const chunk = cases.slice(at, at + 40);
+        const folded = chunk.map(([a, b]) => `putn(${a} ${op} ${b}); putc(59);`).join("");
+        const live = chunk.map(([a, b]) => `x = ${a}; y = ${b}; putn(x ${op} y); putc(59);`).join("");
+        expect(runC(`int main() { ${folded} }`, { maxSteps: 4_000_000 }), `${op} @${at}`).toBe(
+          runC(`int x; int y; int main() { ${live} }`, { maxSteps: 4_000_000 }),
+        );
+      }
+    }
+  });
+
+  it("compiles a string literal wherever one can appear", () => {
+    // a string's value is an address, so this checks that the program comes
+    // out assemblable rather than what it says — which is exactly the bug
+    // that shipped: a literal reached only through a peephole was dropped
+    for (let i = 0; i < 40; i++) {
+      const e = gen(2);
+      const shape = [
+        `putn((${e.c}) == "lit");`,
+        `putn((${e.c}) - "lit");`,
+        `if ((${e.c}) != "lit") putc(65);`,
+        `putn("lit"[(${e.c}) & 1]);`,
+        `putn((${e.c}) ? "lit" : "other");`,
+      ][i % 5]!;
+      const src = `${PRELUDE}int main() { int l; l = ${L}; p = a; ${shape} }`;
+      const cc = compileC(src);
+      if (!cc.ok) throw new Error(`${shape}: ${cc.errors.map((x) => x.msg).join("; ")}`);
+      expect(assemble(cc.asm), shape).toMatchObject({ ok: true });
     }
   });
 });
