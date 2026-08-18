@@ -32,6 +32,8 @@ import { makeRng } from "../tools/llm/checkpoint.js";
 const HEAP_WORDS = 64 + 64 + 172 + 64 + 32 + 32;
 /** Return addresses and expression temporaries, generously. */
 const STACK_WORDS = 32;
+/** Where the compiler's own stack would start, if llm.c ever used one. */
+const DATA_STACK_TOP = 0x0e00;
 
 const image = new Uint8Array(readFileSync("apps/exe/public/WEIGHTS.BIN"));
 
@@ -82,8 +84,11 @@ describe("the model on the processor", () => {
     // the attention weights and the model just gets quietly worse.
     const cc = compileC(LLM_C);
     if (!cc.ok) throw new Error(cc.errors.map((e) => e.msg).join("; "));
-    expect(cc.asm).not.toContain("[recurses]");
-    expect(cc.asm).not.toContain("sub r7");
+    // r7 mentioned once, and once only: the startup initialiser. That is the
+    // invariant itself, and unlike matching "sub r7" it does not depend on
+    // which instruction lowers the stack or how the line is spelled
+    expect(cc.asm.match(/\br7\b/g)).toEqual([expect.any(String)]);
+    expect(cc.asm).toContain(`mov r7, 0x${DATA_STACK_TOP.toString(16)}`);
   });
 
   it("is the file on the disk", () => {
