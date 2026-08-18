@@ -203,11 +203,14 @@
 > every 1.7 seconds, which is what reading every weight for every word costs.
 > The slowness is the point and must never be papered over: no progress bar,
 > no spinner, no fake typing. A word appears when the arithmetic is done.
-> The banner says what it is doing in the machine's own flat voice and then
-> gets out of the way. An empty bay says "DRIVE NOT READY." — the period's
-> own phrase, and honest about both of its causes, since a drive still
-> spinning up and a drive with nothing in it are the same to a program. `npm run llm` photographs it every five seconds
-> because one screenshot cannot tell thinking from stuck.
+> It picks its first ten words a temperature looser than the rest, because it
+> knows "Once upon a time, there was a little girl named Lily" too well and a
+> visitor who runs it twice is owed two stories. The banner says what it is
+> doing in the machine's own flat voice and then gets out of the way. An
+> empty bay says "DRIVE NOT READY." — the period's own phrase, and honest
+> about both of its causes, since a drive still spinning up and a drive with
+> nothing in it are the same to a program. `npm run llm` photographs it every
+> five seconds, because one screenshot cannot tell thinking from stuck.
 
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
