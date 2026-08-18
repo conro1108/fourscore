@@ -552,8 +552,8 @@ describe("expressions, at random", () => {
   const S = (v: number): number => (v & 0x8000 ? (v & 0xffff) - 0x10000 : v & 0xffff);
   const G = 1234;
   const L = 7;
-  const A2 = 30;
-  const NAMES: [string, number][] = [["g", G], ["l", L], ["a[2]", A2]];
+  const ARR = [10, 20, 30, 40];
+  const NAMES: [string, number][] = [["g", G], ["l", L], ["a[2]", ARR[2]!]];
   const BIN = ["+", "-", "*", "&", "|", "^", "<<", ">>", "==", "!=", "<", ">", "<=", ">=", "&&", "||"];
 
   let seed = 12345;
@@ -585,6 +585,21 @@ describe("expressions, at random", () => {
       const op = rnd(2) ? "/" : "%";
       const q = Math.trunc(S(e.v) / k);
       return { c: `(${e.c}) ${op} ${k}`, v: op === "/" ? U(q) : U(S(e.v) - q * k) };
+    }
+    if (pick < 5) {
+      // an index the compiler cannot see through, off an array and off a
+      // pointer at the same array — the two go down different peepholes
+      const e = gen(depth - 1);
+      const name = rnd(2) ? "a" : "p";
+      return { c: `${name}[(${e.c}) & 3]`, v: ARR[e.v & 3]! };
+    }
+    if (pick < 6) {
+      // a call, so that fixed frames get filled from expressions that are
+      // themselves calls
+      const a = gen(depth - 1);
+      if (rnd(2)) return { c: `id(${a.c})`, v: a.v };
+      const b = gen(depth - 1);
+      return { c: `sum(${a.c}, ${b.c})`, v: U(a.v + b.v) };
     }
     const a = gen(depth - 1);
     const b = gen(depth - 1);
@@ -618,8 +633,10 @@ describe("expressions, at random", () => {
         .map((e) => `putn(${e.c}); putc(44); if (${e.c}) putc(84); else putc(70); putc(59);`)
         .join("\n  ");
       const out = runC(
-        `int g = ${G};\nint a[4] = {0, 0, ${A2}, 0};\nint main() { int l; l = ${L};\n  ${body}\n}`,
-        { maxSteps: 4_000_000 },
+        `int g = ${G};\nint a[] = {${ARR.join(", ")}};\nint *p;\n` +
+          `int id(int v) { return v; }\nint sum(int x, int y) { return x + y; }\n` +
+          `int main() { int l; l = ${L}; p = a;\n  ${body}\n}`,
+        { maxSteps: 8_000_000 },
       );
       const got = out.split(";").filter((x) => x.length);
       es.forEach((e, i) => {
