@@ -299,19 +299,57 @@ llama-server driver), `verify.ts` (the worker pool), `assemble.ts`,
 
 Phase 2's lesson, believed: build the graders before the thing they grade.
 
-1. Verify farm + V0/V1/V2 graders. Prove them on the five known-good `/src`
-   programs *and* on deliberately broken mutants — a grader that rejects
-   nothing is the failure mode to catch on day one.
-2. Generation pilot, a few hundred candidates. Measure yield and the failure
+1. **Verify farm + V0/V1/V2 graders.** ✅ **Done (2026-08-17).**
+   `apps/exe/tools/corpus/`: `verify.ts` is the probe, V0, V1 and the
+   taxonomy; `graders.ts` is a V2 per tier; `mutants.ts` is seven known-good
+   programs and eighteen broken ones, each a single edit from passing;
+   `farm.ts` is the pool — JSONL in, JSONL out, histogram at the end, and a
+   self-test that runs the mutants before a batch does. `corpus.test.ts` is
+   28 tests in 0.8s, and 500 candidates clear in 1.4s on twelve workers.
+
+   *What it measured that this plan did not know:* holding a key down hangs
+   pong.c — the `while (k) { k = key(); }` drain loop never sees a 0, so it
+   burns all 30,000 steps a frame forever and never scores — so probes type
+   sparsely, and any variant with that loop shape inherits the property. And
+   a frame costs about nine instructions, so V2 grades whole games rather
+   than sampling them. Two mutants turned out to be wrong rather than the
+   graders, which is where `v1:no-vsync` and `v1:starved` came from.
+
+   The tier-2 and tier-3 references (`GUESS_C`, `BOUNCE_C` in `mutants.ts`)
+   had to be written because the disk carries none — `guess.asm` is assembly
+   and there is no screen toy smaller than pong. They are also the first
+   few-shot examples those tiers will be generated from, so they are worth
+   looking at hard before twenty thousand programs imitate them.
+
+2. **The synthesiser, and the axes it rolls.** Source A is 70% of the corpus
+   and everything downstream inherits its shape, so it comes before any model
+   is asked for anything: a skeleton per family, the axis list each skeleton
+   rolls, and — for tiers 1 and 2 — the predicted output and winning key
+   script that hand V2 its exact grade for free.
+
+   Choose the axes deliberately rather than discovering them. They are the
+   whole difference between a corpus that teaches the pong *family* and one
+   that teaches a single pong with the constants filed off, and an axis
+   nobody rolls is a variation the model can never interpolate to. Two the
+   graders already constrain: the ball needs its own glyph, or there is no
+   singleton to find, and the up/down keys are declared in `axes` so a
+   variant can move them.
+
+   *Exit: `synth.ts` emits candidates the farm keeps at close to 100%* — a
+   generator that produces rejects is a generator with a bug, since it builds
+   from the fence rather than guessing at it — *and tier 4's axes multiply
+   out to more skeletons than any batch will use.*
+
+3. Generation pilot, a few hundred candidates. Measure yield and the failure
    histogram; tune prompts. Decide here whether host-side grammar constraint
    is worth wiring up. Train a provisional BPE on the pilot plus the seeds
    and measure pong's token length — that is enough to settle MAXSEQ versus
    streaming attention, and it should not wait for the full corpus.
-3. Scale generation unattended. Assemble, dedup, train the real tokenizer.
-4. **Dry run at toy scale**: train a stories260K-sized model on the corpus
+4. Scale generation unattended. Assemble, dedup, train the real tokenizer.
+5. **Dry run at toy scale**: train a stories260K-sized model on the corpus
    and push it through pack → grade → oracle → machine end-to-end. Every
    integration surprise gets found on a model that trained in minutes.
-5. Real run. Grade, ship `WEIGHTS.BIN`, update `llm.c`'s defines, and
+6. Real run. Grade, ship `WEIGHTS.BIN`, update `llm.c`'s defines, and
    `llm.test.ts` stays green.
 
 ## Exit criteria
