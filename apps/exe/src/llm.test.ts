@@ -24,6 +24,7 @@ import { assemble, makeVm, MEM_SIZE, MMIO_BASE, type VmIO } from "./vm.js";
 import { compileC } from "./cc.js";
 import { LLM_C } from "./llmc.js";
 import { SEED_FILES } from "./copy.js";
+import { mount, setMedia } from "./drive.js";
 import { Machine } from "../tools/llm/intref.js";
 import { makeRng } from "../tools/llm/checkpoint.js";
 
@@ -73,6 +74,18 @@ describe("the model on the processor", () => {
 
   it("is the file on the disk", () => {
     expect(SEED_FILES.find((f) => f.name === "SRC\\llm.c")!.text).toBe(LLM_C);
+  });
+
+  it("hands every program the media it came with", () => {
+    // llm.c keeps its whole key/value cache on the drive, so a second run
+    // that inherited the first one's writes would quietly tell a different
+    // story from the same seed
+    setMedia(Uint8Array.from([1, 2, 3, 4]));
+    const first = mount()!;
+    first[0] = 99;
+    expect([...mount()!]).toEqual([1, 2, 3, 4]);
+    setMedia(null);
+    expect(mount()).toBeNull();
   });
 
   it("says so when the drive is empty, instead of faulting", () => {
