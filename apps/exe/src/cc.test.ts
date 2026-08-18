@@ -422,16 +422,12 @@ describe("the drive, wearing C", () => {
     ).toBe("131699");
   });
 
-  it("addresses past a bank, and the head carries into it", () => {
+  it("reaches past the first bank", () => {
+    // C can aim the head but not read it back, so the carry from one half of
+    // the address into the other is vm.test.ts's to check, not this one's
     expect(
-      runDrive(
-        `int main() {
-           dbank(1); dpos(2); putn(dget());
-           dbank(0); dpos(0xffff); dget(); putn(dbank_read());
-         }`.replace("dbank_read()", "0"),
-        Uint8Array.from(media),
-      ),
-    ).toBe(`${(65538 * 3 + 1) & 0xff}0`);
+      runDrive(`int main() { dbank(1); dpos(2); putn(dget()); }`, Uint8Array.from(media)),
+    ).toBe(String((65538 * 3 + 1) & 0xff));
   });
 });
 
@@ -485,6 +481,31 @@ describe("what the compiler makes of it", () => {
     // f and g are each other's, which no amount of looking at one shows
     const cc = compileC(`int f(int n) { return n > 0 ? g(n - 1) : 0; }
       int g(int n) { return f(n); } int main() { putn(f(3)); }`);
+    if (!cc.ok) throw new Error(cc.errors.map((e) => e.msg).join("; "));
+    expect(cc.asm).toContain("[recurses]");
+  });
+
+  it("still emits a string a peephole reached", () => {
+    // the peepholes hand out the s<i> label without going through the case
+    // that records it, and a literal nothing appears to point at is dropped
+    for (const src of [
+      `int main() { char *s; s = 0; putn(s == "hi"); }`,
+      `int main() { char *s; s = 0; putn(s - "hi"); }`,
+      `int main() { char *s; s = 0; if (s == "hi") putc(89); else putc(78); }`,
+    ]) {
+      const cc = compileC(src);
+      if (!cc.ok) throw new Error(`${src}: ${cc.errors.map((e) => e.msg).join("; ")}`);
+      expect(assemble(cc.asm), src).toMatchObject({ ok: true });
+    }
+    expect(runC(`int main() { char *s; s = 0; putn(s == "hi"); putc("AB"[1]); }`)).toBe("0B");
+  });
+
+  it("sees a call made from hand assembly", () => {
+    // $name reaches functions, so a program can recurse through the escape
+    // hatch — and would be handed a frame it can re-enter
+    const cc = compileC(`int depth;
+      int down() { depth = depth + 1; if (depth < 3) asm("call $down"); return depth; }
+      int main() { depth = 0; putn(down()); }`);
     if (!cc.ok) throw new Error(cc.errors.map((e) => e.msg).join("; "));
     expect(cc.asm).toContain("[recurses]");
   });

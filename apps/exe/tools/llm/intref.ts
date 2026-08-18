@@ -69,11 +69,11 @@ const shift = (v: number, s: number): number =>
 const rshift = (v: number, s: number): number =>
   s > 0 ? Math.floor((v + Math.pow(2, s - 1)) / Math.pow(2, s)) : shift(v, s);
 const sat8 = (v: number): number => (v < -127 ? -127 : v > 127 ? 127 : v);
-// symmetric on purpose: the machine clamps low at -32767, not -32768, so
-// that negating a word is always safe — normQuant takes an absolute value of
-// the residual stream. Nothing in this model reaches either end (measured:
-// zero saturations over three full generations), but the two have to agree.
-const sat16 = (v: number): number => (v < -32767 ? -32767 : v > 32767 ? 32767 : v);
+/** What mvrow and sadd both do: a value that fits is passed through, and one
+    that does not is clamped to -32767 rather than -32768, so that negating a
+    word is always safe (normQuant takes the absolute value of the residual
+    stream). -32768 itself fits, and goes through untouched. */
+const sat16 = (v: number): number => (v < -32768 ? -32767 : v > 32767 ? 32767 : v);
 
 /** Integer square root, the way the machine does it: two bits at a time, no
     floats and no division. */
@@ -246,11 +246,14 @@ export class Machine {
     }
     let sn = 0;
     while (omax >> sn > 127) sn++;
-    for (let i = 0; i < n; i++) out[i] = rshift(t[i]!, sn) + 128;
+    // sn leaves seven bits after a floor-shift, but the store rounds, and
+    // rounding can carry one past — 255 with sn=1 lands on 256. The bottom
+    // cannot: the same sn bounds the most negative at -128, which biases to 0.
+    for (let i = 0; i < n; i++) out[i] = Math.min(255, rshift(t[i]!, sn) + 128);
     return ag - sn;
   }
 
-  /** 1/(1+e^-z) in 256ths, out of the same table softmax uses. */
+  /** 1/(1+e^-z) in 128ths, out of the same table softmax uses. */
   private sigmoid(z8: number, az: number): number {
     const i = shift(z8 < 0 ? -z8 : z8, az - SCORE_BITS);
     const u = i > LUT_ENTRIES - 1 ? 0 : this.lut[i]!;

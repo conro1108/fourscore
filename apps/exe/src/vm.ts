@@ -401,6 +401,10 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
       vm.fault = `Memory fault at ${hex(addr)}`;
       return 0;
     }
+    // memory is the common case by a wide margin — the model's inner loop
+    // reads a word of RAM every eight instructions — so it does not wait
+    // behind the whole hardware page
+    if (addr < MMIO_BASE) return mem[addr]!;
     if (addr === PORT_KEY) return io.key() & 0xffff;
     if (addr === PORT_RND) return io.rand() & 0xffff;
     if (addr === PORT_VPOS) return vpos;
@@ -424,6 +428,10 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
   function store(addr: number, v: number): void {
     if (addr >= MEM_SIZE) {
       vm.fault = `Memory fault at ${hex(addr)}`;
+      return;
+    }
+    if (addr < MMIO_BASE) {
+      mem[addr] = v;
       return;
     }
     if (addr === PORT_CON) io.putChar(v & 0xffff);

@@ -56,6 +56,18 @@ describe("assembler", () => {
     const res = assemble("mov r0, 0x0F00\nmov r1, -1\nmov r2, 'A'\nmov r3, con\nhlt");
     expect(res.ok).toBe(true);
   });
+
+  it("will not let a label shadow a port", () => {
+    // a label called `key` once silently took the keyboard; every port name
+    // is reserved now, and the drive's three are ports like any other
+    for (const name of ["key", "con", "num", "rnd", "vpos", "vchr", "vsync", "dpos", "dbnk", "dsk"]) {
+      const res = assemble(`${name}: mov r0, 1\nhlt`);
+      expect(res.ok, name).toBe(false);
+      if (!res.ok) expect(res.errors[0]!.msg).toContain("belongs to the hardware");
+    }
+    // and the names work as addresses without being declared
+    expect(assemble(`mov r0, 65\nst r0, [con]\nld r0, [dsk]\nhlt`).ok).toBe(true);
+  });
 });
 
 describe("cpu", () => {

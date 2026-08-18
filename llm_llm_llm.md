@@ -164,13 +164,16 @@ The parts that were decided rather than planned:
   than through the stack, static frames for functions that cannot recurse,
   and *not emitting string literals nothing points at* (every `asm("...")` is
   one, so a program that used the escape hatch carried a copy of its own
-  assembly) took it to 3,290. pong.c fell 42% on the way past. This was the
+  assembly) took it to 3,261. pong.c fell 42% on the way past. This was the
   single largest piece of work in the phase and none of it was foreseen.
-- **A program this size only just fits, and that is a real finding.** 3,290
+- **A program this size only just fits, and that is a real finding.** 3,261
   words of program plus 428 of heap against 3,840, with the arithmetic
   helpers, RMSNorm, softmax and the sampler already in `asm("...")`. Anything
-  much larger than a transformer is not writing itself in this dialect. The
-  MMIO page has 246 unused words in it if a future phase gets desperate.
+  much larger than a transformer is not writing itself in this dialect. Note
+  that the heap runs past `DATA_STACK_TOP`, which is safe only because
+  nothing in llm.c recurses — `llm.test.ts` asserts that rather than the
+  consequence. The MMIO page has 246 unused words in it if a future phase
+  gets desperate.
 
 **Phase 3 — Distill a model that only knows this machine.** No corpus exists
 for the dialect, so manufacture one: host LLMs generate tens of thousands of

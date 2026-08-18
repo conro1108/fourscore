@@ -44,17 +44,20 @@ about 1.7 seconds a word. The plan and the decisions behind it are in
 
 Two things that will bite otherwise:
 
-- **The program has 3840 words, and llm.c uses 3290 of them plus 428 of
+- **The program has 3840 words, and llm.c uses 3261 of them plus 428 of
   heap.** Every compiler change moves that number. `llm.test.ts` asserts it
   fits, and `apps/exe/tools/llm/` has the tooling; if you make CC emit more
   code, that test is what tells you.
 - **`tools/llm/intref.ts` is the oracle, not a second implementation.** It
   runs the identical fixed-point pipeline in TypeScript over the same drive
-  image, and `llm.test.ts` compares the machine to it token for token. When
-  they disagree, the oracle is right until proven otherwise — it has already
-  caught a cache-stride bug that read as fluent English. Any change to the
-  numerics has to be argued against `tools/llm/grade.ts`, which measures the
-  quantised model against the float one (currently 94% top-1, 0.06 nats).
+  image, and `llm.test.ts` compares the machine to it token for token. Which
+  of the two is right when they disagree is not decided in advance: the
+  oracle caught a cache-stride bug that read as fluent English, and the
+  machine caught the oracle truncating the one activation a token that
+  rounds its way past 255. The value is that a bug has to be in both,
+  identically, to live. Any change to the numerics has to be argued against
+  `tools/llm/grade.ts`, which measures the quantised model against the float
+  one (currently 94% top-1, 0.06 nats).
 
 `npm run llm` drives the real browser through the whole thing and photographs
 it every five seconds, because a single screenshot cannot tell slow from

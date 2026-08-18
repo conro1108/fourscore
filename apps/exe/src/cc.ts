@@ -844,6 +844,12 @@ function callGraph(fns: FnDecl[]): Map<string, Set<string>> {
       case "block":
         s.body.forEach((b) => inStmt(b, out));
         return;
+      case "asm":
+        // $name reaches functions too, and a program that recurses through
+        // the escape hatch would otherwise be handed a frame it can re-enter
+        for (const m of s.text.matchAll(/\$([A-Za-z_]\w*)/g))
+          if (known.has(m[1]!)) out.add(m[1]!);
+        return;
       default:
         return;
     }
@@ -1014,7 +1020,14 @@ function emit(
    * llm.c fitting in the RAM and not.
    */
   const directSrc = (e: Expr): string | null =>
-    e.kind === "num" ? imm(e.value) : e.kind === "str" ? `s${e.index}` : null;
+    e.kind === "num"
+      ? imm(e.value)
+      : e.kind === "str"
+        // handing out the label counts as pointing at it: the peepholes emit
+        // s<i> without ever reaching emitExpr's "str" case, and a literal
+        // nothing appears to point at does not get into the image
+        ? (usedStrings.add(e.index), `s${e.index}`)
+        : null;
 
   /** The fixed address a name lives at, when there is one: a global's label,
       or a slot of a static frame. Null means the frame pointer has to work
@@ -1781,7 +1794,7 @@ function emit(
       ln(`jz rt_${which}_a`);
       ln(`xor r0, 0xffff`);
       ln(`add r0, 1`);
-      ln(`mov r2, ${which === "div" ? 1 : 1}`);
+      ln(`mov r2, 1`); // remember to put the sign back
       ln(`rt_${which}_a:`);
       ln(`mov r3, r1`);
       ln(`and r3, 0x8000`);

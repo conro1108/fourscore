@@ -51,15 +51,14 @@ export const LLM_C = String.raw`/* llm.c — a language model, on this machine's
 
 /* ROWHDR: a row's exponent, then its byte sum. KROW and VROW are that plus
    what the K and V caches keep in a row. SCOREB: scores and logits are kept
-   in 32nds; ATTB: attention weights in 256ths; LUTONE is what the table
-   calls one. (A #define here is a name and a number, nothing else — no
-   arithmetic, and no comment after it. See /docs/c.txt.) */
+   in 32nds, ATTB: attention weights in 256ths. (A #define here is a name and
+   a number, nothing else — no arithmetic, and no comment after it. But sums
+   of constants are worked out while compiling. See /docs/c.txt.) */
 #define ROWHDR  3
 #define KROW    11
 #define VROW    131
 #define SCOREB  5
 #define ATTB    8
-#define LUTONE  127
 #define MAGIC   0x4D4C
 
 /* ---- what the machine is thinking about ----
@@ -211,26 +210,6 @@ int sadd(int a, int b) {
     asm("sad:");
     asm("st r0, [$a]");
     return a;
-}
-
-/* Two bits at a time, no division and no floating point. */
-int isqrt(int n) {
-    asm("ld r1, [$n]");         /* what is left */
-    asm("mov r2, 0");           /* the root so far */
-    asm("mov r3, 0x4000");      /* the bit being tried */
-    asm("sqt:");
-    asm("mov r4, r2");
-    asm("add r4, r3");
-    asm("shr r2, 1");
-    asm("cmp r1, r4");
-    asm("jc sqn");
-    asm("sub r1, r4");
-    asm("add r2, r3");
-    asm("sqn:");
-    asm("shr r3, 2");
-    asm("jnz sqt");
-    asm("st r2, [$n]");
-    return n;
 }
 
 /* The other half of undoing the bias: what the activations add up to, before
@@ -619,6 +598,14 @@ int normq(int *out) {
     asm("add r0, r2");
     asm("shr r0, r4");
     asm("add r0, r1");
+    /* sn was picked so that dropping sn bits leaves seven, but rounding can
+       carry one past that — 255 rounds to 128, which is 256 once biased and
+       no longer a byte. The bottom cannot do the same: the same choice of sn
+       bounds the most negative value at -128, which biases to 0. */
+    asm("cmp r0, 256");
+    asm("jc nqh1");
+    asm("mov r0, 255");
+    asm("nqh1:");
     asm("st r0, [r6]");
     asm("add r6, 1");
     asm("sub r3, 1");

@@ -72,6 +72,20 @@ describe("the model on the processor", () => {
     expect(MMIO_BASE).toBeLessThan(MEM_SIZE);
   });
 
+  it("keeps its heap out of the way of a stack it never uses", () => {
+    // The heap runs past DATA_STACK_TOP (0x0E00), where the compiler's own
+    // stack would start growing down through it. That is only safe because
+    // nothing in llm.c recurses: r7 is set once at startup and never moved
+    // again, so the region is the program's. Assert the reason, not the
+    // consequence — malloc is an unchecked bump allocator, so the day
+    // someone adds a recursive helper the first frame lands in the middle of
+    // the attention weights and the model just gets quietly worse.
+    const cc = compileC(LLM_C);
+    if (!cc.ok) throw new Error(cc.errors.map((e) => e.msg).join("; "));
+    expect(cc.asm).not.toContain("[recurses]");
+    expect(cc.asm).not.toContain("sub r7");
+  });
+
   it("is the file on the disk", () => {
     expect(SEED_FILES.find((f) => f.name === "SRC\\llm.c")!.text).toBe(LLM_C);
   });
