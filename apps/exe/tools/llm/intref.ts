@@ -69,7 +69,11 @@ const shift = (v: number, s: number): number =>
 const rshift = (v: number, s: number): number =>
   s > 0 ? Math.floor((v + Math.pow(2, s - 1)) / Math.pow(2, s)) : shift(v, s);
 const sat8 = (v: number): number => (v < -127 ? -127 : v > 127 ? 127 : v);
-const sat16 = (v: number): number => (v < -32768 ? -32768 : v > 32767 ? 32767 : v);
+// symmetric on purpose: the machine clamps low at -32767, not -32768, so
+// that negating a word is always safe — normQuant takes an absolute value of
+// the residual stream. Nothing in this model reaches either end (measured:
+// zero saturations over three full generations), but the two have to agree.
+const sat16 = (v: number): number => (v < -32767 ? -32767 : v > 32767 ? 32767 : v);
 
 /** Integer square root, the way the machine does it: two bits at a time, no
     floats and no division. */

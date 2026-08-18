@@ -461,6 +461,26 @@ describe("what the compiler makes of it", () => {
       int main() { putn(f(10)); }`)).toBe("55");
   });
 
+  it("does not let a nested call tread on the frame being filled", () => {
+    // f(x, f(y, z)) re-enters f without f calling itself, so there is no
+    // cycle in the call graph to notice and f keeps its fixed frame — but
+    // the inner call would write the very slots the outer one has filled.
+    expect(runC(`int f(int a, int b) { return a * 100 + b; }
+      int main() { putn(f(7, f(1, 2))); }`)).toBe("802");
+    // and the same thing one step removed, through another function
+    expect(runC(`int f(int a, int b) { return a * 100 + b; }
+      int g(int v) { return f(v, 0); }
+      int main() { putn(f(7, g(1))); }`)).toBe("800");
+    // the first argument is safe either way: it is done before anything is
+    // written, so this one must not pay for the stack
+    expect(runC(`int f(int a, int b) { return a * 100 + b; }
+      int main() { putn(f(f(1, 2), 7)); }`)).toBe("10207");
+    const safe = compileC(`int f(int a, int b) { return a + b; }
+      int g(int v) { return v; } int main() { putn(f(1, g(2))); }`);
+    if (!safe.ok) throw new Error("should compile");
+    expect(safe.asm).not.toContain("push r0\n        push r0");
+  });
+
   it("spots recursion that goes the long way round", () => {
     // f and g are each other's, which no amount of looking at one shows
     const cc = compileC(`int f(int n) { return n > 0 ? g(n - 1) : 0; }

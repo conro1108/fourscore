@@ -776,12 +776,8 @@ interface Local {
   s: string | null;
 }
 
-/** Every user function each function calls. There are no function pointers
-    in this dialect, so this is the entire call graph and nothing can be
-    reached that is not in it. */
-function callGraph(fns: FnDecl[]): Map<string, Set<string>> {
-  const known = new Set(fns.map((f) => f.name));
-  const graph = new Map<string, Set<string>>();
+/** Every function named inside an expression. */
+function callsInExpr(e: Expr, known: Set<string>, out: Set<string>): void {
   const inExpr = (e: Expr, out: Set<string>): void => {
     switch (e.kind) {
       case "call":
@@ -811,6 +807,16 @@ function callGraph(fns: FnDecl[]): Map<string, Set<string>> {
         return;
     }
   };
+  inExpr(e, out);
+}
+
+/** Every user function each function calls. There are no function pointers in
+    this dialect, so this is the entire call graph and nothing can be reached
+    that is not in it. */
+function callGraph(fns: FnDecl[]): Map<string, Set<string>> {
+  const known = new Set(fns.map((f) => f.name));
+  const graph = new Map<string, Set<string>>();
+  const inExpr = (e: Expr, out: Set<string>): void => callsInExpr(e, known, out);
   const inStmt = (s: Stmt, out: Set<string>): void => {
     switch (s.kind) {
       case "expr":
@@ -850,9 +856,8 @@ function callGraph(fns: FnDecl[]): Map<string, Set<string>> {
   return graph;
 }
 
-/** The functions that can reach themselves. Only those need a frame that
-    stacks; everything else can keep its locals at fixed addresses. */
-function recursiveFns(graph: Map<string, Set<string>>): Set<string> {
+/** For each function, everything it can end up calling. */
+function reachability(graph: Map<string, Set<string>>): Map<string, Set<string>> {
   const reach = new Map<string, Set<string>>();
   for (const name of graph.keys()) {
     const seen = new Set<string>();
@@ -865,7 +870,7 @@ function recursiveFns(graph: Map<string, Set<string>>): Set<string> {
     }
     reach.set(name, seen);
   }
-  return new Set([...reach].filter(([n, s]) => s.has(n)).map(([n]) => n));
+  return reach;
 }
 
 function countSlots(body: Stmt[]): number {
@@ -932,8 +937,17 @@ function emit(
 
   /** Functions that cannot be re-entered, and so keep their arguments and
       locals at fixed addresses instead of on the data stack. */
+  const known = new Set(fns.map((f) => f.name));
+  const reach = reachability(callGraph(fns));
   const statics = new Set(fns.map((f) => f.name));
-  for (const r of recursiveFns(callGraph(fns))) statics.delete(r);
+  for (const [n, s] of reach) if (s.has(n)) statics.delete(n);
+  /** Whether evaluating `e` can end up inside `name`. */
+  const canReach = (e: Expr, name: string): boolean => {
+    const calls = new Set<string>();
+    callsInExpr(e, known, calls);
+    for (const c of calls) if (c === name || reach.get(c)?.has(name)) return true;
+    return false;
+  };
   /** How many words each static function's frame needs. */
   const frameWords = new Map<string, number>();
   for (const f of fns)
@@ -1353,11 +1367,31 @@ function emit(
     if (fn.params.length !== e.args.length)
       errors.push({ line: e.line, msg: `${e.name} takes ${fn.params.length} argument(s)` });
     if (statics.has(fn.name)) {
-      // a frame that cannot be re-entered can be written to directly
-      e.args.forEach((a, i) => {
-        emitExpr(a);
+      const slot = (i: number): void => {
         if (i < fn.params.length) ln(`st r0, [${frameLabel(fn.name, i)}]`);
-      });
+      };
+      // Filling a fixed frame one argument at a time is only safe while
+      // nothing can walk into that frame in between — and f(x, f(y, z)) can,
+      // without f calling itself and so without any cycle in the call graph
+      // to notice. The first argument is fine either way: whatever it does
+      // has finished before anything is written. For the rest, if the
+      // expression can reach this function at all, the arguments wait on the
+      // hardware stack, which nothing can address.
+      if (e.args.slice(1).some((a) => canReach(a, fn.name))) {
+        for (const a of e.args) {
+          emitExpr(a);
+          ln(`push r0`);
+        }
+        for (let i = e.args.length - 1; i >= 0; i--) {
+          ln(`pop r0`);
+          slot(i);
+        }
+      } else {
+        e.args.forEach((a, i) => {
+          emitExpr(a);
+          slot(i);
+        });
+      }
       ln(`call fn_${e.name}`);
       return;
     }

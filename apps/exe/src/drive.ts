@@ -15,7 +15,10 @@
  * to run is entitled to the media it came with.
  */
 
-const MEDIA_URL = `${import.meta.env.BASE_URL ?? "/"}WEIGHTS.BIN`.replace(/\/+/g, "/");
+// Vite's BASE_URL always ends in a slash, and it is allowed to be a whole
+// origin (a CDN), so this is a join and not a path concatenation to be
+// tidied up afterwards — collapsing repeated slashes would eat the "//".
+const MEDIA_URL = `${import.meta.env.BASE_URL ?? "/"}WEIGHTS.BIN`;
 
 let media: Uint8Array | null = null;
 
