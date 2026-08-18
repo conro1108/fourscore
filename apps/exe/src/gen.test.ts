@@ -65,6 +65,25 @@ describe("the header is the conditioning channel, so it has to match", () => {
     expect(answer.content.split("\n")[0]).toBe(header);
   });
 
+  it("spends its only shot on the tier being asked for", () => {
+    // `[].every()` is vacuously true, so a naive "last slot goes to another
+    // tier" rule eats the *only* slot: a one-shot tier-4 prompt would be
+    // worked through by fizzbuzz, with no pong in it anywhere.
+    const shots = pickShots(GOOD, 4, 1, () => 0.5, new Map());
+    expect(shots).toHaveLength(1);
+    expect(shots[0]!.tier).toBe(4);
+  });
+
+  it("keeps handing out examples after everything has hit the cap", () => {
+    // 4,000 candidates at 2 shots needs 200 verified programs to stay under
+    // a cap of 40. The pool is nowhere near that at 2am, and returning no
+    // examples at all is the failure that shows up as yield and never as a
+    // message.
+    const uses = new Map(GOOD.map((c) => [c.id, 99]));
+    const shots = pickShots(GOOD, 4, 2, () => 0.5, uses, 40);
+    expect(shots).toHaveLength(2);
+  });
+
   it("does not show the parent twice", () => {
     const parent = GOOD.find((c) => c.id === "good/pong")!;
     const shots = pickShots(GOOD, 4, 2, () => 0.5, new Map(), 40, parent.id);
@@ -76,6 +95,13 @@ describe("the header is the conditioning channel, so it has to match", () => {
     expect(sys).toContain("switch");
     expect(sys).toContain("vsync()");
     expect(sys).toContain("3,840 words");
+    // Both of these are real CC, documented in the c.txt pasted above them,
+    // and neither belongs in the corpus: asm() would put a second language
+    // in a 1-2.5M model and hand Phase 4's masker a sub-language to mask,
+    // and the drive reads as zeros with nothing in the bay, so a program
+    // that uses it grades clean while doing nothing.
+    expect(sys).toContain('asm("...")');
+    expect(sys).toContain("dget()");
     const user = buildMessages({ tier: 4, kind: "freestyle", header: HEADERS[4][0]!, shots: [] })[1]!.content;
     expect(user).toContain("glyph of its own");
   });
@@ -85,17 +111,27 @@ describe("a run, end to end, against a stub that speaks llama-server", () => {
   const servers: Server[] = [];
   afterAll(() => servers.forEach((s) => s.close()));
 
-  /** Answers every request with `reply`, or with a 500 when it's null. */
-  const serve = async (reply: (n: number) => string | null): Promise<string> => {
+  /** Answers every request with `reply`, or with a 500 when it's null. A
+      tuple says why the model stopped, the way llama-server does. */
+  const serve = async (
+    reply: (n: number) => string | [string, string] | null,
+    health = false,
+  ): Promise<string> => {
     let n = 0;
-    const server = createServer((_req, res) => {
+    const server = createServer((req, res) => {
+      if (req.url === "/health") {
+        res.writeHead(health ? 200 : 503).end("{}");
+        return;
+      }
       const body = reply(n++);
+      if (body === "HANG") return; // never answers, the way a wedged slot doesn't
       if (body === null) {
         res.writeHead(500).end("nope");
         return;
       }
+      const [content, finish] = typeof body === "string" ? [body, "stop"] : body;
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ choices: [{ message: { content: body } }] }));
+      res.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: finish }], usage: { completion_tokens: 900 } }));
     });
     servers.push(server);
     await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
@@ -155,6 +191,46 @@ describe("a run, end to end, against a stub that speaks llama-server", () => {
     // Six rows, and the second run's ids carry on from the first's.
     expect(readFileSync(opts(url, dir).out, "utf8").trim().split("\n")).toHaveLength(4);
     expect(second[0]!.id).not.toBe("t4/freestyle/0");
+  });
+
+  it("knows a program cut off by the token cap from bad C", async () => {
+    // Truncation reads as v0:syntax, and the V0 histogram is the number that
+    // decides whether to build a host-side grammar. Mistaking one for the
+    // other means building a grammar to fix --max-tokens.
+    const dir = mkdtempSync(join(tmpdir(), "gen-"));
+    const url = await serve(() => [pong.slice(0, 1500), "length"]);
+    const rows = await run(opts(url, dir));
+    expect(rows.map((r) => r.verdict.fail)).toEqual(Array(4).fill("gen:truncated"));
+  });
+
+  it("stops when every reply is cut off, and says which knob", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gen-"));
+    const url = await serve(() => [pong.slice(0, 1500), "length"]);
+    await expect(run({ ...opts(url, dir), n: 100, slots: 1 })).rejects.toThrow(/--max-tokens/);
+  });
+
+  it("does not end the night because a batched server got slow", async () => {
+    // -np 8 decodes every slot in one batch, so they cross a timeout
+    // together: a counter of consecutive failures reads one slow batch as
+    // eight dead ones. /health is what tells the difference.
+    const dir = mkdtempSync(join(tmpdir(), "gen-"));
+    const url = await serve(() => "HANG", true);
+    const rows = await run({ ...opts(url, dir), n: 3, slots: 1, timeoutMs: 150, backoffMs: 5 });
+    expect(rows).toHaveLength(0); // nothing came back, and nothing threw
+  });
+
+  it("stops when the server has actually gone", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gen-"));
+    const url = await serve(() => "HANG", false); // /health answers 503
+    await expect(run({ ...opts(url, dir), n: 100, slots: 1, timeoutMs: 150, backoffMs: 5 })).rejects.toThrow(/timeout/);
+  });
+
+  it("stops when the model keeps answering with nothing", async () => {
+    // What a model whose whole budget went into reasoning_content returns.
+    // Without this it is four thousand identical rows by morning, no error.
+    const dir = mkdtempSync(join(tmpdir(), "gen-"));
+    const url = await serve(() => "");
+    await expect(run({ ...opts(url, dir), n: 100, slots: 1 })).rejects.toThrow(/five times with nothing/);
   });
 
   it("stops rather than filling the night with the same error", async () => {

@@ -47,6 +47,23 @@ const ABSENT_SHAPES = [
   "  only works inside an expression, never in an array bound (`int a[N+2]` is refused)",
 ];
 
+/**
+ * In the manual, real, and not for these programs. `c.txt` is pasted above
+ * this and documents both, so saying nothing leaves the model to guess and
+ * the prompt contradicting itself.
+ *
+ * `asm("...")` is the one that matters: it compiles, it runs, it passes V2,
+ * and a corpus with raw 16-bit assembly in it spends a 1-2.5M model's
+ * capacity on a second language — and hands Phase 4's grammar masker a
+ * sub-language to mask. The drive is milder: with nothing in the bay it
+ * reads as zeros, so a drive program grades clean while doing nothing.
+ */
+const OUT_OF_SCOPE = [
+  'asm("...") — the escape hatch to raw assembly. It works. Don\'t use it;',
+  "  these programs are C all the way down.",
+  "dpos(a) dbank(a) dget() dput(v) — the drive. There is nothing in the bay.",
+];
+
 /** What it does have, because a model told only what's forbidden writes
     timid, stunted C. */
 const PRESENT = [
@@ -98,6 +115,9 @@ const SYSTEM = [
   ...wrap(ABSENT, 66),
   "  #include, and any library at all — there is no stdio and no string.h",
   ...ABSENT_SHAPES.map((s) => `  ${s}`),
+  "",
+  "IN THE MANUAL ABOVE, AND NOT FOR THESE PROGRAMS:",
+  ...OUT_OF_SCOPE.map((x) => `  ${x}`),
   "",
   "WHAT IT DOES HAVE:",
   ...PRESENT.map((s) => `  ${s}`),
@@ -302,10 +322,33 @@ export const stampHeader = (text: string, header: string): string => {
   return `${header}\n\n${body}`;
 };
 
+/** Fisher-Yates. `sort(() => r() - 0.5)` is not a shuffle — with an
+    inconsistent comparator V8's sort leaves long runs in place, so a pool of
+    thousands gets read in insertion order and calling it stratified is a
+    lie. */
+const shuffled = <T,>(xs: readonly T[], pick: () => number): T[] => {
+  const out = [...xs];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(pick() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+};
+
 /**
  * Few-shots, stratified and rationed. `uses` is carried by the caller across
- * a whole run: without the cap the pool converges on whatever the model
- * liked at 11pm and by morning every program is that program.
+ * a whole run: without a cap the pool converges on whatever the model liked
+ * at 11pm and by morning every program is that program.
+ *
+ * The cap rations **being shown as an example**, and nothing else. A
+ * mutation's parent is deliberately not counted against it: tier 4 starts
+ * with exactly one verified program, so a cap on parents would stop
+ * mutation dead after the fortieth one and there would be no second
+ * generation to draw a pool from.
+ *
+ * When every candidate has hit the cap the least-used ones are used anyway.
+ * Returning no examples at all is the worse failure and the silent one —
+ * yield falls at 2am and nothing prints.
  */
 export function pickShots(
   pool: readonly Candidate[],
@@ -318,19 +361,25 @@ export function pickShots(
 ): Candidate[] {
   // The parent of a mutation is already in the prompt in full; showing it
   // again as an example spends context on nothing.
-  const eligible = pool.filter((c) => c.id !== exclude && (uses.get(c.id) ?? 0) < cap);
-  const near = eligible.filter((c) => c.tier === tier);
-  const far = eligible.filter((c) => c.tier !== tier);
+  const usable = pool.filter((c) => c.id !== exclude);
+  const under = usable.filter((c) => (uses.get(c.id) ?? 0) < cap);
+  const eligible = under.length
+    ? under
+    : [...usable].sort((a, b) => (uses.get(a.id) ?? 0) - (uses.get(b.id) ?? 0)).slice(0, Math.max(n, 8));
+  const near = shuffled(eligible.filter((c) => c.tier === tier), pick);
+  const far = shuffled(eligible.filter((c) => c.tier !== tier), pick);
   const out: Candidate[] = [];
-  // One example from a neighbouring tier when there is room: the dialect is
-  // one language, and a tier-4 prompt that has only ever seen pong writes
-  // pong even when asked for something else.
-  const wanted = [...near.sort(() => pick() - 0.5), ...far.sort(() => pick() - 0.5)];
-  for (const c of wanted) {
+  // The last slot goes to a neighbouring tier when there is one to spare:
+  // the dialect is one language, and a tier-4 prompt that has only ever seen
+  // pong writes pong even when asked for something else. `out.length > 0`
+  // is what keeps that from eating the *only* slot when n is 1 — `every` on
+  // an empty array is true, so without it a one-shot tier-4 prompt gets a
+  // fizzbuzz as its worked example and no pong at all.
+  for (const c of [...near, ...far]) {
     if (out.length >= n) break;
-    if (out.length === n - 1 && far.length && out.every((o) => o.tier === tier)) {
+    if (out.length > 0 && out.length === n - 1 && far.length && out.every((o) => o.tier === tier)) {
       const other = far[Math.floor(pick() * far.length)];
-      if (other) {
+      if (other && !out.includes(other)) {
         out.push(other);
         continue;
       }

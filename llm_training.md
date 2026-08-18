@@ -373,6 +373,18 @@ Phase 2's lesson, believed: build the graders before the thing they grade.
      them. Committing a night to an unmeasured prompt is how you wake up to
      nine thousand rejects sharing three failure keys.
 
+   Two things about `llama-server` that fail the night rather than the
+   request. **Per-slot context is `n_ctx / slots`**, and a tier-4 mutate
+   prompt is `c.txt` plus the fence plus a parent program plus shots — call
+   it 4K tokens, plus 1,400 generated, so eight slots want `n_ctx` ≥ 44K or
+   every request 413s. That one fails loudly at request one, which is why it
+   costs nothing to check first. **And the pilot understates the steady-state
+   prompt**: while the pool is only the hand-written seeds, parents and shots
+   are the 3,143-char `pong.c`, but by 4am they are model-written programs up
+   to `--max-tokens` long. Whatever you tune the timeout against on a seeded
+   pool is not what a request looks like at the end, and the drift is all one
+   way.
+
    Decide here whether host-side grammar constraint is worth wiring up: only
    if the V0 rejects turn out to be syntax-dominated. Train a provisional BPE
    on the pilot plus the seeds and measure pong's token length — that is
