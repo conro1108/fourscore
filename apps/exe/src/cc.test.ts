@@ -517,6 +517,97 @@ describe("what the compiler makes of it", () => {
   });
 });
 
+/**
+ * The peepholes are the kind of thing that passes every case anyone thinks to
+ * write and then fails quietly on one shape nobody did — a constant on the
+ * left of a shift, a comparison used as a value rather than as a branch, an
+ * operand that had to go through the stack after all. So: three hundred
+ * random expressions, worked out once by a 16-bit reference here and once by
+ * the real processor, each of them both printed and branched on.
+ * board.test.ts fuzzes the bitboard for the same reason.
+ */
+describe("expressions, at random", () => {
+  const U = (v: number): number => v & 0xffff;
+  const S = (v: number): number => (v & 0x8000 ? (v & 0xffff) - 0x10000 : v & 0xffff);
+  const G = 1234;
+  const L = 7;
+  const A2 = 30;
+  const NAMES: [string, number][] = [["g", G], ["l", L], ["a[2]", A2]];
+  const BIN = ["+", "-", "*", "&", "|", "^", "<<", ">>", "==", "!=", "<", ">", "<=", ">=", "&&", "||"];
+
+  let seed = 12345;
+  const rnd = (n: number): number => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed % n;
+  };
+
+  /** A random expression, and what a 16-bit machine owes for it. */
+  function gen(depth: number): { c: string; v: number } {
+    const pick = rnd(depth <= 0 ? 2 : 10);
+    if (pick < 1) {
+      const n = rnd(0x10000);
+      return { c: String(n), v: n };
+    }
+    if (pick < 2) {
+      const [c, v] = NAMES[rnd(NAMES.length)]!;
+      return { c, v };
+    }
+    if (pick < 3) {
+      const e = gen(depth - 1);
+      const op = ["-", "~", "!"][rnd(3)]!;
+      return { c: `${op}(${e.c})`, v: op === "-" ? U(-e.v) : op === "~" ? U(~e.v) : e.v === 0 ? 1 : 0 };
+    }
+    if (pick < 4) {
+      // only ever by a literal that is not zero, so nothing has to fault
+      const e = gen(depth - 1);
+      const k = 1 + rnd(200);
+      const op = rnd(2) ? "/" : "%";
+      const q = Math.trunc(S(e.v) / k);
+      return { c: `(${e.c}) ${op} ${k}`, v: op === "/" ? U(q) : U(S(e.v) - q * k) };
+    }
+    const a = gen(depth - 1);
+    const b = gen(depth - 1);
+    const op = BIN[rnd(BIN.length)]!;
+    const sh = b.v & 31;
+    const v = {
+      "+": () => U(a.v + b.v),
+      "-": () => U(a.v - b.v),
+      "*": () => U(a.v * b.v),
+      "&": () => U(a.v & b.v),
+      "|": () => U(a.v | b.v),
+      "^": () => U(a.v ^ b.v),
+      "<<": () => (sh >= 16 ? 0 : U(a.v << sh)),
+      ">>": () => (sh >= 16 ? 0 : a.v >>> sh),
+      "==": () => (a.v === b.v ? 1 : 0),
+      "!=": () => (a.v !== b.v ? 1 : 0),
+      "<": () => (S(a.v) < S(b.v) ? 1 : 0),
+      ">": () => (S(a.v) > S(b.v) ? 1 : 0),
+      "<=": () => (S(a.v) <= S(b.v) ? 1 : 0),
+      ">=": () => (S(a.v) >= S(b.v) ? 1 : 0),
+      "&&": () => (a.v !== 0 && b.v !== 0 ? 1 : 0),
+      "||": () => (a.v !== 0 || b.v !== 0 ? 1 : 0),
+    }[op]!();
+    return { c: `(${a.c}) ${op} (${b.c})`, v };
+  }
+
+  it("come out the same on the processor as on paper", () => {
+    for (let round = 0; round < 10; round++) {
+      const es = Array.from({ length: 30 }, () => gen(3));
+      const body = es
+        .map((e) => `putn(${e.c}); putc(44); if (${e.c}) putc(84); else putc(70); putc(59);`)
+        .join("\n  ");
+      const out = runC(
+        `int g = ${G};\nint a[4] = {0, 0, ${A2}, 0};\nint main() { int l; l = ${L};\n  ${body}\n}`,
+        { maxSteps: 4_000_000 },
+      );
+      const got = out.split(";").filter((x) => x.length);
+      es.forEach((e, i) => {
+        expect(`${e.c} => ${got[i]}`).toBe(`${e.c} => ${S(e.v)},${e.v !== 0 ? "T" : "F"}`);
+      });
+    }
+  });
+});
+
 describe("the seed", () => {
   it("list.c compiles, runs and goes both ways", () => {
     const src = SEED_FILES.find((f) => f.name.endsWith("list.c"))!.text;
