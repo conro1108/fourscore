@@ -204,8 +204,9 @@
 > The slowness is the point and must never be papered over: no progress bar,
 > no spinner, no fake typing. A word appears when the arithmetic is done.
 > The banner says what it is doing in the machine's own flat voice and then
-> gets out of the way, and an empty drive says "NO MODEL ON THE DRIVE."
-> rather than pretending. `npm run llm` photographs it every five seconds
+> gets out of the way. An empty bay says "DRIVE NOT READY." — the period's
+> own phrase, and honest about both of its causes, since a drive still
+> spinning up and a drive with nothing in it are the same to a program. `npm run llm` photographs it every five seconds
 > because one screenshot cannot tell thinking from stuck.
 
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
