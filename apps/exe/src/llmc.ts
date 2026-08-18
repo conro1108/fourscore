@@ -324,6 +324,9 @@ void mvrow() {
     asm("sub r1, r3");
     asm("pop r3");              /* the shift */
 
+    /* stories260K only ever asks for -4 to 14 of these, so the whole-word
+       loop below and the rounding above 16 are here for a model that is not
+       this one. They are checked by reading, not by running. */
     asm("mov r0, r3");          /* a negative shift goes the other way */
     asm("and r0, 0x8000");
     asm("jz mvr");
