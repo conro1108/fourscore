@@ -42,6 +42,8 @@ export interface Head {
   layerStride: number;
   rmsFinal: number;
   classifier: number;
+  /** Tokens sampled a step looser before the temperature settles. */
+  warm: number;
   headSize: number;
   kvDim: number;
   kvMul: number;
@@ -141,6 +143,7 @@ export class Machine {
       layerStride: u32(56),
       rmsFinal: u32(60),
       classifier: u32(64),
+      warm: u16(68),
       headSize: dim / heads,
       kvDim: (dim * kvHeads) / heads,
       kvMul: heads / kvHeads,
@@ -394,7 +397,8 @@ export class Machine {
     let best = 0;
     let bestV = -0x8000;
     for (let t = 0; t < this.h.vocab; t++) {
-      const logit = this.row(this.xq, 0, dim, sl, anl - SCORE_BITS);
+      // one shift less while the story is still choosing what it is about
+      const logit = this.row(this.xq, 0, dim, sl, anl - SCORE_BITS + (pos < this.h.warm ? 1 : 0));
       const g = this.h.gumbel + (rand() & (GUMBEL_ENTRIES - 1)) * 2;
       const raw = this.drive[g]! | (this.drive[g + 1]! << 8);
       const v = logit + (raw >= 0x8000 ? raw - 0x10000 : raw);

@@ -94,7 +94,7 @@ void getroom() {
 
 int hLut; int hRope; int hGum; int hExps; int hText; int hK; int hV;
 int hEmbHi; int hEmbLo; int hLayHi; int hLayLo; int hStride;
-int hFinHi; int hFinLo; int hClsHi; int hClsLo; int ares;
+int hFinHi; int hFinLo; int hClsHi; int hClsLo; int ares; int warm;
 int klayer; int vlayer; int offQkv; int offWo; int offFfn; int offW13; int offW2;
 int eq[LAYERS]; int ek[LAYERS]; int ev[LAYERS]; int eo[LAYERS];
 int ez[LAYERS]; int e3[LAYERS]; int eh[LAYERS];
@@ -805,6 +805,7 @@ int loadhdr() {
     hStride = rd16(); rd16();
     hFinLo = rd16(); hFinHi = rd16();
     hClsLo = rd16(); hClsHi = rd16();
+    warm = rd16();
 
     klayer = KVHEADS * MAXSEQ * KROW;
     vlayer = KVHEADS * HEADSZ * VROW;
@@ -963,7 +964,12 @@ int step(int tok, int pos) {
        a draw from the softmax, and the machine has nowhere to put 512 logits */
     ahi = hFinHi; alo = hFinLo; ago();
     an = normq(xq);
-    mvset(xq, DIM, usum(xq, DIM), an - SCOREB);
+    /* One shift less to begin with, which is one temperature looser. This
+       model knows how a story starts far too well — it is 98.8% sure of the
+       word after "a little" — so the first few tokens are picked loosely
+       and everything after them is picked the usual way. The machine chooses
+       what the story is about, then tells it straight. */
+    mvset(xq, DIM, usum(xq, DIM), an - SCOREB + (pos < warm));
     ahi = hClsHi; alo = hClsLo;
     return pick();
 }

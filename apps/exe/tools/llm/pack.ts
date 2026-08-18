@@ -35,7 +35,7 @@ import type { Checkpoint, Config, Tokenizer } from "./checkpoint.js";
 import { forward, makeState, pieceText } from "./checkpoint.js";
 
 export const MAGIC = 0x4d4c; // 'L','M'
-export const VERSION = 1;
+export const VERSION = 2; // 2 appended WARM_TOKENS to the header
 export const HEADER_BYTES = 128;
 /** How far back the machine can see. The K/V cache is sized from it. */
 export const MAX_SEQ = 128;
@@ -53,6 +53,24 @@ export const ATT_BITS = 8;
 export const GUMBEL_ENTRIES = 512;
 /** Sampling temperature. A power of two, because it is folded into a shift. */
 export const TEMPERATURE = 0.5;
+/**
+ * How many tokens the machine picks loosely before it settles.
+ *
+ * The temperature above is one shift, so undoing it for a while is also one
+ * shift, and that turns out to be worth having: this model has effectively
+ * memorised "Once upon a time, there was a little", and at 0.5 it is 98.8%
+ * sure of the word after it: forty runs told two stories, thirty-five of
+ * them about a little girl named Lily.
+ *
+ * Ten is where the curve turns. It reaches past the fork at token nine,
+ * where the model settles on girl-or-boy, and gets 26 distinct openings out
+ * of 40. Twelve and sixteen also get 26 — the opening is already decided by
+ * then — but the float model finds their extra tokens more surprising (0.64
+ * and 0.68 nats against 0.56), which is what a made-up word looks like as a
+ * number. So: all of the variety available, at the least nonsense that buys.
+ * Everything after the tenth token is sampled exactly as it was.
+ */
+export const WARM_TOKENS = 10;
 /** One token's text: a length byte and up to seven characters. */
 export const TEXT_STRIDE = 8;
 /** Exponents ride in a byte with this much added, so they can be negative. */
@@ -297,6 +315,9 @@ export function buildImage(ck: Checkpoint, tok: Tokenizer, calib: Calib): Image 
   for (const a of [lay.lut, lay.rope, lay.gumbel, lay.exps, lay.text, lay.kCache, lay.vCache,
                    lay.embed, lay.layers, lay.layerStride, lay.rmsFinal, lay.classifier])
     out.u32(a);
+  // appended, so an older program reads the zero padding and simply does not
+  // warm up rather than reading someone else's field
+  out.u16(WARM_TOKENS);
 
   /* exp(-i/32), which is softmax, sigmoid and nothing else */
   out.seek(lay.lut);
