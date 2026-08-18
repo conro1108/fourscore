@@ -50,11 +50,17 @@ npm run trace                  # tier timeline over real games (no browser)
 npm run fever                  # plays a real game in a browser, reports what the desktop did
 node tools/live.mjs            # click-drives a real game
 npm run paint                  # draws, saves, pins and reloads a .spr through PAINT.EXE
+npm run llm                    # ~1min. Types cc llm.c and run llm into the real
+                               # terminal and photographs the story arriving.
+                               # Owed by anything that touches vm.ts, cc.ts,
+                               # llmc.ts, drive.ts or the drive image
 npm run timeline -- "?state=win" 3 8 14 18 40   # for anything that unfolds over seconds
 ```
 
 `npm run shots` always looks at 1800ms, so it is blind to anything slower than
-that — `timeline` is the one that can see the fever rise and let go.
+that — `timeline` is the one that can see the fever rise and let go, and
+`llm` is the one that can tell a machine thinking from a machine stuck, since
+a word takes it about two seconds.
 
 ## How to run it
 
