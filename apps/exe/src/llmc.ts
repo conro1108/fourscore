@@ -994,7 +994,7 @@ int main() {
     int pos; int tok; int nxt;
     getroom();
     if (!loadhdr()) {
-        puts("NO MODEL ON THE DRIVE.\n");
+        puts("DRIVE NOT READY.\n");
         return 1;
     }
     puts("STORIES-260K: 260,032 WEIGHTS, ONE BYTE\n");
