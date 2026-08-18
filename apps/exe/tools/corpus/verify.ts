@@ -189,8 +189,12 @@ export function makeProbe(words: Uint16Array): Probe {
  * diagnostic only — `compileC` is the gate and runs first — but a histogram
  * that says `v0:absent:switch` tells you what to put in the next prompt, and
  * a parser message that says "Expected ;, got '{'" does not.
+ *
+ * `prompt.ts` builds the fence it tells the model about out of this same
+ * list, so the thing being forbidden and the thing being counted cannot
+ * drift apart.
  */
-const ABSENT = [
+export const ABSENT = [
   "switch", "case", "typedef", "enum", "union", "static", "const", "extern",
   "volatile", "register", "unsigned", "signed", "short", "long", "float",
   "double", "bool", "goto", "printf", "sprintf", "scanf", "strlen", "strcpy",

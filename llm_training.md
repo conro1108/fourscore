@@ -260,11 +260,20 @@ int py = 10;            /* your paddle's top row */
 ```
 
 One document per program, BOS/EOS delimited. Each tier gets a controlled set
-of six to twelve header phrasings, and the filename inside the header is the
-strongest signal the model has, so a header must never mismatch its body. At
-inference you emit BOS plus a header and let it write the rest — which means
-the eventual Phase 5 prompt is guaranteed to be something the model has seen
-thousands of times.
+of six to twelve header phrasings — they live in `prompt.ts`'s `HEADERS`, and
+the filename inside is the family key while the phrase after it is the
+variation the model learns to see past. At inference you emit BOS plus a
+header and let it write the rest, which is why the eventual Phase 5 prompt is
+guaranteed to be something the model has seen thousands of times.
+
+**The header is exactly one line, and that is a decision.** The hand-written
+`pong.c` opens with six — a title, how to run it, which keys — and the corpus
+throws that away: `stampHeader` puts the asked-for line on and takes whatever
+the model wrote off. A header must never mismatch its body or the model
+learns the request is a hint, and one line is the only shape that can be
+guaranteed identical across twenty thousand documents. The reference program
+on the disk keeps its six lines. Changing this changes the corpus format, so
+change it before generating, not after.
 
 ## What the pool looks like when it's done
 
@@ -340,11 +349,35 @@ Phase 2's lesson, believed: build the graders before the thing they grade.
    from the fence rather than guessing at it — *and tier 4's axes multiply
    out to more skeletons than any batch will use.*
 
-3. Generation pilot, a few hundred candidates. Measure yield and the failure
-   histogram; tune prompts. Decide here whether host-side grammar constraint
-   is worth wiring up. Train a provisional BPE on the pilot plus the seeds
-   and measure pong's token length — that is enough to settle MAXSEQ versus
-   streaming attention, and it should not wait for the full corpus.
+3. **Generation pilot**, a few hundred candidates. *The machinery is built
+   (2026-08-17):* `prompt.ts` assembles what the model is told — `c.txt` off
+   the disk and the fence built from `verify.ts`'s own `ABSENT`, so the thing
+   forbidden and the thing counted cannot drift — and `gen.ts` drives
+   llama-server's OpenAI endpoint, grades inline, appends raw and verified
+   JSONL, and resumes. `--dry` prints the whole prompt without a server, which
+   is how the prompt gets tuned. `gen.test.ts` runs the loop against a stub
+   that speaks the same endpoint.
+
+   *What is not built is the part that decides the outcome.* Three things go
+   in front of a night, in this order:
+
+   - **Measure `llama-server -np 8` aggregate throughput on the Q6.**
+     Single-stream is 6–9 tok/s and nobody has measured batched. At ~900
+     tokens a pong the difference between 30 and 60 tok/s aggregate is 1,500
+     programs a night or 700, and every number in this doc's generation
+     budget rests on it.
+   - **Read `--dry` output and argue with it.** `HEADERS` and `EDITS` are
+     decisions somebody made, not measurements, and they are what the corpus
+     will be made of.
+   - **Then two or three pilots of 200–300**, reading the histogram between
+     them. Committing a night to an unmeasured prompt is how you wake up to
+     nine thousand rejects sharing three failure keys.
+
+   Decide here whether host-side grammar constraint is worth wiring up: only
+   if the V0 rejects turn out to be syntax-dominated. Train a provisional BPE
+   on the pilot plus the seeds and measure pong's token length — that is
+   enough to settle MAXSEQ versus streaming attention, and it should not wait
+   for the full corpus.
 4. Scale generation unattended. Assemble, dedup, train the real tokenizer.
 5. **Dry run at toy scale**: train a stories260K-sized model on the corpus
    and push it through pack → grade → oracle → machine end-to-end. Every
