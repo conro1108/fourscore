@@ -195,6 +195,19 @@
 > by CC on the machine, W/S against a beatable house paddle, first to seven.
 > `vm.test.ts`/`cc.test.ts` pin the hardware and play the game headless.
 
+> **The machine has a drive, and a language model on it (2026-08-17).** Phase
+> 2 of `llm_llm_llm.md`: three more ports — DPOS and DBNK aim a head that
+> counts bytes and carries between its halves, DSK hands one over and moves
+> on — and `SRC\llm.c`, which runs 260,032 int8 weights of TinyStories on the
+> 16-bit processor. `cd /src; cc llm.c; run llm` and it writes a story a word
+> every 1.7 seconds, which is what reading every weight for every word costs.
+> The slowness is the point and must never be papered over: no progress bar,
+> no spinner, no fake typing. A word appears when the arithmetic is done.
+> The banner says what it is doing in the machine's own flat voice and then
+> gets out of the way, and an empty drive says "NO MODEL ON THE DRIVE."
+> rather than pretending. `npm run llm` photographs it every five seconds
+> because one screenshot cannot tell thinking from stuck.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 
