@@ -67,7 +67,7 @@ gap, together:
 
 - **Narrow distribution.** TinyStories proved 1–10M models are coherent when
   the distribution is small enough to hold. Ours is far smaller than
-  children's English: one dialect, four builtins, a 40×24 screen, and pong is
+  children's English: one dialect, fifteen builtins, a 40×24 screen, and pong is
   ~150 lines with a few hundred meaningful decisions.
 - **Grammar-constrained decoding.** We own the compiler, so mask any token
   that can't extend a valid parse prefix of the CC grammar. Syntax errors
@@ -176,12 +176,17 @@ The parts that were decided rather than planned:
   gets desperate.
 
 **Phase 3 — Distill a model that only knows this machine.** No corpus exists
-for the dialect, so manufacture one: host LLMs generate tens of thousands of
-small dialect-C programs; every one is verified (CC compiles, VM runs clean,
-game-shaped ones survive N frames against the Phase 1 hardware). Curriculum:
-expression soup → guess-the-number family → teletype toys → hundreds of pong
-variants. Train 1–10M params, quantize int8, export `C:\WEIGHTS.BIN` — a file
-the player can `ls`, which is the right touch.
+for the dialect, so manufacture one: tens of thousands of small dialect-C
+programs, most of them synthesised combinatorially and varied in *structure*
+by the local model rather than written by it; every one is verified (CC
+compiles, VM runs clean, game-shaped ones survive N frames against the Phase 1
+hardware). The curriculum — expression soup → guess-the-number family →
+teletype toys → pong variants — is one mixed pool weighted by token share,
+not four trainings. Train 1–2.5M params (what `llm.c`'s heap allows, not the
+10M the ceiling above would permit), quantize int8, export `C:\WEIGHTS.BIN` —
+a file the player can `ls`, which is the right touch. The plan, the measured
+dialect fence and the shape of the data pool are in
+[llm_training.md](llm_training.md).
 
 **Phase 4 — Constrained decoding + repair loop, on the machine.** Grammar
 masking against CC's grammar; the compile-error-retry loop; capped attempts.
