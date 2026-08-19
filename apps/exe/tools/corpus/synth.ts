@@ -457,6 +457,13 @@ const quizEmit: Emitter = (r) => {
   const mul = r() < 0.4;
   const qa = Array.from({ length: q }, () => int(r, 2, 12));
   const qb = Array.from({ length: q }, () => int(r, 2, 12));
+  // The grader's second probe answers 100, 99, 98, … and demands a different
+  // transcript. This transcript encodes only the right/wrong pattern, so no
+  // question may have 100 - i as its answer at position i — otherwise a rare
+  // roll makes the countdown's pattern match the script's and a correct
+  // program gets rejected. (Only products can reach 96+; sums top out at 24.)
+  for (let i = 0; i < q; i++)
+    while ((mul ? mul16(qa[i]!, qb[i]!) : qa[i]! + qb[i]!) === 100 - i) qb[i] = int(r, 2, 12);
   const title = pickOf(["THE MACHINE ASKS.", "ARITHMETIC. NO PAPER.", "QUIZ TIME."], r);
   const right = pickOf(["RIGHT.", "YES.", "CORRECT."], r);
   const wrong = pickOf(["WRONG.", "NO.", "NOT THAT."], r);
@@ -1019,7 +1026,10 @@ if (!process.env.VITEST) {
   const tier = Number(flag("tier", "1")) as Tier;
   const n = Number(flag("n", "100"));
   const seed = Number(flag("seed", "1"));
-  const out = flag("out", `data/corpus/raw/t${tier}-synth.jsonl`);
+  // The seed is in the filename because the documented path to 40k documents
+  // is several seeds, and writeFileSync truncates — a default that made seed
+  // 2 overwrite seed 1 would eat a batch silently.
+  const out = flag("out", `data/corpus/raw/t${tier}-synth-${seed}.jsonl`);
   const cands = synthesize(tier, n, seed);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, cands.map((c) => JSON.stringify(c)).join("\n") + "\n");

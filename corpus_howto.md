@@ -73,7 +73,7 @@ this phase is designed around, so this runs before any batch is trusted.
 
 ```
 npm run corpus:synth -- --tier 1 --n 500 --seed 1
-npm run corpus:farm -- data/corpus/raw/t1-synth.jsonl data/corpus/verified/t1-synth-verdicts.jsonl
+npm run corpus:farm -- data/corpus/raw/t1-synth-1.jsonl data/corpus/verified/t1-synth-1-verdicts.jsonl
 ```
 
 Repeat per tier. `--check` on synth grades inline (fine for a few hundred);
