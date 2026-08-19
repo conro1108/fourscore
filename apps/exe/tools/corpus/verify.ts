@@ -104,8 +104,10 @@ export interface Trace {
 
 export type Probe = (t: Trial) => Trace;
 
-/** xorshift16, so the same seed is the same game. */
-const makeRng = (seed: number): (() => number) => {
+/** xorshift16, so the same seed is the same game. Exported because the
+    synthesiser predicts transcripts of programs that call rand(): the
+    prediction is only ground truth if it draws from this exact stream. */
+export const makeRng = (seed: number): (() => number) => {
   let s = (seed & 0xffff) || 0x1234;
   return () => {
     s ^= (s << 7) & 0xffff;

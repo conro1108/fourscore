@@ -330,7 +330,20 @@ Phase 2's lesson, believed: build the graders before the thing they grade.
    few-shot examples those tiers will be generated from, so they are worth
    looking at hard before twenty thousand programs imitate them.
 
-2. **The synthesiser, and the axes it rolls.** Source A is 70% of the corpus
+2. **The synthesiser, and the axes it rolls.** ✅ **Done (2026-08-18).**
+   `synth.ts`: six tier-1 families, three tier-2, four tier-3, and a pong —
+   ~2,000 candidates across all tiers graded at 100% keep when it was built,
+   and `synth.test.ts` holds a sample to exactly that. Tiers 1 and 2 carry
+   `expect`/`keys` computed by simulating the program in 16-bit and drawing
+   from `verify.ts`'s own `makeRng` (exported for the purpose), so the exact
+   grade came for free as planned. Decisions it forced, recorded in
+   [corpus_howto.md](corpus_howto.md): synth pong stays 1P (a keyless far
+   paddle can cycle scorelessly, and this file may not emit rejects — 2P
+   stays in `EDITS` where rejects are yield), `win × ballDiv ≤ 28` keeps the
+   slowest game inside the grader's 6,000 frames, and the ball glyph is
+   banned from the court copy, letter O included.
+
+   The original brief follows. Source A is 70% of the corpus
    and everything downstream inherits its shape, so it comes before any model
    is asked for anything: a skeleton per family, the axis list each skeleton
    rolls, and — for tiers 1 and 2 — the predicted output and winning key
@@ -365,7 +378,9 @@ Phase 2's lesson, believed: build the graders before the thing they grade.
      Single-stream is 6–9 tok/s and nobody has measured batched. At ~900
      tokens a pong the difference between 30 and 60 tok/s aggregate is 1,500
      programs a night or 700, and every number in this doc's generation
-     budget rests on it.
+     budget rests on it. `bench.ts` (built 2026-08-18) is this measurement:
+     it fires the real tier-4 mutate prompt across the slots and reports the
+     aggregate, tokens per candidate, and the n_ctx arithmetic below.
    - **Read `--dry` output and argue with it.** `HEADERS` and `EDITS` are
      decisions somebody made, not measurements, and they are what the corpus
      will be made of.
