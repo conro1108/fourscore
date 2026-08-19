@@ -115,7 +115,15 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
     for (const row of list.querySelectorAll<HTMLElement>(".lrow")) {
       const sel = Number(row.dataset.ply) === at - 1;
       row.classList.toggle("sel", sel);
-      if (sel) row.scrollIntoView({ block: "nearest" });
+      // scroll the listbox by hand rather than `scrollIntoView`: that walks
+      // ancestors, and #stage is a scrollable-but-hidden box, so a review
+      // window overhanging an edge could slide the whole desktop with it
+      if (!sel) continue;
+      const top = row.offsetTop;
+      const bottom = top + row.offsetHeight;
+      if (top < list.scrollTop) list.scrollTop = top;
+      else if (bottom > list.scrollTop + list.clientHeight)
+        list.scrollTop = bottom - list.clientHeight;
     }
   }
 

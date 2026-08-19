@@ -436,13 +436,23 @@ export const GAMES_COPY = {
         flipped: (n: number): string =>
           n === 1 ? "One card came off its face." : `${n} cards came off their faces.`,
       },
-      /** Proven, so it says so. */
+      /** Proven, so it says so. Counted in plays, because a draw is a play and
+          the one that loses a Klondike game is very often a draw — the counts
+          above say how many of each. */
       won: "You won it. There is nothing to explain.",
       alive: "There is still a way through from here. This is known.",
-      stillAt: (move: number): string => `At move ${move} there was still a way through. This is known.`,
-      /** Not proven, and written like it. */
+      stillAt: (play: number): string =>
+        play === 0
+          ? "The deal had a way through. This is known."
+          : `${play} plays in, there was still a way through. This is known.`,
+      /* The other half is never proven and never written as if it were. Not
+         "the door closed here" — the machine looked and didn't find one, and
+         which play that started with is a third thing it may not know either.
+         Each of these names exactly what was actually tested. */
+      lostAfterFirst: "The machine could not find one after your first play.",
       lostAfter: "The machine could not find one after that.",
-      fromTheStart: "The deal had one. The machine could not find it after your first move.",
+      lostSomewhereAfter:
+        "The machine could not find one at the end, and ran out of time working out where that changed.",
       dealCold: "The machine could not find a way through this deal.",
       dealColdSub: "That is not the same as there not being one.",
       spent: "It stopped looking before it was finished.",

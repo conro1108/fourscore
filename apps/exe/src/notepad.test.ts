@@ -80,6 +80,11 @@ describe("Enter and Tab", () => {
 });
 
 describe("what it keeps its hands off", () => {
+  it("lets Shift+Tab out of the box", () => {
+    expect(padTyping("Tab", { value: "x", start: 0, end: 0 }, true)).toBeNull();
+    expect(padTyping("Tab", { value: "x", start: 0, end: 0 })).not.toBeNull();
+  });
+
   it("passes ordinary typing through", () => {
     expect(padTyping("a", { value: "", start: 0, end: 0 })).toBeNull();
     expect(padTyping("ArrowLeft", { value: "abc", start: 3, end: 3 })).toBeNull();

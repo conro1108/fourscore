@@ -1010,6 +1010,8 @@ export function openSol(wm: WM, rig?: string): void {
     answer.then(
       (r) => {
         if (gen !== reviewGen || !rwin.isOpen()) return;
+        /** Whether the verdict itself already said the search ran out. */
+        let saidRanOut = false;
         head.textContent = R.head(r.homed);
         list.textContent = "";
         foot.textContent = "";
@@ -1022,12 +1024,30 @@ export function openSol(wm: WM, rig?: string): void {
           rowIn(foot, R.dealCold);
           rowIn(foot, R.dealColdSub);
         } else if (r.end === "won") rowIn(foot, R.alive);
-        else if (r.lastWinnable === 0) rowIn(foot, R.fromTheStart);
         else if (r.lastWinnable !== null) {
+          // one proven line, then one about the machine: a closed bracket
+          // knows which play it couldn't win after, an open one only knows
+          // that it couldn't win at the end
           rowIn(foot, R.stillAt(r.lastWinnable));
-          rowIn(foot, R.lostAfter);
+          const ranOut = !r.converged;
+          rowIn(
+            foot,
+            ranOut
+              ? R.lostSomewhereAfter
+              : r.lastWinnable === 0
+                ? R.lostAfterFirst
+                : R.lostAfter,
+          );
+          saidRanOut = ranOut;
         }
-        if (r.spent && !r.won) rowIn(foot, R.spent);
+        /* "It stopped looking before it was finished" is the difference
+           between a deal searched out and a deal that hit the cap, so it
+           belongs under every verdict except the one line that has already
+           said it in its own words. Gating it on `converged` instead was
+           wrong twice over: that flag is about the bisection, and it is
+           false on the cold-deal path — which is the branch that needs this
+           sentence most. */
+        if (r.spent && !r.won && !saidRanOut) rowIn(foot, R.spent);
       },
       () => {
         if (gen !== reviewGen || !rwin.isOpen()) return;

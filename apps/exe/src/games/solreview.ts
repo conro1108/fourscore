@@ -42,11 +42,20 @@ export interface SolReview {
   /** Was there still a way through from where you stopped? */
   end: Verdict;
   /**
-   * The last state the machine could still win from, as a count of your
-   * actions — `null` when it never could, or when it still can. Proven: there
-   * is a line out of that state.
+   * The last state the machine could still win from, counted in plays — every
+   * draw is one, because in Klondike a draw is a move and the play that loses
+   * a game is often one of them. `null` when it never could, or when it still
+   * can. Proven: there is a line out of that state.
    */
   lastWinnable: number | null;
+  /**
+   * Whether the bisection actually closed on `lastWinnable`, or stopped with
+   * a bracket still open. This is the difference between "your next play was
+   * the one" and "somewhere after this the way out closed", and the copy is
+   * only allowed the first sentence when this is true: `unknown` is not proof
+   * of anything, so an unclosed bracket names no play at all.
+   */
+  converged: boolean;
   /** True if the search ran out of budget somewhere rather than settling it. */
   spent: boolean;
 }
@@ -92,12 +101,13 @@ const homeCount = (s: S): number => s.found[0]! + s.found[1]! + s.found[2]! + s.
 const solved = (s: S): boolean => homeCount(s) === 52;
 
 /* ---- the visited table ----
-   Two 32-bit rolling hashes of the position, in a pair of Int32Arrays with
-   linear probing. Not a Set of strings and not a Set of numbers: at a few
-   hundred thousand entries either one is most of the search's memory, and a
-   heap that size bought a ten-second garbage collection in the middle of a
-   solve — a stall no node budget can see coming and no wall clock can
-   interrupt. A typed table allocates once and never again.
+   Two 32-bit rolling hashes of the position, in a pair of four-megabyte
+   Int32Arrays with linear probing. Not a Set of strings and not a Set of
+   numbers: at a few hundred thousand entries either one is most of the
+   search's memory, and a heap that size bought a ten-second garbage
+   collection in the middle of a solve — a stall no node budget can see coming
+   and no wall clock can interrupt. A typed table allocates once and never
+   again.
 
    Columns are interchangeable in Klondike (nothing in the rules can tell pile
    3 from pile 5), so the seven per-pile hashes are summed rather than
@@ -113,8 +123,8 @@ const SEEN_MASK = SEEN_SIZE - 1;
 const SEEN_FULL = SEEN_SIZE * 0.7;
 
 /* One table for the whole module, cleared per solve rather than allocated per
-   solve. Two eight-megabyte arrays a solve is nothing on its own and murder
-   in a row of them: a sweep of forty deals spent four fifths of its wall
+   solve. Eight megabytes a solve is nothing on its own and murder in a row of
+   them: a sweep of forty deals spent four fifths of its wall
    clock not running, handing large arrays to the collector and taking them
    back. Solves never overlap — the review runs them one at a time, and the
    worker runs one review at a time — so one table is enough for all of it. */
@@ -452,12 +462,14 @@ export function reviewGame(
     deal: "unknown",
     end: "unknown",
     lastWinnable: null,
+    converged: false,
     spent: false,
   };
   if (out.won) {
-    // you did it; there is nothing left to search for
+    // you did it; there is nothing left to search for, and nothing open
     out.deal = "won";
     out.end = "won";
+    out.converged = true;
     return out;
   }
 
@@ -481,13 +493,28 @@ export function reviewGame(
   };
 
   out.deal = ask(first);
-  if (out.deal !== "won" || journal.length < 2) return out;
+  if (journal.length < 2) {
+    // one state is both ends of the game; it can't disagree with itself
+    out.end = out.deal;
+    out.converged = true;
+    return out;
+  }
+  if (out.deal !== "won") return out;
   out.end = ask(last);
-  if (out.end === "won") return out;
+  if (out.end === "won") {
+    out.converged = true;
+    return out;
+  }
 
   /* Somewhere between the deal and here, the way out closed. Binary search
      for the last state it was still open — `lo` is always a state the machine
-     has actually won from, so the number it reports is proven. */
+     has actually won from, so the number it reports is proven.
+
+     The loop can also stop on budget, and then `lo` is only the last state it
+     got to prove rather than the last one that was winnable. `converged` is
+     the difference, and the window says a different sentence for each: a
+     bracket left open names a play the machine never tested the far side of,
+     and naming it anyway would be the overclaim this whole file avoids. */
   let lo = 0;
   let hi = journal.length - 1;
   while (hi - lo > 1 && nodesLeft > 0 && msLeft > 0) {
@@ -496,5 +523,6 @@ export function reviewGame(
     else hi = mid;
   }
   out.lastWinnable = lo;
+  out.converged = hi - lo === 1;
   return out;
 }

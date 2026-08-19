@@ -561,8 +561,10 @@ const desktopApps: DesktopApps = {
         last: () => lastEnd,
         review: (variantId, history) => analysis.review(variantId, history, "red"),
       },
-      // a harness pose only: the review opens on the finished game otherwise
-      param("ply") === null ? undefined : Number(param("ply")),
+      // a harness pose only: the review opens on the finished game otherwise.
+      // Anything that isn't a number is nothing — `?ply=x` used to walk the
+      // window to NaN and paint a board that wasn't there.
+      Number.isFinite(Number(param("ply"))) ? Number(param("ply")) : undefined,
     ),
   shutdown: () => openShutdown(wm, { stage, help: () => desktopApps.openHelp() }),
 };

@@ -902,12 +902,19 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       win.setTitle(TITLES.boardVariant(variant.name));
       winSpec.minW = minWindowW();
       winSpec.minH = minWindowH();
-      // maximized stays maximized; the new size lands on restore (layoutMax).
-      // A hand size belonged to the old board and is let go — the new variant
-      // takes its natural window, same as it always has.
-      // dropping `sized` is all it takes: build() ends in fitNatural(), which
-      // is the one place that knows what window a variant asks for
-      if (!win.el.classList.contains("max")) win.el.classList.remove("sized");
+      /* A hand size belonged to the old board and is let go — the new variant
+         takes its natural window, same as it always has. Dropping `sized` is
+         all it takes: build() ends in fitNatural(), which is the one place
+         that knows what window a variant asks for.
+
+         Maximized stays maximized and the new size lands on restore — but the
+         class has to go now rather than then, because the WM restores the
+         geometry it captured before the maximize (the *old* variant's hand
+         size) and `layoutMax(false)` would take the `sized` branch, which
+         clamps the cell and not the window. A Connect 4 window shrunk to its
+         floor, maximized, switched to Connect 7 and restored came back 256
+         wide around a 432-wide grid, scrolling. */
+      win.el.classList.remove("sized");
     });
   }
 

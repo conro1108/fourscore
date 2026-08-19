@@ -154,11 +154,16 @@ export type PadAction =
   /** Type nothing; put the caret at `at` (stepping over a closer). */
   | { kind: "caret"; at: number };
 
-export function padTyping(key: string, { value, start, end }: PadState): PadAction | null {
+export function padTyping(
+  key: string,
+  { value, start, end }: PadState,
+  shift = false,
+): PadAction | null {
   const next = value[end] ?? "";
   const collapsed = start === end;
 
-  if (key === "Tab") return { kind: "insert", text: INDENT, back: 0 };
+  // Shift+Tab is how you leave a text box backwards; it isn't an indent
+  if (key === "Tab") return shift ? null : { kind: "insert", text: INDENT, back: 0 };
   if (key === "Enter") {
     const lineStart = value.lastIndexOf("\n", start - 1) + 1;
     const indent = /^[ \t]*/.exec(value.slice(lineStart, start))![0]!;
@@ -186,22 +191,29 @@ export function padTyping(key: string, { value, start, end }: PadState): PadActi
 function installTypingHelp(ta: HTMLTextAreaElement): void {
   ta.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const act = padTyping(e.key, {
-      value: ta.value,
-      start: ta.selectionStart,
-      end: ta.selectionEnd,
-    });
+    const act = padTyping(
+      e.key,
+      { value: ta.value, start: ta.selectionStart, end: ta.selectionEnd },
+      e.shiftKey,
+    );
     if (!act) return;
     e.preventDefault();
     if (act.kind === "caret") {
       ta.selectionStart = ta.selectionEnd = act.at;
       return;
     }
+    /* Both edits go through execCommand, deprecated and the only thing that
+       keeps Ctrl+Z honest: `setRangeText` writes the box without telling the
+       undo stack, so undoing a line that had a bracket closed for it restores
+       text that was never on screen. Notepad's Edit menu is period furniture;
+       its undo has to be the real one. */
     if (act.kind === "delete") {
-      ta.setRangeText("", act.from, act.to, "start");
+      ta.selectionStart = act.from;
+      ta.selectionEnd = act.to;
+      document.execCommand("delete");
       return;
     }
-    ta.setRangeText(act.text, ta.selectionStart, ta.selectionEnd, "end");
+    document.execCommand("insertText", false, act.text);
     if (act.back) ta.selectionStart = ta.selectionEnd = ta.selectionEnd - act.back;
   });
 }

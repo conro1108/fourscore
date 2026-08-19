@@ -146,6 +146,27 @@ describe("reviewGame", () => {
     expect(r.spent).toBe(true);
   });
 
+  it("does not close a bracket it ran out of budget inside", () => {
+    const live = deal(seeded(1 * 7919));
+    const dead: SolState = {
+      stock: [],
+      waste: [],
+      found: [[], [], [], []],
+      tab: [
+        { down: [{ rank: 5, suit: 0 }], up: [{ rank: 7, suit: 1 }] },
+        ...Array.from({ length: 6 }, () => ({ down: [] as Card[], up: [] as Card[] })),
+      ],
+    };
+    // enough for the deal and the end, and nothing left for the bisection
+    const r = reviewGame([live, live, live, live, live, dead], { nodes: 700, ms: 5000 });
+    expect(r.deal).toBe("won");
+    expect(r.end).toBe("unknown");
+    expect(r.spent).toBe(true);
+    // it still knows a state it won from — it just doesn't know the next one
+    expect(r.lastWinnable).toBe(0);
+    expect(r.converged).toBe(false);
+  });
+
   it("asks nothing of a game you won", () => {
     const done: SolState = {
       stock: [],
@@ -159,6 +180,7 @@ describe("reviewGame", () => {
     expect(r.end).toBe("won");
     expect(r.homed).toBe(52);
     expect(r.spent).toBe(false);
+    expect(r.converged).toBe(true);
   });
 
   it("finds the last state it can still win from, and proves that one", () => {
@@ -177,6 +199,7 @@ describe("reviewGame", () => {
     expect(r.deal).toBe("won");
     expect(r.end).toBe("unknown");
     expect(r.lastWinnable).toBe(2);
+    expect(r.converged).toBe(true);
     // and the claim it makes about that state is one it can still make good on
     expect(solve(live, { nodes: 60_000, ms: 5000 }).verdict).toBe("won");
   });
