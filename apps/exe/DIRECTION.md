@@ -386,7 +386,10 @@ machine gets to be flat and declarative, because by then the game is over.
   deleted — it was itself ported from `apps/web`, it travels well). Engine
   stays I/O-free.
 - Geometry is a value: `BOARD.EXE`'s window sizes itself from `variant`.
-  Connect 5+ is a bigger window, maybe a scrollbar — which is funny and free.
+  Connect 5 is a bigger window; 6 and 7 are a *smaller cell*, because the whole
+  cabinet has to be on the desk when it opens. The frame's scrollbar was the
+  joke here for a while and it isn't any more (Connor, 2026-08-18): nothing
+  inside a game scrolls, ever.
 - A Director-shaped module (fever 0..1 + events) drives degradation; port
   fever's pure `director/` or derive a lighter one. Subsystems read it, never
   match state.

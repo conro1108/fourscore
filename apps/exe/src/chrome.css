@@ -8,10 +8,10 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
      /* a possessed desktop, not a web page: no tap flash, no long-press
         callout, no double-tap zoom (iOS) */
      -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;touch-action:manipulation}
-/* surfaces that drag 1:1 own their gestures outright; the board's grid keeps
-   vertical panning so a scrolled Connect 6 frame still scrolls under a finger */
-.titlebar,.rz,.icon,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.pin,.paintgrid{touch-action:none}
-#grid{touch-action:pan-y}
+/* surfaces that drag 1:1 own their gestures outright — the board's grid among
+   them now: its frame used to scroll on the big variants and needed the
+   finger's pan, and the board fits the desk instead (board.ts, fitNatural) */
+.titlebar,.rz,.icon,#grid,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.pin,.paintgrid{touch-action:none}
 /* the desk. fitStage() sizes it to the browser window; these are the
    authored 1280x800 it composes against. */
 #stage{position:relative;width:1280px;height:800px;background:#0e8078;overflow:hidden}
@@ -103,8 +103,11 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .disc::after{content:"";position:absolute;inset:0;border-radius:50%;
       background:repeating-conic-gradient(#000 0% 25%,transparent 0% 50%) 0 0/4px 4px;opacity:.10}
 
-/* the board window's sunken frame. Connect 5+ is a bigger window; past what
-   the desktop can hold, it gets a real scrollbar — which is funny and free. */
+/* The board window's sunken frame. Connect 5 is a bigger window and 6 and 7
+   are a smaller cell — the cabinet is fitted to the desk (board.ts,
+   fitNatural), so this never has anything to scroll. `auto` and not `hidden`
+   anyway: a clipped board would be an unreachable bottom row if that
+   arithmetic were ever wrong, and a scrollbar at least says so. */
 .boardframe{margin:0 10px;padding:6px;background:#c0c0c0;overflow:auto}
 .boardframe::-webkit-scrollbar{width:16px;height:16px;background:#dfdfdf}
 .boardframe::-webkit-scrollbar-thumb{background:#c0c0c0;
@@ -378,8 +381,8 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
    scrollbar and (with classic scrollbars) shoved the window a notch taller.
    `clip` clips without becoming a scroll container, and the margin keeps the
    overhang paintable out to the frame's own padding — exactly as far as it
-   ever showed. A scrollbar on a genuinely too-tall variant is the joke; one
-   that appears because you won is not. */
+   ever showed. The board itself no longer scrolls at any variant, and this is
+   what keeps winning from being the thing that reintroduces it. */
 .gridwrap{position:relative;overflow:clip;overflow-clip-margin:6px}
 .gridwrap .disc{z-index:2}
 /* A new game drains the old position out through the floor of the cabinet

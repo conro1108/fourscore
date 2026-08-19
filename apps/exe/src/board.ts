@@ -13,20 +13,13 @@ import { Match } from "@fourscore/engine";
 import { el, gravityFall, onPointerDrag, q } from "./dom.js";
 import { ICONS } from "./icons.js";
 import { STATUS, TITLES, voiceOf } from "./copy.js";
-import { deskHeight, deskWidth, fitCell, stageScale, taskbarH, type WM, type Win } from "./wm.js";
+import { deskHeight, deskWidth, onDeskResize, stageScale, taskbarH, type WM, type Win } from "./wm.js";
+import * as fit from "./boardfit.js";
+import { CELL, CELL_MIN, CHROME_H, CHROME_W, DISC_RATIO, FRAME_PAD } from "./boardfit.js";
 import { play } from "./audio/index.js";
 import type { MovesPad } from "./notepad.js";
 
-/** The authored cell. A natural-sized BOARD.EXE is exactly this, always. */
-export const CELL = 64;
-/** A chip is three quarters of its cell, at every size. */
-const DISC_RATIO = 3 / 4;
-/* The ladder the cell steps through when the window is dragged. 8 keeps the
-   disc whole (3/4 of a multiple of 8 is an integer) and keeps a slow drag on
-   a handful of sizes instead of shivering a pixel at a time. */
-const CELL_STEP = 8;
-const CELL_MIN = 32;
-const CELL_MAX = 128;
+export { CELL } from "./boardfit.js";
 
 export interface EndResult {
   kind: "win" | "loss" | "draw" | "forfeit";
@@ -103,47 +96,31 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   let clickSuppressedUntil = 0;
 
   /* ---- the geometry, all of it derived from one live cell ----
-     The grid sits at x=16 inside the window (frame margin 10 + padding 6) and
-     the same 16 has to come back on the right, or the sunken well shows a dead
-     column of gray. A tall variant that scrolls needs the scrollbar's 16 too.
+     The arithmetic itself is `boardfit.ts` (pure, and tested there); what
+     lives here is the live cell and the variant it is bound to. The grid sits
+     at x=16 inside the window (frame margin 10 + padding 6) and the same 16
+     has to come back on the right, or the sunken well shows a dead column of
+     gray. Every other number is a function of `cell`, because the window is
+     resizable and the cell answers the drag.
 
-     CHROME_H is measured, not guessed: a natural Connect 4 window is 529 tall
-     and its frame is 396, its picker row 56, so 77 is the titlebar, the menu,
-     the statusbar and every margin between them — none of which scale. Every
-     other number here is a function of `cell`, because the window is
-     resizable and the cell answers the drag. */
-  const CHROME_W = 32;
-  const CHROME_H = 77;
-  const FRAME_PAD = 12; // the sunken well's 6px on each side
-  const PICKER_PAD = 8; // 4px above and below the hover disc
+     The natural window is never a scrolling one: Connect 6 and 7 don't fit
+     the desk at the authored 64px cell, and the cabinet takes the biggest
+     cell the desk can hold instead of a scrollbar. Connect 4 and 5 fit at 64
+     and are untouched by construction. */
   /** The live cell. `CELL` while the window is at its natural size. */
   let cell = CELL;
   const disc = (): number => cell * DISC_RATIO;
-  const frameH = (c = cell): number => variant.height * c + FRAME_PAD;
-  const pickerH = (c = cell): number => c * DISC_RATIO + PICKER_PAD;
+  const frameH = (c = cell): number => fit.frameH(variant, c);
+  const pickerH = (c = cell): number => fit.pickerH(c);
   /** Frame height a window this tall can hand the board. */
   const frameSpace = (totalH: number): number => totalH - CHROME_H - pickerH();
-  /** The tallest frame the authored 800-tall desk holds, un-maximised. */
-  const maxFrame = (): number => frameSpace(800 - 36 - 8);
-  const scrolls = (): boolean => frameH(CELL) > maxFrame();
-  const windowWidth = (): number => variant.width * CELL + CHROME_W + (scrolls() ? 16 : 0);
-
-  /* The biggest cell a window this size can hold — the tighter axis wins, and
-     both round-trip: a natural window measures back to exactly CELL, so
-     nothing moves until you actually drag. Height budget: the frame needs
-     rows*c + FRAME_PAD and the picker row 0.75c + PICKER_PAD on top of the
-     fixed chrome, so the cells across the height axis come to rows + 0.75. */
-  const cellFor = (w: number, h: number): number =>
-    Math.min(
-      fitCell({ space: w - CHROME_W, count: variant.width, base: CELL, step: CELL_STEP, min: CELL_MIN, max: CELL_MAX }),
-      fitCell({
-        space: h - CHROME_H - PICKER_PAD - FRAME_PAD,
-        count: variant.height + DISC_RATIO,
-        base: CELL, step: CELL_STEP, min: CELL_MIN, max: CELL_MAX,
-      }),
-    );
-  const minWindowW = (): number => variant.width * CELL_MIN + CHROME_W;
-  const minWindowH = (): number => CHROME_H + pickerH(CELL_MIN) + frameH(CELL_MIN);
+  /** The room a natural window has: the desk, less the taskbar and its seat. */
+  const deskRoomH = (): number => deskHeight() - taskbarH() - 8;
+  const naturalCell = (): number => fit.naturalCell(variant, deskWidth(), deskRoomH());
+  const windowWidth = (c = naturalCell()): number => fit.windowW(variant, c);
+  const cellFor = (w: number, h: number): number => fit.cellFor(variant, w, h);
+  const minWindowW = (): number => fit.windowW(variant, CELL_MIN);
+  const minWindowH = (): number => fit.windowH(variant, CELL_MIN);
 
   const body = el(`<div></div>`);
   // kept as a named object: setVariant re-floors minW when the board changes size
@@ -168,6 +145,16 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     overSaver: true,
   };
   const win = deps.wm.open(winSpec);
+
+  /* A desk that changes shape (the phone dock) changes what fits in it. The
+     WM has already re-seated an undragged window by the time this runs — it
+     registered first — so all that's left is the cell and the height. A hand
+     size or a maximized board is not ours to touch. */
+  onDeskResize(() => {
+    if (!win.isOpen() || win.el.classList.contains("max") || win.el.classList.contains("sized"))
+      return;
+    fitNatural();
+  });
 
   // outside build(): a variant change remakes the menu, not the binding
   const onKey = (e: KeyboardEvent): void => {
@@ -294,14 +281,6 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     const fx = el(`<div id="fx"></div>`);
     body.append(menubar, pickerRow, frame, statusbar, fx);
 
-    // Connect 6 on a 800-tall desktop doesn't fit at the authored cell; the
-    // frame gets a real scrollbar, which is funny and free (DIRECTION.md).
-    // Dragging the window is now the way out of it — the cell shrinks to fit.
-    if (scrolls()) {
-      frame.style.height = `${maxFrame() - FRAME_PAD}px`;
-      if (!win.el.classList.contains("max")) win.el.style.top = "4px";
-    }
-
     /* One committed move, whatever pointed at it. */
     const commit = (col: number): void => {
       if (phase !== "your-turn") return;
@@ -387,9 +366,9 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
     buildGrid();
     renderPosition();
-    setCell(cell);
     if (win.el.classList.contains("max")) layoutMax(true);
     else if (win.el.classList.contains("sized")) relayout();
+    else fitNatural();
   }
 
   /** The hover disc's left edge over column `col`, in picker-row coords. */
@@ -459,6 +438,22 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     frameTo(h);
   }
 
+  /* ---- the size a board takes when nobody has dragged it ----
+     The authored cell where the desk holds it, the biggest cell that fits
+     where it doesn't, and then the window slides up if the seat it was
+     authored into would hang it off the bottom. The content sizes the height
+     — a natural window has no inline height — so this is a width, a cell and
+     a top, and nothing inside it ever scrolls. */
+  function fitNatural(): void {
+    const c = naturalCell();
+    setCell(c);
+    win.el.style.width = `${windowWidth(c)}px`;
+    win.el.style.height = "";
+    const room = deskHeight() - taskbarH();
+    const h = win.el.offsetHeight;
+    if (win.el.offsetTop + h > room - 4) win.el.style.top = `${Math.max(4, room - h - 4)}px`;
+  }
+
   function layoutMax(on: boolean): void {
     if (on) {
       relayout(deskWidth(), deskHeight() - taskbarH());
@@ -469,7 +464,6 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       relayout();
       return;
     }
-    setCell(CELL);
     const frame = q<HTMLElement>(".boardframe", body);
     const pickerRow = q("#pickerRow", body);
     body.style.display = "";
@@ -478,11 +472,11 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     frame.style.width = "";
     frame.style.flex = "";
     frame.style.margin = "";
-    frame.style.height = scrolls() ? `${maxFrame() - FRAME_PAD}px` : "";
+    frame.style.height = "";
     pickerRow.style.width = "";
     pickerRow.style.margin = "";
     // the restore size may predate a variant switch; re-assert the real one
-    win.el.style.width = `${windowWidth()}px`;
+    fitNatural();
   }
 
   function buildGrid(): void {
@@ -540,7 +534,6 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     const fx = q("#fx", body);
     const k = stageScale();
     const seq = gameSeq;
-    revealRow(row, k);
     const o = fx.getBoundingClientRect();
     const srcR = source.getBoundingClientRect();
     const cellR = cellAt(col, row).getBoundingClientRect();
@@ -568,8 +561,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
      what the holes let you see, which is what a real one looks like and
      what the mock's arrow implies. One mask does both: an opaque band down
      to the frame, then the hole tile. Both offsets are read live, and so is
-     the tile: maximize, a variant switch, a resize drag and a scrolled frame
-     all move the grid, and three of them change the size of a hole. ---- */
+     the tile: maximize, a variant switch and a resize drag all move the
+     grid, and every one of them changes the size of a hole. ---- */
   function maskToBoard(fx: HTMLElement, o: DOMRect, k: number): void {
     const frameR = q(".boardframe", body).getBoundingClientRect();
     const gridR = q("#grid", body).getBoundingClientRect();
@@ -595,21 +588,6 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       s[`mask${prop}`] = v;
       s[`webkitMask${prop}`] = v;
     }
-  }
-
-  /* Connect 6 and 7 outgrow the desktop and the frame scrolls. Landing a
-     disc in a row that's scrolled out of sight drops it, visibly, past the
-     bottom of the board and over the statusbar — so bring the row into
-     view first, then measure. */
-  function revealRow(row: number, k: number): void {
-    const frame = q<HTMLElement>(".boardframe", body);
-    if (frame.scrollHeight <= frame.clientHeight) return;
-    const fr = frame.getBoundingClientRect();
-    const cr = cellAt(0, row).getBoundingClientRect();
-    const below = (cr.bottom - fr.top) / k - frame.clientHeight;
-    if (below > 0) frame.scrollTop += below;
-    const above = (fr.top - cr.top) / k;
-    if (above > 0) frame.scrollTop -= above;
   }
 
   /* ---- and the position leaves the way it arrived ----
@@ -927,12 +905,9 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       // maximized stays maximized; the new size lands on restore (layoutMax).
       // A hand size belonged to the old board and is let go — the new variant
       // takes its natural window, same as it always has.
-      if (!win.el.classList.contains("max")) {
-        win.el.classList.remove("sized");
-        win.el.style.height = "";
-        win.el.style.width = `${windowWidth()}px`;
-        setCell(CELL);
-      }
+      // dropping `sized` is all it takes: build() ends in fitNatural(), which
+      // is the one place that knows what window a variant asks for
+      if (!win.el.classList.contains("max")) win.el.classList.remove("sized");
     });
   }
 
