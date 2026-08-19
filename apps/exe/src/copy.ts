@@ -413,6 +413,40 @@ export const GAMES_COPY = {
     stuckDeal: "The deck has started over. It does this.",
     nothingToUndo: "Nothing to take back.",
     help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back.<br>Click a card, then where it should go. Dragging is also permitted." },
+    /* ---- the review ----
+       The confidence law, dealt again (see REVIEW above and solreview.ts).
+       The machine can *prove* a deal was winnable — it holds the line it won
+       with — and it can never prove one wasn't, because it stops looking. So
+       every "yes" here is flat and every "no" is a sentence about the
+       machine, not about the deal. The absolution is the honest one or it
+       isn't worth having. */
+    review: {
+      none: { title: "SOL.EXE", body: "Nothing has been played yet.<br>There is nothing to go over." },
+      working: "The machine is going back over it.",
+      workingSub: "This takes as long as it takes.",
+      failed: { title: "SOL.EXE", body: "The review has stopped working.<br>The cards remain where they are." },
+      /** The result is a fact — this half is flat. */
+      head: (homed: number): string =>
+        homed === 52 ? "ALL FIFTY-TWO HOME." : `${homed} OF 52 HOME.`,
+      counts: {
+        moves: (moves: number, draws: number): string =>
+          `${moves} moves, and you drew ${draws} times.`,
+        passes: (n: number): string =>
+          n === 1 ? "The deck went round once." : `The deck went round ${n} times.`,
+        flipped: (n: number): string =>
+          n === 1 ? "One card came off its face." : `${n} cards came off their faces.`,
+      },
+      /** Proven, so it says so. */
+      won: "You won it. There is nothing to explain.",
+      alive: "There is still a way through from here. This is known.",
+      stillAt: (move: number): string => `At move ${move} there was still a way through. This is known.`,
+      /** Not proven, and written like it. */
+      lostAfter: "The machine could not find one after that.",
+      fromTheStart: "The deal had one. The machine could not find it after your first move.",
+      dealCold: "The machine could not find a way through this deal.",
+      dealColdSub: "That is not the same as there not being one.",
+      spent: "It stopped looking before it was finished.",
+    },
   },
   checkers: {
     mustCapture: "A capture is available. It is not optional.",
@@ -529,6 +563,19 @@ export const REVIEW = {
     loss: (name: string): string => `${name} WON.`,
     draw: "NOBODY WON.",
   },
+  /** The statusbar, which is where a period program said how to drive it. */
+  walk: "Left and Right walk the game.",
+  /** The caption under the walked board: whose move it was, and where it went.
+      Yours can carry a remark; theirs is just the fact of it. */
+  pan: {
+    start: "The board before anyone moved.",
+    yours: (move: number, col: number): string => `Move ${move}, column ${col}. Yours.`,
+    /** The same move once the machine has an opinion about it. */
+    yoursGraded: (move: number, col: number, remark: string): string =>
+      `Move ${move}, column ${col} — ${remark}`,
+    theirs: (move: number, col: number, name: string): string =>
+      `Move ${move}, column ${col}. ${name}.`,
+  },
   /** Proven: the sentence is allowed to be a verdict. */
   turningPoint: (move: number): string => `Move ${move} is where it went. This is known.`,
   /** Estimated: the sentence is a lead, and sounds like one. */
@@ -573,6 +620,7 @@ export const TITLES = {
   drive: "(C:)",
   mines: "MINES.EXE",
   sol: "SOL.EXE",
+  solReview: "SOL.EXE — Review",
   snake: "SNAKE.EXE",
   checkers: "CHECKERS.EXE",
   chess: "CHESS.EXE",

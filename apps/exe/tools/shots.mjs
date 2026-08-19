@@ -40,6 +40,8 @@ const STATES = [
   ["mines", "?state=mines"],
   ["snake", "?state=snake"],
   ["sol", "?state=sol"],
+  // the review searches a real deal first, so it waits like the board's does
+  ["sol-review", "?state=sol&rig=review", 15000],
   ["checkers", "?state=checkers"],
   ["chess", "?state=chess"],
   // CHESS.EXE's endings, which stay on the board, and its own minor fever
@@ -56,6 +58,8 @@ const STATES = [
   ["terminal", "?state=terminal"],
   // the review solves a real game first; the third field is a longer wait
   ["review", "?state=review", 15000],
+  // the same review walked back to a position — the arrows' own screenshot
+  ["review-walk", "?state=review&ply=6", 15000],
   ["games", "?state=games"],
   ["sounds", "?state=sounds"],
   ["shutdown", "?state=shutdown"],

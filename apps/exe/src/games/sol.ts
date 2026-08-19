@@ -13,68 +13,36 @@ import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
 import { deskHeight, deskWidth, fieldScaler, stageScale, taskbarH, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
+import {
+  canFoundation,
+  canStackTableau,
+  cloneState,
+  deal,
+  drawFromStock,
+  isRed,
+  isWon,
+  type Card,
+  type SolState,
+} from "./solstate.js";
+import type { SolReview } from "./solreview.js";
+import type { SolReviewRequest, SolReviewResponse } from "./solworker.js";
 
-/* ---- the pure part (the tests live on this) ---- */
-
-/** suit: 0 ♠  1 ♥  2 ♦  3 ♣ */
-export interface Card {
-  rank: number; // 1 (ace) .. 13 (king)
-  suit: number;
-}
-
-export const isRed = (suit: number): boolean => suit === 1 || suit === 2;
-
-export interface SolState {
-  stock: Card[]; // face down; the end is the top
-  waste: Card[]; // face up; the end is the top
-  found: Card[][]; // one pile per suit
-  tab: { down: Card[]; up: Card[] }[]; // 7 piles
-}
-
-export function makeDeck(rand: () => number = Math.random): Card[] {
-  const deck: Card[] = [];
-  for (let suit = 0; suit < 4; suit++)
-    for (let rank = 1; rank <= 13; rank++) deck.push({ rank, suit });
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = (rand() * (i + 1)) | 0;
-    [deck[i], deck[j]] = [deck[j]!, deck[i]!];
-  }
-  return deck;
-}
-
-export function deal(rand: () => number = Math.random): SolState {
-  const deck = makeDeck(rand);
-  const tab = Array.from({ length: 7 }, (_, i) => ({
-    down: deck.splice(0, i),
-    up: deck.splice(0, 1),
-  }));
-  return { stock: deck, waste: [], found: [[], [], [], []], tab };
-}
-
-/** Tableau law: kings found empty columns; everyone else descends, alternating color. */
-export function canStackTableau(moving: Card, onto: Card | null): boolean {
-  if (!onto) return moving.rank === 13;
-  return onto.rank === moving.rank + 1 && isRed(onto.suit) !== isRed(moving.suit);
-}
-
-/** Foundation law: aces first, then up, one suit each. */
-export function canFoundation(c: Card, pile: readonly Card[]): boolean {
-  return pile.length === 0 ? c.rank === 1 : pile[pile.length - 1]!.rank === c.rank - 1;
-}
-
-/** Draw one; an empty stock takes the waste back, in order. Returns true if it recycled. */
-export function drawFromStock(s: SolState): boolean {
-  if (s.stock.length === 0) {
-    if (s.waste.length === 0) return false;
-    s.stock = s.waste.reverse();
-    s.waste = [];
-    return true;
-  }
-  s.waste.push(s.stock.pop()!);
-  return false;
-}
-
-export const isWon = (s: SolState): boolean => s.found.every((p) => p.length === 13);
+/* ---- the rules, which have no window ----
+   They live in solstate.ts so the review's solver and its worker can have
+   them without the DOM; one door, though — the game, its tests and the
+   review all say `sol.js`. */
+export {
+  canFoundation,
+  canStackTableau,
+  cloneState,
+  deal,
+  drawFromStock,
+  isRed,
+  isWon,
+  makeDeck,
+  type Card,
+  type SolState,
+} from "./solstate.js";
 
 /* ---- the cards as things ---- */
 
@@ -416,8 +384,17 @@ type PileRef =
   | { kind: "found"; i: number }
   | { kind: "tab"; i: number };
 
+/** A fixed shuffle, for the harness poses only — a screenshot of a review has
+    to be a screenshot of the same review every time. */
+const seededRand = (seed: number) => {
+  let v = seed;
+  return (): number => ((v = (v * 48271) % 2147483647) / 2147483647);
+};
+
 /** `rig: "won"` is a harness pose — foundations at the queens, four kings
-    one double-click from the ceremony. Live play never passes it. */
+    one double-click from the ceremony. `rig: "review"` is the other one: a
+    fixed deal, a dozen draws and the review already open over it. Live play
+    never passes either. */
 export function openSol(wm: WM, rig?: string): void {
   const existing = wm.get("sol");
   if (existing?.isOpen()) {
@@ -425,7 +402,7 @@ export function openSol(wm: WM, rig?: string): void {
     return;
   }
 
-  let s = deal();
+  let s = rig === "review" ? deal(seededRand(7919)) : deal();
   if (rig === "won") {
     s = {
       stock: [],
@@ -437,15 +414,20 @@ export function openSol(wm: WM, rig?: string): void {
   let won = false;
 
   /* undo: a snapshot before every real move. Klondike without takebacks is
-     mostly a lecture about the one card you buried three moves ago. */
+     mostly a lecture about the one card you buried three moves ago.
+
+     The same snapshots are the game's journal, which is what the review goes
+     back over — `hist` forgets its oldest once a game gets long, and a review
+     that skipped a move would put its numbers on the wrong one. So the
+     journal keeps every state (a few hundred kilobytes in a long game, and
+     the objects are shared with `hist` anyway) and an undo takes it back off
+     both: the game as played is the line you are actually on. */
   const hist: SolState[] = [];
+  const journal: SolState[] = [];
   const snap = (): void => {
-    hist.push({
-      stock: [...s.stock],
-      waste: [...s.waste],
-      found: s.found.map((p) => [...p]),
-      tab: s.tab.map((t) => ({ down: [...t.down], up: [...t.up] })),
-    });
+    const shot = cloneState(s);
+    hist.push(shot);
+    journal.push(shot);
     if (hist.length > 300) hist.shift();
   };
   const undo = (): void => {
@@ -455,6 +437,7 @@ export function openSol(wm: WM, rig?: string): void {
       statusEl.textContent = GAMES_COPY.sol.nothingToUndo;
       return;
     }
+    journal.pop();
     s = prev;
     statusEl.textContent = "";
     render();
@@ -945,12 +928,127 @@ export function openSol(wm: WM, rig?: string): void {
     s = deal();
     won = false;
     hist.length = 0;
+    journal.length = 0;
     statusEl.textContent = "";
     render();
   }
 
+  /**
+   * One worker, one answer, and then it is gone. There is no state to keep
+   * between reviews and a search that outlived its window would be a thread
+   * grinding away behind a game nobody is reviewing any more.
+   */
+  function askReview(path: SolState[]): { answer: Promise<SolReview>; stop: () => void } {
+    const w = new Worker(new URL("./solworker.ts", import.meta.url), { type: "module" });
+    const answer = new Promise<SolReview>((resolve, reject) => {
+      const done = (fn: () => void): void => {
+        w.terminate();
+        fn();
+      };
+      w.onmessage = (e: MessageEvent<SolReviewResponse>): void =>
+        done(() =>
+          "review" in e.data ? resolve(e.data.review) : reject(new Error(e.data.error)),
+        );
+      w.onerror = (): void => done(() => reject(new Error("the review worker failed")));
+      w.postMessage({ journal: path } satisfies SolReviewRequest);
+    });
+    // closing the window is the answer to "how long is it allowed to take"
+    return { answer, stop: () => w.terminate() };
+  }
+
+  /* ---- Game ▸ Review ----
+     Klondike never tells you whether you lost or the deal did, and after
+     enough of them the difference stops being obvious. So the machine plays
+     the rest of it out (solreview.ts, in a worker) and says which one it was
+     — flatly when it has proof, and about itself when it hasn't. The window
+     is REVIEW.EXE's furniture because it is the same idea.
+
+     The search is run over the journal, not the table in front of you: the
+     line you actually played, undos and all. */
+  let reviewGen = 0;
+  function openReview(): void {
+    const path = [...journal, cloneState(s)];
+    if (path.length < 2) {
+      wm.dialog({ ...GAMES_COPY.sol.review.none, x: 420, y: 320, w: 340 });
+      return;
+    }
+    wm.get("solreview")?.close();
+    const gen = ++reviewGen;
+
+    const rbody = el(`<div style="padding:6px 8px 8px"></div>`);
+    const head = el(`<div style="font-weight:bold;margin:2px 2px 6px"></div>`);
+    const list = el(
+      `<div class="sunken notepad" style="height:56px;overflow:auto;margin-bottom:6px;background:#fff"></div>`,
+    );
+    // the verdict sits under the counts and wraps like the sentence it is
+    const foot = el(`<div style="margin:0 2px"></div>`);
+    rbody.append(head, list, foot);
+    const R = GAMES_COPY.sol.review;
+    head.textContent = R.head(s.found.reduce((n, p) => n + p.length, 0));
+    list.textContent = R.working;
+    foot.textContent = R.workingSub;
+
+    const { answer, stop } = askReview(path);
+    const rwin = wm.open({
+      id: "solreview",
+      title: TITLES.solReview,
+      icon: SOL_ICON,
+      x: 380,
+      y: 220,
+      w: 320,
+      body: rbody,
+      buttons: ["min", "close"],
+      onClose: stop,
+    });
+
+    const rowIn = (parent: HTMLElement, text: string): void => {
+      const row = el(`<div style="padding:1px 4px"></div>`);
+      row.textContent = text;
+      parent.appendChild(row);
+    };
+
+    answer.then(
+      (r) => {
+        if (gen !== reviewGen || !rwin.isOpen()) return;
+        head.textContent = R.head(r.homed);
+        list.textContent = "";
+        foot.textContent = "";
+        rowIn(list, R.counts.moves(r.moves, r.draws));
+        if (r.passes) rowIn(list, R.counts.passes(r.passes));
+        if (r.flipped) rowIn(list, R.counts.flipped(r.flipped));
+        // the verdict, under the confidence law: proven flat, unproven hedged
+        if (r.won) rowIn(foot, R.won);
+        else if (r.deal !== "won") {
+          rowIn(foot, R.dealCold);
+          rowIn(foot, R.dealColdSub);
+        } else if (r.end === "won") rowIn(foot, R.alive);
+        else if (r.lastWinnable === 0) rowIn(foot, R.fromTheStart);
+        else if (r.lastWinnable !== null) {
+          rowIn(foot, R.stillAt(r.lastWinnable));
+          rowIn(foot, R.lostAfter);
+        }
+        if (r.spent && !r.won) rowIn(foot, R.spent);
+      },
+      () => {
+        if (gen !== reviewGen || !rwin.isOpen()) return;
+        rwin.close();
+        wm.dialog({ ...GAMES_COPY.sol.review.failed, icon: "!", x: 420, y: 320, w: 340 });
+      },
+    );
+  }
+
   const bar = menubar([
-    { label: "Game", items: [["Deal\tCtrl+D", newDeal], ["Undo\tCtrl+Z", undo], ["-", () => {}], ["Exit", () => win.close()]] },
+    {
+      label: "Game",
+      items: [
+        ["Deal\tCtrl+D", newDeal],
+        ["Undo\tCtrl+Z", undo],
+        ["-", () => {}],
+        ["Review", openReview],
+        ["-", () => {}],
+        ["Exit", () => win.close()],
+      ],
+    },
     {
       label: "Help",
       items: [[
@@ -1028,6 +1126,17 @@ export function openSol(wm: WM, rig?: string): void {
 
   render();
   relayout();
+
+  if (rig === "review") {
+    // a dozen draws is a game that has happened without being played, which
+    // is exactly what the pose needs: a journal to go back over
+    for (let i = 0; i < 12; i++) {
+      snap();
+      drawFromStock(s);
+    }
+    render();
+    openReview();
+  }
 }
 
 export const SOL_ICON = [

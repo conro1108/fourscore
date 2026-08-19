@@ -11,10 +11,11 @@
  *   ?state=mines|sol|snake|checkers|notepad|games|terminal   the other software
  *   ?state=paint          PAINT.EXE with rocket.spr on the easel
  *   ?state=sounds         sounds.ctl open
- *   ?state=review         REVIEW.EXE over a finished game
+ *   ?state=review&ply=N   REVIEW.EXE over a finished game, walked to ply N
  *   ?state=shutdown       the Shut Down box
  *   ?state=reboot         the restart beat, held (the real one navigates)
  *   ?state=sol&rig=won    a double-click from the card bounce
+ *   ?state=sol&rig=review a fixed deal, a dozen draws, and its review open
  *   ?state=chess&fen=...  chess parked on a position — a mate, or a sharp one
  *   ?fever=0.85           walk the fever up to a value and pin it
  *   ?act=dialog&pool=move:blunder   fire one beat act, so it can be looked at
@@ -554,11 +555,15 @@ const desktopApps: DesktopApps = {
   openGame: (id) => gameLaunchers[id](),
   openSounds: () => openSounds(wm),
   openReview: () =>
-    openReview({
-      wm,
-      last: () => lastEnd,
-      review: (variantId, history) => analysis.review(variantId, history, "red"),
-    }),
+    openReview(
+      {
+        wm,
+        last: () => lastEnd,
+        review: (variantId, history) => analysis.review(variantId, history, "red"),
+      },
+      // a harness pose only: the review opens on the finished game otherwise
+      param("ply") === null ? undefined : Number(param("ply")),
+    ),
   shutdown: () => openShutdown(wm, { stage, help: () => desktopApps.openHelp() }),
 };
 
