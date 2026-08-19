@@ -115,72 +115,94 @@ let editorSeq = 0;
 const editorKey = (name: string | null): string =>
   name === null ? "\0new" : normPath(name).toLowerCase();
 
-/* ---- typing help for source files ----
-   Notepad stays Notepad for prose, but a file the processor is going to read
-   gets the three courtesies every period programmer's editor had: Enter keeps
-   the indent (and opens a brace properly), Tab types spaces instead of leaving
-   the window, and the closing half of a pair arrives with the opening half.
-   Scoped by extension so a .txt never fights you over a quotation mark. */
+/* ---- typing help ----
+   Every file the editor opens gets the courtesies a period programmer's
+   editor had: Enter keeps the indent (and opens a brace properly), Tab types
+   spaces instead of leaving the window, the closing half of a pair arrives
+   with the opening half, and Backspace between an empty pair takes both.
+
+   These used to be scoped to .c/.h/.asm, on the theory that a .txt shouldn't
+   fight you over a quotation mark — which meant the desktop's own Notepad
+   (untitled.txt) had none of them and nothing said why. The boundary rule is
+   the part that was actually doing that work, so it now covers every pair: a
+   bracket or a quote only closes itself against whitespace, a closer or the
+   end of the line. Type `(` in front of a word in prose and you get one
+   paren, which is what you asked for.
+
+   The decision is `padTyping`, which is pure and tested; the listener below
+   is the hand that carries it out. */
 
 const INDENT = "    ";
 const PAIRS: Record<string, string> = { "(": ")", "[": "]", "{": "}", '"': '"' };
 const CLOSERS = new Set(Object.values(PAIRS));
+/** What a pair refuses to close in front of: a word, a quote, an apostrophe. */
+const WORDISH = /[\w"']/;
 
-const isCodeFile = (name: string | null): boolean => /\.(c|h|asm)$/i.test(name ?? "");
+/** Where the text box is when a key arrives. */
+export interface PadState {
+  value: string;
+  start: number;
+  end: number;
+}
 
-function installCodeKeys(ta: HTMLTextAreaElement, fileName: () => string | null): void {
-  const type = (text: string, caretBack = 0): void => {
-    ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end");
-    if (caretBack) {
-      ta.selectionStart = ta.selectionEnd = ta.selectionEnd - caretBack;
-    }
-  };
+/** What the editor should do about it. `null` means "let the browser type". */
+export type PadAction =
+  /** Replace the selection with `text`, then step the caret `back` from its end. */
+  | { kind: "insert"; text: string; back: number }
+  /** Delete `from`..`to` (Backspace taking a pair). */
+  | { kind: "delete"; from: number; to: number }
+  /** Type nothing; put the caret at `at` (stepping over a closer). */
+  | { kind: "caret"; at: number };
+
+export function padTyping(key: string, { value, start, end }: PadState): PadAction | null {
+  const next = value[end] ?? "";
+  const collapsed = start === end;
+
+  if (key === "Tab") return { kind: "insert", text: INDENT, back: 0 };
+  if (key === "Enter") {
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    const indent = /^[ \t]*/.exec(value.slice(lineStart, start))![0]!;
+    const prev = value.slice(lineStart, start).trimEnd().slice(-1);
+    // the brace opens like a door: the caret lands on its own line inside
+    if (prev === "{" && next === "}")
+      return { kind: "insert", text: `\n${indent}${INDENT}\n${indent}`, back: indent.length + 1 };
+    return { kind: "insert", text: `\n${indent}${prev === "{" ? INDENT : ""}`, back: 0 };
+  }
+  // the closer is already there; typing it steps over it
+  if (collapsed && CLOSERS.has(key) && next === key) return { kind: "caret", at: end + 1 };
+  if (collapsed && PAIRS[key]) {
+    // a pair only closes itself against a boundary — mid-word a bracket is a
+    // bracket and a quote is an inch mark
+    if (WORDISH.test(next)) return null;
+    // ...and a quote after a word is the closing one: 6" of pipe, not 6""
+    if (key === '"' && WORDISH.test(value[start - 1] ?? "")) return null;
+    return { kind: "insert", text: key + PAIRS[key]!, back: 1 };
+  }
+  if (key === "Backspace" && collapsed && PAIRS[value[start - 1] ?? ""] === next)
+    return { kind: "delete", from: start - 1, to: start + 1 };
+  return null;
+}
+
+function installTypingHelp(ta: HTMLTextAreaElement): void {
   ta.addEventListener("keydown", (e) => {
-    if (!isCodeFile(fileName()) || e.ctrlKey || e.metaKey || e.altKey) return;
-    const { value, selectionStart: start, selectionEnd: end } = ta;
-    const next = value[end] ?? "";
-    const collapsed = start === end;
-
-    if (e.key === "Tab") {
-      e.preventDefault();
-      type(INDENT);
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const act = padTyping(e.key, {
+      value: ta.value,
+      start: ta.selectionStart,
+      end: ta.selectionEnd,
+    });
+    if (!act) return;
+    e.preventDefault();
+    if (act.kind === "caret") {
+      ta.selectionStart = ta.selectionEnd = act.at;
       return;
     }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
-      const indent = /^[ \t]*/.exec(value.slice(lineStart, start))![0]!;
-      const prev = value.slice(lineStart, start).trimEnd().slice(-1);
-      if (prev === "{" && next === "}") {
-        // the brace opens like a door: the caret lands on its own line inside
-        type(`\n${indent}${INDENT}\n${indent}`, indent.length + 1);
-      } else {
-        type(`\n${indent}${prev === "{" ? INDENT : ""}`);
-      }
+    if (act.kind === "delete") {
+      ta.setRangeText("", act.from, act.to, "start");
       return;
     }
-    if (collapsed && CLOSERS.has(e.key) && next === e.key && e.key !== '"') {
-      // the closer is already there; typing it steps over it
-      e.preventDefault();
-      ta.selectionStart = ta.selectionEnd = end + 1;
-      return;
-    }
-    if (collapsed && e.key === '"' && next === '"') {
-      e.preventDefault();
-      ta.selectionStart = ta.selectionEnd = end + 1;
-      return;
-    }
-    if (PAIRS[e.key] && collapsed) {
-      // a quote only pairs up against a boundary — mid-word it's an apostrophe
-      if (e.key === '"' && /[\w"']/.test(next)) return;
-      e.preventDefault();
-      type(e.key + PAIRS[e.key]!, 1);
-      return;
-    }
-    if (e.key === "Backspace" && collapsed && PAIRS[value[start - 1] ?? ""] === next) {
-      e.preventDefault();
-      ta.setRangeText("", start - 1, start + 1, "start");
-    }
+    ta.setRangeText(act.text, ta.selectionStart, ta.selectionEnd, "end");
+    if (act.back) ta.selectionStart = ta.selectionEnd = ta.selectionEnd - act.back;
   });
 }
 
@@ -198,7 +220,7 @@ export function openEditor(wm: WM, disk: Disk, name: string | null): void {
     `<textarea class="notepad notepad-edit" spellcheck="false"></textarea>`,
   ) as HTMLTextAreaElement;
   ta.value = fileName === null ? "" : (disk.read(fileName) ?? "");
-  installCodeKeys(ta, () => fileName);
+  installTypingHelp(ta);
   const wrap = el(`<div class="sunken flexwell" style="margin:3px;background:#fff"></div>`);
   wrap.appendChild(ta);
 
