@@ -261,4 +261,24 @@ describe("the seed", () => {
     expect(rows.filter((r) => r[2] === "|").length).toBe(4);
     expect(rows.filter((r) => r[37] === "|").length).toBe(4);
   });
+
+  it("maze.c, tetris.c and c4.c compile, draw and take a key", () => {
+    const seed = (n: string): string => SEED_FILES.find((f) => f.name.endsWith(n))!.text;
+    const play = (n: string, keys: number[], frames: number): string[] => {
+      const vm = vmOf(seed(n), { keys, rand: 12345 });
+      for (let f = 0; f < frames; f++) vm.run(STEPS);
+      expect(vm.fault).toBeNull();
+      return screenRows(vm);
+    };
+    const maze = play("maze.c", ["d".charCodeAt(0)], 400);
+    expect(maze[0]).toContain("#######");
+    expect(maze[21]![37]).toBe("*");
+    expect(maze[1]!.includes("@")).toBe(true);
+    const tetris = play("tetris.c", [" ".charCodeAt(0)], 40);
+    expect(tetris[22]!.slice(14, 26)).toBe("============");
+    expect(tetris.join("")).toContain("#"); // the dropped piece became floor
+    const c4 = play("c4.c", ["4".charCodeAt(0)], 120);
+    expect(c4[15]![24]).toBe("O");
+    expect(c4.join("")).toContain("X"); // the machine has answered
+  });
 });

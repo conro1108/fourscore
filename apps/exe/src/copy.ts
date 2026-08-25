@@ -8,6 +8,7 @@
  */
 
 import { LLM_C } from "./llmc.js";
+import { C4_C, MAZE_C, TETRIS_C } from "./games_c.js";
 
 import type { SoundName } from "./audio/library.js";
 
@@ -1092,7 +1093,8 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "  compiler will not stop you.",
       "",
       "  /src/fizz.c, /src/list.c, /src/map.c,",
-      "  /src/pong.c and /src/llm.c on this disk are",
+      "  /src/pong.c, /src/maze.c, /src/tetris.c,",
+      "  /src/c4.c and /src/llm.c on this disk are",
       "  known to work.",
     ].join("\n"),
   },
@@ -1434,6 +1436,21 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
       "    return 0;",
       "}",
     ].join("\n"),
+  },
+  {
+    /* A maze carved in front of you, the falling blocks, and the game this
+       machine is named for with a three-ply bot doing its thinking at the
+       period clock. Sources in games_c.ts. */
+    name: "SRC\\maze.c",
+    text: MAZE_C,
+  },
+  {
+    name: "SRC\\tetris.c",
+    text: TETRIS_C,
+  },
+  {
+    name: "SRC\\c4.c",
+    text: C4_C,
   },
   {
     /* llm_llm_llm.md Phase 2: a language model on the machine's own
