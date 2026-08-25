@@ -5,14 +5,12 @@
  *
  * and every caller on the desktop talks to it by semantic name: `play("ding")`.
  *
- * **Autoplay law.** Nothing is constructed until the first user gesture;
- * `installAudio()` only parks a listener. Until then `play` is a silent no-op,
- * which is also what keeps `npm run shots` — which never clicks anything —
- * from being a page with an AudioContext in it.
- *
- * The law turns out to be a gift here rather than a workaround: the gesture
- * that builds the rig plays `startup`, so the machine finishes booting the
- * moment you touch it. It has been sitting there since the page loaded.
+ * **Autoplay law.** The rig is built at load but the browser decides whether
+ * it runs: after a reboot (you have touched the site this session) it comes
+ * up running and `startup` plays at the real startup; on a cold load it sits
+ * suspended, `play` is a silent no-op, and the first gesture finishes the
+ * boot — if it comes soon after load. A late first click gets its own sound
+ * and no chime, because a boot swell under a disc drop is not a boot.
  *
  * **The fever bends the scheme, and only the bus knows that.** At high fever
  * every one-shot plays a little flat and sits in a bigger, wronger room —
@@ -168,14 +166,31 @@ function wake(r: Rig): Promise<void> {
 export function installAudio(deps: { fever: () => number }): void {
   feverSource = deps.fever;
   let booted = false;
+  const loadedAt = performance.now();
+  const boot = (): void => {
+    if (booted) return;
+    booted = true;
+    play("startup", 0.9);
+  };
+  // A boot chime only reads as a boot near the boot. A first click ten
+  // minutes in wants its own sound, not a three-second swell under it.
+  const BOOT_WINDOW_MS = 4000;
   const unlock = (): void => {
     if (!rig) rig = buildRig();
-    void wake(rig).then(() => {
-      if (booted) return;
-      booted = true;
-      play("startup", 0.9);
+    // Not `wake()`: an off-gesture resume() neither resolves nor rejects in
+    // Chrome, it hangs — and the bed will have issued one before any click.
+    // The gesture has to place its own call, or it dedupes onto the hung one.
+    void rig.ctx.resume().then(() => {
+      if (performance.now() - loadedAt < BOOT_WINDOW_MS) boot();
+      else booted = true;
     });
   };
+  // Chrome lets a context run without a gesture once you've interacted with
+  // the site this session — which is exactly what a reboot is. So try the
+  // real startup first; if the browser refuses, the context sits suspended
+  // and the first touch finishes the boot as before.
+  rig = buildRig();
+  if (rig.ctx.state === "running") boot();
   addEventListener("pointerdown", unlock, { passive: true });
   // iOS has historically only honoured the *end* of a touch as the gesture
   // that may start audio, so the lift gets a listener too — `wake()` makes

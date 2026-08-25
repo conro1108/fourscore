@@ -83,8 +83,10 @@ await page.waitForFunction(() => window.__exe !== undefined);
 await page.waitForSelector("#taskbar");
 
 // -- the autoplay law ---------------------------------------------------------
+// The rig is built at load so a reboot can chime at the real startup; on a
+// cold load the browser must be holding it shut.
 const before = await page.evaluate(() => window.__exe.audio.rigState());
-if (before !== null) throw new Error(`audio existed before any gesture: ${before}`);
+if (before === "running") throw new Error("audio was running before any gesture");
 // On the desk itself, not on a control: this must not also open something.
 await page.mouse.click(640, 700);
 await page.waitForTimeout(500);
