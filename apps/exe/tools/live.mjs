@@ -1,8 +1,6 @@
 /**
- * Drive the live app: click real columns, wait for the real engine to answer,
- * open the menus, and screenshot the proof. The unit tests can't see any of
- * this — this is the eyes.
- * Usage:  node tools/live.mjs   (spawns its own dev server like shots.mjs)
+ * Drive the live app: play against the real engine, open menus, fevered
+ * dialog drag, restart. Usage: node tools/live.mjs
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -41,18 +39,15 @@ page.on("pageerror", (e) => fail(`pageerror: ${e.message}`));
 await page.goto(`${BASE}/`);
 await page.waitForTimeout(1200);
 
-// the machine boots to a desk; the player's first act is BOARD.EXE itself
 await page.locator("#stage > .icon", { hasText: "BOARD.EXE" }).dblclick();
 await page.locator("#grid .cell").first().waitFor({ timeout: 10000 });
 await page.waitForTimeout(400);
 
 const discs = async () => page.locator("#grid .disc").count();
 
-// play three moves against the real MOSS
 for (let i = 0; i < 3; i++) {
   const before = await discs();
   await page.locator(`#grid .cell[data-col="${3 - i}"]`).first().click();
-  // your disc lands, then MOSS deliberates and answers
   await page.waitForFunction(
     (n) => document.querySelectorAll("#grid .disc").length >= n + 2,
     before,
@@ -65,17 +60,15 @@ console.log("status:", status);
 if (!/YOUR MOVE/.test(status ?? "")) fail(`expected YOUR MOVE, got "${status}"`);
 await page.screenshot({ path: here("../shots/live-game.png") });
 
-// the second law spot-check: menus open and do things
+// menus open and do things
 await page.getByText("Opponent", { exact: false }).first().click();
 await page.waitForTimeout(200);
 await page.screenshot({ path: here("../shots/live-menu.png") });
 const quill = page.locator(".popup div", { hasText: "QUILL" });
 if ((await quill.count()) === 0) fail("opponent menu did not list QUILL");
 await quill.first().click();
-// Switching bots starts a new game, and a new game now drains the old position
-// out of the cabinet first — so the statusbar names the new opponent a few
-// hundred ms after the click, not on it. Poll rather than sleep: a fixed wait
-// here was 150ms from being a harness that fails on a slower machine.
+// switching bots drains the old position first, so the statusbar names the new
+// opponent a few hundred ms after the click — poll, don't sleep
 await page
   .locator(".statusbar div")
   .nth(1)
@@ -86,8 +79,7 @@ const stBot = await page.locator(".statusbar div").nth(1).textContent();
 console.log("after switching to QUILL:", stBot);
 if (!/QUILL/.test(stBot ?? "")) fail(`expected QUILL statusbar, got "${stBot}"`);
 
-// start menu opens, the Shut Down box offers both period answers, and the
-// machine still declines to shut down when you take it up on the first one
+// Shut Down box offers both period answers and declines the first
 await page.locator("#start").click();
 await page.waitForTimeout(150);
 await page.getByText("Shut Down...").click();
@@ -99,7 +91,7 @@ await page.waitForTimeout(250);
 if (!(await page.getByText("not ready to shut down").count())) fail("shutdown refusal missing");
 await page.screenshot({ path: here("../shots/live-shutdown-refused.png") });
 
-// at high fever, dragging a dialog must leave un-repainted copies of itself
+// at high fever, dragging a dialog must leave un-repainted copies
 await page.goto(`${BASE}/?state=midgame&fever=0.85`);
 await page.waitForTimeout(1000);
 const bar = page.locator(".win", { hasText: "Something is warm" }).locator(".titlebar");
@@ -119,10 +111,8 @@ else {
   await page.screenshot({ path: here("../shots/live-smear.png") });
 }
 
-/* And the way back out of all of it. The desk is littered right now — a
-   fevered game, dialogs, drag ghosts, a pose in the URL — so restart it and
-   check what came back: the boot pose, a clean URL, no litter, and a disk
-   that still has the player's files on it. */
+/* restart from the littered desk: expect the boot pose, a clean URL, no
+   litter, and the player's files still on disk */
 await page.screenshot({ path: here("../shots/live-restart-before.png") });
 await page.locator("#start").click();
 await page.waitForTimeout(150);
@@ -145,11 +135,11 @@ const back = {
 };
 console.log("after restart:", { ...back, disk: `${(back.disk ?? "").length} bytes` });
 if (/[?#]/.test(back.url)) fail(`restart kept the pose: ${back.url}`);
-// the machine boots to a desk — a restart opens nothing at all
+// a restart opens nothing
 if (back.wins !== 0) fail(`expected 0 windows after a restart, got ${back.wins}`);
 if (back.smears) fail("drag ghosts survived the restart");
 if (back.clock !== "6:66 PM") fail(`clock did not reset: ${back.clock}`);
-// no fake data loss: C:\ is not the machine's runtime and does not go with it
+// C:\ survives a restart
 if (!/readme\.txt/.test(back.disk ?? "")) fail("the restart ate the disk");
 await page.screenshot({ path: here("../shots/live-restart-after.png") });
 

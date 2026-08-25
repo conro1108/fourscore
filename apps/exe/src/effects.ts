@@ -1,15 +1,8 @@
 /**
- * The fever, made visible: every subsystem here READS the director and
- * degrades the desktop accordingly (DIRECTION.md — legible, reversible,
- * never blocking play; comic-sinister, never crash-horror).
- *
- * Continuous: every fire burns hotter the whole way up, and the palette only
- * ever leans toward the white-hot ramp — at full lean it reads as butter, not
- * fire, so it never arrives (the lean caps at half).
- *
- * Discrete: tiers. Crossing one is an event — windows open on their own,
- * a dialog appears, the clock loses its grip, icons drift, and at 1.0 the
- * screensaver wins the desktop while the board stays playable on top.
+ * The fever made visible: reads the director and degrades the desktop
+ * (see DIRECTION.md § fever — reversible, never blocking play). Continuous:
+ * heat scales with fever, palette lean capped at half. Discrete: tier
+ * crossings open windows/dialogs; at tier 4 the saver takes the desktop.
  */
 
 import { el } from "./dom.js";
@@ -39,8 +32,7 @@ type Personality = "classic" | "coals" | "pillar" | "rain";
 interface FireWindowGeom {
   x: number;
   y: number;
-  /** Which edge of the desk x is measured from. Defaults right — the
-      flames live in the desk's right margin, not at a fixed 1280 offset. */
+  /** Edge x is measured from. Defaults right (the desk's right margin). */
   ax?: AnchorX;
   cw: number;
   ch: number;
@@ -48,7 +40,7 @@ interface FireWindowGeom {
   rh: number;
 }
 
-/** Main preview geometry per tier — the mock's tuned numbers (01-inferno). */
+/** Main preview geometry per tier. */
 const MAIN_GEOM: readonly FireWindowGeom[] = [
   { x: 912, y: 428, cw: 296, ch: 190, rw: 100, rh: 64 },
   { x: 872, y: 396, cw: 336, ch: 224, rw: 112, rh: 75 },
@@ -56,44 +48,37 @@ const MAIN_GEOM: readonly FireWindowGeom[] = [
   { x: 700, y: 300, cw: 500, ch: 330, rw: 166, rh: 110 },
 ];
 
-/** The win's fireplace (02-win's finale beat). */
+/** The win's fireplace. */
 const WIN_GEOM: FireWindowGeom = { x: 772, y: 330, cw: 436, ch: 292, rw: 145, rh: 97 };
 
 const ROAM_ANCHOR: readonly AnchorX[] = ["left", "center", "right"];
 
 const ICON_SHIFT_T3 = [[3, -2], [-2, 3], [1, 2], [-3, -1], [2, -3], [-1, 2]] as const;
 const ICON_SHIFT_T4 = [[6, -4], [-5, 6], [3, 5], [-7, -2], [5, 4], [-4, -5]] as const;
-/** A flinch, not a state — bigger than either tier shift, and it goes back. */
+/** A flinch: bigger than either tier shift, and reverts. */
 const ICON_TWITCH = [[-9, 5], [7, -6], [-4, -8], [9, 3], [-6, 7], [5, -9]] as const;
 const CLOCK_DRIFT = [0, 1, 5, 22, -1] as const;
 
-/** Roughly how tall a beat dialog comes out — two lines of body plus the
-    button row and the titlebar. Only used to test whether one would land on
-    the board, so a few pixels either way costs nothing. */
+/** Rough beat-dialog height; only used to test for landing on the board. */
 const DIALOG_H = 108;
 const TASKBAR_H = 36; // chrome only; taskbarH() adds the phone's home-bar inset
 
-/** The preview that opens itself for two seconds. Left margin, out of the way
-    of the board and of every geometry `MAIN_GEOM` uses. */
+/** The self-opening preview: left margin, clear of the board and MAIN_GEOM. */
 const BLINK_GEOM: FireWindowGeom = { x: 34, y: 250, ax: "left", cw: 208, ch: 138, rw: 69, rh: 46 };
 
 export interface Effects {
   apply(s: DirectorSnapshot): void;
-  /** Answer one ply. The desktop's whole life between tier crossings.
-      `force` is the harness naming an act so it can be looked at; live play
-      never passes it and always draws. */
+  /** Answer one ply. `force` names an act for the harness; live play draws. */
   beat(b: Beat, force?: BeatAct): void;
   gameEvent(kind: EndResult["kind"]): void;
-  /** The moment a game ends, crossings stop talking (the endgame has the mic). */
+  /** Game over: crossings go mute (the endgame has the mic). */
   setGameOver(): void;
-  /** The player has left the ending. The endgame hands the mic back: the fire
-      goes back to its ordinary personality and geometry, and the litter starts
-      going out on the tidy beat as the fever comes down under it. */
+  /** Ending left: fire back to ordinary personality/geometry, litter tidies. */
   endingDismissed(): void;
   setOpponent(botId: string): void;
   newGame(): void;
   openFlames(): void;
-  /** The screensaver wins the desktop — fever 1.0 and real idle both land here. */
+  /** Screensaver takes the desktop — fever 1.0 and real idle both land here. */
   takeover(on: boolean): void;
 }
 
@@ -102,11 +87,10 @@ export function makeEffects(deps: {
   shell: Shell;
   stage: HTMLElement;
   boardWin: () => Win | undefined;
-  /** The board's rightful title — variant-aware, so a title-slip beat hands
-      back "BOARD.EXE — Connect 6" and not a bare BOARD.EXE. */
+  /** Variant-aware board title, for restoring after a title-slip. */
   boardTitle: () => string;
   notepad: MovesPad;
-  /** Injected so the beat picker is deterministic under test and in the shots. */
+  /** Injected for deterministic beats in tests and shots. */
   rng?: () => number;
 }): Effects {
   const { wm, shell, stage } = deps;
@@ -121,10 +105,9 @@ export function makeEffects(deps: {
   let tier = 0;
   let fever = 0;
   let wonGeom = false;
-  /** After a game ends the endgame owns the dialogs; crossings stay mute. */
+  /** Endgame owns the dialogs; crossings stay mute. */
   let gameOver = false;
-  /** …until you leave the ending, which hands the desktop back. The game is
-      still over (no beats, no crossings), but the litter is now litter. */
+  /** Ending left: still no beats/crossings, but the litter may tidy. */
   let dismissed = false;
 
   function fireWindow(
@@ -150,7 +133,7 @@ export function makeEffects(deps: {
       body,
       buttons: ["close"],
       onClose: () => {
-        /* fires stopped by caller via close hooks below */
+        /* fires stopped by caller */
       },
     });
     const fire = makeFire(canvas, opts);
@@ -169,7 +152,7 @@ export function makeEffects(deps: {
     applyHeat();
   }
 
-  /** Continuous heat, scaled by fever — the mock's params(). */
+  /** Continuous heat, scaled by fever. */
   const heatParams = (extra: { dBase?: number; dInt?: number; dCool?: number } = {}): FireOptions => ({
     baseHeat: Math.round(36 + fever * 12 + (extra.dBase ?? 0)),
     cool: 3 - fever * 0.5 + (extra.dCool ?? 0),
@@ -224,12 +207,8 @@ export function makeEffects(deps: {
     const made = fireWindow(id, TITLES.flamesN(n), geom, { ...opts, ...heatParams(d) });
     extras.push({ win: made.win, fire: made.fire, d });
   }
-  /* ---- the litter goes out one thing at a time ----
-     A new game (or a tier letting go mid-game) doesn't cut the fever's
-     manifestations off the desk: the machine puts them away — one window per
-     beat, newest first, each with its ordinary close. Anything the *current*
-     tier still justifies stays until the room cools under it, so a fresh
-     board that starts hot keeps its fires and loses them as the fever does. */
+  /* ---- tidy: litter goes one item per beat, newest first; anything the
+     current tier still justifies stays until the fever cools. ---- */
   let litterTimer: ReturnType<typeof setTimeout> | null = null;
   const TIDY_BEAT = 1300;
   function stopTidy(): void {
@@ -238,17 +217,12 @@ export function makeEffects(deps: {
   }
   function tidyStep(): void {
     litterTimer = null;
-    // While the machine is still announcing an ending it keeps its litter —
-    // the win cascade is the biggest thing it has ever said and nothing gets
-    // to start clearing up underneath it. The moment you leave the ending,
-    // though, the loop runs again: you should not have to start a new game to
-    // get a working desktop back.
+    // nothing tidies under a running ending; leaving it resumes the loop
     if (gameOver && !dismissed) return;
     const again = (): void => {
       litterTimer = setTimeout(tidyStep, TIDY_BEAT);
     };
-    // the sentences the crossings left behind go first — they are the loudest
-    // thing still standing, and they belong to a game that is finished
+    // crossing dialogs go first
     if (dismissed) {
       const d = crossingDialogs.pop();
       if (d) {
@@ -260,7 +234,7 @@ export function makeEffects(deps: {
     if (tier < 3) {
       const w = [...roamWins].reverse().find((rw) => rw.isOpen());
       if (w) {
-        // the last porthole closing shuts roam down through its own onClose
+        // the last porthole's onClose shuts roam down
         w.close();
         again();
         return;
@@ -276,7 +250,7 @@ export function makeEffects(deps: {
       }
       const host = smearsEl();
       if (host.children.length) {
-        // smears go by the handful — forty one-per-beat would outlast the game
+        // smears go by the handful; forty one-per-beat would outlast the game
         const n = Math.max(4, Math.ceil(host.children.length / 3));
         for (let i = 0; i < n && host.lastElementChild; i++) host.lastElementChild.remove();
         if (!host.children.length) lastSmearAt.clear();
@@ -284,7 +258,7 @@ export function makeEffects(deps: {
         return;
       }
     }
-    // whatever is left, this tier has earned; check back once the room cools
+    // the rest is earned by this tier; check back later
     if (
       roamWins.some((rw) => rw.isOpen()) ||
       extras.length ||
@@ -301,7 +275,7 @@ export function makeEffects(deps: {
   /* ---- roam.scr: one fire, three windows, focus follows it ---- */
   let roam: { start(): void; stop(): void } | null = null;
   let roamWins: Win[] = [];
-  /** Desk px per fire px — the canvas's css size over its resolution. */
+  /** Desk px per fire px (css size / resolution). */
   const ROAM_SCALE = 296 / 100;
   function openRoam(): void {
     if (roam) return;
@@ -325,14 +299,12 @@ export function makeEffects(deps: {
         body,
         w: 308,
         buttons: ["close"],
-        // when you close the last porthole there is nothing left to burn in
         onClose: () => {
           if (roam && roamWins.every((w) => !w.isOpen())) closeRoam();
         },
       });
     });
-    // each window reports where it is *now*, so dragging one moves its
-    // porthole and closing or minimizing one removes it from the fire's world
+    // live positions: dragging moves a porthole, closing/minimizing removes it
     const views = (): { canvas: HTMLCanvasElement; x: number; index: number }[] => {
       const sr = stage.getBoundingClientRect();
       const k = stageScale();
@@ -361,17 +333,14 @@ export function makeEffects(deps: {
   /* ---- smears: an un-repainted copy of a window ---- */
   const smearsEl = (): HTMLElement => stage.querySelector<HTMLElement>("#smears")!;
 
-  /** A window's pixels, left behind. `#smears` sits at z 35, under every
-      window (chrome.css), so a ghost can never come between you and the grid
-      — and it is `pointer-events:none` on top of that. */
+  /** A window's ghost. `#smears` is z 35, under every window (chrome.css),
+      and pointer-events:none, so a ghost can't get between you and the grid. */
   function ghostOf(w: HTMLElement, dx = 0, dy = 0): HTMLElement {
     const ghost = w.cloneNode(true) as HTMLElement;
     ghost.style.pointerEvents = "none";
     ghost.style.zIndex = "0";
     ghost.style.transform = dx || dy ? `translate(${dx}px,${dy}px)` : "";
-    // a cloned canvas comes out blank, and a ghost of flames.scr with a black
-    // hole in it is the one place this reads as a bug rather than as the OS
-    // failing to repaint. Carry the bitmap across.
+    // a cloned canvas is blank; carry the bitmap across
     const from = w.querySelectorAll<HTMLCanvasElement>("canvas");
     ghost.querySelectorAll<HTMLCanvasElement>("canvas").forEach((c, i) => {
       const src = from[i];
@@ -379,70 +348,45 @@ export function makeEffects(deps: {
       try {
         c.getContext("2d")?.drawImage(src, 0, 0);
       } catch {
-        /* a canvas that won't copy is a blank one, which is still a ghost */
+        /* blank is still a ghost */
       }
     });
     return ghost;
   }
 
-  /* ---- a dragged window leaves them ---- */
+  /* ---- drag smears ---- */
   const lastSmearAt = new Map<string, [number, number]>();
   wm.onDrag((win, x, y) => {
-    driftOff(win.el); // you have hold of it; the desktop lets go of it
+    driftOff(win.el);
     if (tier < 2) return;
     const last = lastSmearAt.get(win.id);
     if (last && Math.hypot(x - last[0], y - last[1]) < 70) return;
     lastSmearAt.set(win.id, [x, y]);
-    if (!last) return; // the first sample sets the anchor, not a smear
+    if (!last) return; // first sample is the anchor
     const host = smearsEl();
     host.appendChild(ghostOf(win.el));
     while (host.children.length > 40) host.firstElementChild!.remove();
   });
 
-  /* ---- and so does the fever, with nobody dragging anything ----
-     The drag-ghost trail is the loudest artifact this OS has, and it used to
-     be the one thing the fever could not produce: you saw it if you happened
-     to drag a window, and otherwise never. So it gets an ambient channel. Past
-     the middle of tier 2 the desktop stops holding still — windows wander off
-     their own coordinates and leave copies where they were, further and more
-     often the sharper the position gets.
-
-     Four rules make that legal:
-
-     - It is a `transform`, never a position. The wm owns left/top; the drift
-       rides on top of them, so clearing it is exact — no accumulated error, no
-       fight with `place()` when the desk resizes, and coming down puts every
-       window back precisely where the window manager still thinks it is.
-     - The board never drifts, and neither does anything that could reach it: a
-       window is eligible only if its rect *grown by the maximum drift* misses
-       the board's. "Never blocking play" is a rule about clicks, and a window
-       that wanders onto the grid eats the drop you were aiming at.
-     - The focused window holds still — the thing you are looking at is the
-       thing the machine is still managing to repaint. That is also what keeps
-       a drag honest: pointerdown clears the offset before the wm's drag reads
-       `offsetLeft`, so grabbing a drifting window doesn't jump it.
-     - It is stepped, at the 11fps the cursor trail already runs at, and every
-       number in it is a function of fever. At fever 0 there is none of it. */
+  /* ---- ambient drift: past mid tier 2 windows wander and leave smears.
+     Rules: it is a `transform`, never left/top (wm owns those; clearing is
+     exact). The board never drifts, nor any window whose rect grown by
+     DRIFT_MAX could reach it (a drifted window over the grid eats clicks).
+     The focused window holds still; pointerdown clears the offset before the
+     wm's drag reads offsetLeft. Stepped at DRIFT_TICK, all numbers are
+     functions of fever, none of it at fever 0. */
   const DRIFT_TICK = 90;
-  /** Below this the desktop is still keeping up with itself. Tier 2 starts at
-      0.5, so the drift opens just inside it at a pixel and builds from there. */
+  /** Tier 2 starts at 0.5; drift opens just inside it. */
   const DRIFT_FLOOR = 0.45;
-  /** Desk px of wander at fever 1 — 44 peak to peak. Small enough to read as a
-      machine failing to repaint rather than as furniture sliding around, and
-      big enough that the copies it leaves are a trail rather than a fringe:
-      at 14 the ghost never cleared the window it came off and the whole
-      channel only showed up as a slightly doubled edge. */
+  /** Wander px at fever 1 (44 peak to peak). At 14 the ghost never cleared
+      its window and read as a doubled edge, not a trail. */
   const DRIFT_MAX = 22;
-  /** Steps a window takes to reach full drift once it becomes eligible, so
-      letting go of one doesn't fling it. Stepped, not eased. */
+  /** Gain per step to full drift, so releasing a window doesn't fling it. */
   const DRIFT_RAMP = 0.2;
-  /** Px of wander between un-repainted copies. */
+  /** Px of wander between smears. */
   const SMEAR_STEP = 6;
-  /** A ghost gives up in four goes, ~2s all told — long enough that three or
-      four of them are strung out along the window's path at once, which is
-      what makes it a trail. A real un-repainted region survives until
-      something repaints it; forty of them at once is mush, so the OS is
-      allowed to eventually get round to it. */
+  /** Ghost fades in four steps, ~2s: enough for 3-4 along the path (a trail),
+      not so long that forty pile into mush. */
   const SMEAR_FADE = 500;
   const SMEAR_STEPS = [0.7, 0.45, 0.2, 0] as const;
   const AMBIENT_SMEARS = 16;
@@ -450,7 +394,7 @@ export function makeEffects(deps: {
   interface Drifter {
     phase: number;
     gain: number;
-    /** Offset the last ghost was left at. */
+    /** Offset of the last ghost. */
     sx: number;
     sy: number;
   }
@@ -462,14 +406,14 @@ export function makeEffects(deps: {
   const drifterOf = (w: HTMLElement): Drifter => {
     let d = drifters.get(w);
     if (!d) {
-      // a phase per window, so the desk wanders as a room of separate machines
+      // a phase per window
       d = { phase: drifterSeq++ * 2.399, gain: 0, sx: 0, sy: 0 };
       drifters.set(w, d);
     }
     return d;
   };
 
-  /** Hand a window straight back to the window manager. */
+  /** Clear a window's drift. */
   function driftOff(w: HTMLElement): void {
     const d = drifters.get(w);
     if (d) {
@@ -480,15 +424,13 @@ export function makeEffects(deps: {
     if (w.style.transform) w.style.transform = "";
   }
 
-  /** 0 below the floor, 1 at fever 1 — and 0 flat while the machine is still
-      announcing an ending. The win cascade stays the biggest thing the desktop
-      has ever done, and a drifting finale would spend it. */
+  /** 0 below the floor, 1 at fever 1; 0 flat while an ending is running. */
   function driftAmount(): number {
     if (gameOver && !dismissed) return 0;
     return Math.max(0, Math.min(1, (fever - DRIFT_FLOOR) / (1 - DRIFT_FLOOR)));
   }
 
-  /** Would this window, at full drift, still miss the board entirely? */
+  /** At full drift, does this window still miss the board? */
   function missesBoard(w: HTMLElement, b: HTMLElement | null): boolean {
     if (!b) return true;
     if (w === b) return false;
@@ -510,8 +452,7 @@ export function makeEffects(deps: {
             ghost.style.opacity = String(o);
             return;
           }
-          // exactly one decrement per ghost, whether or not the tidy loop got
-          // to it first — otherwise the budget leaks and the drift goes silent
+          // exactly one decrement per ghost, or the budget leaks and drift goes silent
           ghost.remove();
           ambientSmears--;
         },
@@ -520,8 +461,7 @@ export function makeEffects(deps: {
     );
   }
 
-  // grabbing a window is the wm's business from the pointerdown on, so the
-  // offset comes off before its drag handler ever measures the element
+  // clear the offset before the wm's drag handler measures the element
   stage.addEventListener(
     "pointerdown",
     (e) => {
@@ -538,8 +478,7 @@ export function makeEffects(deps: {
     const boardEl = board?.isOpen() ? board.el : null;
     const focused = wm.focused()?.el;
     const host = smearsEl();
-    // `:scope >` on purpose: the ghosts in #smears are .win clones, and a
-    // desktop that drifted its own ghosts would clone them again, forever
+    // `:scope >` on purpose: #smears holds .win clones; don't drift ghosts
     for (const w of stage.querySelectorAll<HTMLElement>(":scope > .win")) {
       const d = drifterOf(w);
       const eligible =
@@ -559,7 +498,7 @@ export function makeEffects(deps: {
       const dy = Math.round(k * 0.55 * Math.sin(driftClock * 0.037 + d.phase * 1.7));
       w.style.transform = dx || dy ? `translate(${dx}px,${dy}px)` : "";
       if (Math.hypot(dx - d.sx, dy - d.sy) >= SMEAR_STEP) {
-        // the copy is left where the window was, not where it is
+        // the ghost is left where the window was
         if (ambientSmears < AMBIENT_SMEARS) {
           const ghost = ghostOf(w, d.sx, d.sy);
           host.appendChild(ghost);
@@ -571,7 +510,7 @@ export function makeEffects(deps: {
     }
   }, DRIFT_TICK);
 
-  /* ---- the cursor's past selves ---- */
+  /* ---- cursor trail ---- */
   const trailEl = (): HTMLElement => stage.querySelector<HTMLElement>("#trail")!;
   const cursorPast: [number, number][] = [];
   addEventListener("pointermove", (e) => {
@@ -587,7 +526,7 @@ export function makeEffects(deps: {
       if (host.childElementCount) host.innerHTML = "";
       return;
     }
-    // stepped, not smooth: ghosts of where the cursor was, repainted at 12fps
+    // stepped, ~12fps
     const pts = cursorPast.filter((_, i) => i % 3 === 0).slice(-count);
     host.innerHTML = pts
       .map(
@@ -597,7 +536,7 @@ export function makeEffects(deps: {
       .join("");
   }, 90);
 
-  /* ---- the screensaver wins the desktop ---- */
+  /* ---- screensaver takeover ---- */
   let saverEl: HTMLElement | null = null;
   let saverFire: Fire | null = null;
   let takenOver = false;
@@ -606,13 +545,11 @@ export function makeEffects(deps: {
     for (const t of fadeTimers) clearTimeout(t);
     fadeTimers = [];
   };
-  /** The fever letting go is a retreat, in steps; your mouse dismissing it is
-      a cut. Neither eases — the timing law holds even here. */
+  /** Fever letting go: stepped fade. Mouse dismissal: a cut. Never eased. */
   function hideSaver(fade: boolean): void {
     if (!saverEl) return;
     const el2 = saverEl;
-    // the raised band goes back with the picture, not before it — dropping it
-    // first would slip the board under a saver that is still on screen
+    // release the saver band with the picture, not before
     const gone = (): void => {
       el2.style.display = "none";
       el2.style.opacity = "1";
@@ -635,8 +572,6 @@ export function makeEffects(deps: {
   function takeover(on: boolean, fade = false): void {
     if (on === takenOver) return;
     takenOver = on;
-    // the picture changing hands, both ways — a period monitor degausses when
-    // it does, and this is the one that gets to arrive out of a silent room
     play("saver-thunk", on ? 0.9 : 0.5);
     stopFade();
     if (on) {
@@ -655,11 +590,8 @@ export function makeEffects(deps: {
       });
       saverFire.start();
       mainFire?.stop();
-      // The board stays playable on top of it — a band the wm owns, so that
-      // clicking the board (which re-focuses it) can't drop it back under.
-      // Nothing is focused or raised on the way in: the fire arriving must not
-      // reorder the desktop, or it shuffles the board over the win's own
-      // finale, which is the one window that has earned the top of the stack.
+      // the board stays playable on top via a wm-owned band. Don't focus or
+      // raise anything here: it would shuffle the board over the win finale.
       wm.setSaverActive(true);
     } else {
       hideSaver(fade);
@@ -669,7 +601,7 @@ export function makeEffects(deps: {
     }
   }
 
-  /* ---- tier-crossing dialogs: trouble arrives all over the desktop ---- */
+  /* ---- tier-crossing dialogs ---- */
   let crossingDialogs: Win[] = [];
   const NOT_RESPONDING = {
     title: "FOURSCORE.EXE — not responding (it is)",
@@ -677,9 +609,8 @@ export function makeEffects(deps: {
     buttons: ["OK", "OK"] as const,
   };
   function crossInto(t: number): void {
-    // the machine changing gear, under whatever the crossing opens on top of it
     play("tier-cross", 0.8);
-    ensureMain(); // windows open on their own
+    ensureMain();
     if (t === 1 && !gameOver)
       crossingDialogs.push(wm.dialog({ ...NOT_RESPONDING, x: 750, y: 140, ax: "center", w: 372 }));
     if (t === 2) {
@@ -699,16 +630,11 @@ export function makeEffects(deps: {
     }
   }
 
-  /* ---- beats: what the desktop does between tier crossings ----
-     Every act here is small, reversible, and puts itself back. A tier is a
-     state the OS is *in*; a beat is something it does and then stops doing,
-     so nothing below is allowed to leave the desktop permanently altered —
-     that is what `applyTier` is for. Timing law holds: instant or stepped,
-     never eased. */
+  /* ---- beats: every act is reversible and puts itself back; only
+     `applyTier` may leave the desktop altered. Instant or stepped, never eased. */
   let beatTimers: ReturnType<typeof setTimeout>[] = [];
   let lastAct: BeatAct | null = null;
-  /** Rotation cursor per pool, so a repeated beat doesn't repeat its line.
-      Deterministic on purpose — the draw picks the act, never how it looks. */
+  /** Rotation cursor per pool; deterministic on purpose. */
   const rotation = new Map<string, number>();
   let beatDialogs: Win[] = [];
 
@@ -722,14 +648,14 @@ export function makeEffects(deps: {
     beatDialogs = [];
     rotation.clear();
     lastAct = null;
-    // whatever an act was borrowing, the tier gets back
+    // return whatever an act borrowed
     shell.setClockDrift(CLOCK_DRIFT[Math.min(tier, 4)]!);
     shell.shiftIcons(tier >= 4 ? ICON_SHIFT_T4 : tier >= 3 ? ICON_SHIFT_T3 : []);
     restoreTitle();
     applyHeat();
   }
 
-  /** Next entry of a rotating list, or undefined if the pool has no copy. */
+  /** Next entry of a rotating list, or undefined if empty. */
   function nextOf<T>(key: string, list: readonly T[] | undefined): T | undefined {
     if (!list || list.length === 0) return undefined;
     const i = rotation.get(key) ?? 0;
@@ -743,20 +669,10 @@ export function makeEffects(deps: {
   };
 
   /**
-   * Keep a beat dialog off the board — "never blocking play" (DIRECTION.md) is
-   * a rule about clicks, not about taste. A beat dialog is a real window with
-   * real pointer events, so one parked over the grid eats the drop you were
-   * aiming at, and unlike the win cascade it arrives while the game is still
-   * going.
-   *
-   * The authored position is the intent and is used whenever it fits. It stops
-   * fitting more often than it looks: BOARD.EXE is center-anchored and sizes
-   * itself from the variant, so a Connect 7 window is 852px of the desk where
-   * Connect 4's is 480, and a spot that was clear margin on one board is the
-   * middle of the next one. So the authored spot is *moved*, never redrawn —
-   * pushed to the band below the board, then above it, then to whichever side
-   * has more room. Deterministic all the way down: the draw picks which dialog
-   * you get, the layout decides where it will fit, and neither is random.
+   * Keep a beat dialog off the board: it has real pointer events and would eat
+   * the drop. The authored spot is used when clear; otherwise moved (below,
+   * then above, then the wider shoulder) — a Connect 7 window is 852px wide
+   * where Connect 4's is 480, so authored margins often aren't. Deterministic.
    */
   function clearOfBoard(spec: { x: number; y: number; ax?: AnchorX; ay?: "top" | "bottom"; w: number }): {
     x: number;
@@ -779,12 +695,12 @@ export function makeEffects(deps: {
     if (clear) return spec;
 
     const deskBottom = deskHeight() - taskbarH();
-    // below the board, where a short variant leaves a full-width band
+    // below the board
     if (deskBottom - b.bottom >= h + 12)
       return { x: Math.min(x, deskWidth() - spec.w - 8), y: b.bottom + 8 };
-    // above it, in the strip over the titlebar
+    // above it
     if (b.top >= h + 12) return { x: Math.min(x, deskWidth() - spec.w - 8), y: Math.max(8, b.top - h - 8) };
-    // otherwise the wider shoulder, which on a maximised board is neither
+    // else the wider shoulder
     const roomRight = deskWidth() - b.right;
     return roomRight >= b.left
       ? { x: Math.min(b.right + 8, deskWidth() - spec.w - 8), y }
@@ -808,7 +724,6 @@ export function makeEffects(deps: {
         w: spec.w,
       });
       beatDialogs.push(win);
-      // The OS takes it back, but you can close it first — it is a real dialog.
       beatLater(() => {
         if (win.isOpen()) win.close();
         beatDialogs = beatDialogs.filter((d) => d !== win);
@@ -826,20 +741,17 @@ export function makeEffects(deps: {
     note(key) {
       const line = nextOf(key, BEAT_NOTES[key]);
       if (line) deps.notepad.lines([line]);
-      // moves.txt is a text box, and something typed into it
       if (line) play("click", 0.45);
     },
 
     flare() {
       if (!mainFire) return;
       play("flare", 0.8);
-      // the continuous system, shoved — and then handed straight back to fever
       mainFire.set({ baseHeat: Math.round(52 + fever * 10), cool: 2.2, interval: 48 });
       beatLater(applyHeat, 1400);
     },
 
     "clock-lurch"() {
-      // the clock finds several minutes it did not have, and loses them again
       play("clock-tick", 0.85);
       const base = CLOCK_DRIFT[Math.min(tier, 4)]!;
       shell.setClockDrift(base + 9);
@@ -848,7 +760,7 @@ export function makeEffects(deps: {
     },
 
     "taskbar-stutter"() {
-      // every button believes it is the focused one, in turn. 12fps, stepped.
+      // each button 'down' in turn; 90ms stepped
       const buttons = [...shell.tasksEl.querySelectorAll<HTMLElement>(".task")];
       if (buttons.length === 0) return;
       const held = buttons.map((b) => b.classList.contains("down"));
@@ -856,7 +768,6 @@ export function makeEffects(deps: {
         beatLater(() => {
           buttons.forEach((o) => o.classList.remove("down"));
           b.classList.add("down");
-          // each button believing it was clicked, at the 90ms the act steps on
           play("click", 0.35);
         }, 90 * i),
       );
@@ -874,7 +785,6 @@ export function makeEffects(deps: {
     },
 
     "preview-blink"() {
-      // a preview nobody opened, which is briefly a real window and then isn't
       const id = "flames-blink";
       if (wm.get(id)?.isOpen()) return;
       const made = fireWindow(id, TITLES.flamesN(4), BLINK_GEOM, heatParams({ dBase: -6, dInt: 10 }));
@@ -891,11 +801,8 @@ export function makeEffects(deps: {
     shell.setClockDrift(CLOCK_DRIFT[t]!);
     shell.shiftIcons(t >= 4 ? ICON_SHIFT_T4 : t >= 3 ? ICON_SHIFT_T3 : []);
     if (t > prev) for (let c = prev + 1; c <= t; c++) crossInto(c);
-    // Coming down, nothing is cut: the tidy loop retires whatever the new
-    // tier no longer justifies, one thing per beat. Coming down after a game
-    // the desktop keeps its litter — the loop itself pauses on gameOver, and
-    // the next game restarts it. Only the screensaver lets go on its own,
-    // because it's the one thing covering the board.
+    // coming down: tidy one per beat, but not under a running ending; only
+    // the saver lets go on its own (it covers the board)
     if (t < prev && (!gameOver || dismissed)) tidyLitter();
     takeover(t >= 4, true);
     if (!wonGeom) applyGeometry();
@@ -909,7 +816,6 @@ export function makeEffects(deps: {
     },
 
     beat(b, force) {
-      // Once a game ends the endgame owns the mic, same as tier crossings.
       if (gameOver) return;
       const key = poolKey(b);
       const act = force ?? pickAct(b, rng, { avoid: lastAct, fever });
@@ -925,16 +831,13 @@ export function makeEffects(deps: {
     endingDismissed() {
       if (!gameOver || dismissed) return;
       dismissed = true;
-      // The win's fireplace and the loss's coals were the ending talking. With
-      // the ending put away the fire is a screensaver again, at whatever size
-      // the tier still justifies — and the tier is on its way down.
+      // the fire is a screensaver again, at what the tier justifies
       wonGeom = false;
       personality = opponentId === "oracle" ? "pillar" : "classic";
       if (mainWin?.isOpen()) {
         applyPersonality();
         applyGeometry();
       }
-      // one thing per beat from here: nothing is cut, you watch it go
       tidyLitter();
     },
     gameEvent(kind) {
@@ -970,8 +873,7 @@ export function makeEffects(deps: {
       dismissed = false;
       personality = opponentId === "oracle" ? "pillar" : "classic";
       clearBeats();
-      // the machine's sentences about the old game end now; its
-      // manifestations get to fade with the fever instead
+      // old-game dialogs close now; fires fade with the fever
       const blink = wm.get("flames-blink");
       if (blink?.isOpen()) blink.close();
       for (const d of crossingDialogs) if (d.isOpen()) d.close();

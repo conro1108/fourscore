@@ -1,29 +1,15 @@
 /**
- * SOL.EXE's review — the two questions a Klondike player actually has.
- *
- * "Was that deal winnable?" and "was I still alive when I stopped?" Both are
- * answered by playing the rest of the game out: a depth-first search over
- * legal Klondike (draw one, unlimited passes), with a node budget, that stops
- * the moment it has a line to all fifty-two home.
- *
- * The asymmetry is the whole design, and it is the same confidence law the
- * board's review lives under. A "yes" is *proven* — the search held an actual
- * legal sequence in its hand when it said so — and the copy for it is flat.
- * A "no" is never proven: the search may have run out of budget, and it never
- * takes a card back off a foundation, so there are wins it cannot see. So
- * "no" is only ever "the machine couldn't find a way", and it is written that
- * way. Never turn `unknown` into a verdict.
- *
- * Winnability along the line you actually played is monotone: if the machine
- * can win from your state after move k, it can win from every state before it
- * (play your own moves, then its line). That is what makes the binary search
- * below legitimate, and it is the only reason a review costs eight solves
- * instead of one per move.
+ * SOL.EXE's review: was the deal winnable, and was it still winnable where you stopped?
+ * Depth-first search over legal Klondike (draw one, unlimited passes), budgeted.
+ * `won` is proven (it holds a legal line). `unknown` is never a loss: the search
+ * can run out of budget and never takes a card back off a foundation. Never turn
+ * `unknown` into a verdict. Winnability along the played line is monotone, which
+ * is what makes the bisection in `reviewGame` legitimate.
  */
 
 import { isRed, type Card, type SolState } from "./solstate.js";
 
-/** What the search found. `unknown` is not a loss — see the header. */
+/** `unknown` is not a loss — see the header. */
 export type Verdict = "won" | "unknown";
 
 export interface SolReview {
@@ -41,29 +27,15 @@ export interface SolReview {
   deal: Verdict;
   /** Was there still a way through from where you stopped? */
   end: Verdict;
-  /**
-   * The last state the machine could still win from, counted in plays — every
-   * draw is one, because in Klondike a draw is a move and the play that loses
-   * a game is often one of them. `null` when it never could, or when it still
-   * can. Proven: there is a line out of that state.
-   */
+  /** Last state (journal index; draws count) proven winnable. `null` if never, or if still winnable. */
   lastWinnable: number | null;
-  /**
-   * Whether the bisection actually closed on `lastWinnable`, or stopped with
-   * a bracket still open. This is the difference between "your next play was
-   * the one" and "somewhere after this the way out closed", and the copy is
-   * only allowed the first sentence when this is true: `unknown` is not proof
-   * of anything, so an unclosed bracket names no play at all.
-   */
+  /** Whether the bisection closed on `lastWinnable`. Copy may name "the" losing play only when true. */
   converged: boolean;
-  /** True if the search ran out of budget somewhere rather than settling it. */
+  /** Ran out of budget somewhere. */
   spent: boolean;
 }
 
-/* ---- the state, in a form a search can move through fast ----
-   The window's SolState is arrays of card objects, which is right for a table
-   you can drag cards on and wrong for a million-node search. Here a card is
-   one integer, rank*4+suit, and a pile is an array of them. */
+/* search state: a card is one integer, (rank-1)*4+suit */
 
 type C = number;
 const RANK = (c: C): number => (c >> 2) + 1;
@@ -100,34 +72,18 @@ const clone = (s: S): S => ({
 const homeCount = (s: S): number => s.found[0]! + s.found[1]! + s.found[2]! + s.found[3]!;
 const solved = (s: S): boolean => homeCount(s) === 52;
 
-/* ---- the visited table ----
-   Two 32-bit rolling hashes of the position, in a pair of four-megabyte
-   Int32Arrays with linear probing. Not a Set of strings and not a Set of
-   numbers: at a few hundred thousand entries either one is most of the
-   search's memory, and a heap that size bought a ten-second garbage
-   collection in the middle of a solve — a stall no node budget can see coming
-   and no wall clock can interrupt. A typed table allocates once and never
-   again.
-
-   Columns are interchangeable in Klondike (nothing in the rules can tell pile
-   3 from pile 5), so the seven per-pile hashes are summed rather than
-   concatenated: every permutation of the same table is one entry, without
-   sorting anything.
-
-   A hash collision costs one pruned branch, which can only ever turn a `won`
-   into an `unknown` — the direction this file is already honest about. */
+/* visited table: two 32-bit hashes in Int32Arrays with linear probing. Not a Set:
+   at a few hundred thousand entries a Set cost a ten-second GC mid-solve that no
+   budget can see. Per-pile hashes are summed so column permutations are one entry.
+   A collision only prunes a branch, i.e. can only turn `won` into `unknown`. */
 
 const SEEN_SIZE = 1 << 20;
 const SEEN_MASK = SEEN_SIZE - 1;
 /** Past this the table stops taking entries rather than probing forever. */
 const SEEN_FULL = SEEN_SIZE * 0.7;
 
-/* One table for the whole module, cleared per solve rather than allocated per
-   solve. Eight megabytes a solve is nothing on its own and murder in a row of
-   them: a sweep of forty deals spent four fifths of its wall
-   clock not running, handing large arrays to the collector and taking them
-   back. Solves never overlap — the review runs them one at a time, and the
-   worker runs one review at a time — so one table is enough for all of it. */
+/* One module-level table, cleared per solve: allocating 8MB per solve spent 4/5 of
+   a 40-deal sweep in GC. Solves never overlap (one review at a time per worker). */
 const SEEN_LO = new Int32Array(SEEN_SIZE);
 const SEEN_HI = new Int32Array(SEEN_SIZE);
 
@@ -141,7 +97,7 @@ class Seen {
 
   /** Remember this position; true if it was already known. */
   add(a: number, b: number): boolean {
-    // (0,0) is the empty slot, so one position in four billion is never stored
+    // (0,0) is the empty slot
     if (a === 0 && b === 0) return false;
     let i = (a ^ (b << 5)) & SEEN_MASK;
     for (;;) {
@@ -159,7 +115,7 @@ class Seen {
   }
 }
 
-/** `key` hands its two words back here rather than allocating a pair. */
+/** `key` writes here rather than allocating a pair. */
 const kOut = new Int32Array(2);
 
 function key(s: S): void {
@@ -174,7 +130,7 @@ function key(s: S): void {
   for (const c of s.waste) mix(c + 1);
   mix(101);
   for (let i = 0; i < 4; i++) mix(s.found[i]! + 103);
-  // per-pile hashes, summed: seven columns in any order are one position
+  // per-pile hashes summed: column order is irrelevant
   let piles = 0;
   for (let i = 0; i < 7; i++) {
     let p = 374761393;
@@ -189,34 +145,28 @@ function key(s: S): void {
   kOut[1] = b | 0;
 }
 
-/** Hash the position and remember it; true if it had been here before. */
+/** Hash and remember; true if already seen. */
 function seenBefore(seen: Seen, s: S): boolean {
   key(s);
   return seen.add(kOut[0]!, kOut[1]!);
 }
 
 /**
- * The classic safety rule: a card can go home with no thought at all when
- * nothing on the table could still need it. Both opposite colors have to be
- * up to rank-1 (so no black 6 is waiting for this red 7), and 2s only need
- * their own ace down. Playing these automatically before branching is what
- * makes the search tractable, and it never costs a win.
+ * Safe auto-moves to foundation: both opposite-colour foundations at >= rank-1 and
+ * same-colour other suit at >= rank-2 means nothing can still need the card.
+ * Applied before branching; never costs a win.
  */
 function autoSafe(s: S, line?: Mv[]): void {
   for (;;) {
     let again = false;
-    // -1 is the waste; 0..6 are the columns. A plain loop, not a generator:
-    // this is the innermost thing in the search and allocating an iterator
-    // per pass was most of its time.
+    // -1 is the waste; 0..6 the columns. Plain loop, not a generator: innermost
+    // code in the search, and an iterator per pass was most of its time.
     for (let i = -1; i < 7 && !again; i++) {
       const pile = i < 0 ? s.waste : s.up[i]!;
       if (!pile.length) continue;
       const c = pile[pile.length - 1]!;
       const r = RANK(c);
       if (s.found[SUIT(c)] !== r - 1) continue;
-      // the two of the other color have to be up to r-1 (nothing black is
-      // still waiting for this red seven), and the other one of this color to
-      // r-2 (nothing this color is waiting for the card that wants this one)
       if (r > 2) {
         const red = RED(c);
         const o1 = red ? 0 : 1;
@@ -234,18 +184,14 @@ function autoSafe(s: S, line?: Mv[]): void {
   }
 }
 
-/** A column whose last face-up card just left turns its next face-down one. */
+/** Turn the next face-down card when a column's face-up pile empties. */
 function flip(s: S, i: number): void {
   if (!s.up[i]!.length && s.down[i]!.length) s.up[i]!.push(s.down[i]!.pop()!);
 }
 
 /**
- * A move, as an instruction rather than a position. The search generates
- * these — small, and a few hundred bytes for a whole node's worth — and only
- * builds the state when it actually walks into it. Generating positions
- * instead kept every frame's entire fan-out alive at once, which on a deep
- * line is millions of live arrays and a garbage collector that takes twenty
- * seconds off the clock in a search that thinks it is doing nothing.
+ * A move as an instruction, not a position. Generating positions instead kept
+ * every frame's fan-out alive and cost 20s GC pauses on deep lines.
  */
 export type Mv =
   | { k: "draw" }
@@ -255,14 +201,9 @@ export type Mv =
   | { k: "tt"; from: number; at: number; to: number };
 
 /**
- * Everything legal from here, best-first: the moves that turn a card over or
- * empty a column come before the ones that only shuffle the table, and the
- * draw comes last because it is the move that does nothing on its own.
- *
- * Two things are deliberately not here. A card never comes back off a
- * foundation — it costs a great deal of search and buys a handful of deals —
- * and a king already alone in its column is never moved to another empty one,
- * which is a pure loop.
+ * Legal moves, best-first (flips and column-emptying first, draw last).
+ * Deliberately omitted: foundation-to-tableau (costly, buys a handful of deals)
+ * and moving a lone king to another empty column (a pure loop).
  */
 function moves(s: S): Mv[] {
   const out: { m: Mv; score: number }[] = [];
@@ -287,29 +228,24 @@ function moves(s: S): Mv[] {
     const t = pile[pile.length - 1]!;
     if (s.found[SUIT(t)] === RANK(t) - 1)
       add({ k: "tf", from: i }, pile.length === 1 && s.down[i]!.length ? 70 : 50);
-    // a run of any length -> another column. Every up-pile is a proper
-    // descending alternating run by construction, so any suffix of it moves.
+    // any suffix of an up-pile is a legal run by construction
     for (let j = 0; j < pile.length; j++) {
       const head = pile[j]!;
-      // moving a column of nothing but a king onto another empty one is the
-      // same position again
       if (j === 0 && !s.down[i]!.length && RANK(head) === 13) continue;
       for (let k = 0; k < 7; k++) {
         if (k === i || !stackable(head, k)) continue;
-        // turning a card over is progress; emptying a column outright is more
         add({ k: "tt", from: i, at: j, to: k }, j === 0 && s.down[i]!.length ? 65 : j === 0 ? 45 : 30);
       }
     }
   }
 
-  // the draw, and the pass round the deck when the stock is out
   if (s.stock.length || s.waste.length) add({ k: "draw" }, s.stock.length ? 20 : 10);
 
   out.sort((a, b) => b.score - a.score);
   return out.map((x) => x.m);
 }
 
-/** The position that move leads to. The original is left alone. */
+/** Apply a move to a copy. */
 function apply(s: S, m: Mv): S {
   const n = clone(s);
   if (m.k === "draw") {
@@ -340,22 +276,19 @@ function apply(s: S, m: Mv): S {
   return n;
 }
 
-/* How long a line the search will follow before it gives up on it. A draw is
-   a move, so a real Klondike line that cycles the deck a dozen times is
-   hundreds of moves long — 400 was cutting off winnable deals, and this is
-   still far short of what the recursion can carry. */
+// Max line length. Draws are moves, so real lines run to hundreds; 400 cut off winnable deals.
 const MAX_DEPTH = 3000;
 
 export interface SolveResult {
   verdict: Verdict;
-  /** States expanded — what the caller spends its node budget in. */
+  /** States expanded. */
   nodes: number;
   ms: number;
-  /** On `won`, the line it found: the proof, and what the test replays. */
+  /** On `won`, the winning line (the proof; the test replays it). */
   line: Mv[];
 }
 
-/** A solve stops on whichever of these it reaches first. */
+/** Whichever is hit first stops the solve. */
 export interface Budget {
   nodes: number;
   ms: number;
@@ -363,14 +296,8 @@ export interface Budget {
 export const BUDGET: Budget = { nodes: 400_000, ms: 3000 };
 
 /**
- * Can this game still be won? Depth-first, visited set, best-first ordering,
- * and two budgets it will not exceed. `won` means the search actually held a
- * legal line to all fifty-two home; anything else is `unknown`.
- *
- * The clock is not a belt-and-braces node budget. A deep line holds every
- * frame's children alive at once, and one deal in twenty spends twenty times
- * as long on the same hundred thousand nodes as the rest — a wall clock is
- * the only bound that describes what the player is actually waiting through.
+ * Can this state still be won? The wall clock is a real bound, not belt-and-braces:
+ * one deal in twenty takes 20x as long per node as the rest.
  */
 export function solve(state: SolState, budget: Budget = BUDGET): SolveResult {
   const seen = new Seen();
@@ -378,10 +305,8 @@ export function solve(state: SolState, budget: Budget = BUDGET): SolveResult {
   let nodes = 0;
   let out = false;
 
-  /* Both budgets, the clock checked on a cadence of its own — Date.now() per
-     node is not free, and counting the *checks* rather than the nodes is what
-     keeps a search that is only hitting the depth cap (expanding nothing, and
-     still working) from running the clock out unwatched. */
+  // Clock checked every 256 *checks*, not nodes: a search stuck at the depth cap
+  // expands nothing but still burns time.
   let ticks = 0;
   const spent = (): boolean => {
     if (out) return true;
@@ -390,9 +315,6 @@ export function solve(state: SolState, budget: Budget = BUDGET): SolveResult {
     return false;
   };
 
-  /* The line, kept as the search walks so a `won` can be handed back as the
-     moves that win — `solreview.test.ts` replays it through the game's own
-     rules, which is the only way "proven" is worth the word. */
   const line: Mv[] = [];
 
   const walk = (s: S, depth: number): boolean => {
@@ -420,17 +342,9 @@ export function solve(state: SolState, budget: Budget = BUDGET): SolveResult {
 }
 
 /**
- * The whole review, off one journal: every state your game passed through,
- * the deal first and where you stopped last.
- *
- * The counts are read off the journal (they are facts about your game); the
- * two verdicts and the turning point are searched for, inside one budget for
- * the lot. The binary search is what monotone winnability buys — eight solves
- * for a game of any length.
- *
- * The budget is a wall clock as much as a node count, because the review is
- * something a player is waiting on: ten seconds of "the machine is going back
- * over it" is a period machine thinking, and thirty is a hang.
+ * Review a journal (every state the game passed through). Counts come off the
+ * journal; verdicts and turning point are searched under one shared budget.
+ * The player waits on this: ten seconds reads as thinking, thirty as a hang.
  */
 export function reviewGame(
   journal: readonly SolState[],
@@ -466,7 +380,6 @@ export function reviewGame(
     spent: false,
   };
   if (out.won) {
-    // you did it; there is nothing left to search for, and nothing open
     out.deal = "won";
     out.end = "won";
     out.converged = true;
@@ -487,14 +400,12 @@ export function reviewGame(
     const r = solve(s, per);
     nodesLeft -= r.nodes;
     msLeft -= r.ms;
-    // it stopped because it ran out, not because it settled anything
     if (r.verdict === "unknown" && (r.nodes >= per.nodes || r.ms >= per.ms)) out.spent = true;
     return r.verdict;
   };
 
   out.deal = ask(first);
   if (journal.length < 2) {
-    // one state is both ends of the game; it can't disagree with itself
     out.end = out.deal;
     out.converged = true;
     return out;
@@ -506,15 +417,8 @@ export function reviewGame(
     return out;
   }
 
-  /* Somewhere between the deal and here, the way out closed. Binary search
-     for the last state it was still open — `lo` is always a state the machine
-     has actually won from, so the number it reports is proven.
-
-     The loop can also stop on budget, and then `lo` is only the last state it
-     got to prove rather than the last one that was winnable. `converged` is
-     the difference, and the window says a different sentence for each: a
-     bracket left open names a play the machine never tested the far side of,
-     and naming it anyway would be the overclaim this whole file avoids. */
+  // Bisect for the last winnable state. `lo` is always proven won. If the loop
+  // stops on budget, `lo` is only the last state proved, hence `converged`.
   let lo = 0;
   let hi = journal.length - 1;
   while (hi - lo > 1 && nodesLeft > 0 && msLeft > 0) {

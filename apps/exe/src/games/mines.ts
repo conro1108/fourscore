@@ -1,9 +1,4 @@
-/**
- * MINES.EXE — real minesweeper, not a picture of one (the law). Three
- * classic sizes, first click always safe, right-click flags, the face
- * watches you play. The timer counts honestly until 666 and then stays;
- * it is comfortable there.
- */
+/** MINES.EXE — minesweeper. Three sizes, first click safe, long-press flags on touch, timer stops at 666. */
 
 import { el } from "../dom.js";
 import { px } from "../icons.js";
@@ -19,7 +14,7 @@ interface Level {
   h: number;
   count: number;
 }
-/** The authored cell, and the smallest the ladder goes. */
+/** Authored cell px, and the ladder's minimum. */
 const MC = 24;
 const MC_MIN = 16;
 const LEVELS: readonly Level[] = [
@@ -28,7 +23,7 @@ const LEVELS: readonly Level[] = [
   { id: "expert", label: "Expert", w: 30, h: 16, count: 99 },
 ];
 
-/* ---- the pure part (the tests live on this) ---- */
+/* pure part (tested) */
 
 export interface MinesBoard {
   w: number;
@@ -71,7 +66,7 @@ export function makeMinesBoard(
   return { w, h, mines, adj };
 }
 
-/** Everything a click at `i` opens: itself, and the flood through zeros. */
+/** Cells a click at `i` opens: itself plus the flood through zeros. */
 export function floodReveal(b: MinesBoard, i: number, open: ReadonlySet<number>): number[] {
   if (open.has(i) || b.mines[i]) return [];
   const found: number[] = [];
@@ -91,7 +86,7 @@ export function floodReveal(b: MinesBoard, i: number, open: ReadonlySet<number>)
   return found;
 }
 
-/* ---- the faces ---- */
+/* faces */
 
 const FACES: Record<"happy" | "o" | "dead" | "cool", readonly string[]> = {
   happy: [
@@ -134,7 +129,7 @@ const MINE = [
 
 const NUM_COLORS = ["", "#0000ff", "#008000", "#ff0000", "#000080", "#800000", "#008080", "#000000", "#808080"];
 
-/* ---- the window ---- */
+/* window */
 
 export function openMines(wm: WM): void {
   const existing = wm.get("mines");
@@ -172,7 +167,6 @@ export function openMines(wm: WM): void {
   const startClock = (): void => {
     if (timer) return;
     timer = setInterval(() => {
-      // it counts honestly to 666 and then it is comfortable there
       if (seconds < 666) clock.set(++seconds);
     }, 1000);
   };
@@ -213,8 +207,6 @@ export function openMines(wm: WM): void {
   function lose(hit: number): void {
     alive = false;
     stopClock();
-    // the machine's other software runs on the same scheme — the error chord
-    // is what this OS has for a thing going wrong, and MINES.EXE gets it too
     play("chord", 0.7);
     setFace("dead");
     board!.mines.forEach((m, i) => {
@@ -242,7 +234,7 @@ export function openMines(wm: WM): void {
     }, 400);
   }
 
-  /** Rebuild the window for the current level — menus and field both. */
+  /** Rebuild menus and field for the current level. */
   function build(): void {
     body.innerHTML = "";
 
@@ -274,8 +266,7 @@ export function openMines(wm: WM): void {
       play("click", 0.5);
     };
 
-    // A finger has no right button, so a held finger is the flag: the
-    // period gesture translated, not a new control.
+    // touch: long-press flags
     let press: ReturnType<typeof setTimeout> | null = null;
     let pressAt: [number, number] = [0, 0];
     let pressConsumed = false;
@@ -308,7 +299,7 @@ export function openMines(wm: WM): void {
     });
     gridEl.addEventListener("pointerup", (e) => {
       clearPress();
-      if (pressConsumed) return; // the long-press already flagged this cell
+      if (pressConsumed) return; // long-press already flagged
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
       if (!cell || !alive) return;
       const i = Number(cell.dataset.i);
@@ -354,8 +345,7 @@ export function openMines(wm: WM): void {
     ]);
 
     body.append(bar, top, gridEl);
-    // a difficulty change re-derives the window's size; a hand size from the
-    // old grid would crush or strand the new one
+    // a level change discards any hand-sized window
     win.el.classList.remove("sized");
     win.el.style.height = "";
     win.el.style.width = `${level.w * MC + 32}px`;
@@ -365,10 +355,7 @@ export function openMines(wm: WM): void {
     reset();
   }
 
-  /* Drag the window and the field grows, on the same stepped ladder the board
-     uses. Measured chrome: a natural Beginner window is 248x328 around a 9x9
-     field of 24px cells, so 32 and 112 are everything that isn't cells — the
-     LCD row, the margins, and the sunken grid's own 3px of padding. */
+  // chrome measured: natural Beginner window is 248x328 around a 9x9 field of 24px cells
   const relayout = fieldScaler({
     win: () => win.el,
     grid: () => ({ cols: level.w, rows: level.h }),

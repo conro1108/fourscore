@@ -1,40 +1,20 @@
 /**
- * Phase 3, station 2: the graders. See llm_training.md.
- *
- * A candidate program is not corpus because it parses — it is corpus because
- * the machine ran it and it behaved. Everything here goes through the real
- * CC, the real assembler and the real VM, and the three levels are the ones
- * the plan names: **V0** it compiles and fits, **V1** it runs without
- * faulting and without hanging, **V2** it does the thing its tier is for.
- *
- * Two measurements on the real `pong.c` shape the whole module:
- *
- * - **Type sparsely.** A key source that never returns 0 hangs any program
- *   with a `while (k) { ...; k = key(); }` drain loop — pong.c then burns the
- *   full 30,000 steps every frame forever and never scores. One key every few
- *   frames plays a whole game and halts. So `keyEvery` exists, and no probe
- *   ever holds a key down.
- * - **Frames are nearly free.** A resting game costs about nine instructions
- *   a frame, so a complete game to seven is ~143K steps and about five
- *   milliseconds. Grading a whole game rather than a sampled one costs
- *   nothing worth saving, so V2 grades whole games.
- *
- * The failure taxonomy is as much the point as the pass/fail. `Verdict.fail`
- * draws from a small fixed vocabulary so a batch's histogram says what to
- * change about the next batch's prompts — that feedback is the only thing
- * steering generation, since nothing here trains anything.
+ * The graders: V0 compiles and fits, V1 runs without faulting or hanging,
+ * V2 does what its tier is for — all through the real CC, assembler and VM.
+ * Never hold a key down: a key source that never returns 0 hangs any
+ * `while (k) { ...; k = key(); }` drain loop, hence `keyEvery`. Whole games
+ * are ~5ms, so V2 grades whole games. `Verdict.fail` is a small fixed
+ * vocabulary; its histogram is what steers the next batch's prompts.
  */
 
 import { compileC } from "../../src/cc.js";
 import { assemble, makeVm, SCREEN_H, SCREEN_W, type Vm, type VmIO } from "../../src/vm.js";
 
-/** terminal.ts's per-frame budget. A frame here means what it means there,
-    so a program that behaves in the farm behaves on the desk. */
+/** terminal.ts's per-frame budget — a frame here must mean what it means there. */
 export const STEPS_PER_FRAME = 30_000;
 
-/** A console program gets one long turn instead of frames — `getc` compiles
-    to a three-instruction spin on the KEY port, so it must be able to have
-    its key the moment it asks rather than waiting out a frame for it. */
+/** Console programs get one long turn: `getc` is a three-instruction spin on
+    the KEY port and must get its key the moment it asks. */
 export const CONSOLE_STEPS = 5_000_000;
 
 export type Tier = 1 | 2 | 3 | 4;
@@ -43,14 +23,11 @@ export interface Candidate {
   id: string;
   tier: Tier;
   text: string;
-  /** What the producer predicts this prints. Ground truth when the program
-      was synthesised — the synthesiser built it, so it knows — and absent
-      when a model wrote it. */
+  /** Predicted output: ground truth when synthesised, absent when model-written. */
   expect?: string;
   /** A key script the producer knows finishes the program (tier 2). */
   keys?: number[];
-  /** Whatever the skeleton rolled. Graders read `up`/`down` from here; the
-      histogram groups by the rest. */
+  /** What the skeleton rolled; graders read `up`/`down` from here. */
   axes?: Record<string, string | number>;
 }
 
@@ -60,8 +37,7 @@ export interface Verdict {
   ok: boolean;
   /** null when it passed; otherwise the taxonomy key. This is the histogram. */
   fail: string | null;
-  /** The parser message, the faulting address — whatever you read when a
-      bucket turns out to be large. */
+  /** Parser message, faulting address — what you read when a bucket is large. */
   detail?: string;
   chars: number;
   words?: number;
@@ -75,8 +51,7 @@ export interface Trial {
       run() calls of STEPS_PER_FRAME with keys typed sparsely. */
   mode: "console" | "frames";
   keys?: number[];
-  /** Frame mode: at most one key is served, on every Nth frame. Never hold
-      a key down — see the module note. */
+  /** Frame mode: at most one key, every Nth frame. Never hold a key down. */
   keyEvery?: number;
   seed?: number;
   /** Frame mode: how many run() calls to make. */
@@ -104,9 +79,7 @@ export interface Trace {
 
 export type Probe = (t: Trial) => Trace;
 
-/** xorshift16, so the same seed is the same game. Exported because the
-    synthesiser predicts transcripts of programs that call rand(): the
-    prediction is only ground truth if it draws from this exact stream. */
+/** xorshift16. The synthesiser predicts rand() transcripts from this exact stream. */
 export const makeRng = (seed: number): (() => number) => {
   let s = (seed & 0xffff) || 0x1234;
   return () => {
@@ -187,14 +160,9 @@ export function makeProbe(words: Uint16Array): Probe {
 /* ---- V0: it compiles, it assembles, it fits ---- */
 
 /**
- * Things CC does not have that a host model reaches for by reflex. This is
- * diagnostic only — `compileC` is the gate and runs first — but a histogram
- * that says `v0:absent:switch` tells you what to put in the next prompt, and
- * a parser message that says "Expected ;, got '{'" does not.
- *
- * `prompt.ts` builds the fence it tells the model about out of this same
- * list, so the thing being forbidden and the thing being counted cannot
- * drift apart.
+ * Things CC lacks that a host model reaches for. Diagnostic only (`compileC`
+ * is the gate); `prompt.ts` builds its fence from this same list so the
+ * forbidden and the counted can't drift.
  */
 export const ABSENT = [
   "switch", "case", "typedef", "enum", "union", "static", "const", "extern",
@@ -203,8 +171,7 @@ export const ABSENT = [
   "strcmp", "memset", "memcpy", "exit", "NULL", "true", "false",
 ];
 
-/** Comments and literals removed, so a program that *prints* "switch" is not
-    accused of using it. */
+/** Comments and literals removed, so printing "switch" isn't using it. */
 const stripText = (src: string): string =>
   src
     .replace(/\/\*[\s\S]*?\*\//g, " ")
@@ -255,8 +222,7 @@ export function v0(text: string): V0Result {
 const faultKind = (f: string): string =>
   /Memory/.test(f) ? "memory" : /Stack/.test(f) ? "stack" : /opcode/.test(f) ? "opcode" : "divide";
 
-/** Keys a player might plausibly hit, minus ESC — the terminal handles ESC,
-    and feeding it would end runs early for reasons the program didn't earn. */
+/** Plausible keys, minus ESC — the terminal handles ESC and would end runs early. */
 const KEY_POOL = [..."wsadWSAD ny0123456789\n"].map((c) => c.charCodeAt(0));
 
 export const codes = (s: string): number[] => [...s].map((c) => c.charCodeAt(0));
@@ -266,14 +232,9 @@ export const randomKeys = (seed: number, n: number): number[] => {
   return Array.from({ length: n }, () => KEY_POOL[rng() % KEY_POOL.length]!);
 };
 
-/**
- * Every number from 1 to 100, then the same countdown. Between them any
- * guess-the-number with a secret in range gets finished, whether it reads a
- * line or a digit at a time — which matters because `getc` blocks, so a
- * console program handed random noise doesn't fail, it *waits*, and the
- * machine cannot tell waiting from hanging. The producer's own script is
- * better when there is one; this is the fallback for programs a model wrote.
- */
+/** 1..100 and 100..1: finishes any in-range guess-the-number. `getc` blocks,
+    so noise doesn't fail a console program, it *waits*, indistinguishable
+    from a hang. Fallback when the producer has no script. */
 export const COUNT_UP = codes(Array.from({ length: 100 }, (_, i) => `${i + 1}\n`).join(""));
 export const COUNT_DOWN = codes(Array.from({ length: 100 }, (_, i) => `${100 - i}\n`).join(""));
 
@@ -285,18 +246,10 @@ export interface V1Result {
 }
 
 /**
- * Input it can work with, then three questions: did it fault, did it stop
- * getting anywhere, did it do anything at all.
- *
- * Hanging is the one worth stating: **a program hangs when it never halts
- * and never rests.** That is tier-independent — a game yields on `vsync`
- * every frame, a console program halts, and `while (1) ;` does neither.
- *
- * Starving is the near miss, and it gets its own key because the fix is a
- * different one. A program stuck in `getc` with an empty queue looks exactly
- * like a hang from the outside; the difference is that it read everything it
- * was given first, and what's wrong may be the script rather than the
- * program.
+ * Did it fault, did it hang, did it do anything. A program hangs when it
+ * never halts and never rests. Starved (stuck in `getc` having read every
+ * key) looks identical from outside and gets its own key — the fix may be
+ * the script, not the program.
  */
 export function v1(probe: Probe, c: Candidate, seed = 1): V1Result {
   const console_ = c.tier <= 2;
@@ -337,13 +290,10 @@ export interface GradeResult {
 
 export type Grader = (probe: Probe, c: Candidate) => GradeResult;
 
-/** Filled in by graders.ts, which imports this module. Kept as a mutable
-    registry so verify() doesn't have to import the graders and the graders
-    don't have to duplicate the probe. */
+/** Filled in by graders.ts (which imports this module), so verify() needn't import it. */
 export const GRADERS = new Map<Tier, Grader>();
 
-/** The whole ladder for one candidate. Stops at the first level that fails,
-    because a program that doesn't compile has nothing to say about frames. */
+/** The whole ladder for one candidate; stops at the first failing level. */
 export function verify(c: Candidate): Verdict {
   const base = { id: c.id, tier: c.tier, chars: c.text.length };
   const built = v0(c.text);
@@ -367,7 +317,7 @@ export function verify(c: Candidate): Verdict {
   };
 }
 
-/** What a batch is actually for: which failures, how many, worst first. */
+/** Which failures, how many, worst first. */
 export const histogram = (vs: readonly Verdict[]): [string, number][] => {
   const counts = new Map<string, number>();
   for (const v of vs) {

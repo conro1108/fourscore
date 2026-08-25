@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CELLS, Position } from "./board.js";
 import { TranspositionTable, analyze, solveScore } from "./solver.js";
 
-/**
- * Full minimax, no pruning, no table — slow but incapable of being subtly
- * wrong. Only usable on nearly-full boards, which is exactly where we want to
- * pin the real solver down: alpha-beta bugs love to hide in the terminal cases.
- */
+/** Full minimax, no pruning or table; only usable on nearly-full boards. */
 function bruteForce(p: Position): number {
   if (p.isDraw()) return 0;
   const legal = p.legalMoves();
@@ -47,8 +43,7 @@ describe("exact scores", () => {
   });
 
   it("agrees with unpruned minimax with a shared, reused table", () => {
-    // Reusing a table across unrelated positions is how the bots run, so the
-    // entries left behind by one search must not corrupt the next.
+    // Bots reuse a table across unrelated positions.
     const table = new TranspositionTable(18);
     for (let seed = 1; seed <= 25; seed++) {
       const p = randomPosition(30, seed * 613 + 5);

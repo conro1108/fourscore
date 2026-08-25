@@ -1,24 +1,12 @@
 /**
- * The workshop: the handful of tools every recipe in `library.ts` is built out
- * of.
- *
- * This is a deliberate copy of `apps/fever/src/audio/synth.ts`, not a shared
- * module. The two apps share `packages/engine` and nothing else (DIRECTION.md
- * — sibling app, its own world), and a `packages/audio` would be the first
- * thing tying the two *worlds* together rather than the two games. A hundred
- * lines of oscillators is the cheaper side of that trade, and the two libraries
- * they feed have nothing in common anyway: fever's is a carnival, this one is a
- * 1995 machine.
- *
- * Deterministic, all the way down. The same recipe renders the same bytes every
- * time, because "wrongness repeats" (redesign/VISION.md) reaches audio too:
- * randomness may pick which sound fires, never how one sounds.
+ * Synth primitives for `library.ts` recipes. Fully deterministic: the same
+ * recipe renders the same bytes. Randomness may pick which sound fires, never how it sounds.
  */
 
 /** Everything renders at one rate; a mismatch resamples silently. */
 export const RATE = 44100;
 
-/** The one random source in audio, fixed-seeded so it isn't random. */
+/** The only random source in audio; fixed-seeded. */
 export function lcg(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
@@ -27,7 +15,7 @@ export function lcg(seed: number): () => number {
   };
 }
 
-/** White noise, `seconds` long. Same seed, same noise, forever. */
+/** White noise, `seconds` long, seeded. */
 export function noiseBuffer(ctx: BaseAudioContext, seconds: number, seed: number): AudioBuffer {
   const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
@@ -67,12 +55,8 @@ export function osc(
 }
 
 /**
- * A gain envelope from `[time, value]` breakpoints, linear between them.
- *
- * Linear on purpose, and it is the same reason the chrome has no ease-in-out:
- * an exponential decay is the sound of a synth preset, and a struck thing whose
- * corners you can hear is the period artifact. A bell decay here is four
- * straight segments approximating the curve, not the curve.
+ * Gain envelope from `[time, value]` breakpoints, linear between them — on purpose.
+ * Exponential decay sounds like a synth preset; audible corners are the period artifact.
  */
 export function env(ctx: BaseAudioContext, points: readonly [number, number][]): GainNode {
   const g = ctx.createGain();
@@ -101,11 +85,7 @@ export function gain(ctx: BaseAudioContext, value: number): GainNode {
   return g;
 }
 
-/**
- * A cheap room: an exponentially decaying noise burst as an impulse response.
- * Short and dead is a beige plastic case; long is the room the case is in,
- * which is where the fever sends everything. Deterministic via a fixed seed.
- */
+/** Convolver room from a decaying noise impulse. Short = the case; long = the room, where fever sends everything. */
 export function room(ctx: BaseAudioContext, seconds: number, decay: number): ConvolverNode {
   const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
   const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
@@ -119,10 +99,7 @@ export function room(ctx: BaseAudioContext, seconds: number, decay: number): Con
   return node;
 }
 
-/**
- * A hard on/off gate: steps, not an LFO — the audio runs the same stepped clock
- * the chrome does. `times` are the moments it opens, each for `onFor`.
- */
+/** Hard on/off gate (steps, not an LFO — same stepped clock as the chrome). Opens at each `times` for `onFor`. */
 export function gate(ctx: BaseAudioContext, times: readonly number[], onFor: number, level = 1): GainNode {
   const g = gain(ctx, 0);
   g.gain.setValueAtTime(0, 0);
@@ -133,11 +110,7 @@ export function gate(ctx: BaseAudioContext, times: readonly number[], onFor: num
   return g;
 }
 
-/**
- * Make a rendered buffer loop without a tick: crossfade the tail back over the
- * head and hand back the shortened result. A hum looped raw clicks once per
- * lap, which reads as a bug in the game rather than as a bug in the machine.
- */
+/** Crossfade tail over head so a buffer loops without a click; returns the shortened buffer. */
 export function loopify(ctx: BaseAudioContext, buffer: AudioBuffer, fadeSeconds: number): AudioBuffer {
   const fade = Math.min(Math.floor(buffer.sampleRate * fadeSeconds), Math.floor(buffer.length / 3));
   const length = buffer.length - fade;

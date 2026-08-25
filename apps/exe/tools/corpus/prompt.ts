@@ -1,40 +1,19 @@
 /**
- * What the 27B is told. Phase 3, station 1 (llm_training.md).
- *
- * Everything in this file is either measured or decided, and the two are
- * kept apart on purpose:
- *
- * - **Measured** is the fence. `ABSENT` is imported from `verify.ts` — the
- *   same list the failure histogram buckets by — so the thing being
- *   forbidden and the thing being counted can't drift. `c.txt` comes off the
- *   disk the programs will actually run on, for the same reason.
- * - **Decided** is `HEADERS` and `EDITS`, and those are calls somebody made
- *   rather than facts the machine reported. The headers matter most: the
- *   header comment is the *entire* conditioning channel — there is no
- *   instruction/response split in the trained model — so Phase 5's "write me
- *   PONG.C" is literally one of these strings, and it works because the
- *   model saw it thousands of times. Change them freely now; changing them
- *   after a corpus exists means regenerating it.
- *
- * The filename in the header is the family key and the phrase after it is
- * the variation: every tier-4 document says `pong.c`, and the eight tails
- * are what teach the model that the tail doesn't matter.
- *
- * Few-shots come from the verified pool, which is why quality compounds —
- * and why `pickShots` caps how often any one program can be shown. A pool
- * that feeds on its own favourites converges on one program by morning.
+ * What the generating model is told. Measured parts (the fence: `ABSENT`
+ * from verify.ts, `c.txt` off the disk) are kept apart from decided parts
+ * (`HEADERS`, `EDITS`). The header comment is the trained model's *entire*
+ * conditioning channel — filename is the family key, the tail is noise — so
+ * changing HEADERS after a corpus exists means regenerating it.
  */
 
 import { SEED_FILES } from "../../src/copy.js";
 import { ABSENT, type Candidate, type Tier } from "./verify.js";
 
-/** The dialect's manual, straight off the disk, so the prompt cannot
-    describe a compiler different from the one that grades it. */
+/** The dialect's manual off the disk, so prompt and grader can't drift. */
 const C_TXT = SEED_FILES.find((f) => f.name.endsWith("c.txt"))!.text;
 
-/** The refusals that aren't a single word, so they can't be caught by the
-    lexical scan `ABSENT` does. Measured the same way — 54 constructs through
-    `compileC`. */
+/** Refusals that aren't a single word (not catchable by `ABSENT`'s lexical
+    scan). Measured the same way — 54 constructs through `compileC`. */
 const ABSENT_SHAPES = [
   "function prototypes — `int f(int);` before the body; call it anyway, order doesn't matter",
   "declarations inside a for header — `for (int i = 0; ...)`",
@@ -47,25 +26,16 @@ const ABSENT_SHAPES = [
   "  only works inside an expression, never in an array bound (`int a[N+2]` is refused)",
 ];
 
-/**
- * In the manual, real, and not for these programs. `c.txt` is pasted above
- * this and documents both, so saying nothing leaves the model to guess and
- * the prompt contradicting itself.
- *
- * `asm("...")` is the one that matters: it compiles, it runs, it passes V2,
- * and a corpus with raw 16-bit assembly in it spends a 1-2.5M model's
- * capacity on a second language — and hands Phase 4's grammar masker a
- * sub-language to mask. The drive is milder: with nothing in the bay it
- * reads as zeros, so a drive program grades clean while doing nothing.
- */
+/** In the manual, real, and not for these programs. `asm("...")` passes V2
+    but would spend a tiny model's capacity on a second language; the drive
+    reads as zeros with nothing in the bay, so grades clean doing nothing. */
 const OUT_OF_SCOPE = [
   'asm("...") — the escape hatch to raw assembly. It works. Don\'t use it;',
   "  these programs are C all the way down.",
   "dpos(a) dbank(a) dget() dput(v) — the drive. There is nothing in the bay.",
 ];
 
-/** What it does have, because a model told only what's forbidden writes
-    timid, stunted C. */
+/** What it does have — a model told only refusals writes stunted C. */
 const PRESENT = [
   "int and char are both one 16-bit word; pointers and arrays are word addresses",
   "struct, with every field one word; `x.f` and `p->f`; `sizeof(struct S)`",
@@ -86,8 +56,7 @@ const BUILTINS = [
   "malloc(n) free(p)         n words, arriving zeroed; free does nothing",
 ];
 
-/** A comma-separated list, folded to a width, indented. Keeping the fence
-    readable is not decoration: it is what the model is meant to notice. */
+/** Comma list folded to a width; readability of the fence is the point. */
 const wrap = (words: readonly string[], width: number): string[] => {
   const lines: string[] = [];
   let line = "";
@@ -139,10 +108,7 @@ const SYSTEM = [
 
 /* ---- decided, not measured ---- */
 
-/**
- * The conditioning channel. The name is the family; the tail is the noise
- * the model learns to see past. Phase 5 will type one of these.
- */
+/** The conditioning channel: name is the family, tail is noise. */
 export const HEADERS: Record<Tier, string[]> = {
   1: [
     "/* sum.c — a number the machine works out and says. */",
@@ -179,11 +145,7 @@ export const HEADERS: Record<Tier, string[]> = {
   ],
 };
 
-/**
- * What source B asks for. These are the axes structure varies along —
- * synthesis can re-roll a constant, but only an edit like these moves the
- * *shape*, which is the whole reason the model is in the loop at all.
- */
+/** Mutation edits: synthesis re-rolls constants; only these move the shape. */
 export const EDITS: Record<Tier, string[]> = {
   1: [
     "Do a different arithmetic job, and print it in a different shape.",
@@ -215,8 +177,7 @@ export const EDITS: Record<Tier, string[]> = {
   ],
 };
 
-/** Constraints the graders enforce, said out loud so a batch doesn't spend a
-    night failing them. Tier 4 has two; the rest inherit the general ones. */
+/** Constraints the graders enforce, said out loud. */
 const TIER_NOTES: Record<Tier, string[]> = {
   1: ["It must print something and then return from main."],
   2: [
@@ -251,8 +212,7 @@ export interface Spec {
   tier: Tier;
   kind: "freestyle" | "mutate";
   header: string;
-  /** Shown as worked examples, as real turns rather than pasted into the
-      system prompt — it teaches the output format at the same time. */
+  /** Worked examples, as real turns (teaches the output format too). */
   shots: readonly Candidate[];
   /** Source B only: the verified program being varied, and how. */
   parent?: Candidate;
@@ -270,9 +230,8 @@ const ask = (spec: Spec): string =>
 
 export function buildMessages(spec: Spec): Msg[] {
   const msgs: Msg[] = [{ role: "system", content: SYSTEM }];
-  // Every shot is shown in the format the answer has to arrive in: asked for
-  // by a one-line header, answered with a program that starts with it. A
-  // shot carrying its own six-line header would teach the opposite.
+  // Shots are shown in the answer's format: one-line header in, program
+  // starting with it out.
   for (const [i, shot] of spec.shots.entries()) {
     const header = HEADERS[shot.tier][i % HEADERS[shot.tier].length]!;
     msgs.push({ role: "user", content: `Write this program:\n\n${header}` });
@@ -302,17 +261,10 @@ export function buildMessages(spec: Spec): Msg[] {
 }
 
 /**
- * Put the asked-for header on a program and take off whatever it had.
- *
- * A DECISION, not a measurement: the header is **exactly one line**. The
- * hand-written `pong.c` opens with six — a title, how to run it, which keys
- * — and that charm is lost here on purpose. The header is the conditioning
- * channel, so header and body must correspond exactly or the model learns
- * that the request is only a hint, and a one-line header is the only shape
- * that can be guaranteed identical across twenty thousand documents. The
- * reference program on the disk keeps its six lines; the corpus doesn't.
- *
- * Change this and the corpus format changes with it.
+ * Replace whatever header a program had with the asked-for one. The header
+ * is exactly one line, by decision: header and body must correspond exactly
+ * or the model learns the request is a hint. Change this and the corpus
+ * format changes with it.
  */
 export const stampHeader = (text: string, header: string): string => {
   const body = text
@@ -322,10 +274,8 @@ export const stampHeader = (text: string, header: string): string => {
   return `${header}\n\n${body}`;
 };
 
-/** Fisher-Yates. `sort(() => r() - 0.5)` is not a shuffle — with an
-    inconsistent comparator V8's sort leaves long runs in place, so a pool of
-    thousands gets read in insertion order and calling it stratified is a
-    lie. */
+/** Fisher-Yates. `sort(() => r() - 0.5)` is not a shuffle: V8 leaves long
+    runs in place, so a big pool reads in insertion order. */
 const shuffled = <T,>(xs: readonly T[], pick: () => number): T[] => {
   const out = [...xs];
   for (let i = out.length - 1; i > 0; i--) {
@@ -336,19 +286,11 @@ const shuffled = <T,>(xs: readonly T[], pick: () => number): T[] => {
 };
 
 /**
- * Few-shots, stratified and rationed. `uses` is carried by the caller across
- * a whole run: without a cap the pool converges on whatever the model liked
- * at 11pm and by morning every program is that program.
- *
- * The cap rations **being shown as an example**, and nothing else. A
- * mutation's parent is deliberately not counted against it: tier 4 starts
- * with exactly one verified program, so a cap on parents would stop
- * mutation dead after the fortieth one and there would be no second
- * generation to draw a pool from.
- *
- * When every candidate has hit the cap the least-used ones are used anyway.
- * Returning no examples at all is the worse failure and the silent one —
- * yield falls at 2am and nothing prints.
+ * Few-shots, stratified and rationed. `uses` is carried across a run so the
+ * pool can't converge on one favourite. The cap rations being *shown*
+ * only — a mutation's parent is not counted, or tier 4 (one seed) would stop
+ * mutating after the fortieth. At the cap, least-used are used anyway:
+ * returning no examples is the worse, silent failure.
  */
 export function pickShots(
   pool: readonly Candidate[],
@@ -359,8 +301,7 @@ export function pickShots(
   cap = 40,
   exclude?: string,
 ): Candidate[] {
-  // The parent of a mutation is already in the prompt in full; showing it
-  // again as an example spends context on nothing.
+  // The mutation's parent is already in the prompt in full.
   const usable = pool.filter((c) => c.id !== exclude);
   const under = usable.filter((c) => (uses.get(c.id) ?? 0) < cap);
   const eligible = under.length
@@ -369,12 +310,9 @@ export function pickShots(
   const near = shuffled(eligible.filter((c) => c.tier === tier), pick);
   const far = shuffled(eligible.filter((c) => c.tier !== tier), pick);
   const out: Candidate[] = [];
-  // The last slot goes to a neighbouring tier when there is one to spare:
-  // the dialect is one language, and a tier-4 prompt that has only ever seen
-  // pong writes pong even when asked for something else. `out.length > 0`
-  // is what keeps that from eating the *only* slot when n is 1 — `every` on
-  // an empty array is true, so without it a one-shot tier-4 prompt gets a
-  // fizzbuzz as its worked example and no pong at all.
+  // The last slot goes to another tier when one is spare (a prompt that has
+  // only seen pong writes pong). `out.length > 0` keeps that from eating the
+  // *only* slot when n is 1 — `every` on an empty array is true.
   for (const c of [...near, ...far]) {
     if (out.length >= n) break;
     if (out.length > 0 && out.length === n - 1 && far.length && out.every((o) => o.tier === tier)) {

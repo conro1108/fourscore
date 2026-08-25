@@ -1,10 +1,7 @@
 /**
- * Promise wrapper around the search worker — fever's client, ported.
- *
- * One worker for gameplay, one for anything watching the game (the fever
- * director's eval feed): a message queue is FIFO, so an eval posted while the
- * Oracle is mid-solve would wait out the whole exact search and the desktop
- * would freeze at precisely the moment the fever is supposed to build.
+ * Promise wrapper around the search worker. Two workers: gameplay and analysis.
+ * A worker queue is FIFO, so an eval posted mid-Oracle-solve would wait out the
+ * whole exact search on a shared worker.
  */
 
 import type { BotDecision, Player, Review, ScoreSource } from "@fourscore/engine";
@@ -21,10 +18,7 @@ type Pending = {
   reject: (reason: Error) => void;
 };
 
-/**
- * A request minus the id the client assigns. Conditional so it distributes
- * over the union — a plain Omit collapses the request shapes.
- */
+/** Request minus `id`. Conditional so Omit distributes over the union. */
 type RequestBody = Request extends infer T ? (T extends Request ? Omit<T, "id"> : never) : never;
 
 export class EngineClient {
@@ -42,8 +36,7 @@ export class EngineClient {
       if (msg.type === "error") entry.reject(new Error(msg.message));
       else entry.resolve(msg as never);
     };
-    // Without this a worker that fails to start leaves every request pending
-    // forever, and the UI just stops — no error, no move, nothing to debug.
+    // A worker that fails to start would otherwise leave every request pending forever.
     this.worker.onerror = (event) => {
       const error = new Error(
         `search worker failed: ${"message" in event ? event.message : "unknown"}`,
@@ -114,13 +107,13 @@ export class EngineClient {
 let shared: EngineClient | null = null;
 let analysis: EngineClient | null = null;
 
-/** The gameplay search worker — bot moves, and nothing that can wait. */
+/** Gameplay worker: bot moves only. */
 export function engineClient(): EngineClient {
   if (!shared) shared = new EngineClient();
   return shared;
 }
 
-/** The watcher — the fever director's eval feed, the review later. */
+/** Analysis worker: the live eval feed and the review. */
 export function analysisClient(): EngineClient {
   if (!analysis) analysis = new EngineClient();
   return analysis;

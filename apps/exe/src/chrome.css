@@ -1,30 +1,23 @@
-/* BOARD.EXE — the period chrome. Ported from proposals/chrome.css (the
-   approved bevel kit) and extended for the real app.
-   Timing law: nothing in here eases. Windows move instantly or in steps. */
+/* BOARD.EXE chrome. Nothing in here eases: windows move instantly or in steps. */
 
 html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
 body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-size:11px;color:#000;
      cursor:default;user-select:none;-webkit-user-select:none;
-     /* a possessed desktop, not a web page: no tap flash, no long-press
-        callout, no double-tap zoom (iOS) */
+     /* no tap flash, long-press callout or double-tap zoom (iOS) */
      -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;touch-action:manipulation}
-/* surfaces that drag 1:1 own their gestures outright — the board's grid among
-   them now: its frame used to scroll on the big variants and needed the
-   finger's pan, and the board fits the desk instead (board.ts, fitNatural) */
+/* surfaces that drag 1:1 own their gestures outright */
 .titlebar,.rz,.icon,#grid,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.pin,.paintgrid{touch-action:none}
-/* the desk. fitStage() sizes it to the browser window; these are the
-   authored 1280x800 it composes against. */
+/* the desk: authored 1280x800, scaled by fitStage() */
 #stage{position:relative;width:1280px;height:800px;background:#0e8078;overflow:hidden}
 
 .bevel{background:#c0c0c0;box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .sunken{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
 .win{position:absolute}
-/* maximized or hand-resized: the body gets the full height, so contents can
-   re-frame. `sized` arrives the first time a resize handle is dragged. */
+/* maximized or hand-resized (`sized` = a resize handle was dragged): body gets full height */
 .win.max,.win.sized{display:flex;flex-direction:column}
 .win.max > .titlebar,.win.sized > .titlebar{flex:none}
 .win.max > .winbody,.win.sized > .winbody{flex:1;min-height:0}
-/* resize handles: invisible strips on the frame, like the real borders were */
+/* resize handles: invisible strips on the frame */
 .rz{position:absolute;z-index:6}
 .rz-n{top:-2px;left:9px;right:9px;height:5px;cursor:n-resize}
 .rz-s{bottom:-2px;left:9px;right:9px;height:5px;cursor:s-resize}
@@ -35,9 +28,8 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .rz-se{bottom:-2px;right:-2px;width:9px;height:9px;cursor:se-resize}
 .rz-sw{bottom:-2px;left:-2px;width:9px;height:9px;cursor:sw-resize}
 .win.max .rz{display:none}
-/* a finger is not a pointer: the invisible borders and the titlebar buttons
-   grow to something a thumb can actually hit. The authored geometry the
-   layout math reads (titlebar 22, taskbar 36) stays untouched. */
+/* touch: borders and titlebar buttons grow thumb-sized; the authored geometry
+   the layout math reads (titlebar 22, taskbar 36) must stay untouched */
 @media (pointer: coarse){
   .rz-n{height:12px}.rz-s{height:12px}
   .rz-e{width:12px}.rz-w{width:12px}
@@ -47,10 +39,8 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
   .popup div{padding:7px 20px 7px 22px}
   .task,#start,#clock{height:30px;line-height:30px}
 }
-/* what flexes inside a hand-sized window: a well marked `flexwell` grows, a
-   notepad forgets its natural cap, an editor's textarea fills its well, and
-   the statusbar keeps to the bottom edge the way the period had it. A window
-   with no flexwell (a fixed grid) just gets more gray, which is also period. */
+/* in a resized window a `flexwell` grows, notepads drop their cap, the
+   statusbar keeps the bottom edge; a window with no flexwell just gets more gray */
 .win.sized > .winbody{display:flex;flex-direction:column}
 .win.sized .flexwell{flex:1 1 0;min-height:0}
 .win.sized .notepad{max-height:none!important}
@@ -78,7 +68,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .popup hr{border:0;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:2px 1px}
 .popup div .check{position:absolute;left:8px}
 .popup div .sub{position:absolute;right:6px}
-/* an accelerator rides its item's right edge, the way Win32 spelled it */
+/* accelerator on the item's right edge */
 .popup div.has-accel{display:flex;justify-content:space-between;gap:24px}
 .popup div .accel{flex:none}
 
@@ -89,9 +79,8 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .icon.sel .lbl{background:#000080;outline:1px dotted #fff}
 .icon.dragghost{pointer-events:none;z-index:500;opacity:.8}
 
-/* the grid. --cell/--disc are the live size (board.ts): the authored 64/48
-   until the window is dragged, then a whole-pixel step off the same ladder —
-   every bevel and hole here lands on an integer at every rung. */
+/* --cell/--disc are the live size (board.ts): authored 64/48, then whole-pixel
+   steps so every bevel and hole lands on an integer */
 .cellrow{display:flex}
 .cell{width:var(--cell,64px);height:var(--cell,64px);background:#c0c0c0;display:grid;place-items:center;position:relative;
       box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
@@ -103,11 +92,8 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .disc::after{content:"";position:absolute;inset:0;border-radius:50%;
       background:repeating-conic-gradient(#000 0% 25%,transparent 0% 50%) 0 0/4px 4px;opacity:.10}
 
-/* The board window's sunken frame. Connect 5 is a bigger window and 6 and 7
-   are a smaller cell — the cabinet is fitted to the desk (board.ts,
-   fitNatural), so this never has anything to scroll. `auto` and not `hidden`
-   anyway: a clipped board would be an unreachable bottom row if that
-   arithmetic were ever wrong, and a scrollbar at least says so. */
+/* board frame. Never has anything to scroll (board.ts fitNatural); `auto` not
+   `hidden` so a wrong fit shows a scrollbar rather than an unreachable row */
 .boardframe{margin:0 10px;padding:6px;background:#c0c0c0;overflow:auto}
 .boardframe::-webkit-scrollbar{width:16px;height:16px;background:#dfdfdf}
 .boardframe::-webkit-scrollbar-thumb{background:#c0c0c0;
@@ -115,11 +101,11 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .boardframe::-webkit-scrollbar-button{display:block;width:16px;height:16px;background:#c0c0c0;
       box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 
-/* ---- chip styles. Flat 16 is the chosen default (2026-08-13). ---- */
+/* ---- chip styles; flat16 is the default ---- */
 .chips-flat .disc.r{background:#e0332e;box-shadow:inset 0 0 0 2px #7a0f14}
 .chips-flat .disc.y{background:#f0b400;box-shadow:inset 0 0 0 2px #8a5c00}
 .chips-flat .disc::after{content:none}
-/* glossy is the base .disc look — no extra rules */
+/* glossy = base .disc look */
 .chips-plastic .disc.r{background:#d8342e}
 .chips-plastic .disc.y{background:#eab000}
 .chips-plastic .disc::before{content:"";position:absolute;inset:7px;border-radius:50%;
@@ -168,8 +154,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .finale .dlg-body div{font-size:16px;font-weight:bold;letter-spacing:.5px;padding-top:8px}
 
 /* taskbar */
-/* --taskbar-pad is the phone's home-indicator inset (set by fitStage): the
-   bar thickens to cover it so the chrome still reaches the physical edge and
+/* --taskbar-pad = phone home-indicator inset (fitStage); the bar thickens so
    the clock stays above the swipe zone */
 #taskbar{position:absolute;left:0;right:0;bottom:0;height:calc(36px + var(--taskbar-pad,0px));
       box-sizing:border-box;background:#c0c0c0;z-index:200;
@@ -188,9 +173,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 #clock{margin-left:auto;height:26px;line-height:26px;padding:0 12px;flex:none;
       box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
 
-/* the start menu is a popup that opens upward, with the period banner.
-   Rows are flex so every program stands behind its own icon; submenus hang
-   off the item and grow upward, because the menu lives at the screen's foot */
+/* start menu opens upward; submenus grow upward too */
 #startmenu{position:absolute;left:2px;bottom:calc(38px + var(--taskbar-pad,0px));z-index:300;display:none;padding-left:32px;min-width:200px}
 #startmenu .banner{position:absolute;left:2px;top:2px;bottom:2px;width:30px;background:linear-gradient(0deg,#000080,#1084d0);
       color:#c0c0c0;font-size:16px;letter-spacing:1px;
@@ -218,8 +201,7 @@ canvas.pix{image-rendering:pixelated;display:block}
 .mface:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff}
 .mface .pix{width:22px;height:22px}
 .minesgrid{display:grid;margin:0 auto 10px;padding:3px;width:max-content}
-/* --mc is the live cell (mines.ts): 24 until the window is dragged. The
-   number and the 12px flag/mine sprites are fractions of it. */
+/* --mc is the live cell (mines.ts), authored 24; sprites are fractions of it */
 .mcell{width:var(--mc,24px);height:var(--mc,24px);display:grid;place-items:center;background:#c0c0c0;position:relative;
      font-weight:bold;font-size:calc(var(--mc,24px)*7/12);font-family:Tahoma,sans-serif;
      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
@@ -227,19 +209,18 @@ canvas.pix{image-rendering:pixelated;display:block}
 .mcell.hit{background:#f00}
 .mcell .pix{width:var(--mc,24px);height:var(--mc,24px);position:absolute;inset:0}
 
-/* SOL.EXE — the felt and the cards. --cw/--ch are the live card (sol.ts):
-   the authored 62x84 until the window is dragged, then a whole-pixel step off
-   the column pitch. A card is a painted canvas (paintCard), not styled DOM. */
+/* SOL.EXE. --cw/--ch are the live card (sol.ts), authored 62x84, whole-pixel
+   steps. A card is a painted canvas, not styled DOM. */
 .felt{position:relative;margin:6px 10px 4px;height:560px;background:#008000;overflow:hidden}
 .slot{position:absolute;width:var(--cw,62px);height:var(--ch,84px);box-shadow:inset 0 0 0 1px #006000}
-/* an empty stock wears the go-around circle */
+/* empty stock: go-around circle */
 .slot .redeal{position:absolute;left:50%;top:50%;width:calc(var(--cw,62px)*3/7);height:calc(var(--cw,62px)*3/7);
       transform:translate(-50%,-50%);border:2px solid #006000;border-radius:50%}
 .tabcol{position:absolute;width:var(--cw,62px);bottom:6px}
 .tabcol.empty{box-shadow:inset 0 0 0 1px #006000;height:var(--ch,84px);bottom:auto}
 .card{position:absolute;left:0;top:0;width:var(--cw,62px);height:var(--ch,84px)}
 .card canvas{display:block;width:100%;height:100%}
-/* the chosen run, selected the way the OS selects anything: the blue dither */
+/* selected run: blue dither */
 .card.sel::after{content:"";position:absolute;inset:1px;
       background:conic-gradient(#000080 0 25%,#0000 0 50%,#000080 0 75%,#0000 0) 0 0/2px 2px}
 .solghost{position:absolute;width:var(--cw,62px);z-index:500;pointer-events:none}
@@ -248,19 +229,17 @@ canvas.pix{image-rendering:pixelated;display:block}
 /* the games folder */
 .folderpane{margin:3px;background:#fff;display:flex;flex-wrap:wrap;gap:8px;padding:12px 8px;min-height:76px;align-items:flex-start;align-content:flex-start}
 .binpoem{white-space:pre-wrap;color:#808080;font-size:10px;line-height:1.5;padding:0 4px}
-/* right-click menus live on the stage, above every window */
+/* context menus sit above every window */
 .popup.ctx{position:absolute;z-index:350;min-width:110px}
-/* renaming a folder: the label becomes a period edit box */
+/* folder rename edit box */
 .icon .ren{width:76px;font:inherit;font-size:11px;color:#000;background:#fff;border:1px solid #000;padding:0 1px;text-align:center}
 .fic{width:74px;text-align:center;color:#000}
 .fic .pix{width:32px;height:32px;margin:0 auto 4px}
 .fic .lbl{display:inline-block;padding:1px 2px;font-size:10px}
 .fic.sel .lbl{background:#000080;color:#fff;outline:1px dotted #fff}
 
-/* CHECKERS.EXE — the machine's own boardgame, played with the chips.
-   --sq is the live square (checkers.ts / chess.ts): 40 until the window is
-   dragged, then a whole-pixel step. The pieces are fractions of it, so a
-   king's K and a bishop's glyph grow with their square. */
+/* CHECKERS.EXE. --sq is the live square (checkers.ts / chess.ts), authored 40,
+   whole-pixel steps; pieces are fractions of it */
 .ckgrid{display:grid;grid-template-columns:repeat(8,var(--sq,40px))}
 .cksq{width:var(--sq,40px);height:var(--sq,40px);display:grid;place-items:center}
 .cksq.l{background:#ecd8b0}
@@ -275,8 +254,7 @@ canvas.pix{image-rendering:pixelated;display:block}
 .ckpc.r.king::after{color:#7a0f14}
 .ckpc.y.king::after{color:#8a5c00}
 
-/* CHESS.EXE — same board family, sprite pieces (16x16 through px(), like
-   every icon on the desk; 32px at the natural square, so the art lands 2x) */
+/* CHESS.EXE: 16x16 sprite pieces via px(), 32px at the natural square (2x) */
 .chpc{line-height:0;user-select:none}
 .chpc .pix{width:calc(var(--sq,40px)*4/5);height:calc(var(--sq,40px)*4/5)}
 .cksq.chk{box-shadow:inset 0 0 0 2px #e03030}
@@ -285,11 +263,11 @@ canvas.pix{image-rendering:pixelated;display:block}
 /* notepad bodies */
 .notepad{margin:3px;background:#fff;padding:5px;min-height:110px;white-space:pre-wrap;
       font-family:"Courier New",monospace;font-size:12px;line-height:1.45}
-/* the one you can type in */
+/* editable */
 textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;width:100%;height:280px;
       box-sizing:border-box;user-select:text;-webkit-user-select:text;cursor:text}
 
-/* COMMAND.COM — the one black window. Same scrollbar as every other well. */
+/* terminal */
 .termwell{margin:3px;background:#000;color:#c0c0c0;font:12px "Courier New",monospace;line-height:1.35;
      padding:3px 6px;height:280px;overflow-y:auto;cursor:text;
      user-select:text;-webkit-user-select:text}
@@ -299,14 +277,11 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 .termwell::-webkit-scrollbar-button{display:block;width:16px;height:16px;background:#c0c0c0;
      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
 .termout div{white-space:pre-wrap;word-break:break-all}
-/* the 40x24 screen a program can light (vm.ts VCHR): while it is on, it is
-   the whole terminal, the way a mode switch was. Its own type size, so the
-   whole court fits the well without scrolling */
+/* the 40x24 VCHR screen (vm.ts); own type size so it fits the well unscrolled */
 .termscreen{display:none;white-space:pre;font-size:11px;line-height:1.0;text-align:center}
 .termwell.screening .termscreen{display:block}
 .termwell.screening .termout{display:none}
-/* the prompt line is clipped, not display:none — a hidden input loses focus
-   and the program would lose the keyboard with it */
+/* clipped, not display:none — a hidden input loses focus and the program the keyboard */
 .termwell.screening .termline{height:0;overflow:hidden}
 .termline{display:flex;white-space:pre}
 .termprompt{flex:none}
@@ -314,17 +289,17 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
      font:inherit;caret-color:#c0c0c0}
 .win.sized .termwell{height:auto}
 
-/* the Open / Save As picker's name box */
+/* file picker name box */
 .pickin{flex:1;min-width:0;background:#fff;border:0;outline:0;padding:2px 4px;font:11px Tahoma,sans-serif;
      box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf;
      user-select:text;-webkit-user-select:text}
 
-/* cursor ghosts — the trail follows the real cursor at high fever */
+/* cursor ghosts (high fever) */
 .cur{position:absolute;width:14px;height:22px;background:#fff;z-index:150;pointer-events:none;
      clip-path:polygon(0 0,0 74%,21% 60%,34% 96%,50% 90%,38% 56%,64% 54%);
      filter:drop-shadow(1px 1px 0 #000)}
 
-/* a period trackbar, for the dev fever control */
+/* trackbar */
 .trackbar{position:relative;height:28px;margin:10px 12px 4px}
 .trackbar .rail{position:absolute;left:0;right:0;top:11px;height:4px;
      box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080}
@@ -333,17 +308,14 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 .ticks{display:flex;justify-content:space-between;margin:0 12px;color:#000;font-size:10px}
 #feverCtl .presets{display:flex;gap:4px;margin:6px 12px 10px}
 #feverCtl .presets .btn{min-width:0;flex:1;font-family:"Courier New",monospace}
-/* the same trackbar stood on its end, for the tray's volume */
+/* vertical trackbar (tray volume) */
 .trackbar.vert{width:28px;height:92px;margin:6px auto 2px}
 .trackbar.vert .rail{left:12px;right:auto;top:0;bottom:0;width:4px;height:auto}
 .trackbar.vert .thumb{left:3px;top:auto;width:22px;height:11px;margin-bottom:-5px}
 
-/* ---- sounds.ctl: a listbox, a checkbox, and the tray ---- */
-/* Native scroll, styled the same way the board frame's is — on a machine with
-   overlay scrollbars (this one) neither shows a gutter, and the honest tell
-   that the list goes on is the row clipped at the bottom edge. A hand-built
-   period scrollbar would be the real answer and is a separate piece of chrome;
-   don't add one here without adding it to `.boardframe` too. */
+/* ---- sounds.ctl ---- */
+/* native scroll, styled like .boardframe's; overlay scrollbars show no gutter.
+   Don't hand-build a period scrollbar here without doing .boardframe too. */
 .listbox{height:132px;overflow-y:auto;background:#fff;padding:1px;
      box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
 .listbox::-webkit-scrollbar{width:16px;background:#dfdfdf}
@@ -374,35 +346,23 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 
 /* ---- the win ---- */
 #fx{position:absolute;inset:0;pointer-events:none;z-index:30}
-/* The ants capsule and the seam fire are parked here in grid coordinates, and
-   both deliberately overhang the line they hug — the capsule by half its
-   height, the fire by the room it needs to rise. That overhang used to land in
-   `.boardframe`'s scrollable overflow, so winning a game grew the frame a
-   scrollbar and (with classic scrollbars) shoved the window a notch taller.
-   `clip` clips without becoming a scroll container, and the margin keeps the
-   overhang paintable out to the frame's own padding — exactly as far as it
-   ever showed. The board itself no longer scrolls at any variant, and this is
-   what keeps winning from being the thing that reintroduces it. */
+/* ants capsule and seam fire live here in grid coordinates and overhang the
+   line. `overflow: clip` (not hidden/auto) clips without becoming a scroll
+   container — otherwise a win grows .boardframe a scrollbar; the margin keeps
+   the overhang paintable out to the frame's padding. */
 .gridwrap{position:relative;overflow:clip;overflow-clip-margin:6px}
 .gridwrap .disc{z-index:2}
-/* A new game drains the old position out through the floor of the cabinet
-   (board.ts). The layer is exactly the grid, wears the same hole mask #fx does,
-   and clips at its own bottom edge — which is what "out of the machine" means
-   here: a disc that gets there is gone, and nothing lands. */
+/* drain layer (board.ts): exactly the grid, same hole mask as #fx, clips at
+   its bottom edge so a drained disc is gone */
 .drain{position:absolute;overflow:clip;pointer-events:none;z-index:3}
 .drain .disc{position:absolute}
 .seam{position:absolute;z-index:1;pointer-events:none;image-rendering:pixelated}
-/* the OS selects your win like it selects anything: marching ants —
-   but along the line, one capsule, not four squares */
+/* marching ants along the winning line: one capsule */
 .ants{position:absolute;pointer-events:none;z-index:6;display:none}
 .ants .a1{position:absolute;inset:0;border:1px dashed #fff;border-radius:999px}
 .ants .a2{position:absolute;inset:0;border:1px dashed #000;border-radius:999px;transform:translate(1px,1px)}
 
-/* ---- PAINT.EXE and the pinboard ----
-   The grid is drawn at whole-pixel zoom by paint.ts; the checker underneath
-   is painted, not styled, so it scales with the cell. A pinned picture is
-   desk furniture with the rocket's old z — over the wallpaper and the
-   smears, under every window. */
+/* ---- PAINT.EXE and pins. A pin sits over wallpaper and smears, under every window ---- */
 .paintgrid{display:block;cursor:crosshair}
 .paintpreview{background:#fff;padding:6px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:56px}
 .palstrip{display:flex;flex-wrap:wrap;gap:3px;padding:5px 6px;background:#c0c0c0}

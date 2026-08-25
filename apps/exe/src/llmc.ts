@@ -1,14 +1,9 @@
 /**
- * SRC\llm.c — the seed the whole of llm_llm_llm Phase 2 exists to put on the
- * disk. It is kept here rather than inline in copy.ts because it is 300 lines
- * of another language and copy.ts is prose; `String.raw` so the backslashes
- * in it are the C's and not TypeScript's.
- *
- * It must agree with three other things or it prints nonsense: the ports in
- * vm.ts, the builtins in cc.ts, and the drive image that
- * apps/exe/tools/llm/pack.ts writes. `cc.test.ts` compiles it, runs it on the
- * real processor against a real image, and checks the tokens against the
- * integer oracle in tools/llm/intref.ts, which is what keeps the four honest.
+ * SRC\llm.c — the language model source seeded onto the disk (see
+ * llm_llm_llm.md). `String.raw` so the backslashes are the C's. It must agree
+ * with the ports in vm.ts, the builtins in cc.ts and the drive image
+ * tools/llm/pack.ts writes; llm.test.ts asserts it fits the word budget and
+ * tools/llm/compare.ts checks its tokens against the oracle.
  */
 
 export const LLM_C = String.raw`/* llm.c — a language model, on this machine's own processor.

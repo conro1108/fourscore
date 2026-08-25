@@ -1,11 +1,6 @@
 /**
- * Klondike's rules, with nothing on top of them.
- *
- * This is the half of SOL.EXE that has no window: the deal, the two legality
- * laws and the draw. It lives apart from `sol.ts` because two other things
- * need it and neither can touch the DOM — the review's solver, and the worker
- * that runs the solver off the desktop's thread. `sol.ts` re-exports all of
- * it, so the game and its tests still say `sol.js`.
+ * Klondike rules, DOM-free: deal, legality, draw. Kept apart from `sol.ts` so the
+ * review solver and its worker can import it. `sol.ts` re-exports everything.
  */
 
 /** suit: 0 ♠  1 ♥  2 ♦  3 ♣ */
@@ -68,7 +63,7 @@ export function drawFromStock(s: SolState): boolean {
 
 export const isWon = (s: SolState): boolean => s.found.every((p) => p.length === 13);
 
-/** A state nothing else can reach into: undo's snapshot, and the journal's. */
+/** Deep copy for undo/journal snapshots. */
 export const cloneState = (s: SolState): SolState => ({
   stock: [...s.stock],
   waste: [...s.waste],

@@ -1,11 +1,7 @@
 /**
- * Watch the machine think. Opens the real terminal in a real browser, types
- * the three commands a player would type, and photographs the result every
- * few seconds — because a token takes about two of them and a single
- * screenshot at a fixed moment cannot tell "slow" from "stuck".
- *
- * Usage:  npm run llm            (spawns its own dev server)
- * Env:    BASE, CHROME, SECONDS
+ * Drive `cc llm.c; run llm` in the real terminal and screenshot every 5s —
+ * a single shot cannot tell slow from stuck.
+ * Usage:  npm run llm     Env: BASE, CHROME, SECONDS
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -54,8 +50,7 @@ const type = async (line) => {
   await input.press("Enter");
   await page.waitForTimeout(400);
 };
-// the finished lines are in the first .termout; the line the program is
-// still writing is in the second, and for a long while that is all of it
+// finished lines are in the first .termout, the line still being written in the second
 const screen = async () =>
   (await page.locator(".termout").first().innerText()) +
   (await page.locator(".termout").nth(1).innerText());

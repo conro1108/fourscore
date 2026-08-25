@@ -1,10 +1,6 @@
-/**
- * The program has to fit in 4096 words *with* its heap, and the compiler and
- * the program have both been shaped around that; a change that quietly
- * overflows it would fault a long way from wherever it was made. The token
- * for token comparison against the integer oracle is `tools/llm/compare.ts`,
- * run by hand when the numerics or the compiler change.
- */
+/** llm.c must fit in 4096 words *with* heap and stack; an overflow would fault
+ * far from the change that caused it. Token-for-token oracle comparison is
+ * `tools/llm/compare.ts`, run by hand. */
 
 import { describe, expect, it } from "vitest";
 import { assemble, MEM_SIZE, MMIO_BASE } from "./vm.js";

@@ -1,16 +1,9 @@
 /**
- * The factory's side of llm_llm_llm: reading someone else's checkpoint.
- *
- * stories260K is Karpathy's TinyStories llama2 in the original llama2.c
- * export — a 28-byte header of seven int32s and then float32 tensors in a
- * fixed order, RoPE's cos/sin already tabulated per position. Nothing here
- * runs on the 16-bit machine; this is the Mac, doing what the fake 1995
- * computer could never do, which is the whole division of labour in the plan.
- *
- * The float forward pass below is the reference the integer pipeline is
- * graded against. It is deliberately the dumbest possible transcription of
- * run.c: no fusing, no caching cleverness, so that when the quantised version
- * disagrees the disagreement is the quantisation and not a second bug.
+ * Reads the llama2.c checkpoint export (28-byte header of seven int32s, then
+ * float32 tensors in fixed order, RoPE cos/sin pre-tabulated per position) and
+ * runs the float reference forward pass the integer pipeline is graded against.
+ * Keep it a dumb transcription of run.c — no fusing — so a disagreement with
+ * the quantised version is the quantisation, not a second bug.
  */
 
 import { readFileSync } from "node:fs";
@@ -121,9 +114,9 @@ export interface Tokenizer {
 export function loadTokenizer(path: string, vocabSize: number): Tokenizer {
   const buf = readFileSync(path);
   const pieces: string[] = [];
-  let at = 4; // max token length, which we do not need to decode
+  let at = 4; // skip max token length
   for (let i = 0; i < vocabSize; i++) {
-    at += 4; // the merge score, which only encoding needs
+    at += 4; // skip merge score
     const len = buf.readInt32LE(at);
     at += 4;
     pieces.push(buf.subarray(at, at + len).toString("utf8"));
@@ -182,9 +175,8 @@ function softmax(x: Float32Array, n: number): void {
   for (let i = 0; i < n; i++) x[i]! /= sum;
 }
 
-/** Every place the integer pipeline has to choose a fixed-point exponent.
-    The float run reports what actually turns up there, which is the only way
-    to pick a scale that neither clips nor throws away bits. */
+/** Called at every site where the integer pipeline picks a fixed-point exponent;
+    calibration reads the scales off what the float run actually produces. */
 export type SiteRecorder = (site: string, values: ArrayLike<number>) => void;
 
 /** One token through the float model; the logits land in state.logits. */
@@ -283,8 +275,7 @@ export function forward(
   return s.logits;
 }
 
-/** xorshift16 — the same generator the VM's RND port gets fed in tests, so a
-    host run and a machine run can be asked to make the same choices. */
+/** xorshift16 — the same generator the VM's RND port is fed, so host and machine runs match. */
 export function makeRng(seed: number): () => number {
   let s = seed & 0xffff || 1;
   return () => {

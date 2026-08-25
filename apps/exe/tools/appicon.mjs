@@ -1,15 +1,12 @@
 /**
- * Render the home-screen icons from BOARD.EXE's own pixel art — the period
- * way (no image editor was harmed; the icon is computed, like everything
- * else on this desktop). Writes public/icon-{180,192,512}.png.
- *
+ * Render public/icon-{180,192,512}.png from BOARD.EXE's pixel art.
  * Usage: node tools/appicon.mjs
  */
 import { deflateSync } from "node:zlib";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// ICONS.board + PAL, copied from src/icons.ts (a .mjs tool can't import TS)
+// ICONS.board + PAL copied from src/icons.ts (.mjs can't import TS); keep in sync
 const PAL = { b: "#000080", c: "#c0c0c0", w: "#fff", r: "#e0332e", y: "#f0b400", k: "#000" };
 const ROWS = [
   "................","kkkkkkkkkkkkkkk.","kbbbbbbbbbbbbbk.","kbrbybrbybrbybk.",

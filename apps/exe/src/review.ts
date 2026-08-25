@@ -1,25 +1,8 @@
 /**
- * REVIEW.EXE — the finished game, gone back over in the OS's own furniture.
- *
- * The engine plumbing for this existed before the window did (the worker has
- * answered "review" since the port); this is the front half. One request per
- * opening, against the analysis worker so a game in progress never queues
- * behind it.
- *
- * The confidence law shapes everything visible (see REVIEW in copy.ts): the
- * result line is flat because the game is over; the curve is one solid line
- * with no legend, because "how the machine got each number" is not the
- * player's problem; the verdict at the bottom is declarative only when the
- * number under it is proven, and a lead ("looks like the loose one") when it
- * is this machine's read. The step where the line goes decisive is the game
- * going decisive, and it stays unexplained on purpose.
- *
- * The game is walkable: ← and → step the board through the plies, a click on
- * a move row jumps to it, and the curve carries a cursor at wherever you are.
- * A review you can only read is a chart; a review you can walk is the game.
- * The whole position is replayed here from the move list — the engine's own
- * `Match`, not a second dropper — so a board in the window can't drift from
- * the board that was played.
+ * REVIEW.EXE: the finished game, walkable (←/→, row click, curve click).
+ * One request per opening, on the analysis worker so live play never queues
+ * behind it. Confidence law (CLAUDE.md): one solid line, no legend, hedged
+ * copy for estimates. Positions are replayed through the engine's `Match`.
  */
 
 import { el } from "./dom.js";
@@ -40,9 +23,7 @@ export interface ReviewDeps {
 /** Reopening mid-solve must not leave a stale answer landing in a new window. */
 let generation = 0;
 
-/* The walked board, drawn at whatever cell fits the window's 304px of room —
-   13 columns of Connect 7 get a small one. Flat chips, because that is the
-   default and this is a thumbnail, not a table. */
+/* Walked board thumbnail; cell size fits 304px (Connect 7 gets a small one). */
 const PAN_W = 304;
 const PAN_MAX_H = 156;
 const PAN_CELL_MAX = 28;
@@ -50,11 +31,7 @@ const FRAME = 6;
 const HOLE = "#1c1c1c";
 const CHIP = { red: ["#e0332e", "#7a0f14"], yellow: ["#f0b400", "#8a5c00"] } as const;
 
-/**
- * `startAt` is the harness's hand on the walk — `?state=review&ply=6` is a
- * screenshot of the review holding a position, which is the only way `npm run
- * shots` can see that the walking works at all.
- */
+/** `startAt` backs `?state=review&ply=N` for the screenshot harness. */
 export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): void {
   const end = last();
   if (!end || end.kind === "forfeit" || end.history.length === 0) {
@@ -66,12 +43,9 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
   const gen = ++generation;
 
   const variant = end.variant;
-  // hoisted `function`s below can't see the null check above (they could be
-  // called before it), so the two things they need come out of it here
+  // hoisted functions below can't narrow `end`, so pull these out here
   const history = end.history;
-  /* Every position the game passed through, replayed once. Frame 0 is the
-     empty board, so frame i is the board after i plies — the same numbering
-     the curve uses, which is what lets one index drive both. */
+  // frame i = board after i plies, same numbering as the curve
   const frames = replay(variant, history);
   const cellPx = Math.min(
     PAN_CELL_MAX,
@@ -101,7 +75,6 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
   list.textContent = REVIEW.working;
   foot.textContent = REVIEW.workingSub;
 
-  /* ---- where in the game we are, and everything that follows from it ---- */
   let curve: readonly CurvePoint[] = [{ ply: 0, advantage: 0, source: "estimated" }];
   /** The graded plies, by ply index — empty until the worker answers. */
   const graded = new Map<number, PlyRecord>();
@@ -115,9 +88,7 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
     for (const row of list.querySelectorAll<HTMLElement>(".lrow")) {
       const sel = Number(row.dataset.ply) === at - 1;
       row.classList.toggle("sel", sel);
-      // scroll the listbox by hand rather than `scrollIntoView`: that walks
-      // ancestors, and #stage is a scrollable-but-hidden box, so a review
-      // window overhanging an edge could slide the whole desktop with it
+      // not scrollIntoView: it would scroll #stage too when the window overhangs
       if (!sel) continue;
       const top = row.offsetTop;
       const bottom = top + row.offsetHeight;
@@ -131,7 +102,7 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
     if (at === 0) return REVIEW.pan.start;
     const ply = at - 1;
     const col = history[ply]! + 1;
-    // red moves first in every game this machine hosts, so even plies are yours
+    // red always moves first, so even plies are yours
     if (ply % 2 === 1) return REVIEW.pan.theirs(at, col, botName);
     const p = graded.get(ply);
     const remark = p ? REVIEW.remark[p.source === "proven" ? "proven" : "estimated"][p.grade] : "";
@@ -149,9 +120,7 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
     buttons: ["min", "close"],
   });
 
-  /* ← and → walk it. Bound to the desktop rather than the window because the
-     window holds no focusable control — the same shape BOARD.EXE's F2 has,
-     and it lets go the moment the window does. */
+  // window-level keys: the window has no focusable control; unbinds on close
   const onKey = (e: KeyboardEvent): void => {
     if (!win.isOpen()) {
       removeEventListener("keydown", onKey);
@@ -167,7 +136,6 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
   };
   addEventListener("keydown", onKey);
 
-  // the curve is a scrubber too: a click on it lands on the ply under it
   cv.addEventListener("pointerdown", (e) => {
     const r = cv.getBoundingClientRect();
     const t = (e.clientX - r.left) / (r.width || 1);
@@ -182,7 +150,7 @@ export function openReview({ wm, last, review }: ReviewDeps, startAt?: number): 
       if (gen !== generation || !win.isOpen()) return;
       curve = r.curve;
       list.textContent = "";
-      // your moves only — red moves first in every game this machine hosts
+      // your (red) moves only
       for (const p of r.plies) {
         graded.set(p.ply, p);
         if (p.player !== "red") continue;
@@ -224,13 +192,7 @@ function replay(variant: Variant, history: readonly number[]): Cell[][][] {
   return frames;
 }
 
-/**
- * One solid line, the whole game. The midline is even; up is yours. Proven
- * plies land in a band the estimates can't reach (the engine's scale does
- * this), so the visible step where the game went decisive is real and no
- * legend has to say so. The cursor is where you are walking, and it is a
- * period focus rule — 1px, dotted, no color of its own.
- */
+/** One solid line; midline even, up is yours. Cursor is a 1px dotted focus rule. */
 function drawCurve(cv: HTMLCanvasElement, curve: readonly CurvePoint[], at: number): void {
   const ctx = cv.getContext("2d")!;
   const w = cv.width;
@@ -266,11 +228,7 @@ function drawCurve(cv: HTMLCanvasElement, curve: readonly CurvePoint[], at: numb
   ctx.stroke();
 }
 
-/**
- * The position at this ply, in the cabinet's own colors: gray frame, sunken
- * bevel, black holes, flat chips. The disc that just landed wears the OS's
- * focus rectangle, which is how a period program pointed at one thing.
- */
+/** Board at this ply; the disc that just landed gets the dotted focus rect. */
 function drawBoard(
   cv: HTMLCanvasElement,
   variant: Variant,
@@ -281,7 +239,6 @@ function drawBoard(
   const ctx = cv.getContext("2d")!;
   ctx.fillStyle = "#c0c0c0";
   ctx.fillRect(0, 0, cv.width, cv.height);
-  // the sunken well, 2px of it, same kit as every bevel on the desktop
   ctx.fillStyle = "#808080";
   ctx.fillRect(0, 0, cv.width, 1);
   ctx.fillRect(0, 0, 1, cv.height);

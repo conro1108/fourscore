@@ -1,22 +1,8 @@
 /**
- * The exact solver — negamax with alpha-beta, a transposition table, and a
- * null-window binary search over the score range.
- *
- * Connect 4 is a solved game, so "exact" here means exact: the score returned
- * is not an estimate. Scores are measured in discs-to-spare rather than
- * material, which is the only scale that makes sense for a game whose only
- * outcomes are win, lose and draw:
- *
- *   score > 0   the player to move wins, with `score` discs left unplayed
- *   score = 0   the game is a draw with best play
- *   score < 0   the player to move loses, the opponent having `-score` to spare
- *
- * Bigger magnitudes therefore mean *faster*, and a bot that prefers the highest
- * score is a bot that goes for the throat rather than dawdling in a won game.
- *
- * The search proves a bound rather than computing a value: every recursive call
- * uses a null window (beta = alpha + 1), which prunes far harder than a wide
- * one, and `solveScore` binary-searches the range to pin the true score down.
+ * Exact solver: negamax, alpha-beta, transposition table, null-window binary
+ * search over the score range. Score units are discs-to-spare for the player to
+ * move: >0 wins with `score` cells unplayed, 0 draw, <0 loses. Bigger magnitude
+ * = faster.
  */
 
 import {
@@ -31,10 +17,7 @@ import {
 /** Beyond any real score, for "no result yet". */
 export const SCORE_UNKNOWN = 127;
 
-/**
- * The best possible score on a board: winning as early as the run length
- * allows, which is ply `2 * run - 1`, with everything after it left unplayed.
- */
+/** Best possible score: win at ply `2 * run - 1`, rest unplayed. */
 export const maxScoreOf = (v: Variant): number => Math.floor(v.cells / 2) - v.run + 1;
 
 /** Connect 4's bounds, for callers that only deal with the default board. */
@@ -48,30 +31,14 @@ const FLAG_LOWER = 2;
 const LANE_MASK = 0xffffffffn;
 const LANE_SHIFT = 32n;
 
-/**
- * The widest `key()` the table can compare exactly: four full 32-bit lanes
- * plus a float64 remainder with 53 exact integer bits. Connect 7's 13x12
- * needs 169 of these.
- */
+/** Widest `key()` the table compares exactly: four 32-bit lanes + 53 float64 bits. Connect 7 needs 169. */
 export const TT_MAX_KEY_BITS = 4 * 32 + 53;
 
 /**
- * Fixed-size open-addressed transposition table.
- *
- * Keys are stored across four 32-bit lanes and a float64 remainder, rather
- * than as one float64. On Connect 4 a `key()` is at most 49 bits and would fit
- * in a float64's 53 bits of exact integer, but the packing needs `width *
- * (height + 1)` bits and any board past 7x6 blows through that — Connect 5's
- * 9x8 needs 81, Connect 7's 13x12 needs 169. A float64 doesn't fail loudly
- * there; it rounds, so two different positions start comparing equal and the
- * "exact" solver quietly returns wrong scores. Splitting the key into lanes
- * keeps the comparison exact up to `TT_MAX_KEY_BITS`, and `solveScoreWithStats`
- * refuses boards past that rather than rounding.
- *
- * Collisions simply overwrite: a wrong hit costs a re-search, not a wrong
- * answer, because the stored value is always re-validated against the current
- * window. That is only true while the key comparison itself is exact, which is
- * the whole reason for the split.
+ * Fixed-size transposition table. Keys are split across lanes because a single
+ * float64 rounds silently past 53 bits and the solver then returns wrong scores
+ * with no error. Collisions overwrite (a wrong hit only costs a re-search) —
+ * safe only while the key comparison is exact. See CLAUDE.md § TT key.
  */
 export class TranspositionTable {
   private readonly size: number;
@@ -103,10 +70,7 @@ export class TranspositionTable {
     rest >>= LANE_SHIFT;
     const d = Number(rest & LANE_MASK);
     const e = Number(rest >> LANE_SHIFT);
-    // The low bits vary slowly between sibling positions, so a plain modulo by
-    // a power of two would cluster badly. Mixing the upper lanes down is what
-    // keeps the table spread out. (XOR truncates `e` to 32 bits, which is fine
-    // for spreading; the stored comparison below is the exact one.)
+    // Mix all lanes: low bits alone cluster siblings. XOR truncating `e` is fine; the comparison below is exact.
     const i = (a ^ b ^ c ^ d ^ e) & (this.size - 1);
     if (
       this.flags[i] === FLAG_EMPTY ||
@@ -159,14 +123,7 @@ export class SearchAborted extends Error {
   }
 }
 
-/**
- * Scratch space for move ordering, one slot per ply.
- *
- * The search never has two frames at the same depth live at once, so each depth
- * can reuse a single pair of arrays forever. Allocating them per node instead
- * costs more than the ordering itself — this is the innermost loop in the
- * program and it runs a few million times a second.
- */
+// Per-ply move-ordering scratch; never two frames at one depth, and per-node allocation costs more than the ordering.
 const MAX_PLY = Math.max(...VARIANTS.map((v) => v.cells)) + 1;
 const MAX_WIDTH = Math.max(...VARIANTS.map((v) => v.width));
 const ORDER_MOVES: bigint[][] = Array.from({ length: MAX_PLY }, () => new Array<bigint>(MAX_WIDTH));
@@ -175,15 +132,7 @@ const ORDER_SCORES: Int32Array[] = Array.from(
   () => new Int32Array(MAX_WIDTH),
 );
 
-/**
- * Order candidate moves best-first into the scratch arrays for `ply`, and
- * return how many there are.
- *
- * The heuristic is how many new winning cells a move creates: a move that
- * builds two threats at once is likely to be the refutation, and getting it
- * searched first is what makes the alpha-beta cutoffs cheap. Insertion sort
- * over at most seven entries beats any real sorting machinery here.
- */
+/** Order moves best-first (by winning cells created) into scratch for `ply`; returns count. Insertion sort is right at this size. */
 function orderMoves(p: Position, possible: bigint, ply: number): number {
   const moves = ORDER_MOVES[ply]!;
   const scores = ORDER_SCORES[ply]!;
@@ -208,26 +157,19 @@ function orderMoves(p: Position, possible: bigint, ply: number): number {
   return n;
 }
 
-/**
- * Prove whether the score for the player to move lies above or below the
- * `[alpha, beta)` window. Returns a value that is exact when it lands strictly
- * inside the window, and otherwise a bound in the direction it failed.
- */
+/** Exact if strictly inside `[alpha, beta)`, otherwise a bound in the failed direction. */
 function negamax(p: Position, alpha: number, beta: number, ctx: SearchContext, ply = 0): number {
   if (++ctx.nodes > ctx.nodeLimit) throw new SearchAborted();
 
   const cells = p.variant.cells;
   const possible = p.nonLosingMoves();
   if (possible === 0n) {
-    // Every move loses immediately — the opponent wins as soon as they can.
     return -Math.floor((cells - p.moves) / 2);
   }
 
   if (p.moves >= cells - 2) return 0; // no room for anyone to win
 
-  // Nobody can win on their very next move (we'd have returned already), so
-  // tighten the window against the soonest win that is still possible. This is
-  // pure profit: it often collapses the window to nothing without any search.
+  // No immediate win exists (handled above), so tighten to the soonest still-possible win.
   const min = -Math.floor((cells - 2 - p.moves) / 2);
   if (alpha < min) {
     alpha = min;
@@ -243,7 +185,6 @@ function negamax(p: Position, alpha: number, beta: number, ctx: SearchContext, p
   const entry = ctx.table.get(key);
   if (entry) {
     if (entry.flag === FLAG_UPPER) {
-      // Stored value is an upper bound on the true score.
       if (entry.value < beta) {
         beta = entry.value;
         if (alpha >= beta) return beta;
@@ -261,12 +202,8 @@ function negamax(p: Position, alpha: number, beta: number, ctx: SearchContext, p
 
   for (let i = 0; i < count; i++) {
     const move = moves[i]!;
-    // The child, built inline: XOR flips the perspective to the opponent, and
-    // the move joins the shared mask.
     const child = new Position(p.position ^ p.mask, p.mask | move, p.moves + 1, p.variant);
 
-    // Null window: we only need to know whether this child beats alpha, not by
-    // how much. If it does, the wider re-search happens at the parent's parent.
     const score = -negamax(child, -beta, -alpha, ctx, ply + 1);
     if (score >= beta) {
       ctx.table.put(key, score, FLAG_LOWER);
@@ -289,14 +226,7 @@ export interface SolveStats {
   nodes: number;
 }
 
-/**
- * The exact score of `p` for the player to move.
- *
- * Rather than one wide-window search, this binary-searches the score range with
- * null-window probes. Each probe answers a yes/no question ("is the score above
- * n?"), which alpha-beta can settle far more cheaply than "what is the score",
- * and about six probes pin down the answer.
- */
+/** Exact score of `p` for the player to move, via null-window probes over the score range. */
 export function solveScore(p: Position, opts: SolveOptions = {}): number {
   const { score } = solveScoreWithStats(p, opts);
   return score;
@@ -306,8 +236,7 @@ export function solveScoreWithStats(
   p: Position,
   opts: SolveOptions = {},
 ): { score: number; stats: SolveStats } {
-  // Refuse rather than round: past this the table's key comparison stops being
-  // exact and the solver returns wrong scores with no error.
+  // Refuse rather than round: past this the TT key comparison is inexact.
   if (p.variant.keyBits > TT_MAX_KEY_BITS) {
     throw new Error(
       `board needs ${p.variant.keyBits}-bit keys; the table compares at most ${TT_MAX_KEY_BITS}`,
@@ -322,8 +251,6 @@ export function solveScoreWithStats(
 
   const cells = p.variant.cells;
 
-  // An immediate win is worth checking before any of the machinery starts —
-  // it's the single most common case in a real game.
   for (const col of p.variant.moveOrder) {
     if (p.canPlay(col) && p.isWinningMove(col)) {
       return { score: Math.floor((cells + 1 - p.moves) / 2), stats: { nodes: 0 } };
@@ -334,10 +261,8 @@ export function solveScoreWithStats(
   let max = Math.floor((cells + 1 - p.moves) / 2);
 
   while (min < max) {
-    // Bias the probe toward zero: draws and near-draws are much more common
-    // than blowouts, so testing near the middle of the range wastes probes.
-    // Halving truncates toward zero, not downward — the probe has to stay
-    // inside [min, max) and Math.floor would push it out on the negative side.
+    // Bias probes toward zero (near-draws dominate). Math.trunc, not floor: the
+    // probe must stay inside [min, max) on the negative side.
     let med = min + Math.trunc((max - min) / 2);
     if (med <= 0 && Math.trunc(min / 2) < med) med = Math.trunc(min / 2);
     else if (med >= 0 && Math.trunc(max / 2) > med) med = Math.trunc(max / 2);
@@ -365,13 +290,7 @@ export interface Analysis {
   bestCols: number[];
 }
 
-/**
- * Score every legal move exactly.
- *
- * This is what the perfect bot picks from and what blunder analysis compares
- * against — being able to say "you were winning, then you weren't" needs a
- * number for the move played *and* for the move that was there instead.
- */
+/** Score every legal move exactly. */
 export function analyze(p: Position, opts: SolveOptions = {}): Analysis {
   const table = opts.table ?? new TranspositionTable();
   const moves: MoveScore[] = [];
@@ -388,7 +307,6 @@ export function analyze(p: Position, opts: SolveOptions = {}): Analysis {
       moves.push({ col, score: 0 });
       continue;
     }
-    // The child's score is from the opponent's point of view; negate it.
     moves.push({ col, score: -solveScore(child, { ...opts, table }) });
   }
 

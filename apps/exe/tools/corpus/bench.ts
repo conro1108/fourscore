@@ -1,19 +1,10 @@
 /**
- * Measure llama-server before trusting it with a night. Phase 3, station 3's
- * first pre-flight (llm_training.md): single-stream decode is known (6–9
- * tok/s on the Q6), aggregate across slots is not, and every number in the
- * generation budget rests on the aggregate.
- *
+ * Aggregate-throughput bench for llama-server before a corpus night.
  *   llama-server -m ~/ai/models/gguf/Qwen3.8-27B-UD-Q6_K_XL.gguf -np 8 -c 49152
  *   npx vite-node apps/exe/tools/corpus/bench.ts --requests 16 --concurrency 8
- *
- * It sends the real tier-4 mutate prompt — c.txt, the fence, a parent pong,
- * the shots — because throughput against "hi" measures nothing: prompt
- * processing and KV pressure are most of what changes when eight slots run
- * at once. It also does the n_ctx arithmetic the plan warns about
- * (per-slot context is n_ctx / slots, and a tier-4 prompt plus generation
- * wants ~5.5K of it), since that misconfiguration fails the night at
- * request one and costs nothing to catch here.
+ * Sends the real tier-4 mutate prompt (throughput against "hi" measures
+ * nothing) and checks n_ctx: per-slot context is n_ctx / slots, and a tier-4
+ * prompt plus generation wants ~5.5K.
  */
 
 import "./graders.js";
@@ -32,9 +23,7 @@ const concurrency = Number(flag("concurrency", "8"));
 const maxTokens = Number(flag("max-tokens", "1400"));
 const timeoutMs = Number(flag("timeout", "900")) * 1000;
 
-// The steady-state prompt: a tier-4 mutation with two shots. Seeded from
-// GOOD the way a fresh run is; by 4am the parents are model-written and
-// longer, so treat the measurement as a floor, not a promise.
+// Seeded from GOOD; model-written parents are longer, so this is a floor.
 const tier: Tier = 4;
 const rr = ((): (() => number) => {
   let s = 42;

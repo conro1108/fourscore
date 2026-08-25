@@ -1,11 +1,8 @@
 /**
- * The 90s demoscene fire automaton — cooling + upward drift on a palette ramp.
- * Ported from proposals/lib.js, which is the approved exemplar (DIRECTION.md):
- * it genuinely computes per-frame; nothing in here is a picture of fire.
- *
- * Personality hooks: `stoke(heat,W,H,tick)` replaces the flat bottom-row
- * injection, `wind` biases the drift, `flip` hangs the fire from the top of
- * the window, `transparent` fades cold pixels out instead of to black.
+ * Demoscene fire automaton — cooling + upward drift on a palette ramp. Must
+ * genuinely compute per frame (DIRECTION.md); never a picture of fire.
+ * Hooks: `stoke` replaces bottom-row injection, `wind` biases drift, `flip`
+ * hangs it from the top, `transparent` fades cold pixels out.
  */
 
 export type Rgb = readonly [number, number, number];
@@ -57,11 +54,8 @@ export function ramp(stops: readonly (readonly [number, Rgb])[]): Palette {
   return pal;
 }
 
-/**
- * Blend two palettes. The fever lean lives here: the classic ramp only ever
- * blends *toward* the white-hot one, at most halfway — full white across the
- * flame body reads as butter, not fire (DIRECTION.md), so it never arrives.
- */
+/** Blend two palettes. Callers only lean the classic ramp toward white-hot,
+ * at most halfway — full white reads as butter, not fire (DIRECTION.md). */
 export function mixPalettes(a: Palette, b: Palette, k: number): Palette {
   return a.map((c, i) => {
     const d = b[i]!;
@@ -74,7 +68,7 @@ export function mixPalettes(a: Palette, b: Palette, k: number): Palette {
 }
 
 export const PALETTES: Record<"classic" | "inferno" | "coals" | "desktop", Palette> = {
-  // the approved mock's formula ramp: black → red → yellow → white
+  // black → red → yellow → white
   classic: (() => {
     const pal: Rgb[] = [];
     for (let i = 0; i < 64; i++) {
@@ -87,7 +81,7 @@ export const PALETTES: Record<"classic" | "inferno" | "coals" | "desktop", Palet
     }
     return pal;
   })(),
-  // white creeps further down the flame — the same fire, angrier
+  // white creeps further down the flame
   inferno: ramp([
     [0, [0, 0, 0]],
     [0.22, [160, 8, 0]],
@@ -96,7 +90,7 @@ export const PALETTES: Record<"classic" | "inferno" | "coals" | "desktop", Palet
     [0.8, [255, 255, 210]],
     [1, [255, 255, 255]],
   ]),
-  // the loss fire: it doesn't go out, it goes low
+  // the loss fire: low, never out
   coals: ramp([
     [0, [0, 0, 0]],
     [0.3, [52, 10, 4]],
@@ -104,7 +98,7 @@ export const PALETTES: Record<"classic" | "inferno" | "coals" | "desktop", Palet
     [0.8, [204, 84, 24]],
     [1, [242, 132, 44]],
   ]),
-  // the desktop's own teal, burning
+  // desktop teal
   desktop: ramp([
     [0, [6, 26, 24]],
     [0.3, [10, 64, 58]],
@@ -158,12 +152,12 @@ export function makeFire(canvas: HTMLCanvasElement, opts: FireOptions = {}): Fir
       img.data[i * 4 + 2] = b;
       img.data[i * 4 + 3] = state.transparent ? (h <= 2 ? 0 : Math.min(255, h * 12)) : 255;
     }
-    ctx.putImageData(img, 0, 0); // putImageData replaces alpha too, so transparency just works
+    ctx.putImageData(img, 0, 0); // replaces alpha too, so transparency works
   }
 
   function start(): void {
     stop();
-    // pre-burn so it never starts cold; tall fields need proportionally more
+    // pre-burn so it never starts cold; taller fields need more
     for (let i = 0; i < Math.max(40, (H * 1.6) | 0); i++) step();
     timer = setInterval(step, state.interval);
   }
@@ -182,7 +176,7 @@ export function makeFire(canvas: HTMLCanvasElement, opts: FireOptions = {}): Fir
     }
   }
   function resize(w: number, h: number): void {
-    // keep whatever heat field overlaps; the flame recovers in a few frames
+    // keep the overlapping heat; recovers in a few frames
     const old = heat;
     const oW = W;
     const oH = H;
@@ -197,9 +191,9 @@ export function makeFire(canvas: HTMLCanvasElement, opts: FireOptions = {}): Fir
   return { start, stop, set, resize, step, canvas };
 }
 
-/* ---- personalities (the approved shelf, 03-shelf.html) ---- */
+/* ---- personalities ---- */
 
-/** coals.scr: a low bed that flares when you look away. */
+/** coals.scr: low bed, occasional flare. */
 export function coalsStoke(): StokeFn {
   let flare = -1;
   let flareX = 0;
@@ -218,7 +212,7 @@ export function coalsStoke(): StokeFn {
   };
 }
 
-/** pillar.scr: one column of flame, swaying — a candle for the oracle. */
+/** pillar.scr: one swaying column. */
 export function pillarStoke(): StokeFn {
   return (heat, W, H, tick) => {
     const c = W / 2 + Math.sin(tick * 0.045) * 7;
@@ -230,7 +224,7 @@ export function pillarStoke(): StokeFn {
   };
 }
 
-/** rain.scr options: the desktop's own palette, hanging from the ceiling. */
+/** rain.scr options: desktop palette, hung from the top. */
 export const RAIN_OPTIONS: FireOptions = {
   palette: PALETTES.desktop,
   flip: true,
@@ -247,15 +241,11 @@ export const COALS_OPTIONS: FireOptions = {
 };
 
 /**
- * roam.scr: ONE heat field, laid out in desk space, with each window a
- * viewport into it. `view()` reports where every still-visible window sits
- * right now (in field pixels), so a dragged window carries its porthole with
- * it and a closed or minimized one stops being somewhere the fire can appear.
- * The heat source wanders the span the surviving windows actually cover —
- * two incommensurate sines plus a bounded random walk, so it goes where it
- * wants — and the flame walks out of one window into the next, invisibly
- * crossing whatever gap you dragged between them. `onFocus` fires when it
- * enters a different window: focus follows the fire.
+ * roam.scr: ONE heat field in desk space; each window is a viewport into it.
+ * `view()` reports current window positions in field pixels each step, so
+ * dragging/closing windows moves/removes portholes. The source wanders the
+ * span the visible windows cover (two incommensurate sines + bounded random
+ * walk). `onFocus` fires when it enters a different window.
  */
 export interface RoamView {
   canvas: HTMLCanvasElement;
@@ -284,8 +274,7 @@ export function makeRoam(
   function step(): void {
     tick++;
     const views = view();
-    // a window dragged past the field's right edge stretches the field —
-    // the fire's world is wherever the windows are, not a fixed strip
+    // a window dragged past the right edge grows the field
     let lo = FW;
     let hi = 0;
     for (const v of views) {

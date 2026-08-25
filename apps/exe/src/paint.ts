@@ -1,13 +1,6 @@
 /**
- * PAINT.EXE — a pencil for the machine's picture format (sprite.ts). The
- * canvas is a zoomed grid with the transparency checker under it, the colors
- * are the system palette because that is every color this machine has, and
- * File does what Notepad's File does, against the same disk through the same
- * picker. A picture saved here is a text file COMMAND.COM can TYPE and
- * Notepad can edit, which is the whole point.
- *
- * One window per file, Notepad's own arrangement: a per-file map, window ids
- * off a running counter so Save As renames a window without reopening it.
+ * PAINT.EXE: editor for the .spr picture format (sprite.ts), palette = PAL.
+ * One window per file, keyed like Notepad's editors; shares its file picker.
  */
 
 import { el, onPointerDrag } from "./dom.js";
@@ -31,7 +24,7 @@ let painterSeq = 0;
 const painterKey = (name: string | null): string =>
   name === null ? "\0new" : normPath(name).toLowerCase();
 
-/** The checker that means "nothing here" — kept apart from every PAL gray. */
+/** Transparency checker; must not match any PAL gray. */
 const CHECKER = ["#f4f4f4", "#dcdcdc"] as const;
 
 export function openPaint(wm: WM, disk: Disk, name: string | null): void {
@@ -47,7 +40,6 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
   if (fileName !== null && disk.exists(fileName)) {
     const parsed = parseSprite(disk.read(fileName) ?? "");
     if (!parsed) {
-      // a .txt is not a picture; refuse rather than offer to overwrite it
       wm.dialog({ ...GAMES_COPY.paint.notAPicture(fileName), x: 340, y: 300, w: 340 });
       return;
     }
@@ -57,10 +49,9 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
   }
   const W = cells[0]!.length;
   const H = cells.length;
-  // one stepped whole-pixel zoom per picture, sized so the cap still fits
+  // whole-pixel zoom, capped so the window fits
   const Z = Math.max(6, Math.min(14, Math.floor(280 / Math.max(W, H))));
 
-  /* ---- the grid, the previews ---- */
   const grid = el<HTMLCanvasElement>(`<canvas class="paintgrid"></canvas>`);
   grid.width = W * Z;
   grid.height = H * Z;
@@ -103,7 +94,6 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
     }
   };
 
-  /* ---- tools and colors ---- */
   let color = "k";
   let tool: "pencil" | "fill" = "pencil";
 
@@ -135,7 +125,6 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
   const toolEls = [toolBtn("Pencil", "pencil"), toolBtn("Fill", "fill")];
   toolEls[0]!.classList.add("down");
 
-  /* ---- painting ---- */
   const cellAt = (e: PointerEvent | MouseEvent): [number, number] => {
     const r = grid.getBoundingClientRect();
     return [
@@ -157,7 +146,7 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
     set(lx, ly, color);
     redraw();
     return (ev: PointerEvent): void => {
-      // walk the gap a fast drag leaves, so a stroke is a stroke
+      // interpolate across a fast drag's gap
       const [nx, ny] = cellAt(ev);
       const steps = Math.max(Math.abs(nx - lx), Math.abs(ny - ly));
       for (let i = 1; i <= steps; i++)
@@ -166,7 +155,7 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
       redraw();
     };
   });
-  // the period's other mouse button: right-click (or a held finger) erases
+  // right-click erases
   grid.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const [x, y] = cellAt(e);
@@ -174,13 +163,11 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
     redraw();
   });
 
-  /* ---- File, against the same disk as everything else ---- */
   const savedDialog = (n: string): void => {
     wm.dialog({ ...GAMES_COPY.paint.saved(n), x: 330, y: 300, w: 330 });
   };
   const saveAs = (): void => {
     openFilePicker(wm, disk, "save", fileName ?? "", (typed) => {
-      // a name with no extension is a picture; say so on its behalf
       const n = baseName(typed).includes(".") ? typed : `${typed}.spr`;
       const commit = (): void => {
         openPainters.delete(painterKey(fileName));
@@ -236,7 +223,6 @@ export function openPaint(wm: WM, disk: Disk, name: string | null): void {
     },
   ]);
 
-  /* ---- the furniture ---- */
   const body = el(`<div></div>`);
   const main = el(`<div style="display:flex;gap:4px;margin:3px;align-items:flex-start"></div>`);
   const well = el(`<div class="sunken" style="padding:3px;line-height:0"></div>`);

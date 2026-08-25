@@ -1,9 +1,6 @@
 /**
- * Drive PAINT.EXE and the pinboard for real: draw on the grid, Save through
- * the File menu, check the disk actually holds the stroke, pin the picture
- * from its desk icon's menu, and reload to prove the pin survives. The unit
- * tests cover the format; this is the eyes and the hands.
- * Usage:  node tools/paint.mjs   (spawns its own dev server like shots.mjs)
+ * Drive PAINT.EXE and the pinboard live: draw, Save, check the disk, pin,
+ * reload, take down.  Usage: node tools/paint.mjs
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -63,7 +60,7 @@ if (!dlg) fail("no saved dialog");
 await page.locator(".btn", { hasText: "OK" }).first().click();
 
 const savedRow = await page.evaluate(() => {
-  // the volume is a tree now: {v: 2, dirs, files} with path names
+  // exe.fs is {v: 2, dirs, files} with path names
   const files = JSON.parse(localStorage.getItem("exe.fs") ?? "{}").files ?? [];
   return files.find((f) => f.name.toLowerCase() === "desktop\\rocket.spr")?.text.split("\n")[0];
 });
@@ -76,8 +73,7 @@ await page.locator(".popup.ctx div", { hasText: "Pin to desk" }).click();
 await page.waitForTimeout(200);
 if (!(await page.locator("canvas.pin").count())) fail("no pin appeared");
 
-/* ---- drag the pin to open desk (a pin under a window stays under it, the
-   way the rocket did), reload, and expect it to have stayed ---- */
+/* ---- drag the pin to open desk, reload, expect it to have stayed ---- */
 const pin = await page.locator("canvas.pin").boundingBox();
 await page.mouse.move(pin.x + pin.width / 2, pin.y + pin.height / 2);
 await page.mouse.down();

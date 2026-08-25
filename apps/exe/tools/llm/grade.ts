@@ -1,10 +1,6 @@
 /**
- * How much did the machine's arithmetic cost us? Teacher-force both
- * pipelines down the same token sequence and compare the distributions they
- * would sample from. Vibes off a generated paragraph cannot tell a numeric
- * bug from the quantisation that was always going to happen; these numbers
- * can, and they are what any change to pack.ts has to be argued against.
- *
+ * Quantised vs float model: teacher-force both down the same tokens, report
+ * top-1/top-5 agreement and KL. Any change to pack.ts is argued against this.
  *   npx vite-node apps/exe/tools/llm/grade.ts
  */
 

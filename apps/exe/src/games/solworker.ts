@@ -1,12 +1,4 @@
-/**
- * The review's search, off the desktop's thread.
- *
- * A Klondike solve is seconds of straight-line work, and the desktop is a
- * machine with a fire burning on it — running this where the fire runs would
- * stop the fire, the clock and the cards while the review "thought", which is
- * a hang wearing a period costume. One worker per review, and it ends with
- * its answer: there is nothing here to keep alive between games.
- */
+/** Klondike review solve in a worker (seconds of work; would freeze the desktop). One worker per review. */
 
 import { reviewGame, type SolReview } from "./solreview.js";
 import type { SolState } from "./solstate.js";

@@ -1,9 +1,6 @@
 /**
- * The window manager. Real windows with real z-order, focus and drag —
- * dialogs included, because a dialog you can't drag breaks the fiction
- * (DIRECTION.md: don't draw the OS, run it).
- *
- * Timing law: window operations are instant. Nothing in here animates.
+ * Window manager: real z-order, focus, drag, resize — dialogs included.
+ * Window operations are instant; nothing here animates (DIRECTION.md).
  */
 
 import { el, onPointerDrag } from "./dom.js";
@@ -31,19 +28,14 @@ export interface WindowSpec {
   onClose?: () => void;
   /** Fires after maximize/restore, so a window can re-frame its contents. */
   onMaximize?: (on: boolean) => void;
-  /** Real resize borders, like the OS the fiction claims to be. The window
-      gets `sized` on first drag and its body flexes (chrome.css). */
+  /** Resize borders. The window gets `sized` on first drag; body flexes (chrome.css). */
   resizable?: boolean;
-  /** Floors for a resize drag. Left unset, the floor is the window's own
-      natural size, captured the moment a drag starts on an un-sized window —
-      a fixed-content window grows but never crushes its contents. */
+  /** Resize floors; default is the natural size captured at the first drag. */
   minW?: number;
   minH?: number;
   /** Fires during a resize drag, after each new size lands. */
   onResize?: () => void;
-  /** Stay above the screensaver while it has the desktop. The board asks for
-      this ("the board stays playable on top of it" — DIRECTION.md) and so does
-      anything the machine is currently saying; dialogs get it by default. */
+  /** Stay above the screensaver (the board, and dialogs by default). */
   overSaver?: boolean;
   /** A fixed z-index, opting out of the stack entirely. Dev chrome only. */
   z?: number;
@@ -74,12 +66,7 @@ export interface DialogSpec {
   ay?: AnchorY;
   w?: number;
   taskbar?: boolean;
-  /**
-   * What it arrives with. Defaults to the scheme's Default sound, or the error
-   * chord for a `!` — the two the icon already implies. Named explicitly when a
-   * dialog means something else (Shut Down is not an error), and `null` when
-   * something louder is about to play over it.
-   */
+  /** Arrival sound. Defaults to ding, or chord for `!`; `null` when something louder follows. */
   sound?: SoundName | null;
   /** Called with the button index; the dialog closes itself first. */
   onButton?: (index: number, label: string) => void;
@@ -95,45 +82,26 @@ export interface WM {
   onDrag(cb: (win: Win, x: number, y: number) => void): void;
   /** Fires on any focus change — roam.scr steals focus through this. */
   focusWin(win: Win): void;
-  /** Put `win` directly underneath `other` in the stack, and leave it there —
-      the loss files one notice behind the board for you to find later. */
+  /** Put `win` directly underneath `other` in the stack. */
   sendBelow(win: Win, other: Win): void;
-  /** The screensaver has (or has let go of) the desktop. While it has it, the
-      `overSaver` windows are the only ones above it. */
+  /** While the saver is on, only `overSaver` windows sit above it. */
   setSaverActive(on: boolean): void;
 }
 
-/* ---- stacking ----
-   Windows are packed into a band in back-to-front order rather than counted up
-   from an ever-climbing z. The counter walked into the chrome's own fixed
-   layers over a long session (#taskbar is 200, #saver 240), and worse, it made
-   `focus()` the thing that undid a raised window: the screensaver put the board
-   at 250, and the next click on the board handed it back a number in the
-   fifties, so the board vanished underneath the fire. A band is a property of
-   the window, so clicking it can't lose it. */
+/* ---- stacking: z is index-in-band, not a climbing counter (a counter walked
+   into #taskbar 200 / #saver 240 and let focus() drop a raised board under the fire) ---- */
 const Z_BASE = 40;
 /** Above #saver (240), below #startmenu (300). */
 const Z_OVER_SAVER = 250;
-/** Ordering headroom inside a band. The desk never holds this many windows;
-    past it the extras tie and fall back to DOM order, which is fine. */
+/** Headroom inside a band; past it windows tie and fall back to DOM order. */
 const Z_DEPTH = 45;
 
-/* ---- the desk ----
-   The desktop IS the screen (DIRECTION.md), so the stage fills the browser
-   window instead of sitting inside it as a letterboxed card: the taskbar
-   reaches both edges, the icons sit in the true corner, the clock is in the
-   real right corner. It scales by whichever axis is tighter and then grows to
-   cover the rest, so a wider window is a wider desk, not a bigger picture of
-   one. At exactly 1280x800 the scale is 1 and every authored number lands
-   where it was authored. */
+/* ---- the desk: fills the browser window (not letterboxed), scaled by the
+   tighter axis then grown to cover. At 1280x800 scale is 1. ---- */
 const DESIGN_W = 1280;
 const DESIGN_H = 800;
-/* A phone can't hold a 1280x800 desk at a readable size, so when the screen
-   is touched rather than pointed at and the base fit would put a 64px cell
-   under ~40 device px, the monitor gets smaller instead of the pixels: a desk
-   just wide enough to hold BOARD.EXE in portrait, just tall enough for it in
-   landscape. Everything stays authored against 1280x800; `place()` clamps
-   windows onto the smaller desk. */
+/* Coarse pointer + 64px cell under MIN_CELL_PX device px → shrink the desk
+   to just fit BOARD.EXE instead. Coordinates stay authored at 1280x800; `place()` clamps. */
 const FIT_W = 512;
 const FIT_H = 600;
 const MIN_CELL_PX = 40;
@@ -152,25 +120,15 @@ export const taskbarH = (): number => 36 + taskbarPad;
 /** Fires after the desk changes size, so placed things can re-anchor. */
 export const onDeskResize = (cb: () => void): void => void resizeCbs.push(cb);
 
-/* ---- how a window's contents answer a resize ----
-   Drag a window bigger and the game inside gets bigger — the frame growing
-   while the playfield sits in a corner is a window manager admitting it isn't
-   one. But the playfield never takes a fractional scale: this desktop is 1px
-   bevels and 64px-nearest art all the way down, and a bevel drawn at 1.37x is
-   mush. So one whole-pixel cell size steps through a fixed ladder and every
-   derived number (disc, hole, gutter, piece) comes off it. Stepping is also
-   the timing law falling out for free: a slow drag lands on a handful of
-   sizes instead of shivering a pixel at a time.
-
-   `count` may be fractional — the board's picker row is three quarters of a
-   cell tall, so its height budget is `rows + 0.75` cells. */
+/* ---- resize → whole-pixel cell size stepping a fixed ladder (never a
+   fractional scale: 1px bevels turn to mush). `count` may be fractional —
+   the board's picker row is 0.75 cell. ---- */
 export interface CellFit {
   /** px the whole field may occupy on this axis. */
   space: number;
   /** cells across it. */
   count: number;
-  /** The authored size. A natural-sized window measures back to exactly this,
-      so nothing moves until you actually drag. */
+  /** Authored size; a natural window must round-trip to exactly this. */
   base: number;
   /** Ladder rung, in px. Keep it a divisor of `base`, or natural won't round-trip. */
   step?: number;
@@ -187,27 +145,19 @@ export function fitCell(f: CellFit): number {
 
 /** Everything a window needs to answer its own resize with a size. */
 export interface FieldFit {
-  /** The window element, measured live — a resize drag is mid-flight. */
+  /** Measured live, mid-drag. */
   win(): HTMLElement;
-  /** Cells across and down. Live, because a level or a variant can change it,
-      and fractional where something else on the axis is a fraction of a cell. */
+  /** Live (level/variant can change it); may be fractional. */
   grid(): { cols: number; rows: number };
-  /** Window px that are never the field, per axis. Measure these off a natural
-      window rather than adding up the stylesheet — then the natural size
-      round-trips to exactly `cell.base` and nothing moves until you drag. */
+  /** Non-field px per axis. Measure off a natural window, don't sum the stylesheet,
+      or the natural size won't round-trip to `cell.base`. */
   chrome: { w: number; h: number };
   cell: { base: number; step: number; min: number; max: number };
-  /** Hand the size to the DOM. `wide` is true once the window has been dragged
-      or maximized, which is when the well should centre in the extra gray. */
+  /** `wide` once dragged or maximized — centre the well in the extra gray. */
   apply(size: number, wide: boolean): void;
 }
 
-/**
- * The one way a game window on this desktop grows: build a scaler, hand it to
- * `onResize` and `onMaximize`, and call it once after the first paint. Five
- * games and the board share this so that "drag it bigger" means the same thing
- * everywhere — and so that the stepping law lives in one place.
- */
+/** The one resize path for game windows: hand to `onResize`/`onMaximize`, call once after first paint. */
 export function fieldScaler(f: FieldFit): () => void {
   return (): void => {
     const el = f.win();
@@ -220,8 +170,7 @@ export function fieldScaler(f: FieldFit): () => void {
   };
 }
 
-/** A well's margin with its horizontal halves handed to `auto`, so it centres
-    in a window that has more gray than it needs. `""` leaves it to the CSS. */
+/** Margin with horizontal halves set to `auto`. `""` leaves it to the CSS. */
 export function centered(margin: string): string {
   const p = margin.trim().split(/\s+/);
   if (p.length === 2) return `${p[0]} auto`;
@@ -230,7 +179,7 @@ export function centered(margin: string): string {
   return margin;
 }
 
-/** Where a coordinate authored against a 1280x800 desk goes on this one. */
+/** Map a coordinate authored at 1280x800 onto this desk. */
 export type AnchorX = "left" | "center" | "right";
 export type AnchorY = "top" | "bottom";
 export function anchorX(x: number, a: AnchorX = "left"): number {
@@ -242,9 +191,7 @@ export function anchorY(y: number, a: AnchorY = "top"): number {
 }
 
 export function fitStage(stage: HTMLElement, w = DESIGN_W, h = DESIGN_H): void {
-  // The notch and the home indicator are pixels the desk can't use (iOS PWA,
-  // viewport-fit=cover). env() only resolves inside CSS, so a hidden probe
-  // wears the insets as padding and the fit reads them back.
+  // safe-area insets (iOS PWA): env() only resolves in CSS, so read them off a probe
   const probe = el(
     `<div style="position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)"></div>`,
   );
@@ -255,8 +202,7 @@ export function fitStage(stage: HTMLElement, w = DESIGN_W, h = DESIGN_H): void {
     const safeR = parseFloat(cs.paddingRight) || 0;
     const safeB = parseFloat(cs.paddingBottom) || 0;
     const safeL = parseFloat(cs.paddingLeft) || 0;
-    // The desk keeps the bottom inset — the taskbar thickens to cover it, so
-    // the chrome still reaches the physical edge and the clock stays tappable.
+    // bottom inset stays in the desk; the taskbar thickens to cover it
     const availW = innerWidth - safeL - safeR;
     const availH = innerHeight - safeT;
     scale = Math.min(availW / w, availH / h);
@@ -274,8 +220,7 @@ export function fitStage(stage: HTMLElement, w = DESIGN_W, h = DESIGN_H): void {
   };
   fit();
   addEventListener("resize", fit);
-  // iOS resizes the visual viewport (keyboard, orientation) without always
-  // firing a window resize in standalone mode
+  // iOS standalone doesn't always fire window resize
   visualViewport?.addEventListener("resize", fit);
 }
 
@@ -286,7 +231,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
   let focusedWin: Win | undefined;
   let dialogSeq = 0;
 
-  /** Every open window, back to front. Index in here IS the z-order. */
+  /** Back to front; index IS the z-order. */
   interface Stacked {
     win: Win;
     overSaver: boolean;
@@ -326,25 +271,19 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     }
   }
 
-  /**
-   * `quiet` is how a dialog gets in without the program-opening whoosh: a
-   * dialog is not a program starting, it is the machine saying something, and
-   * `dialog()` below plays the sentence's own sound instead.
-   */
+  /** `quiet`: no open/close whoosh — dialogs play their own sound. */
   function open(spec: WindowSpec, quiet = false): Win {
     const buttons = spec.buttons ?? ["min", "max", "close"];
     const w = el(`<div class="win bevel${spec.cls ? " " + spec.cls : ""}"${spec.w ? ` style="width:${spec.w}px"` : ""}></div>`);
     let maximized: { left: string; top: string; width: string; height: string } | null = null;
-    // authored coordinates, kept so the window can re-anchor if the desk resizes
+    // kept to re-anchor on desk resize
     const authored: [number, number] = [spec.x, spec.y];
     let dragged = false;
     const place = (): void => {
       let x = anchorX(authored[0], spec.ax);
       let y = anchorY(authored[1], spec.ay);
-      // On a desk smaller than the authored 1280x800 (a phone), an authored
-      // position can land off the monitor entirely. Clamp fully on-desk on the
-      // cramped axis only, so a full-size desk keeps every hand-tuned position
-      // — including the win cascade's intentional half-off-screen dialog.
+      // clamp on-desk only on a cramped axis: a full desk keeps hand-tuned
+      // positions, including the win cascade's intentional half-off dialog
       if (deskW < DESIGN_W) x = Math.max(0, Math.min(x, deskW - w.offsetWidth));
       if (deskH < DESIGN_H) y = Math.max(0, Math.min(y, deskH - taskbarH() - w.offsetHeight));
       w.style.left = `${x}px`;
@@ -365,10 +304,9 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     spec.body.classList.add("winbody");
     w.appendChild(spec.body);
     stage.appendChild(w);
-    // placed after it's in the DOM: the clamp needs a measured size
+    // after DOM insert: the clamp needs a measured size
     place();
 
-    // resize borders — instant, 1:1, no easing, same as the titlebar drag
     if (spec.resizable) {
       let natural: { w: number; h: number } | null = null;
       for (const dir of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
@@ -403,7 +341,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
                 top = 0;
               }
             }
-            dragged = true; // you sized it; a desk resize doesn't get to move it
+            dragged = true; // a desk resize won't move it
             w.classList.add("sized");
             Object.assign(w.style, {
               left: `${left}px`,
@@ -424,7 +362,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       body: spec.body,
       focus() {
         if (!w.isConnected) return;
-        w.style.display = ""; // undo minimize; the class decides the display
+        w.style.display = ""; // undo minimize
         reorder(win, "front");
         setFocus(win);
       },
@@ -434,19 +372,15 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         if (focusedWin === win) setFocus(undefined);
       },
       close() {
-        // Only a program closing gets the whoosh: a dialog going away is the
-        // end of a sentence, and its OK already clicked. It matters more than
-        // it sounds like — the win cascade dismisses eight of them at once.
-        // A window that was already gone doesn't close twice either; the
-        // endgame's `clear()` sweeps a stack that has half closed itself.
+        // no whoosh for dialogs (the win cascade dismisses eight at once) or
+        // for a window already gone (endgame's clear() sweeps half-closed stacks)
         if (w.isConnected && !quiet) play("window-close", 0.6);
         reorder(win, "out");
         w.remove();
         tasks.get(spec.id)?.remove();
         tasks.delete(spec.id);
         wins.delete(spec.id);
-        // the period focuses the next window down — which is what lets F2
-        // reach the game the moment its result dialog is dismissed
+        // focus the next window down, so F2 reaches the game once its dialog closes
         if (focusedWin === win)
           setFocus(
             [...order].reverse().find((s) => s.z === undefined && s.win.el.style.display !== "none")?.win,
@@ -462,7 +396,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       moveTo(x, y) {
         authored[0] = x;
         authored[1] = y;
-        // you put it there; the fever's re-staging doesn't get to move it back
+        // a dragged window isn't re-staged
         if (!dragged) place();
       },
     };
@@ -473,7 +407,6 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       else if (b === "min") win.minimize();
       else if (b === "max") {
         play(maximized ? "window-min" : "window-max", 0.7);
-        // real maximize: fill the desktop above the taskbar, instantly
         if (maximized) {
           Object.assign(w.style, maximized);
           maximized = null;
@@ -488,20 +421,18 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
       }
     });
 
-    // press anywhere raises; pointerdown so it raises before the click lands
+    // pointerdown so it raises before the click lands
     w.addEventListener("pointerdown", () => win.focus());
 
-    // drag by titlebar — instant, 1:1, no easing
     onPointerDrag(bar, (e) => {
       if ((e.target as HTMLElement).closest(".tbtn")) return null;
       if (maximized) return null;
       e.preventDefault();
-      dragged = true; // you put it there; a resize doesn't get to move it back
+      dragged = true;
       const startX = e.clientX / scale - w.offsetLeft;
       const startY = e.clientY / scale - w.offsetTop;
       return (ev: PointerEvent): void => {
-        // a sliver has to stay reachable: a window shoved fully off a phone's
-        // desk has no mouse precision to rescue it with
+        // keep a 48px sliver reachable (a phone can't rescue a fully off-desk window)
         const x = Math.min(
           deskW - 48,
           Math.max(48 - w.offsetWidth, Math.round(ev.clientX / scale - startX)),
@@ -567,9 +498,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         body,
         buttons: ["close"],
         taskbar: spec.taskbar ?? false,
-        // the machine gets to keep talking over its own screensaver: a win
-        // cascade the fire had covered would be its biggest announcement,
-        // unannounced
+        // dialogs stay above the saver (else the win cascade hides under the fire)
         overSaver: true,
       },
       true,

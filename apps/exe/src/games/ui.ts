@@ -1,17 +1,11 @@
-/**
- * The two scraps of chrome every game window needs: a live menubar (second
- * law — every menu opens, every item does something) and the little red LCD
- * the period put on everything it wanted you to worry about.
- */
+/** Shared game-window chrome: a live menubar (every item must do something) and a red LCD counter. */
 
 import { el } from "../dom.js";
 
 export interface Menu {
   label: string;
-  /** [label, action, checked?] — "-" for a separator. A "\t" in the label
-      splits off an accelerator, shown right-aligned the way Win32 menus
-      always spelled it ("Deal\tF2"). The binding itself is the window's
-      business — the menu only wears the reminder. */
+  /** [label, action, checked?]; "-" is a separator. "\t" splits off an accelerator
+      label ("Deal\tF2") — display only, the window binds the key itself. */
   items: readonly (readonly [string, () => void, boolean?])[];
 }
 
@@ -63,7 +57,7 @@ export function menubar(menus: readonly Menu[]): HTMLElement {
     popups.push(popup);
   });
   for (const p of popups) bar.appendChild(p);
-  // self-cleaning outside-click close: the listener retires with the bar
+  // outside-click close; listener removes itself once the bar is detached
   const onDoc = (): void => {
     if (!bar.isConnected) removeEventListener("click", onDoc);
     else closeAll();

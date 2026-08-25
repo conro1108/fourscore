@@ -4,7 +4,7 @@ import { Match, reviewMatch } from "./match.js";
 
 describe("Match", () => {
   it("needs five in a row on Connect 5, not four", () => {
-    // Four along the bottom, which would already have won on Connect 4.
+    // Four along the bottom: a win on Connect 4, not here.
     const four = Match.fromMoves([0, 0, 1, 1, 2, 2, 3, 3], CONNECT5);
     expect(four.status).toBe("playing");
     expect(four.winner).toBe(null);
@@ -48,9 +48,7 @@ describe("reviewMatch", () => {
   });
 
   it("marks what it could not prove as an estimate rather than a fact", () => {
-    // The opening is out of exact reach. The review still has an opinion about
-    // it — that's the point — but it must be labelled as an estimate, and it
-    // must never claim an estimated move changed the result.
+    // Opening is out of exact reach: must be labelled estimated, never a turning point.
     const m = randomGame(8);
     const review = reviewMatch(m.history, { nodeLimit: 50_000 });
     const early = review.plies.filter((p) => p.ply < 6);
@@ -60,11 +58,9 @@ describe("reviewMatch", () => {
 
     for (const p of review.plies) {
       if (p.source !== "estimated") continue;
-      // An estimate is still a number, not silence.
       expect(p.bestScore).not.toBeNull();
       expect(p.playedScore).not.toBeNull();
       expect(p.bestCols.length).toBeGreaterThan(0);
-      // But it is never allowed to be presented as the move that lost the game.
       expect(p.turningPoint).toBe(false);
     }
   });

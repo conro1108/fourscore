@@ -1,29 +1,10 @@
 /**
- * The audio bus — the one public surface. Everything audible goes:
- *
- *   recipe → (bed | scheme) bus → master → destination
- *
- * and every caller on the desktop talks to it by semantic name: `play("ding")`.
- *
- * **Autoplay law.** The rig is built at load but the browser decides whether
- * it runs: after a reboot (you have touched the site this session) it comes
- * up running and `startup` plays at the real startup; on a cold load it sits
- * suspended, `play` is a silent no-op, and the first gesture finishes the
- * boot — if it comes soon after load. A late first click gets its own sound
- * and no chime, because a boot swell under a disc drop is not a boot.
- *
- * **The fever bends the scheme, and only the bus knows that.** At high fever
- * every one-shot plays a little flat and sits in a bigger, wronger room —
- * a machine bogging down, not a machine going faster. Individual recipes never
- * look at fever: a ding has to be the same ding every time (the taste law), and
- * the room running hot is a property of the evening, not of the ding.
- *
- * Waking up is not a one-time event. A context is suspended again whenever the
- * tab loses the foreground, and coming back is not a gesture — so every path
- * that wants sound goes through `wake()`, and no path reads `ctx.state` and
- * gives up. A silent desktop is indistinguishable from a muted one from the
- * player's side, so the failure mode has to be "that one ding was late" and
- * never "the rig is asleep and nothing will wake it".
+ * The audio bus: recipe → (bed | spike) bus → master. Callers use `play(name)`.
+ * - Autoplay: rig built at load; runs if the browser allows, else the first gesture
+ *   wakes it (and plays `startup` only if soon after load).
+ * - Only the bus applies fever (pitch flat + bigger room); recipes never read it.
+ * - The context re-suspends on tab background, so every sound path goes through
+ *   `wake()`; nothing reads `ctx.state` and gives up.
  */
 
 import { startBed, type Bed } from "./bed.js";
@@ -33,21 +14,13 @@ import { RECIPES, SOUND_NAMES, soundBuffer, type SoundName } from "./library.js"
 export type { SoundName } from "./library.js";
 export { RECIPES, SOUND_NAMES, soundBuffer } from "./library.js";
 
-/**
- * The schemes the Control Panel offers, and they all do something (the second
- * law — no dead controls):
- *
- * - `board95` — the scheme this desktop shipped with.
- * - `possessed` — every sound played the way the machine plays them at full
- *   fever, whatever the game is actually doing. The OS offers this sincerely.
- * - `none` — silence, which is how a period Control Panel spelled mute.
- */
+/** Control Panel schemes: `board95` default, `possessed` pins fever to 1, `none` is mute. */
 export type Scheme = "board95" | "possessed" | "none";
 
 export interface AudioSettings {
   scheme: Scheme;
   muted: boolean;
-  /** 0..1. The bed and the one-shots ride it together. */
+  /** 0..1; bed and one-shots together. */
   volume: number;
 }
 
@@ -65,7 +38,6 @@ function load(): AudioSettings {
       volume: typeof raw.volume === "number" ? Math.max(0, Math.min(1, raw.volume)) : DEFAULTS.volume,
     };
   } catch {
-    /* a corrupt setting is the default scheme, not a crash */
     return { ...DEFAULTS };
   }
 }
@@ -78,20 +50,19 @@ interface Rig {
   master: GainNode;
   bedBus: GainNode;
   spikeBus: GainNode;
-  /** Wet send on the one-shots; opens with fever. */
+  /** Wet send on one-shots; opens with fever. */
   spikeRoom: GainNode;
   bed: Bed;
 }
 
 let rig: Rig | null = null;
-/** Where the fever comes from. The bus pulls it; nothing pushes. */
+/** Fever is pulled, never pushed. */
 let feverSource: () => number = () => 0;
 
-/** Master gain when the scheme has any sound in it at all. */
 const levelOf = (s: AudioSettings): number =>
   s.muted || s.scheme === "none" ? 0 : 0.9 * s.volume;
 
-/** How wrong the machine sounds right now. `possessed` pins it open. */
+/** Current fever; `possessed` pins it to 1. */
 const heat = (): number =>
   settings.scheme === "possessed" ? 1 : Math.max(0, Math.min(1, feverSource()));
 
@@ -118,7 +89,6 @@ function buildRig(): Rig {
 
   const bed = startBed(ctx, bedBus);
 
-  // The bed and the room move at a human rate; nothing audible needs 60Hz.
   const STEP = 0.12;
   setInterval(() => {
     const f = heat();
@@ -127,17 +97,14 @@ function buildRig(): Rig {
     bed.tick(STEP, () => play("drive-seek", 0.5));
   }, STEP * 1000);
 
-  // Warm every recipe so no sound is late to its own moment. Shortest first:
-  // this loop starts on the same click that plays a `click`, and the furniture
-  // must not queue behind the three-second boot swell it fired alongside.
+  // Pre-render every recipe, shortest first so a click isn't queued behind the 3s boot swell.
   void (async () => {
     const order = [...SOUND_NAMES].sort((a, b) => RECIPES[a].seconds - RECIPES[b].seconds);
     for (const name of order) {
       try {
         await soundBuffer(name);
       } catch (e) {
-        // One recipe failing to render must not cost the other twenty-two
-        // theirs — an uncaught throw here used to abandon the rest silently.
+        // one failed render must not abandon the rest
         console.warn(`sound "${name}" failed to render`, e);
       }
     }
@@ -152,17 +119,12 @@ function wake(r: Rig): Promise<void> {
   waking ??= r.ctx
     .resume()
     .catch(() => {
-      /* refused off-gesture; the next click gets another go */
     })
     .finally(() => (waking = null));
   return waking;
 }
 
-/**
- * Call once from `main.ts`. Parks a gesture listener and builds nothing.
- * `fever` is pulled, not pushed, so the director stays something the audio
- * reads rather than something that has to know audio exists.
- */
+/** Call once from `main.ts`. */
 export function installAudio(deps: { fever: () => number }): void {
   feverSource = deps.fever;
   let booted = false;
@@ -172,67 +134,42 @@ export function installAudio(deps: { fever: () => number }): void {
     booted = true;
     play("startup", 0.9);
   };
-  // A boot chime only reads as a boot near the boot. A first click ten
-  // minutes in wants its own sound, not a three-second swell under it.
+  // chime only if the first gesture is near load; a late click wants its own sound
   const BOOT_WINDOW_MS = 4000;
   const unlock = (): void => {
     if (!rig) rig = buildRig();
-    // Not `wake()`: an off-gesture resume() neither resolves nor rejects in
-    // Chrome, it hangs — and the bed will have issued one before any click.
-    // The gesture has to place its own call, or it dedupes onto the hung one.
+    // Not `wake()`: an off-gesture resume() hangs in Chrome (neither resolves nor
+    // rejects), and `wake` would dedupe onto that hung promise.
     void rig.ctx.resume().then(() => {
       if (performance.now() - loadedAt < BOOT_WINDOW_MS) boot();
       else booted = true;
     });
   };
-  // Chrome lets a context run without a gesture once you've interacted with
-  // the site this session — which is exactly what a reboot is. So try the
-  // real startup first; if the browser refuses, the context sits suspended
-  // and the first touch finishes the boot as before.
+  // Chrome allows autoplay once you've interacted with the site this session (a reboot).
   rig = buildRig();
   if (rig.ctx.state === "running") boot();
   addEventListener("pointerdown", unlock, { passive: true });
-  // iOS has historically only honoured the *end* of a touch as the gesture
-  // that may start audio, so the lift gets a listener too — `wake()` makes
-  // the second call a no-op.
+  // iOS may only honour the *end* of a touch as the gesture
   addEventListener("pointerup", unlock, { passive: true });
   addEventListener("keydown", unlock);
 
-  // Coming back to a backgrounded tab is not a gesture, so none of the above
-  // fires — and the context was suspended on the way out. Without this the
-  // desktop comes back permanently silent and every later click looks ignored.
+  // Returning to a backgrounded tab is not a gesture; the context was suspended on the way out.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && rig) void wake(rig);
   });
 }
 
-/**
- * Anything firing faster than this is a bug in a caller, not a sound: the
- * column tick can be dragged across seven columns in a flick, and a stack of
- * identical transients an audio frame apart is a click, not a tick.
- */
+// Retrigger floor: a flick across seven columns must not stack identical transients into a click.
 const RETRIGGER_MS = 28;
 const lastFired = new Map<SoundName, number>();
 
-/**
- * How late a sound is still worth playing. Waking a suspended context and
- * rendering a cold recipe both take time that isn't the same on two machines,
- * and a ding arriving after its dialog has closed is worse than a silent one.
- * It also stops a context that never wakes from banking a queue of one-shots
- * that all fire on the same sample when it finally does.
- */
+// Drop sounds later than this: also stops a never-waking context banking one-shots
+// that all fire on the same sample when it finally does.
 const LATE_MS = 250;
 
 /**
- * Fire a one-shot by name. Silent until the rig exists.
- *
- * `level` scales this call only. The quiet furniture is quiet at the callsite,
- * not in its recipe, so a recipe stays a description of a sound and not of a
- * moment — `disc-land` under the board and `disc-land` behind the win cascade
- * are the same knock at two volumes.
- *
- * A call on a sleeping context isn't dropped, it's a reason to wake up: the
- * click that unlocks the rig is usually a click that also wanted a sound.
+ * Fire a one-shot. `level` scales this call only — volume belongs at the callsite,
+ * not in the recipe. A call on a sleeping context wakes it rather than dropping.
  */
 export function play(name: SoundName, level = 1): void {
   const r = rig;
@@ -249,7 +186,7 @@ export function play(name: SoundName, level = 1): void {
       if (performance.now() - now > LATE_MS) return;
       const source = r.ctx.createBufferSource();
       source.buffer = buffer;
-      // Flat, not sharp: this machine is bogging down, not speeding up.
+      // flat, not sharp: bogging down, not speeding up
       source.playbackRate.value = 1 - 0.06 * f;
       if (level === 1) {
         source.connect(r.spikeBus);
@@ -264,16 +201,11 @@ export function play(name: SoundName, level = 1): void {
     .catch((e) => console.warn(`sound "${name}" didn't play`, e));
 }
 
-/* ---- the settings, which two surfaces share: the tray and sounds.ctl ---- */
+/* settings, shared by the tray and sounds.ctl */
 
 export const audioSettings = (): AudioSettings => ({ ...settings });
 
-/**
- * Fires on every change, so the tray icon and the applet can't disagree.
- * Returns its own undo — sounds.ctl can be closed and opened all evening, and
- * every one of those would otherwise leave a subscriber redrawing a window
- * that isn't on the desk any more.
- */
+/** Returns an unsubscribe; sounds.ctl must call it on close or it keeps redrawing a dead window. */
 export function onAudioChange(cb: (s: AudioSettings) => void): () => void {
   listeners.push(cb);
   return () => {
@@ -287,11 +219,9 @@ export function setAudio(next: Partial<AudioSettings>): void {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(settings));
   } catch {
-    /* a desk that can't remember the volume still has one */
   }
   if (rig) {
-    // Fade over a fifth of a second rather than cutting: the switch itself gets
-    // to be heard on the way out, and a hard cut on a running hum is a click.
+    // fade, don't cut: a hard cut on a running hum is a click
     rig.master.gain.setTargetAtTime(
       levelOf(settings),
       rig.ctx.currentTime,
@@ -301,9 +231,8 @@ export function setAudio(next: Partial<AudioSettings>): void {
   for (const cb of listeners) cb({ ...settings });
 }
 
-/** Is anything going to come out if something plays right now? */
 export const audible = (): boolean => levelOf(settings) > 0;
 
-/* ---- dev/tooling hooks; `npm run audio` drives the app through these ---- */
+/* dev hooks for `npm run audio` */
 export const rigState = (): AudioContextState | null => rig?.ctx.state ?? null;
 export const masterLevel = (): number | null => rig?.master.gain.value ?? null;

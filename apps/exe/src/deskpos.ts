@@ -1,19 +1,13 @@
 /**
- * Where the desk keeps its icons. The disk (fs.ts) is the authority on what
- * exists — the desk renders C:\DESKTOP — so all that's left to remember is
- * the [x,y] each icon was dropped at. One localStorage key, pure logic, no
- * DOM. Keys are lowercased paths (plus ":moves" and ":drive" for the two
- * fixtures that aren't files); an icon with no entry here takes a default
- * seat, which is what makes the boot arrangement an authored thing rather
- * than a stored one.
+ * Icon [x,y] per desktop item; fs.ts owns what exists. Keys are lowercased
+ * paths (plus ":moves" and ":drive" for the non-file fixtures). No entry =
+ * default seat, so the boot arrangement stays authored. No DOM.
  */
 
 export interface DeskPos {
   get(path: string): [number, number] | undefined;
   set(path: string, pos: [number, number]): void;
-  /** Forget a seat — the item left the desk or the disk. */
   drop(path: string): void;
-  /** A renamed item keeps its spot. */
   migrate(from: string, to: string): void;
 }
 
@@ -31,7 +25,7 @@ export function makeDeskPos(storage: Pick<Storage, "getItem" | "setItem">): Desk
             state[k] = [v[0], v[1]];
     }
   } catch {
-    /* corrupt placement is a re-staged desk, not a crash */
+    /* corrupt = re-staged desk, not a crash */
   }
   const save = (): void => storage.setItem(KEY, JSON.stringify(state));
   const key = (p: string): string => p.toLowerCase();

@@ -1,8 +1,5 @@
-/**
- * The processor's tests. The two .asm files seeded onto every fresh disk are
- * assembled and run here, so the manual, the seeds and the CPU can't drift
- * apart without a test going red.
- */
+/** CPU tests. The seeded .asm files are assembled and run here so the manual,
+ * the seeds and the CPU can't drift apart. */
 
 import { describe, expect, it } from "vitest";
 import { assemble, makeVm, type Vm, type VmIO } from "./vm.js";

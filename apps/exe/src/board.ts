@@ -1,11 +1,7 @@
 /**
- * BOARD.EXE — one real window among windows, and the match loop inside it.
- *
- * The board feel (DIRECTION.md, settled): the hover disc IS your piece and
- * falls from where it hovers; no aiming arrow. The opponent deliberates
- * visibly — a mirrored hover disc wanders a few columns before committing,
- * then falls with the same physics. The engine is the real ladder, spoken to
- * over the worker protocol; the deliberation walk is theatre, the move is not.
+ * BOARD.EXE — the board window and the match loop. The hover disc IS the
+ * piece and falls from where it hovers (DIRECTION.md); the bot's disc never
+ * teleports. The deliberation walk is theatre; the move comes from the worker.
  */
 
 import { ROSTER, VARIANTS, byId, variantById, type Position, type Variant } from "@fourscore/engine";
@@ -40,8 +36,7 @@ export interface BoardDeps {
   onEval?(history: readonly number[]): void;
   onEnd(end: EndResult): void;
   onNewGame?(variant: Variant, botId: string): void;
-  /** Fires the instant a ply commits, with the position it produced — the
-      synchronous half of the director's feed, ahead of the worker's eval. */
+  /** Fires synchronously as a ply commits, ahead of the worker's eval. */
   onPly?(mover: "you" | "bot", position: Position): void;
 }
 
@@ -53,15 +48,13 @@ export interface BoardApp {
   setVariant(id: string): void;
   setBot(id: string): void;
   setChips(style: string, persist?: boolean): void;
-  /** Play a move list instantly, no animation — the harness's opening. */
+  /** Play a move list instantly, no animation (harness). */
   script(moves: readonly number[]): void;
-  /** Freeze play (the harness holds a deliberation pose). */
+  /** Freeze play (harness pose). */
   freeze(): void;
   cellAt(col: number, row: number): HTMLElement;
   cellCenter(col: number, row: number): readonly [number, number];
-  /** The live cell size in board px — `CELL` unless the window was dragged.
-      Anything drawing on the grid at an authored size scales by
-      `cellSize() / CELL`. */
+  /** Live cell px; anything authored against `CELL` scales by `cellSize() / CELL`. */
   cellSize(): number;
   gridwrap(): HTMLElement;
   fx(): HTMLElement;
@@ -80,7 +73,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   let match = new Match(variant);
   let phase: Phase = "over";
   let hoverCol = 3;
-  /** Where the opponent's disc physically is. It never teleports. */
+  /** Where the bot's disc physically is; it never teleports. */
   let botCol = 3;
   let hesitated = false;
   let turnStartedAt = Date.now();
@@ -95,26 +88,18 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   /** A touch that already committed mutes its own synthetic click. */
   let clickSuppressedUntil = 0;
 
-  /* ---- the geometry, all of it derived from one live cell ----
-     The arithmetic itself is `boardfit.ts` (pure, and tested there); what
-     lives here is the live cell and the variant it is bound to. The grid sits
-     at x=16 inside the window (frame margin 10 + padding 6) and the same 16
-     has to come back on the right, or the sunken well shows a dead column of
-     gray. Every other number is a function of `cell`, because the window is
-     resizable and the cell answers the drag.
-
-     The natural window is never a scrolling one: Connect 6 and 7 don't fit
-     the desk at the authored 64px cell, and the cabinet takes the biggest
-     cell the desk can hold instead of a scrollbar. Connect 4 and 5 fit at 64
-     and are untouched by construction. */
-  /** The live cell. `CELL` while the window is at its natural size. */
+  /* ---- geometry, all derived from one live cell (arithmetic in boardfit.ts).
+     Grid sits at x=16 (frame margin 10 + padding 6) and the same 16 must come
+     back on the right or the well shows a dead gray column. The natural window
+     never scrolls: Connect 6/7 take the biggest cell the desk holds; 4/5 fit
+     at 64 untouched. */
   let cell = CELL;
   const disc = (): number => cell * DISC_RATIO;
   const frameH = (c = cell): number => fit.frameH(variant, c);
   const pickerH = (c = cell): number => fit.pickerH(c);
-  /** Frame height a window this tall can hand the board. */
+  /** Frame height available in a window this tall. */
   const frameSpace = (totalH: number): number => totalH - CHROME_H - pickerH();
-  /** The room a natural window has: the desk, less the taskbar and its seat. */
+  /** Desk height less taskbar and seat. */
   const deskRoomH = (): number => deskHeight() - taskbarH() - 8;
   const naturalCell = (): number => fit.naturalCell(variant, deskWidth(), deskRoomH());
   const windowWidth = (c = naturalCell()): number => fit.windowW(variant, c);
@@ -123,7 +108,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   const minWindowH = (): number => fit.windowH(variant, CELL_MIN);
 
   const body = el(`<div></div>`);
-  // kept as a named object: setVariant re-floors minW when the board changes size
+  // named: setVariant re-floors minW/minH
   const winSpec = {
     id: "board",
     title: TITLES.boardVariant(variant.name),
@@ -136,27 +121,23 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     body,
     onMaximize: (on: boolean) => layoutMax(on),
     resizable: true,
-    // the floor is the smallest cell, not the natural board: a window you can
-    // only grow is half a window
+    // floor is the smallest cell, not the natural board
     minW: minWindowW(),
     minH: minWindowH(),
     onResize: () => relayout(),
-    // the screensaver wins the desktop; the game goes on on top of it
     overSaver: true,
   };
   const win = deps.wm.open(winSpec);
 
-  /* A desk that changes shape (the phone dock) changes what fits in it. The
-     WM has already re-seated an undragged window by the time this runs — it
-     registered first — so all that's left is the cell and the height. A hand
-     size or a maximized board is not ours to touch. */
+  /* Desk resize (phone dock): the WM re-seated the window first; only the
+     cell/height are left. Hand-sized or maximized boards are left alone. */
   onDeskResize(() => {
     if (!win.isOpen() || win.el.classList.contains("max") || win.el.classList.contains("sized"))
       return;
     fitNatural();
   });
 
-  // outside build(): a variant change remakes the menu, not the binding
+  // outside build(): a variant change must not rebind
   const onKey = (e: KeyboardEvent): void => {
     if (!win.isOpen()) {
       removeEventListener("keydown", onKey);
@@ -281,12 +262,10 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     const fx = el(`<div id="fx"></div>`);
     body.append(menubar, pickerRow, frame, statusbar, fx);
 
-    /* One committed move, whatever pointed at it. */
     const commit = (col: number): void => {
       if (phase !== "your-turn") return;
       if (!match.canPlay(col)) {
-        // a full column used to be silence, which is indistinguishable from a
-        // click the window didn't get
+        // a full column must not be silent (reads as a missed click)
         play("chord", 0.4);
         return;
       }
@@ -310,29 +289,25 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     };
 
     grid.addEventListener("pointermove", (e) => {
-      if (e.pointerType === "touch") return; // the finger has its own path below
+      if (e.pointerType === "touch") return; // touch has its own path
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
       if (!cell || phase === "over") return;
       const col = Number(cell.dataset.col);
-      // only when it actually crosses — a move inside one column is not an
-      // event, and the tick is the smallest sound in the scheme for a reason
+      // only on a column crossing
       if (col !== hoverCol && phase === "your-turn") play("hover-tick", 0.55);
       hoverCol = col;
       if (phase === "your-turn") picker.style.left = `${pickerX(hoverCol)}px`;
     });
     grid.addEventListener("click", (e) => {
-      // the tap already committed through the touch path; its synthetic click
-      // arriving here would deal a second disc
+      // the touch path already committed; its synthetic click would deal twice
       if (performance.now() < clickSuppressedUntil) return;
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".cell");
       if (!cell || phase !== "your-turn") return;
       commit(Number(cell.dataset.col));
     });
 
-    /* ---- the finger's path: the hover disc IS your piece here too. Touch
-       the board and the disc snaps to that column; drag and it follows;
-       let go over the board and it falls from where it hovers. Slide off
-       the side to put it down without playing. ---- */
+    /* ---- touch: disc snaps to the column, follows a drag, falls on release
+       over the board; slide off the side to put it down without playing. */
     const colFrom = (ev: PointerEvent): number => {
       const gr = q("#grid", body).getBoundingClientRect();
       const col = Math.floor((ev.clientX - gr.left) / stageScale() / cell);
@@ -352,7 +327,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     const touchDrop = (e: PointerEvent, cancelled: boolean): void => {
       if (e.pointerType !== "touch") return;
       clickSuppressedUntil = performance.now() + 700;
-      if (cancelled || phase !== "your-turn") return; // a scroll took the gesture
+      if (cancelled || phase !== "your-turn") return; // scroll took the gesture
       const k = stageScale();
       const fr = frame.getBoundingClientRect();
       const pr = pickerRow.getBoundingClientRect();
@@ -374,11 +349,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
   /** The hover disc's left edge over column `col`, in picker-row coords. */
   const pickerX = (col: number): number => 6 + (cell - disc()) / 2 + cell * col;
 
-  /* ---- one live cell size, and everything the CSS can read off it ----
-     The cells, holes and chips are all sized from `--cell`/`--disc` (chrome.css),
-     so a new cell repaints the whole board without rebuilding a node. What CSS
-     can't reach — the picker row's height, the two hover discs' columns, and
-     anything the endgame has parked on the grid — is re-derived here. ---- */
+  /* Cells/holes/chips size from `--cell`/`--disc` (chrome.css); what CSS can't
+     reach — picker row height, hover disc columns, endgame decor — is redone here. */
   function setCell(next: number): void {
     const prev = cell;
     cell = next;
@@ -392,10 +364,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     rescaleDecor(cell / prev);
   }
 
-  /* The win's ants and its seam fire are absolutely positioned in the grid's
-     own coordinates (endgame.ts, off `cellCenter`), so a resize mid-cascade
-     would strand them next to the line they are supposed to be on. They ride
-     the same ratio the cells do. */
+  /* Ants and seam fire are positioned in grid px (endgame.ts); a mid-cascade
+     resize must scale them by the same ratio. */
   function rescaleDecor(r: number): void {
     if (r === 1) return;
     for (const d of q(".gridwrap", body).querySelectorAll<HTMLElement>(".ants,.seam"))
@@ -405,21 +375,17 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       }
   }
 
-  /* ---- sized or maximized, the window frames the board instead of stranding
-     it in the top-left of a desk-wide sheet of gray: the cell grows to fill
-     what it was given, frame centered, picker row kept over the columns,
-     statusbar at the bottom. All instant — this is layout, not animation. ---- */
+  /* Sized or maximized: cell grows to fill, frame centered, picker over the
+     columns, statusbar at bottom. Instant — layout, not animation. */
   function frameTo(totalH: number): void {
     const frame = q<HTMLElement>(".boardframe", body);
     const pickerRow = q("#pickerRow", body);
     const availFrame = frameSpace(totalH);
     const natural = frameH();
-    // even the smallest cell can outgrow a short window; then it still scrolls
+    // the smallest cell can still outgrow a short window
     const stillScrolls = natural > availFrame;
-    // frameH/frameSpace are outer boxes; the well is content-box, so the
-    // padding comes back off before it lands as a width. Get this wrong and
-    // the grid sits 12px off-centre in its own well, which is the dead column
-    // of gray the CHROME_W comment is about.
+    // frameH/frameSpace are outer boxes; the well is content-box, so subtract
+    // the padding or the grid sits 12px off-centre in its well
     const outerW = variant.width * cell + FRAME_PAD + (stillScrolls ? 16 : 0);
     body.style.display = "flex";
     body.style.flexDirection = "column";
@@ -432,18 +398,15 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     pickerRow.style.margin = "auto auto 0";
   }
 
-  /** The window changed size: pick the cell it can hold, then re-frame. */
+  /** Pick the cell the window holds, then re-frame. */
   function relayout(w = win.el.offsetWidth, h = win.el.offsetHeight): void {
     setCell(cellFor(w, h));
     frameTo(h);
   }
 
-  /* ---- the size a board takes when nobody has dragged it ----
-     The authored cell where the desk holds it, the biggest cell that fits
-     where it doesn't, and then the window slides up if the seat it was
-     authored into would hang it off the bottom. The content sizes the height
-     — a natural window has no inline height — so this is a width, a cell and
-     a top, and nothing inside it ever scrolls. */
+  /* Natural (undragged) size: authored cell if the desk holds it, else the
+     biggest that fits; slides up if it would hang off the bottom. No inline
+     height — content sizes it — and nothing scrolls. */
   function fitNatural(): void {
     const c = naturalCell();
     setCell(c);
@@ -459,7 +422,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       relayout(deskWidth(), deskHeight() - taskbarH());
       return;
     }
-    // restoring out of maximize lands back in the hand size, if there was one
+    // restore lands back in the hand size, if any
     if (win.el.classList.contains("sized")) {
       relayout();
       return;
@@ -475,7 +438,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     frame.style.height = "";
     pickerRow.style.width = "";
     pickerRow.style.margin = "";
-    // the restore size may predate a variant switch; re-assert the real one
+    // the restore size may predate a variant switch
     fitNatural();
   }
 
@@ -490,7 +453,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     }
   }
 
-  /** Paint the whole grid from the match — the scripted-opening path. */
+  /** Paint the grid from the match (scripted openings). */
   function renderPosition(): void {
     const g = match.grid();
     for (let row = 0; row < variant.height; row++)
@@ -527,8 +490,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     btn?.classList.toggle("gray", !on);
   }
 
-  /* ---- the fall. The hover disc is the piece; it drops from where it
-     hovers, with real gravity and one frame of overshoot. ---- */
+  /* ---- the fall: from where the disc hovers, real gravity, one frame overshoot */
   function fall(col: number, who: "r" | "y", source: HTMLElement, then: () => void): void {
     const row = landingRow(col);
     const fx = q("#fx", body);
@@ -545,24 +507,18 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     gravityFall(d, (srcR.top - o.top) / k, (cellR.top - o.top) / k + (cell - disc()) / 2, () => {
       d.remove();
       clearMask(fx);
-      // the knock lands with the disc, not with the click — a deep column
-      // falls for a good deal longer than a full one
+      // the knock lands with the disc, not the click
       play("disc-land");
-      // a New Game landed mid-flight: the disc belonged to a board that no
-      // longer exists, and painting it would deal it onto the fresh one
+      // New Game mid-flight: don't deal onto the fresh board
       if (seq !== gameSeq) return;
       cellAt(col, row).innerHTML = `<div class="disc ${who}"></div>`;
       then();
     });
   }
 
-  /* ---- the disc goes *into* the cabinet, not across its face. Above the
-     board it is its own object; from the board's top edge down it is only
-     what the holes let you see, which is what a real one looks like and
-     what the mock's arrow implies. One mask does both: an opaque band down
-     to the frame, then the hole tile. Both offsets are read live, and so is
-     the tile: maximize, a variant switch and a resize drag all move the
-     grid, and every one of them changes the size of a hole. ---- */
+  /* Mask: opaque band above the frame, then the hole tile, so the disc goes
+     *into* the cabinet. Offsets and tile are read live — maximize, variant
+     switch and resize all move the grid and change the hole size. */
   function maskToBoard(fx: HTMLElement, o: DOMRect, k: number): void {
     const frameR = q(".boardframe", body).getBoundingClientRect();
     const gridR = q("#grid", body).getBoundingClientRect();
@@ -590,35 +546,18 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     }
   }
 
-  /* ---- and the position leaves the way it arrived ----
-     A new game used to blink the old board out of existence: a full cabinet
-     one frame, an empty one the next. Now the floor gives out — left to right,
-     over about a tenth of a second — and the whole position falls through it
-     with the physics the discs arrived with. Same `gravityFall`, same per-60Hz
-     integration, no easing curve anywhere.
-
-     The discs are lifted out of their cells into one layer sized to the grid
-     and wearing the same hole mask `maskToBoard` puts on `#fx`, so on the way
-     down they are still only what the holes let you see — a disc between two
-     rows is two crescents, which is what emptying a real cabinet looks like
-     from the front. The layer's own clip is the bottom of the machine: a disc
-     that reaches it is gone, and nothing lands.
-
-     The win's ants and its seam fire ride down with it. They were parked on
-     this position in its own coordinates, and a capsule left hanging over an
-     empty board is the bug you only find by looking.
-
-     Every number here is measured off the DOM rather than off `variant` or
-     `cell`: this runs *before* a variant switch takes its new geometry, and
-     the board falling out is the old one. */
+  /* ---- the position drains out: floor gives out left to right over ~0.1s,
+     discs fall with the same `gravityFall`, no easing. Discs move into one
+     layer wearing the hole mask, clipped at the machine's bottom; ants and
+     seam fire ride down too. Every number is measured off the DOM, not
+     `variant`/`cell`: this runs *before* a variant switch takes effect. */
   function exitPosition(then: () => void): void {
     const wrap = q(".gridwrap", body);
     const grid = q("#grid", body);
     const filled = [...grid.querySelectorAll<HTMLElement>(".cell")].filter(
       (c) => c.firstElementChild?.classList.contains("disc"),
     );
-    // an empty board has nothing to take away — the boot and a new game off a
-    // position nobody played into stay instant
+    // empty board: instant (boot, scripted poses)
     if (!filled.length) {
       then();
       return;
@@ -627,15 +566,13 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     q("#picker", body).style.display = "none";
     q("#botDisc", body).style.display = "none";
 
-    // every read before any write: one layout for the whole board, not one per
-    // disc. A cell is positioned, so its offsets are already grid-relative.
+    // all reads before any write: one layout, not one per disc
     const gx = grid.offsetLeft;
     const gy = grid.offsetTop;
     const gw = grid.offsetWidth;
     const gh = grid.offsetHeight;
     const width = grid.firstElementChild?.childElementCount ?? 1;
-    // the layer clips at its own bottom edge, so a disc whose top reaches the
-    // grid's last pixel is already out of the machine. Nothing lands.
+    // a disc whose top reaches the layer's bottom is clipped away; nothing lands
     const drop = gh;
     const falling: { d: HTMLElement; col: number; x: number; y: number }[] = filled.map((c) => {
       const d = c.firstElementChild as HTMLElement;
@@ -659,9 +596,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     });
     wrap.appendChild(layer);
 
-    // the disc moves to the layer and the hole it was in comes back underneath
-    // it — invisible while it hasn't moved, because the mask cuts it to exactly
-    // that hole
+    // move the disc to the layer; the hole returns underneath, invisible until it moves
     for (const f of falling) {
       const c = f.d.parentElement!;
       f.d.style.left = `${f.x}px`;
@@ -673,7 +608,6 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     let pending = falling.length + decor.length;
     const gone = (): void => {
       if (--pending > 0 || seq !== gameSeq) return;
-      // the position hitting the bottom of the machine, somewhere below
       play("disc-land", 0.4);
       then();
     };
@@ -681,16 +615,12 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     play("disc-drop", 0.6);
     const k = stageScale();
     for (const d of decor) {
-      // The decor is outside the layer and rides the gridwrap's own clip, six
-      // px past the last row. The ants capsule is rotated onto its line, so
-      // its rendered box is a good deal taller than the height it was given —
-      // a target that ignores that leaves an arc of it hanging under an empty
-      // board, which is exactly the thing this animation exists to stop.
+      // decor rides the gridwrap clip (6px past the last row); the rotated ants
+      // capsule renders taller than its set height, so target its rendered box
       const box = d.getBoundingClientRect().height / k;
       gravityFall(d, parseFloat(d.style.top) || 0, gh + 10 + (box - d.offsetHeight) / 2, gone);
     }
-    // the tear runs across the board in a fixed time, so a 13-wide Connect 7
-    // gives out over the same beat a 7-wide Connect 4 does
+    // fixed total tear time regardless of width
     const lag = 90 / Math.max(1, width - 1);
     const byCol = new Map<number, typeof falling>();
     for (const f of falling) {
@@ -746,11 +676,8 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     setStatus(STATUS.yourMove, voice().waiting);
   }
 
-  /* ---- the opponent deliberates where you can see it ----
-     The disc never teleports: it hovers where it was left, and once the
-     engine answers it walks column by column (stepped, no easing) to the
-     move and drops. Occasionally it is torn — it walks to a nearby
-     candidate first, pauses, then walks back to the real choice. */
+  /* ---- the bot deliberates visibly: walks column by column (stepped, no
+     easing) to the move; sometimes via a nearby candidate first. */
   function botMove(): void {
     phase = "bot-turn";
     const seq = gameSeq;
@@ -801,13 +728,12 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
     const settle = (): void => {
       if (seq !== gameSeq || phase !== "bot-turn") return;
-      // hover for a touch even when the answer is instant
+      // hover a beat even when the answer is instant
       if (decision === null || Date.now() - started < 550) {
         wanderTimer = setTimeout(settle, 120);
         return;
       }
       const col = decision;
-      // sometimes torn between the move and a neighbourly second thought
       const near = [...Array(variant.width).keys()].filter(
         (c) => c !== col && match.canPlay(c) && Math.abs(c - col) <= 2,
       );
@@ -832,7 +758,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
     const kind: EndResult["kind"] =
       match.status === "draw" ? "draw" : match.winner === "red" ? "win" : "loss";
-    // order the line outward from the disc that finished it
+    // line ordered outward from the finishing disc
     const last = match.history[match.history.length - 1]!;
     const g = match.grid();
     let lastRow = 0;
@@ -859,19 +785,12 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     deps.onEnd({ kind: "forfeit", cells: [], run: variant.run, botId, variant, history: [...match.history] });
   }
 
-  /* ---- game lifecycle ----
-     Two halves with the exit between them: the old position drains out of the
-     cabinet, and only then does anything about the next game exist. `prepare`
-     is what a variant or opponent switch changes, and it runs on the far side
-     for the same reason — resizing the window under a board that is still
-     falling out of it is the one way to make this ugly. With an empty board
-     `exitPosition` calls straight through, so the boot and every scripted pose
-     land exactly where they always did. */
+  /* ---- lifecycle: the old position drains first; `prepare` (variant/bot
+     switch) runs after, so the window isn't resized under a falling board. */
   function newGame(prepare?: () => void): void {
     gameSeq++;
     if (wanderTimer) clearTimeout(wanderTimer);
-    // the exit is not a window in which you can click a column into a
-    // half-torn-down match
+    // no clicks during the exit
     phase = "over";
     exitPosition(() => {
       prepare?.();
@@ -902,26 +821,17 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       win.setTitle(TITLES.boardVariant(variant.name));
       winSpec.minW = minWindowW();
       winSpec.minH = minWindowH();
-      /* A hand size belonged to the old board and is let go — the new variant
-         takes its natural window, same as it always has. Dropping `sized` is
-         all it takes: build() ends in fitNatural(), which is the one place
-         that knows what window a variant asks for.
-
-         Maximized stays maximized and the new size lands on restore — but the
-         class has to go now rather than then, because the WM restores the
-         geometry it captured before the maximize (the *old* variant's hand
-         size) and `layoutMax(false)` would take the `sized` branch, which
-         clamps the cell and not the window. A Connect 4 window shrunk to its
-         floor, maximized, switched to Connect 7 and restored came back 256
-         wide around a 432-wide grid, scrolling. */
+      /* Drop the hand size: build() ends in fitNatural(). Must drop `sized`
+         now even when maximized — the WM restores the pre-maximize geometry
+         (the old variant's hand size) and `layoutMax(false)` would take the
+         `sized` branch, leaving a 256-wide window around a 432-wide grid. */
       win.el.classList.remove("sized");
     });
   }
 
   function setBot(id: string): void {
     if (id === botId) return;
-    // the old game is still on the board while it leaves, and it was played
-    // against the old opponent — the statusbar keeps saying so until it's gone
+    // the old opponent's name stays up until the old game has left
     newGame(() => {
       botId = id;
     });
@@ -929,12 +839,12 @@ export function makeBoard(deps: BoardDeps): BoardApp {
 
   function setChips(style: string, persist = true): void {
     chips = style;
-    // deep-linked styles are a harness pose, not a preference
+    // deep-linked styles don't persist
     if (persist) localStorage.setItem("exe.chips", style);
     win.el.className = win.el.className.replace(/chips-[a-z0-9]+/, `chips-${style}`);
   }
 
-  /* ---- external hooks (menus that live outside this window) ---- */
+  /* ---- external hooks (menus outside this window) ---- */
   const dispatchers: Record<string, () => void> = {};
   function dispatch(what: string): void {
     dispatchers[what]?.();
@@ -960,7 +870,7 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       }
       if (match.turn === "red") yourTurn();
       else {
-        // freeze mid-deliberation: the pose the screenshots want
+        // freeze mid-deliberation (screenshot pose)
         phase = "frozen";
         q("#picker", body).style.display = "none";
         const botDisc = q("#botDisc", body);

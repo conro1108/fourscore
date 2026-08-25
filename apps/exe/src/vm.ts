@@ -1,42 +1,27 @@
 /**
- * The machine's own processor: a 16-bit CPU and its assembler, pure logic,
- * no DOM anywhere. The law ("don't draw the OS — run it") is why this file
- * exists at all: a terminal that pretended to run programs would be a poster
- * of a computer. This one assembles source to real machine words and decodes
- * them one fetch at a time, so self-modifying code works because nothing
- * stops it working.
+ * The 16-bit CPU and its assembler, pure logic. asm.txt on the disk (seed in
+ * copy.ts) documents the same ISA for the player; the two must agree, and the
+ * test assembles the shipped example programs to hold them together.
  *
- * The ISA (documented for the player in asm.txt on the disk — the seed in
- * copy.ts and this file must agree, and the test assembles the shipped
- * example programs to hold them together):
- *
- *   Memory   4096 16-bit words. Programs load at 0. The top page (0x0F00+)
- *            is the hardware:
- *              0x0F00 CON   write a character code, it prints
- *              0x0F01 NUM   write a value, it prints as a signed number
- *              0x0F02 KEY   read the next typed character, 0 if none
+ *   Memory   4096 words. Programs load at 0. Top page (0x0F00+) is hardware:
+ *              0x0F00 CON   write char code -> prints
+ *              0x0F01 NUM   write value -> prints as signed number
+ *              0x0F02 KEY   read next typed char, 0 if none
  *              0x0F03 RND   read 16 random bits
- *              0x0F04 VPOS  the screen cursor, a cell 0..959 (40x24,
- *                           row-major). Writes wrap; reads answer it
- *              0x0F05 VCHR  write a character, it lands at the cursor and
- *                           the cursor moves on. Reading answers the cell.
- *                           The first write turns the screen on
- *              0x0F06 VSYNC read it and the processor rests until the next
- *                           frame of the display; the value counts frames
- *              0x0F07 DPOS  the drive head's address, low word
- *              0x0F08 DBNK  the same address, high word
- *              0x0F09 DSK   read a byte from the drive and the head moves
- *                           on; write one and the same. Past the end of the
- *                           media a read is 0 and a write goes nowhere
- *   Regs     R0..R7, plus PC and a stack pointer. The stack starts at
- *            0x0F00 and grows down through ordinary RAM.
- *   Flags    Z (zero), N (bit 15), C (carry / borrow). CMP is a subtract
- *            that keeps the flags and throws away the result; JC after a
- *            CMP is "unsigned less than".
+ *              0x0F04 VPOS  screen cursor, cell 0..959 (40x24 row-major); writes wrap
+ *              0x0F05 VCHR  write char at cursor, cursor advances; read answers the
+ *                           cell. First write turns the screen on
+ *              0x0F06 VSYNC read rests the CPU until the next frame; value counts frames
+ *              0x0F07 DPOS  drive head address, low word
+ *              0x0F08 DBNK  same address, high word
+ *              0x0F09 DSK   read/write a byte at the head, head advances. Past the
+ *                           end of media a read is 0 and a write goes nowhere
+ *   Regs     R0..R7, PC, SP. Stack starts at 0x0F00 and grows down.
+ *   Flags    Z, N (bit 15), C (carry/borrow). CMP = SUB keeping flags only;
+ *            JC after CMP is "unsigned less than".
  *
- * Encoding: [op:6][a:3][b:3][imm:1][unused:3]. When the imm bit is set the
- * source operand is the next word; otherwise it is register b. One shape,
- * one decode — the assembler and the CPU share the table below.
+ * Encoding: [op:6][a:3][b:3][imm:1][unused:3]. imm set: source is the next
+ * word; else register b. Assembler and CPU share the table below.
  */
 
 export const MEM_SIZE = 4096;
@@ -312,13 +297,9 @@ export interface VmIO {
   /** 16 random bits — the RND port. */
   rand(): number;
   /**
-   * The drive's media, asked for once, the first time a program touches the
-   * drive — a program that never does pays nothing. Null is an empty bay,
-   * which reads as zeros rather than faulting, the way an empty drive did.
-   *
-   * The bytes are the drive: writes land in them and are not written back to
-   * anything, so a program can use the room past its data as scratch and the
-   * media is whole again next time it is mounted.
+   * The drive's media, asked for once on first drive access. Null reads as
+   * zeros. Writes land in these bytes and are never persisted, so the room
+   * past the data is free scratch and the media is whole on the next mount.
    */
   drive?(): Uint8Array | null;
 }
@@ -401,9 +382,7 @@ export function makeVm(program: Uint16Array | readonly number[], io: VmIO): Vm {
       vm.fault = `Memory fault at ${hex(addr)}`;
       return 0;
     }
-    // memory is the common case by a wide margin — the model's inner loop
-    // reads a word of RAM every eight instructions — so it does not wait
-    // behind the whole hardware page
+    // RAM is the hot path (the model reads RAM every ~8 instructions); test it first
     if (addr < MMIO_BASE) return mem[addr]!;
     if (addr === PORT_KEY) return io.key() & 0xffff;
     if (addr === PORT_RND) return io.rand() & 0xffff;

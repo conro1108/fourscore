@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CONNECT4, CONNECT7, Position, makeVariant, type Variant } from "./board.js";
 
-/**
- * A slow, obviously-correct reference implementation, used to cross-check the
- * bitboard on random games. The bit tricks in board.ts are the kind of thing
- * that passes every hand-written case and then quietly mishandles one diagonal
- * near an edge, so the real coverage here is the fuzz test at the bottom rather
- * than any single example above it.
- */
+/** Brute-force reference; the fuzz at the bottom is the real coverage. */
 function refWins(grid: (string | null)[][], player: string, v: Variant): boolean {
   const dirs = [
     [0, 1],
@@ -34,11 +28,7 @@ function refWins(grid: (string | null)[][], player: string, v: Variant): boolean
   return false;
 }
 
-/**
- * The shipping default, the biggest shipping board, and a cramped 5x4 run-3
- * board that exists only here: short runs on a small board put every line
- * right up against an edge, which is where wraparound bugs live.
- */
+/** Default, biggest, and a cramped 5x4 run-3 that ships nowhere — edges are where wrap bugs live. */
 const FUZZ_VARIANTS: readonly Variant[] = [
   CONNECT4,
   CONNECT7,
@@ -86,13 +76,11 @@ describe.each(FUZZ_VARIANTS)("fuzz against the reference implementation ($id)", 
         const player = p.turn;
         const row = p.landingRow(col);
 
-        // The bitboard's prediction, made before the disc lands...
         const claimed = p.isWinningMove(col);
 
         grid[row]![col] = player;
         p.play(col);
 
-        // ...checked against what the reference sees after it has.
         expect(claimed).toBe(refWins(grid, player, v));
         if (claimed) break;
       }

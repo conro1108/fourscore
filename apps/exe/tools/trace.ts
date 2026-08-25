@@ -1,13 +1,7 @@
 /**
- * Replay real games and print what the fever curve actually does — the eyes
- * for `director.ts`, which unit tests can only check in the abstract.
- *
- * The eval is computed exactly as `engine/worker.ts` computes it live, and the
- * plies are spaced at real wall-clock rates, so the tier timeline this prints
- * is the one a player gets. `npm run trace` in apps/exe.
- *
- *   TUNE=candidate GAMES=6 npx tsx tools/trace.ts     sweep a shape
- *   VERBOSE=1                                          every ply
+ * Replay bot-vs-bot games through `director.ts` at real wall-clock ply rates
+ * and print the fever/tier timeline. Eval is computed as `engine/worker.ts`
+ * does live. `npm run trace`; env GAMES, VERBOSE=1, BOT_ID, OPP_ID, VARIANT, HUMAN, BOT.
  */
 import {
   BALANCED_WEIGHTS,
@@ -41,7 +35,7 @@ function evalOf(history: readonly number[]): { advantage: number; source: "prove
   return { advantage: advantageOf(r.best, p.turn === "red", "estimated", variant), source: "estimated" };
 }
 
-/** Wall-clock seconds a ply costs live: you think, then the bot performs. */
+/** Wall-clock seconds per ply, live. */
 const HUMAN_PLY_S = Number(process.env.HUMAN ?? 4);
 const BOT_PLY_S = Number(process.env.BOT ?? 2.5);
 const GAMES = Number(process.env.GAMES ?? 6);

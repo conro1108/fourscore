@@ -1,246 +1,109 @@
 # CLAUDE.md
 
-Fourscore is Connect 4 — and Connect 5, 6 and 7 — against a ladder of bots,
-plus one that solves the position exactly. TypeScript, npm workspaces:
-`packages/engine` is the whole game as pure logic, `apps/exe` is the client
-(BOARD.EXE — the game never leaves a possessed Win95) and owns only rendering
-and the match runtime.
+Connect 4/5/6/7 against a ladder of bots plus an exact solver, played inside a
+possessed Win95 (BOARD.EXE). TypeScript, npm workspaces: `packages/engine` is
+pure game logic, `apps/exe` is the client and owns only rendering and the match
+runtime. The desktop also contains a real 16-bit CPU, a C compiler for it, and
+a language model the CPU runs.
 
-Read `apps/exe/DIRECTION.md` before building in the app — it is the law for
-everything visual, audible and copy there. The approved reference art is in
-`apps/exe/reference/` and the approved live proposals in `apps/exe/proposals/`;
-the full original pitch set (including dropped directions) lives in
-`redesign/proposals/index.html`. Two earlier clients — `apps/web` (pixel art)
-and `apps/fever` (R3F fever dream, with its VISION.md/PLAN.md and the online
-multiplayer client plus its `db/` Supabase slice) — are deleted; everything is
-in git history if a reference is ever needed.
+`npm run dev` / `npm test` (~3s, the whole gate) / `npm run check` (typecheck +
+test) / `npm run build`. Measurement scripts live under `tools/` and run by hand.
 
-`npm run dev` / `npm test` / `npm run build` / `npm run typecheck`.
+Docs, and what each governs:
+- `apps/exe/DIRECTION.md` — the law for everything visual, audible and copy in the app. Read before building there.
+- `llm_llm_llm.md` — the CPU / compiler / on-drive LLM: plan and decisions. Read before touching vm/cc/llmc.
+- `llm_training.md`, `corpus_howto.md` — training a model to write C for the machine (tools/corpus).
+- `feature_ideas.md` — backlog plus documented dead ends (ladder measurements live here).
+- Approved art: `apps/exe/reference/`, `apps/exe/proposals/`; original pitches `redesign/proposals/`. Deleted clients `apps/web`, `apps/fever` are in git history only.
 
-The checkpoint the language model is built from is not in the repo. Get it
-with `curl -L -o .cache/stories260K.bin https://huggingface.co/karpathy/tinyllamas/resolve/main/stories260K/stories260K.bin`
-(and `tok512.bin` beside it); the built `WEIGHTS.BIN` *is* committed, so
-nothing but rebuilding it needs them.
+## Map
 
-## One gate
+Comments in source are terse by design: header = what the file owns + its
+constraints. Use this map to go straight to the file instead of grepping.
 
-`npm test` runs in ~3s and is the whole gate. Ladder strength, the LLM oracle
-comparison and solve timing are scripts under `tools/`, run by hand when you
-touch that area.
+`packages/engine/src/` — pure, I/O-free
+- `board.ts` — `Variant` geometry, bitboard `Position`, win detection. Only file that knows the bit packing.
+- `evaluate.ts` — heuristic eval, `searchHeuristic`, weight vectors.
+- `solver.ts` — exact negamax + transposition table (`analyze`, `solve`).
+- `bots.ts` — the ladder roster: depth, weights, `slipRate`, `exactFrom`, `exactnessNote`.
+- `match.ts` — `Match` state and the post-game review (per-ply scoring, `turningPoint`).
+- `index.ts` — public exports.
+- `tools/ladder.ts` (rung sweep), `measure-solve.ts` (exact-solve crossover), `bench-solve.ts`.
 
-## The machine inside the machine
+`apps/exe/src/` — the desktop
+- `main.ts` — boot, wiring, `?state=`/`?fever=`/`?beat=`/`?demo=`/`?chips=` deep links.
+- `wm.ts` window manager · `dom.ts` two DOM helpers · `chrome.css` period chrome · `icons.ts` pixel icons.
+- `desktop.ts` icons/taskbar/Start/clock · `deskpos.ts` icon positions · `containers.ts` folder + drive windows.
+- `board.ts` — BOARD.EXE window and match loop · `boardfit.ts` its geometry per variant · `chips.ts` pieces.ctl.
+- `engine/` — `worker.ts` search off-thread, `client.ts` promise wrapper, `protocol.ts` messages.
+- `director.ts` — fever (continuous, tiered) + beats (discrete), pure · `beats.ts` which act answers a beat.
+- `effects.ts` — every visible fever effect; reads the director, never writes state.
+- `endgame.ts` win/loss/draw furniture · `review.ts` REVIEW.EXE · `reboot.ts` Shut Down/restart.
+- `copy.ts` — every string the OS says, plus the seed disk contents. `notepad.ts` — moves.txt + Notepad + file picker.
+- `audio/` — `index.ts` the bus (only public surface), `library.ts` sound scheme, `synth.ts` primitives, `bed.ts` room tone. `sounds.ts` sounds.ctl + tray speaker.
+- `fs.ts` — the disk (C:\ real directories, persisted) · `drive.ts` WEIGHTS.BIN fetch · `terminal.ts` shell.
+- `vm.ts` 16-bit CPU + assembler · `cc.ts` C compiler · `llmc.ts` llm.c source · `games_c.ts` maze/tetris/c4 in C.
+- `sprite.ts` .spr format · `paint.ts` PAINT.EXE · `pins.ts` pinned pictures · `fire.ts` flames.scr automaton.
+- `games/` — `folder.ts` roster; `sol.ts`/`solstate.ts`/`solreview.ts`/`solworker.ts` Klondike; `chess.ts`, `checkers.ts`, `mines.ts`, `snake.ts`; `ui.ts` shared game chrome.
 
-`vm.ts` is a real 16-bit CPU, `cc.ts` a real C compiler for it, and there is a
-language model on the drive that the CPU runs — `cd /src; cc llm.c; run llm`,
-about 1.7 seconds a word. The plan and the decisions behind it are in
-[llm_llm_llm.md](llm_llm_llm.md); read it before touching any of this.
+`apps/exe/tools/` — live harnesses (real Chrome): `shots.mjs`, `timeline.mjs`, `fever.mjs`, `audio.mjs`, `mobile.mjs`, `paint.mjs`, `files.mjs`, `live.mjs`, `llm.mjs`, `trace.ts` (fever curve replay), `appicon.mjs`.
+- `llm/` — `pack.ts` float checkpoint → drive image, `checkpoint.ts` reader, `intref.ts` fixed-point oracle, `compare.ts` machine vs oracle, `grade.ts` quantised vs float, `build.ts`, `reference.ts`.
+- `corpus/` — `synth.ts`, `gen.ts`, `prompt.ts`, `graders.ts`, `verify.ts`, `mutants.ts`, `farm.ts`, `bench.ts`.
 
-Two things that will bite otherwise:
+## Rules
 
-- **The program has 3840 words, and llm.c uses 3261 of them plus 428 of
-  heap.** Every compiler change moves that number. `llm.test.ts` asserts it
-  fits, and `apps/exe/tools/llm/` has the tooling; if you make CC emit more
-  code, that test is what tells you.
-- **`tools/llm/intref.ts` is the oracle, not a second implementation.** It
-  runs the identical fixed-point pipeline in TypeScript over the same drive
-  image, and `tools/llm/compare.ts` checks the machine against it token for
-  token — run it by hand whenever the numerics or the compiler change. Which
-  of the two is right when they disagree is not decided in advance: the
-  oracle caught a cache-stride bug that read as fluent English, and the
-  machine caught the oracle truncating the one activation a token that
-  rounds its way past 255. The value is that a bug has to be in both,
-  identically, to live. Any change to the numerics has to be argued against
-  `tools/llm/grade.ts`, which measures the quantised model against the float
-  one (currently 94% top-1, 0.06 nats).
+**Engine stays I/O-free.** `packages/engine` imports nothing from DOM, network
+or app. Game logic goes in the engine even when the app is the only caller.
 
-`npm run llm` drives the real browser through the whole thing and photographs
-it every five seconds, because a single screenshot cannot tell slow from
-stuck. Rebuilding the weights needs the checkpoint in `.cache/` — see
-`tools/llm/build.ts`.
+**Geometry is a value.** Board size and run length live in a `Variant`; masks,
+move order, shifts, centre weights and score bounds are derived once per
+variant. No module-level `WIDTH`/`HEIGHT`; anything reachable from search reads
+`p.variant`. Shipped: C4 7x6/4, C5 9x8/5, C6 11x10/6, C7 13x12/7 — odd width,
+even height, line density ≈1.6/cell. `makeVariant` takes anything.
 
-## Geometry is a value, not a constant
+**Bit packing lives only in `board.ts`.** Nothing else does arithmetic on
+`position`/`mask`. Coverage is the fuzz test vs brute force over three
+geometries (C4, C7, unshipped 5x4 run-3). One sentinel row suffices for any N
+(a wrapping line must cross it on an ANDed intermediate step).
+`computeAlignmentSpots` is the hottest function — its prefix/suffix chains are
+linear in N; don't "simplify" to the nested loop.
 
-Board size and run length live in a `Variant` object (`board.ts`), and everything
-derived from them — masks, move order, shift schedules, centre weights, score
-bounds — is computed once per variant and read from there. `CONNECT4` is 7x6
-run 4, `CONNECT5` is 9x8 run 5, `CONNECT6` is 11x10 run 6, `CONNECT7` is 13x12
-run 7 — all sized to hold line density near Connect 4's 1.64 lines per cell,
-odd width, even height — and `makeVariant` takes any width/height/run.
+**TT keys are exact, never hashed down.** `Position.key()` needs
+`width*(height+1)` bits (49/81/121/169); Float64 rounds silently past 53, so
+keys are stored in four 32-bit lanes + remainder, exact to `TT_MAX_KEY_BITS`
+(181), and the solver throws beyond. Costs ~5% C4 throughput, measured.
 
-Nothing should reintroduce a module-level `WIDTH`/`HEIGHT`. The Connect 4 aliases
-still exported from `board.ts` are a convenience for callers that only ever touch
-the default board, not a licence to hardcode geometry. Anything reachable from
-the search must read `p.variant`.
+**The ladder has to stay a ladder.** Depth and weights interact (deeper with
+worse weights can be weaker). `tools/ladder.ts <variant>` flags rungs under
+65%; run it after any retune. Tune strength with `slipRate`/`depth`; weights
+are personality. A slip draws non-best moves geometrically by rank and above
+tier 1 never picks a proven loss, so `slipRate` is far from linear in strength.
+`searchHeuristic` shares one node budget across root moves and goes nearly
+blind when it clips, silently — `depthFor` and `heuristicBudget` scale with the
+board (C4 is identity). If a rung goes soft, check budget clipping before
+weights. Known plateaus that are not bugs: C4 `quill > vane` ~63%, C5 ~56%,
+C6 ~59%, C6 `cinder > bramble` ~60%, and C7 reads soft everywhere because most
+games fill the board — see the dead ends in `feature_ideas.md` before retuning.
 
-## Keep the engine I/O-free
+**Proven vs estimated.** Every ply carries `source: proven | estimated`. Engine
+keeps them apart; UI never shows the distinction (one line, no legend, no
+badges). Estimated plies never set `turningPoint`; the advantage scale keeps
+proven results in a band above any estimate; estimated copy is hedged
+("looks like"), proven copy is flat. `exactFrom` is measured per variant with
+`measure-solve.ts live <variant>` (worst case of a cold `analyze`): C4 ~10-13
+of 42, C5 44/72, C6 82/110, C7 127/156. `exactnessNote` generates the bot's
+claim from the number — never hand-write it.
 
-`packages/engine` imports nothing from the DOM, the network or the app. That's
-what keeps authoritative online play possible later — a server would import the
-same module the client does. Game logic that leaks into `apps/exe` breaks
-that, so it goes in the engine even when the app is the only caller today.
+**The machine inside the machine.** `cd /src; cc llm.c; run llm` — ~1.7s a
+word. Program space is 3840 words; llm.c uses 3261 + 428 heap, and
+`llm.test.ts` asserts the fit — any CC change moves it. `tools/llm/intref.ts`
+is the oracle: same fixed-point pipeline over the same image; run `compare.ts`
+after any numerics or compiler change (each side has caught the other before).
+Argue numerics changes against `grade.ts` (currently 94% top-1, 0.06 nats).
+Rebuilding weights needs `.cache/stories260K.bin` + `tok512.bin` from
+huggingface.co/karpathy/tinyllamas; the built `WEIGHTS.BIN` is committed.
 
-## The bitboard packing lives in one file
-
-`board.ts` is the only place that knows how a position is packed into `bigint`
-masks. The win-detection bit tricks depend on the sentinel row between columns
-and on the shift distances derived from the variant; nothing outside that file
-should be doing arithmetic on `position`/`mask`. Its fuzz test cross-checks
-against a brute-force reference over random games, and that's where the real
-coverage is — these tricks pass every hand-written case and then fail quietly on
-one edge diagonal. The fuzz runs over three geometries — Connect 4, Connect 7
-and a 5x4 run-3 board that nothing ships — because "N is a parameter" is only
-true if something tests an N nobody chose by hand.
-
-One sentinel row is enough for any run length. A wrapping line has to pass
-*through* the sentinel on some intermediate step, and every intermediate step is
-one of the ANDed terms, so the chain zeroes. That argument doesn't depend on N,
-which is why longer runs didn't need a wider gutter.
-
-`computeAlignmentSpots` is the hottest function in the program. It builds
-prefix/suffix chains and reads each gap position off them, which is linear in N
-rather than the quadratic cost of testing each gap separately — don't "simplify"
-it back into the obvious nested loop.
-
-### The transposition table key is a real constraint
-
-`Position.key()` needs `width * (height + 1)` bits: 49 for Connect 4, 81 for
-Connect 5, 121 for Connect 6, 169 for Connect 7. A `Float64Array` only holds 53
-bits of integer exactly and **rounds silently** past that, so two different
-positions start comparing equal and the exact solver returns wrong scores with
-no error. The table stores keys across four 32-bit lanes plus a float64
-remainder for that reason — exact to `TT_MAX_KEY_BITS` (181), and the solver
-throws rather than rounds on a board past that. The lanes cost ~5% of Connect 4
-solve throughput, measured, which is the price of Connect 6 and 7 existing at
-all. Collisions are still fine — a wrong hit costs a re-search — but only while
-the key comparison itself is exact. Never hash the key down to fit.
-
-## The ladder has to stay a ladder
-
-Bots differ by weight vector as well as depth, and those interact: a deeper
-search with worse weights can be weaker. `tools/ladder.ts` plays each rung
-against the one below and flags anything under 65% — it has already caught a
-rung inverting. If you retune a bot, run it; `bots.test.ts` keeps only one cheap
-rung as a smoke check. Measured win rates between the asserted adjacent rungs are
-67-90% on Connect 4 and 71-92% on Connect 5, and slip rate moves them far more
-than the eval weights do, so tune strength with `slipRate`/`depth` and treat the
-weights as personality.
-
-The top two rungs sit lower than that and always have: `quill > vane`
-measures ~63% on Connect 4 and `vane > cinder` ~61% on Connect 5, both over 48
-and 32 games. Those were measured before and after the 2026 slip retune and did
-not move, so treat them as the top of the ladder being genuinely flat rather
-than as something a sweep has just broken.
-
-A slip is not a random move: `pick` draws from the non-best moves by rank with
-geometric weight, and above tier 1 it will not slip into a move the search has
-already proved loses. So a slip rate costs less strength than it looks like it
-should, and the schedule is several times higher than it used to be for the same
-ladder. Don't read `slipRate` as linear in strength.
-
-A new variant is a retune. `packages/engine/tools/ladder.ts <variant>` sweeps
-every adjacent rung and flags soft or inverted ones; run it before trusting a
-roster on a board it wasn't tuned for. Adding Connect 5 inverted the top two
-rungs on the first sweep — Quill lost to Vane 0-8.
-
-### Depth is not portable; the node budget is why
-
-`searchHeuristic` shares one node budget across all root moves, so a bot that
-exhausts it on the first column evaluates every remaining column statically. It
-doesn't degrade gracefully, it goes nearly blind — and nothing in the output
-says so.
-
-The tree grows as width^depth, so Connect 4's depth 10 costs 332k nodes at 7
-wide and would cost ~4.4M at 9 wide. Only Quill was over the fixed 400k budget
-on Connect 5, which is the entire reason it lost every game. The weights were
-never involved.
-
-So both scale with the board: `depthFor` divides depth by log(width)/log(7), and
-`heuristicBudget` scales with cell count and width. Connect 4 is untouched by
-construction (width 7 → identity). If you add a bot or a variant and a rung goes
-soft, check whether it's clipping the budget *before* touching the weights.
-
-Connect 7's ladder measures soft almost everywhere and is not: the long windows
-show the stronger bot winning decisive games 3- or 4-to-1 while most games fill
-all 156 cells, so draw mass drags every points rate toward 50% (at the top, 9 of
-12 games draw). That's the run length's character, documented in
-[feature_ideas.md](feature_ideas.md#dead-end-connect-7s-ladder-is-draw-shaped-not-broken)
-— don't chase the 65% bar there with weights.
-
-Connect 6 repeated Connect 5's history on its first sweep: `quill > vane`
-inverted outright (38%) until Quill got the same parity-46 override, which
-brings it to the same ~59% plateau, and `cinder > bramble` sits at ~60% with
-every knob measured and none of them moving it — depth one deeper made it
-*worse* (49%), which is the depth-vs-weights interaction doing exactly what
-this section says it does. Both are documented in
-[feature_ideas.md](feature_ideas.md#dead-end-the-soft-rungs-on-connect-6).
-
-`quill > vane` on Connect 5 is known soft (~56%, under the bar). The
-measurements and the dead ends are in
-[feature_ideas.md](feature_ideas.md#dead-end-the-quill--vane-rung-on-connect-5) —
-read them before retuning it.
-
-## Screenshot before you claim
-
-Unit tests can't see any of the visual work; the harness is the eyes. BOARD.EXE
-deep-links every named desktop state (`?state=id`, plus `?fever=`, `?beat=`,
-`?demo=`, `?chips=`), `npm run shots` screenshots them through real Chrome, and
-the other live harnesses — `npm run timeline` (frames over seconds, which
-`shots`' fixed 1800ms is blind to), `npm run fever`, `npm run audio`,
-`npm run trace`, `npm run mobile`, `npm run paint`, `npm run files`,
-`node tools/live.mjs` — drive the real app. This repo has repeatedly caught
-bugs this way that typechecked and passed tests. If you didn't look at it, it
-isn't done.
-
-The aesthetic law lives in `apps/exe/DIRECTION.md` — build the period artifact,
-never illustrate it — and that doc governs all visual, audio and copy work in
-the app.
-
-## Say what the solver actually knows — without saying "solver"
-
-Every ply carries a `source`:
-
-- `proven` — the exact solver. A fact about the game.
-- `estimated` — `searchHeuristic`. This engine's read, and a better engine could
-  disagree.
-
-The engine must keep these apart. **The UI must not put the distinction in front
-of the player.** "Proven vs estimated" is a fact about how a number was obtained,
-not about the game, and a player reading a score-over-time chart shouldn't have
-to hold it. So: one solid line on the curve, no legend, no `?` badges, no
-footnote about the solver's horizon.
-
-What survives is what the distinction is actually for — the review is not
-allowed to overclaim:
-
-- An estimated ply may **never** set `turningPoint`. "This move lost the game"
-  requires proof.
-- The advantage scale keeps proven results in a band above anything an estimate
-  can reach, so the two never fight over the same y-value. (One line means a
-  visible step where the solver kicks in; that reads as the game going decisive,
-  which it did.)
-- Copy for an estimated ply stays hedged — "looks like", "looks stronger" —
-  while proven copy is flat and declarative. The hedge carries the uncertainty
-  without naming the machinery.
-
-If you add analysis, the question isn't "can we prove this" and it isn't "can we
-label which kind of claim this is" — it's "does the confidence of the sentence
-match the confidence of the number".
-
-The Oracle's own bot copy (`exactnessNote`) is the exception and stays: "plays
-the end exactly" is that bot's selling point, not a caveat on a chart.
-
-`exactFrom` is per-variant and **measured, not chosen**:
-`packages/engine/tools/measure-solve.ts live <variant>` times the bot's first
-exact move, which is a cold `analyze` — one solve per legal column — because
-that's the one the player waits through. Take the worst case across games, not
-the median.
-
-Measured: Connect 4 crosses over around 10-13 discs of 42. Connect 5 crosses over
-at **44 discs of 72**, which is late enough that a game ending in a win is
-usually over first — in a five-game sample the Oracle never got to solve at all
-in two of them. Connect 6 crosses at **82 discs of 110** (six games, 77-82) and
-Connect 7 at **127 discs of 156** (five games, 125-127), so on the big boards
-proven play is close to an endgame rumour. That is not a bug to tune away, and
-the UI must not paper over it: `exactnessNote` in `bots.ts` generates the claim from the number so a bot
-can't go on advertising Connect 4's crossover on a Connect 5 board. If you add a
-variant, generate the claim, don't write one.
+**Screenshot before you claim.** Tests can't see visual work. `npm run shots`
+photographs every named state; `timeline` for anything that moves over
+seconds; `npm run llm` photographs the LLM every 5s (slow vs stuck). If you
+didn't look at it, it isn't done.

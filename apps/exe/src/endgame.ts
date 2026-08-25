@@ -1,30 +1,9 @@
 /**
- * The end of a game, in the OS's own furniture (approved in 02-win.html).
- *
- * A win: the OS selects your line the way it selects anything — marching
- * ants, but one rotated capsule hugging the whole line, because the win is
- * continuous. Then the line itself catches: ONE fire, stoked along the line,
- * growing from the new disc toward the old. Then the cascade — sincere
- * dialogs scattered across the desktop at hand-tuned positions on irregular
- * beats (tuned, not random — wrongness repeats), the taskbar crushing to
- * slivers, and finally the biggest thing the machine has ever announced:
- * Congratulations — YOU WIN.
- *
- * A loss gets the same honest selection — and then the machine quietly sides
- * with the winner. The line doesn't blaze, it smolders (coals: the loss
- * fire), the OS files a short stack of sincere paperwork about it — one
- * notice tucked behind the board where you find it later — and the finale is
- * a Condolences dialog set in the same big type as the win's. Quieter than
- * the win on purpose: no taskbar crush, half the dialogs. The win stays the
- * biggest thing the machine has ever announced.
- *
- * And then you leave it. `OK`, the close box, whichever ending it was: that is
- * the machine's cue that it has finished announcing, and everything it stood
- * up starts coming down — the director cools (`dismissed`), the desktop starts
- * retiring its litter, and the paperwork goes back one dialog at a time on the
- * same 1300ms beat effects.ts tidies on. Not a snap to zero; the OS putting
- * itself away while you watch. `Again` doesn't come through here — a new game
- * is a stronger reset and takes its own path.
+ * End-of-game sequences: ants → seam fire → dialog cascade → finale. Beats
+ * are hand-tuned, not random (wrongness repeats); the harness freezes on them.
+ * A loss is deliberately quieter than a win (coals, no taskbar crush, fewer
+ * dialogs). Leaving via OK/close retires the paperwork one dialog per
+ * RETIRE_BEAT; `Again` is a stronger reset and doesn't come through here.
  */
 
 import { el } from "./dom.js";
@@ -40,10 +19,9 @@ export interface EndgameDeps {
   board: () => BoardApp;
   notepad: MovesPad;
   onFeverEvent(kind: EndResult["kind"]): void;
-  /** The player has left the ending. Fires once per game, and never for
-      `Again` — that goes through the new-game path, which resets more. */
+  /** Fires once per game; never for `Again` (new-game path resets more). */
   onDismiss(): void;
-  /** The finale's third door: the ending comes down and REVIEW.EXE opens. */
+  /** Retire the ending and open REVIEW.EXE. */
   openReview(): void;
 }
 
@@ -55,9 +33,7 @@ export interface Endgame {
 
 const SEAM_RES = 4;
 
-/** The beat the machine puts its own paperwork away on — effects.ts tidies the
-    fever's litter on the same one, so the two read as one desktop coming down
-    rather than as two systems clearing up at each other. */
+/** Retire beat; matches effects.ts's tidy beat so both read as one desktop. */
 const RETIRE_BEAT = 1300;
 
 export function makeEndgame(deps: EndgameDeps): Endgame {
@@ -65,7 +41,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
   const intervals: ReturnType<typeof setInterval>[] = [];
   let seamFire: Fire | null = null;
   let openDialogs: Win[] = [];
-  /** The player has left the ending; the retire is running. */
   let dismissed = false;
 
   const later = (fn: () => void, ms: number): void => {
@@ -85,7 +60,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
   }
 
   const dialog = (spec: Parameters<WM["dialog"]>[0]): Win => {
-    // the endgame talks over the board, so it travels with it
+    // travels with the board
     const d = deps.wm.dialog({ ax: "center", ...spec });
     openDialogs.push(d);
     return d;
@@ -93,10 +68,8 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
 
   /* ---- leaving the ending ---- */
 
-  /** Retire the announcement, newest sentence first, one per beat. The last
-      thing to go is the line itself: the fire and the marching ants were the
-      machine announcing a result, and the finished position left on the board
-      is the record, which stays. */
+  /** Close dialogs newest-first, one per beat; the ants/fire go last, the
+      position stays. */
   function retire(): void {
     const step = (): void => {
       let d = openDialogs.pop();
@@ -122,16 +95,12 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     retire();
   }
 
-  /** Every way out of an ending that isn't `Again`. The button row is one; the
-      titlebar close box is the other, and `wm.dialog` has no hook for it — a
-      dialog is a real window, so the listener goes on the real button. */
+  /** `wm.dialog` has no hook for the titlebar close box, so listen on it. */
   function onLeaving(d: Win): Win {
     d.el.querySelector<HTMLElement>('.tbtn[data-b="close"]')?.addEventListener("click", dismiss);
     return d;
   }
 
-  /** `Again` is a new game (which resets everything); `Review` puts the
-      ending away and opens the review; anything else just puts it away. */
   const leaveOrAgain = (i: number): void => {
     if (i === 1) {
       clear();
@@ -142,17 +111,15 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     }
   };
 
-  /* Everything the win draws on the grid was authored against the 64px cell,
-     and the cell is live now (board.ts): a win that *starts* at a dragged or
-     maximized size needs the same ratio `rescaleDecor` applies to one that is
-     resized afterwards. At 96px a 62px capsule cuts through 72px discs. */
+  /* Grid decor was authored at the 64px cell; scale by the live cell size
+     (same ratio as board.ts `rescaleDecor`) or a 96px board gets cut discs. */
   const decorScale = (): number => deps.board().cellSize() / CELL;
 
   /* ---- the selection ---- */
   function showAnts(cells: EndResult["cells"], frozen: boolean): void {
     const wrap = deps.board().gridwrap();
     const s = decorScale();
-    // geometric endpoints (not the outward-from-landing order)
+    // geometric endpoints, not landing order
     const ordered = [...cells].sort((a, b) => a.col - b.col || a.row - b.row);
     const [ax, ay] = deps.board().cellCenter(ordered[0]!.col, ordered[0]!.row);
     const [bx, by] = deps.board().cellCenter(ordered[ordered.length - 1]!.col, ordered[ordered.length - 1]!.row);
@@ -181,8 +148,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     }
   }
 
-  /* ---- the step machinery both sequences run on: hand-tuned beats,
-     frozen-to-a-beat for the harness, timed for real play ---- */
+  /* ---- step machinery: timed for play, frozen-to-a-beat for the harness ---- */
   interface Step {
     run(): void;
     dwell: number;
@@ -203,16 +169,14 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     later(tick, 500);
   }
 
-  /* ---- the line catches ----
-     Two registers: the win blazes; the loss smolders — same fire, the coals
-     ramp, slower and lower, and it does not go out. ---- */
+  /* ---- the seam fire: win blazes, loss smolders (coals, never out) ---- */
   function igniteSeam(end: EndResult, smolder = false): { setProgress(p: number): void } {
     const wrap = deps.board().gridwrap();
     const ordered = [...end.cells].sort((a, b) => a.col - b.col || a.row - b.row);
     const pts = ordered.map((c) => deps.board().cellCenter(c.col, c.row));
     const [ax, ay] = pts[0]!;
     const [bx, by] = pts[pts.length - 1]!;
-    // where along the line the newest disc sits — the fire grows outward from it
+    // fire grows outward from the newest disc
     const landing = end.cells[0]!;
     const [lx, ly] = deps.board().cellCenter(landing.col, landing.row);
     const lineLen = Math.hypot(bx - ax, by - ay) || 1;
@@ -231,8 +195,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     wrap.appendChild(cv);
 
     let progress = 0;
-    // the line catching is the loudest thing on the board, and the loss's
-    // version of it is the same event refusing to be an announcement
     play(smolder ? "smolder" : "line-catch", smolder ? 0.75 : 1);
     const heatLo = smolder ? 30 : 42;
     const heatVar = smolder ? 10 : 14;
@@ -279,14 +241,13 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       beats[n] = steps.length - 1;
     };
 
-    // 2 · the selection (beats 0/1 — idle and the drop — already happened for real)
+    // beat 2 (0/1 = idle and the drop, already happened)
     step(() => {
       deps.board().setStatus(STATUS.connected(end.run), STATUS.stoppedThinking(botName));
       showAnts(end.cells, frozen);
     }, 700);
     beat(2);
 
-    // the line catches, growing from the new disc toward the old
     let seam: { setProgress(p: number): void } | null = null;
     [0.3, 0.55, 0.8, 1].forEach((p, i) =>
       step(() => {
@@ -295,11 +256,10 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       }, i === 3 ? 700 : 190),
     );
 
-    // the desktop only loses its composure once the announcements start —
-    // the selection beats stay legible
+    // fever starts only after the selection beats, which stay legible
     step(() => deps.onFeverEvent("win"), 0);
 
-    // the cascade; the taskbar pays for each
+    // the cascade
     cascadeFor(end.run).forEach((spec, i) => {
       step(() => {
         dialog({
@@ -316,7 +276,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       beat(3 + i);
     });
 
-    // the finale
     step(() => {
       const d = dialog({
         title: DIALOG.finale.title,
@@ -326,7 +285,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         y: 330,
         w: 368,
         taskbar: true,
-        // the one moment the scheme has a fanfare in it
         sound: "tada",
         onButton: leaveOrAgain,
       });
@@ -340,13 +298,8 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
   }
 
   /**
-   * The coals parade. Beats (the harness freezes on them, ?state=loss&beat=N):
-   *   2  the selection — ants around the opponent's line
-   *   3  the line starts to smolder
-   *   4  the smolder reaches both ends
-   *   5  the bot gets its say
-   *   6-9  the paperwork, one dialog per beat (8 is the one behind the board)
-   *   10 Condolences — {NAME} WINS.
+   * Beats (?state=loss&beat=N): 2 ants, 3 smolder starts, 4 reaches both ends,
+   * 5 bot's say, 6-9 paperwork (8 is behind the board), 10 Condolences.
    */
   function runLoss(end: EndResult, frozenBeat?: number): void {
     const frozen = frozenBeat !== undefined;
@@ -362,7 +315,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
       beats[n] = steps.length - 1;
     };
 
-    // the selection — same honest ants as the win; the flames go coals now
     step(() => {
       deps.onFeverEvent("loss");
       deps.notepad.lines([NOTES.theyWon(botName), NOTES.theyWonTail]);
@@ -371,7 +323,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     }, 900);
     beat(2);
 
-    // the line smolders, from the finishing disc outward — and doesn't go out
     let seam: { setProgress(p: number): void } | null = null;
     [0.35, 0.7, 1].forEach((p, i) => {
       step(() => {
@@ -382,7 +333,6 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     });
     beat(4);
 
-    // the paperwork: the bot gets its say, then the OS files the loss
     step(() => {
       dialog({ title: "BOARD.EXE", body: v.winBody(end.run), x: 380, y: 100, w: 336 });
     }, 700);
@@ -390,15 +340,12 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
     LOSS_CASCADE.forEach((spec, i) => {
       step(() => {
         const d = dialog({ title: spec.title, body: spec.body, icon: spec.icon, x: spec.x, y: spec.y, w: spec.w });
-        // one notice is filed underneath the board, where you find it later —
-        // slid below the board in the stack, not by raising the board over the
-        // others, and it stays there when something else takes the focus
+        // slid below the board in the stack, not by raising the board
         if (spec.behind) deps.wm.sendBelow(d, deps.board().win);
       }, spec.dwell);
       beat(6 + i);
     });
 
-    // the finale: the win's big type, the other name in it
     step(() => {
       const spec = DIALOG.condolences(botName);
       const d = dialog({
@@ -409,8 +356,7 @@ export function makeEndgame(deps: EndgameDeps): Endgame {
         w: 368,
         buttons: ["OK", "Again", "Review"],
         taskbar: true,
-        // three notes down, in the win's own type. Sincere, and quieter than
-        // the win on purpose — the same rule the rest of this parade follows.
+        // quieter than the win's tada, on purpose
         sound: "shutdown-chime",
         onButton: leaveOrAgain,
       });

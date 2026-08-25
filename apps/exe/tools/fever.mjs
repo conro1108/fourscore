@@ -1,15 +1,8 @@
 /**
- * Play a real game in a real browser and report what the desktop actually did.
- *
- * `trace.ts` proves the director's arithmetic and `shots.mjs` proves an act
- * renders; neither can tell you whether a beat ever reaches the screen in a
- * game a person plays. This clicks real columns against the real ladder over
- * the worker protocol and samples the desktop twice a second, so what it prints
- * is the escalation as experienced: when a tier crossed, when a dialog arrived,
- * when the clock slipped, when the titlebar changed its mind.
- *
- * Usage:  node tools/fever.mjs [column-plan]
- * Env:    BASE, CHROME (same as shots.mjs)
+ * Play a real game in a real browser, sampling the desktop twice a second,
+ * and print the escalation as experienced (tier crossings, dialogs, clock
+ * slips, title changes) — what trace.ts and shots.mjs can't see.
+ * Usage:  node tools/fever.mjs [column-plan]   Env: BASE, CHROME
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -49,12 +42,11 @@ page.on("pageerror", (e) => console.error("PAGEERROR:", e.message));
 await page.goto(`${BASE}/`);
 await page.waitForTimeout(1200);
 
-// the machine boots to a desk; the game the fever answers starts by hand
 await page.locator("#stage > .icon", { hasText: "BOARD.EXE" }).dblclick();
 await page.locator("#grid .cell").first().waitFor({ timeout: 10000 });
 await page.waitForTimeout(400);
 
-/** One sample of everything a beat or a tier can visibly change. */
+/** One sample of everything a beat or tier can visibly change. */
 const sample = () =>
   page.evaluate(() => ({
     windows: [...document.querySelectorAll("#stage > .win")].map(
@@ -101,7 +93,7 @@ const discs = () => page.locator("#grid .disc").count();
 const over = async () =>
   (await page.locator(".statusbar div").first().textContent())?.match(/WIN|DRAW|CONNECTED/i);
 
-// A person plays: mostly the middle, some drift, a real pause now and then.
+// mostly the middle, some drift
 const plan = (process.argv[2] ?? "3,3,2,4,2,4,1,5,1,5,0,6,0,6,3,2,4,1,5,0,6")
   .split(",")
   .map(Number);
@@ -112,7 +104,6 @@ for (const col of plan) {
   const cell = page.locator(`#grid .cell[data-col="${col}"]`).first();
   if ((await cell.count()) === 0) break;
   await cell.click({ force: true }).catch(() => {});
-  // your disc lands, then the opponent deliberates and answers
   await page
     .waitForFunction((n) => document.querySelectorAll("#grid .disc").length >= n + 2, before, {
       timeout: 15000,

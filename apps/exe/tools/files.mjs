@@ -1,8 +1,6 @@
 /**
- * Live-drive the filesystem through a real browser: cd/ls/cat/run and
- * mkdir/rmdir in the terminal, a program file launching by name, the drive
- * window walking into DOCS, the picker saving across directories, and a
- * desk drag that moves a file on disk. `npm run files` is the hand.
+ * Live-drive the filesystem in a real browser: terminal commands, program
+ * launch by name, drive window, Save As picker, desk drag. `npm run files`.
  */
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";

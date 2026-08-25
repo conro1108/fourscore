@@ -1,18 +1,8 @@
 /**
- * How expensive is an exact solve, and from which ply does it become affordable?
+ * Measures `exactFrom` per variant (CLAUDE.md § exactFrom is measured).
  *
- * This exists because `exactFrom` is a claim about what the solver can actually
- * prove, and the project's rule is to say what the solver knows rather than what
- * we'd like it to know. Connect 4's answer (~10 discs) was measured; every new
- * variant needs its own number, and guessing would either make the Oracle stall
- * for minutes or make it claim exactness it doesn't have.
- *
- *   npx vite-node packages/engine/tools/measure-solve.ts -- connect5 5000
- *
- * Walks a plausible game backwards from its final position, solving each ply
- * under a node budget, and reports the earliest ply that came in under the time
- * budget. Backwards is deliberate: it mirrors what `reviewMatch` does, so the
- * shared transposition table is warm in the same way it will be in production.
+ *   npx vite-node packages/engine/tools/measure-solve.ts -- connect5 5000   # review-style, warm table
+ *   npx vite-node packages/engine/tools/measure-solve.ts -- live connect5   # what a bot actually pays
  */
 
 import { Position, VARIANTS, variantById, type Variant } from "../src/board.js";
@@ -20,7 +10,6 @@ import { BotBrain } from "../src/bots.js";
 import { byId } from "../src/bots.js";
 import { SearchAborted, TranspositionTable, analyze, solveScoreWithStats } from "../src/solver.js";
 
-/** Deterministic RNG, so a re-run reports the same numbers. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -31,7 +20,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** A game between two mid-ladder bots, which is the kind of position a review sees. */
+/** A game between two mid-ladder bots. */
 function playGame(v: Variant, seed: number): number[] {
   const rng = mulberry32(seed);
   const a = new BotBrain(byId("cinder"), rng);
@@ -109,15 +98,9 @@ function measure(variantId: string, budgetMs: number, games: number): void {
 }
 
 /**
- * What a *live* exact move costs, which is the number `exactFrom` actually
- * wants.
- *
- * `measure` above walks backwards with a warm table, which is what
- * `reviewMatch` does but not what a bot does. A bot solves forward, its table
- * warmed only by its own earlier moves, and it calls `analyze` — one solve per
- * legal column, not one for the position. Both differences push the affordable
- * ply later, so setting `exactFrom` from the backwards number would make the
- * Oracle sit there thinking for half a minute.
+ * Cost of a bot's first exact move — the number `exactFrom` wants. Cold table
+ * and `analyze` (one solve per column), both of which push the ply later than
+ * `measure`'s warm-table walk.
  */
 function measureLive(variantId: string, budgetMs: number, games: number): void {
   const v = variantById(variantId);
@@ -131,10 +114,7 @@ function measureLive(variantId: string, budgetMs: number, games: number): void {
     const history = playGame(v, 2000 + g);
     let earliest: number | null = null;
 
-    // Descending, but each measurement gets its own cold table: the first exact
-    // search of a match is the one the player waits on, and at that moment the
-    // bot's table holds nothing useful — every search before it was heuristic,
-    // and the heuristic search doesn't touch the transposition table at all.
+    // Cold table per ply: the heuristic search never touches the TT, so the first exact move starts empty.
     for (let ply = history.length - 1; ply >= 0; ply--) {
       const p = Position.fromMoves(history.slice(0, ply), v);
       if (p.isDraw()) continue;
@@ -143,7 +123,6 @@ function measureLive(variantId: string, budgetMs: number, games: number): void {
       const t0 = performance.now();
       let outcome: string;
       try {
-        // What the bot actually calls: one solve per legal column.
         const a = analyze(p, { table, nodeLimit: 12_000_000 });
         outcome = `best ${a.best}`;
       } catch (e) {
@@ -173,8 +152,7 @@ function measureLive(variantId: string, budgetMs: number, games: number): void {
       `\n  ${v.id}: min ${sorted[0]}, median ${sorted[Math.floor(sorted.length / 2)]}, ` +
         `max ${sorted[sorted.length - 1]}`,
     );
-    // The worst case is the one to quote: exactFrom has to hold for every game,
-    // not for the median one, or the Oracle stalls on the unlucky matches.
+    // Quote the worst case; exactFrom has to hold for every game.
     console.log(`  suggested exactFrom.${v.id} = ${sorted[sorted.length - 1]}`);
   }
 }

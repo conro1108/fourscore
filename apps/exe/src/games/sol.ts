@@ -1,10 +1,7 @@
 /**
- * SOL.EXE — Klondike, draw one, genuinely playing (the law: run it, never
- * illustrate it). Drag a run, drop it where it's legal, double-click sends a
- * card home. And the win is the period's one true special effect: the cards
- * leave their foundations and bounce across the whole desktop on a canvas
- * that never repaints, because the not-repainting IS the effect — this
- * desktop has believed that from the start.
+ * SOL.EXE — Klondike, draw one. Drag or click-click to move, double-click sends
+ * home. The win bounces cards across the desktop on a canvas that never clears.
+ * Rules live in solstate.ts (re-exported here); the review runs in solworker.ts.
  */
 
 import { el } from "../dom.js";
@@ -27,10 +24,6 @@ import {
 import type { SolReview } from "./solreview.js";
 import type { SolReviewRequest, SolReviewResponse } from "./solworker.js";
 
-/* ---- the rules, which have no window ----
-   They live in solstate.ts so the review's solver and its worker can have
-   them without the DOM; one door, though — the game, its tests and the
-   review all say `sol.js`. */
 export {
   canFoundation,
   canStackTableau,
@@ -44,23 +37,18 @@ export {
   type SolState,
 } from "./solstate.js";
 
-/* ---- the cards as things ---- */
+/* cards */
 
 const RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const;
-/* The authored table, in one unit: the column pitch. Everything else on the
-   felt is a fixed fraction of it, so dragging the window bigger deals a bigger
-   deck instead of a bigger green rectangle — and every fraction rounds to a
-   whole pixel, because a card is a 1px black rule and half of one is a smudge. */
+/* Authored sizes at column pitch 68. Everything on the felt is a fraction of the
+   live pitch, rounded to whole px (a half-px card rule is a smudge). */
 const PITCH = 68;
 const CARD_W = 62;
 const CARD_H = 84;
 const FELT_H = 560;
 const scaleOf = (u: number, at68: number): number => Math.round((u * at68) / PITCH);
 
-/* The faces are drawn, not typeset — the period's cards were bitmaps
-   (CARDS.DLL), and a font glyph in a div is the tell of a modern deck.
-   Suits come in the two sizes the bitmaps came in: a small one for the
-   corner index, a large one for the pip field. */
+/* Faces are bitmaps, never font glyphs. Small suit for the corner index, large for pips. */
 const CARD_RED = "#c00000";
 
 const SUIT_SM: readonly (readonly string[])[] = [
@@ -128,8 +116,7 @@ const SUIT_LG: readonly (readonly string[])[] = [
   ],
 ];
 
-/* The standard pip arrangement, as fractions of the card; `true` marks the
-   bottom half, whose pips hang upside down like a real deck's. */
+/* Pip positions as card fractions; `true` = drawn upside down (bottom half). */
 type Pip = readonly [number, number, boolean?];
 const L = 0.32;
 const C = 0.5;
@@ -148,10 +135,7 @@ const PIP_LAYOUT: readonly (readonly Pip[])[] = [
   [[L, 0.22], [R, 0.22], [C, 0.315], [L, 0.41], [R, 0.41], [L, 0.59, true], [R, 0.59, true], [C, 0.685, true], [L, 0.78, true], [R, 0.78, true]],
 ];
 
-/* The courts: a bust in the machine's own palette, point-symmetric like a
-   real court card — the bottom half is the top half rotated, so only the top
-   is authored. One figure per rank; the deck the period shipped recolored
-   nobody per suit either. */
+/* Court figures: point-symmetric, so only the top half is authored. One per rank, shared across suits. */
 const mirror = (top: readonly string[]): string[] => [
   ...top,
   ...[...top].reverse().map((r) => [...r].reverse().join("")),
@@ -159,8 +143,7 @@ const mirror = (top: readonly string[]): string[] => [
 
 const COURT: Record<number, readonly string[]> = {
   11: mirror([
-    // jack: the flat cap and the feather, tunic with a badge. Every patch of
-    // face is fenced in k — white skin on a white card otherwise dissolves.
+    // every patch of face is fenced in k, or white skin dissolves into the card
     "......nn........",
     ".....nnn........",
     "...rrrrrrrrrr...",
@@ -178,7 +161,6 @@ const COURT: Record<number, readonly string[]> = {
     "gggggkrrrrkggggg",
   ]),
   12: mirror([
-    // queen: the tiara, the hair around the face, the gold panel gown
     "................",
     ".....y..y..y....",
     "....yyyyyyyy....",
@@ -196,7 +178,6 @@ const COURT: Record<number, readonly string[]> = {
     "bbbbkyyyyyykbbbb",
   ]),
   13: mirror([
-    // king: the banded crown, the beard, the trimmed robe
     "...y..y..y..y...",
     "...yyyyyyyyyy...",
     "...kwwwwwwwwk...",
@@ -215,7 +196,7 @@ const COURT: Record<number, readonly string[]> = {
   ]),
 };
 
-/* the back: a drawn lattice, the way the deck's backs were drawings */
+/* card back lattice */
 const BACK_TILE: readonly string[] = [
   "X......X",
   ".X....X.",
@@ -229,8 +210,7 @@ const BACK_TILE: readonly string[] = [
 const BACK_FIELD = "#1058c8";
 const BACK_LINE = "#c8dcf8";
 
-/* 1px-per-cell sprite canvases, cached — the painter scales them out with
-   smoothing off, which is the same nearest-neighbour the icons get. */
+/* 1px-per-cell sprite canvases, cached; drawn scaled with smoothing off. */
 const sprCache = new Map<string, HTMLCanvasElement>();
 function spr(key: string, rows: readonly string[], pal: Record<string, string>): HTMLCanvasElement {
   let c = sprCache.get(key);
@@ -256,7 +236,7 @@ const suitSpr = (suit: number, large: boolean): HTMLCanvasElement =>
 const courtSpr = (rank: number): HTMLCanvasElement => spr(`c${rank}`, COURT[rank]!, PAL);
 const backTile = (): HTMLCanvasElement => spr("back", BACK_TILE, { X: BACK_LINE });
 
-/** A filled rectangle with the bitmap deck's stepped corners. */
+/** Filled rect with stepped corners. */
 function stepRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
   ctx.fillStyle = color;
   ctx.fillRect(x + 2, y, w - 4, h);
@@ -276,12 +256,7 @@ function drawSpr(
   ctx.drawImage(s, Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
-/**
- * The one card renderer — the table, the drag ghost and the win ceremony all
- * paint through here, so the cards bouncing across the desk are the cards you
- * were holding. `c` null is the back. Everything is a rounded fraction of the
- * live pitch `u`, at68 numbers like the rest of the felt.
- */
+/** The one card renderer (table, drag ghost, win bounce). `c` null is the back; `u` is the live pitch. */
 export function paintCard(
   ctx: CanvasRenderingContext2D,
   c: Card | null,
@@ -296,7 +271,6 @@ export function paintCard(
   stepRect(ctx, x + 1, y + 1, w - 2, h - 2, "#fff");
 
   if (!c) {
-    // the back: a white margin, a rule, the lattice
     const m = S(4);
     ctx.fillStyle = "#000";
     ctx.fillRect(x + m - 1, y + m - 1, w - 2 * m + 2, h - 2 * m + 2);
@@ -325,8 +299,7 @@ export function paintCard(
   const smW = S(7);
   const smH = Math.round((smW * sm.height) / sm.width);
 
-  // the corner index — rank over a small pip, and the same again rotated,
-  // because a card in a fan is read from whichever end is showing
+  // corner index, drawn twice (second rotated)
   const index = (): void => {
     ctx.fillStyle = ink;
     ctx.font = `bold ${S(11)}px "Times New Roman",serif`;
@@ -361,7 +334,6 @@ export function paintCard(
       }
     }
   } else {
-    // a court card: the framed figure, a pip in each corner of the frame
     const fx = x + S(14);
     const fy = y + S(11);
     const fw = w - 2 * S(14);
@@ -384,17 +356,13 @@ type PileRef =
   | { kind: "found"; i: number }
   | { kind: "tab"; i: number };
 
-/** A fixed shuffle, for the harness poses only — a screenshot of a review has
-    to be a screenshot of the same review every time. */
+/** Seeded shuffle for harness poses, so screenshots are stable. */
 const seededRand = (seed: number) => {
   let v = seed;
   return (): number => ((v = (v * 48271) % 2147483647) / 2147483647);
 };
 
-/** `rig: "won"` is a harness pose — foundations at the queens, four kings
-    one double-click from the ceremony. `rig: "review"` is the other one: a
-    fixed deal, a dozen draws and the review already open over it. Live play
-    never passes either. */
+/** `rig` is a harness pose: "won" (one double-click from the bounce) or "review" (fixed deal, review open). */
 export function openSol(wm: WM, rig?: string): void {
   const existing = wm.get("sol");
   if (existing?.isOpen()) {
@@ -413,15 +381,8 @@ export function openSol(wm: WM, rig?: string): void {
   }
   let won = false;
 
-  /* undo: a snapshot before every real move. Klondike without takebacks is
-     mostly a lecture about the one card you buried three moves ago.
-
-     The same snapshots are the game's journal, which is what the review goes
-     back over — `hist` forgets its oldest once a game gets long, and a review
-     that skipped a move would put its numbers on the wrong one. So the
-     journal keeps every state (a few hundred kilobytes in a long game, and
-     the objects are shared with `hist` anyway) and an undo takes it back off
-     both: the game as played is the line you are actually on. */
+  // Snapshot before every real move. `hist` (undo) is capped; `journal` (the review's
+  // input) keeps every state, sharing the objects. Undo pops both.
   const hist: SolState[] = [];
   const journal: SolState[] = [];
   const snap = (): void => {
@@ -446,9 +407,7 @@ export function openSol(wm: WM, rig?: string): void {
   const body = el(`<div></div>`);
   const felt = el(`<div class="sunken felt flexwell"></div>`);
 
-  /* The live table. `u` is the column pitch; everything on the felt is a
-     rounded fraction of it, and at the authored 68 every one of them lands
-     back on its authored number. */
+  // `u` is the live column pitch; all felt geometry derives from it.
   let u = PITCH;
   const cardW = (): number => scaleOf(u, CARD_W);
   const cardH = (): number => Math.round((cardW() * CARD_H) / CARD_W);
@@ -456,8 +415,7 @@ export function openSol(wm: WM, rig?: string): void {
   const UP_DY = (): number => scaleOf(u, 20);
   const DOWN_DY = (): number => scaleOf(u, 6);
 
-  /** A card as a DOM thing: a div holding its own painted canvas, at the
-      live pitch. Rebuilt by every render, so a resize re-deals crisp faces. */
+  /** A card div with its own canvas at the live pitch. Rebuilt every render. */
   function cardEl(c: Card, faceUp: boolean): HTMLElement {
     const d = el(`<div class="card"></div>`);
     const cv = document.createElement("canvas");
@@ -470,7 +428,7 @@ export function openSol(wm: WM, rig?: string): void {
     return d;
   }
 
-  /* drag state: a run of cards riding the cursor while its originals hide */
+  /* drag state */
   let drag: {
     cards: Card[];
     from: PileRef;
@@ -481,11 +439,10 @@ export function openSol(wm: WM, rig?: string): void {
     moved: boolean;
   } | null = null;
 
-  /* click-to-move state: the tag of the chosen run's head card. The chosen
-     cards wear the OS's own selection — the blue dither an icon puts on. */
+  /* click-to-move: tag of the chosen run's head card */
   let selTag: string | null = null;
 
-  /** The run a drag tag names, read off the live state. */
+  /** The run a drag tag names. */
   const runOf = (tag: string): { from: PileRef; cards: Card[] } | null => {
     if (tag === "waste") {
       if (!s.waste.length) return null;
@@ -529,7 +486,7 @@ export function openSol(wm: WM, rig?: string): void {
   function render(): void {
     felt.innerHTML = "";
 
-    // stock — empty, it wears the period's circle: the deck goes around again
+    // stock
     const top = scaleOf(u, 10);
     const stock = el(`<div class="slot" data-pile="stock" style="left:${COL_X(0)}px;top:${top}px"></div>`);
     if (s.stock.length) stock.appendChild(cardEl(s.stock[s.stock.length - 1]!, false));
@@ -546,7 +503,7 @@ export function openSol(wm: WM, rig?: string): void {
     }
     felt.appendChild(waste);
 
-    // foundations — empty ones are plain outlined slots, like the real table
+    // foundations
     for (let i = 0; i < 4; i++) {
       const f = el(
         `<div class="slot found" data-pile="f${i}" style="left:${COL_X(3 + i)}px;top:${top}px"></div>`,
@@ -560,7 +517,7 @@ export function openSol(wm: WM, rig?: string): void {
       felt.appendChild(f);
     }
 
-    // tableau: the column div is the drop target, full height
+    // tableau: the column div is the full-height drop target
     for (let i = 0; i < 7; i++) {
       const col = el(
         `<div class="tabcol" data-pile="t${i}" style="left:${COL_X(i)}px;top:${top + cardH() + scaleOf(u, 14)}px"></div>`,
@@ -583,11 +540,10 @@ export function openSol(wm: WM, rig?: string): void {
       if (!pile.down.length && !pile.up.length) col.classList.add("empty");
       felt.appendChild(col);
     }
-    // a rebuilt table keeps its chosen run, if the run is still there
     applySel();
   }
 
-  /* ---- resolving piles ---- */
+  /* piles */
   const pileAt = (x: number, y: number): PileRef | "stock" | null => {
     for (const elmt of document.elementsFromPoint(x, y)) {
       const p = (elmt as HTMLElement).dataset?.pile;
@@ -616,7 +572,7 @@ export function openSol(wm: WM, rig?: string): void {
     if (to.kind === "found") {
       if (cards.length !== 1 || from.kind === "found") return false;
       if (!canFoundation(cards[0]!, s.found[cards[0]!.suit]!)) return false;
-      // foundations are one per suit; any foundation slot accepts the card home
+      // any foundation slot accepts; the card goes to its suit's pile
       snap();
       takeFrom(from, 1);
       s.found[cards[0]!.suit]!.push(cards[0]!);
@@ -647,7 +603,7 @@ export function openSol(wm: WM, rig?: string): void {
     return true;
   }
 
-  /* ---- input ---- */
+  /* input */
   felt.addEventListener("pointerdown", (e) => {
     if (won || e.button !== 0 || !e.isPrimary) return;
     const target = e.target as HTMLElement;
@@ -674,9 +630,7 @@ export function openSol(wm: WM, rig?: string): void {
           )
         : [target.closest<HTMLElement>("[data-drag]")!];
 
-    // the run rides the cursor in a ghost pile
-    // the ghost rides the stage, not the felt, so it carries the table's size
-    // with it or its cards fall back to the authored 62x84 mid-drag
+    // ghost lives on the stage, not the felt, and carries the live card size with it
     const ghost = el(`<div class="solghost"></div>`);
     ghost.style.setProperty("--cw", `${cardW()}px`);
     ghost.style.setProperty("--ch", `${cardH()}px`);
@@ -705,9 +659,7 @@ export function openSol(wm: WM, rig?: string): void {
   addEventListener("pointermove", (e) => {
     if (!drag) return;
     if (!drag.moved) {
-      // the originals lift only once the drag is real, so a plain double-
-      // click never disturbs the DOM under the cursor — and a real drag
-      // supersedes whatever the last click had chosen
+      // originals hide only once the drag is real, so a double-click never disturbs the DOM under the cursor
       drag.moved = true;
       clearSel();
       for (const hEl of drag.hidden) hEl.style.visibility = "hidden";
@@ -718,7 +670,6 @@ export function openSol(wm: WM, rig?: string): void {
     drag.ghost.style.top = `${(e.clientY - stageR.top) / k - drag.dy}px`;
   });
 
-  // a cancelled touch (the browser took the gesture) puts the cards back too
   addEventListener("pointercancel", () => {
     if (!drag) return;
     const { ghost, hidden } = drag;
@@ -735,21 +686,17 @@ export function openSol(wm: WM, rig?: string): void {
     if (moved) {
       const to = pileAt(e.clientX, e.clientY);
       if (to && to !== "stock" && tryDrop(cards, from, to)) {
-        // a card landing on a pile is the same knock the board has, softer
         play("disc-land", 0.4);
         render();
         checkWin();
         return;
       }
     }
-    // nothing changed: put the originals back without a rebuild, so a
-    // double-click still lands on the same element
+    // no rebuild, so a double-click still lands on the same element
     for (const hEl of hidden) hEl.style.visibility = "";
   });
 
-  /* the other grammar: click the run, then click where it goes. Same legality,
-     same knock — dragging never stopped working, this is for the hand that
-     would rather point twice than hold. */
+  // click-to-move: click the run, then click where it goes
   felt.addEventListener("pointerup", (e) => {
     if (won || e.button !== 0 || !e.isPrimary || drag?.moved) return;
     const to = pileAt(e.clientX, e.clientY);
@@ -799,8 +746,7 @@ export function openSol(wm: WM, rig?: string): void {
   };
   felt.addEventListener("dblclick", (e) => autoHome(e.target as HTMLElement));
 
-  // the double-click, translated for a finger: two quick taps on the same
-  // card send it home
+  // touch: two quick taps on the same card send it home
   let lastTap: { tag: string; at: number } | null = null;
   felt.addEventListener("pointerup", (e) => {
     if (e.pointerType !== "touch" || won) return;
@@ -823,7 +769,7 @@ export function openSol(wm: WM, rig?: string): void {
     }
   });
 
-  /* ---- the win: the bounce ---- */
+  /* win bounce */
   let bounceStop: (() => void) | null = null;
 
   function checkWin(): void {
@@ -840,7 +786,6 @@ export function openSol(wm: WM, rig?: string): void {
     wm.stage.appendChild(cv);
     const ctx = cv.getContext("2d")!;
 
-    // where the foundations are on the desk right now
     const k = stageScale();
     const stageR = wm.stage.getBoundingClientRect();
     const starts: [number, number][] = [];
@@ -849,7 +794,6 @@ export function openSol(wm: WM, rig?: string): void {
       starts.push([(r.left - stageR.left) / k, (r.top - stageR.top) / k]);
     });
 
-    // the ceremony deals the same cards the table was playing with
     const cw = cardW();
     const ch = cardH();
     const floor = deskHeight() - taskbarH() - ch;
@@ -858,8 +802,6 @@ export function openSol(wm: WM, rig?: string): void {
     let card: { c: Card; x: number; y: number; vx: number; vy: number } | null = null;
     let done = false;
 
-    // the ceremony paints the same faces the table deals — one renderer,
-    // whole pixels, so the smears it leaves are smears of real cards
     const paint = (c: Card, x: number, y: number): void =>
       paintCard(ctx, c, Math.round(x), Math.round(y), cw, ch, u);
 
@@ -888,7 +830,7 @@ export function openSol(wm: WM, rig?: string): void {
       if (card.y > floor) {
         card.y = floor;
         card.vy = -card.vy * 0.72;
-        if (Math.abs(card.vy) < 1.2) card.vy = -8; // tired cards get a second wind out
+        if (Math.abs(card.vy) < 1.2) card.vy = -8; // kick a settled card back up
       }
       paint(card.c, card.x, card.y);
       if (card.x < -cw - 10 || card.x > deskWidth() + 10) card = null;
@@ -899,14 +841,13 @@ export function openSol(wm: WM, rig?: string): void {
       if (done) return;
       done = true;
       cancelAnimationFrame(raf);
-      // the ceremony owned the screen; what it painted stays behind the
-      // windows as desktop litter (the smears' layer) until the next deal
+      // the smears stay behind the windows until the next deal
       cv.style.zIndex = "30";
       cv.style.pointerEvents = "none";
       wm.dialog({ ...GAMES_COPY.sol.win, x: 470, y: 330, ax: "center", w: 340 });
     };
 
-    // a click ends the ceremony early, like the period key-press did
+    // a click ends it early
     const skip = (): void => {
       finish();
       removeEventListener("pointerdown", skip);
@@ -933,11 +874,7 @@ export function openSol(wm: WM, rig?: string): void {
     render();
   }
 
-  /**
-   * One worker, one answer, and then it is gone. There is no state to keep
-   * between reviews and a search that outlived its window would be a thread
-   * grinding away behind a game nobody is reviewing any more.
-   */
+  /** One worker per review, terminated on answer or on window close. */
   function askReview(path: SolState[]): { answer: Promise<SolReview>; stop: () => void } {
     const w = new Worker(new URL("./solworker.ts", import.meta.url), { type: "module" });
     const answer = new Promise<SolReview>((resolve, reject) => {
@@ -952,19 +889,11 @@ export function openSol(wm: WM, rig?: string): void {
       w.onerror = (): void => done(() => reject(new Error("the review worker failed")));
       w.postMessage({ journal: path } satisfies SolReviewRequest);
     });
-    // closing the window is the answer to "how long is it allowed to take"
     return { answer, stop: () => w.terminate() };
   }
 
-  /* ---- Game ▸ Review ----
-     Klondike never tells you whether you lost or the deal did, and after
-     enough of them the difference stops being obvious. So the machine plays
-     the rest of it out (solreview.ts, in a worker) and says which one it was
-     — flatly when it has proof, and about itself when it hasn't. The window
-     is REVIEW.EXE's furniture because it is the same idea.
-
-     The search is run over the journal, not the table in front of you: the
-     line you actually played, undos and all. */
+  // Game > Review: searches the journal (the line actually played, undos and all),
+  // proven verdicts stated flat, unproven ones hedged.
   let reviewGen = 0;
   function openReview(): void {
     const path = [...journal, cloneState(s)];
@@ -980,7 +909,6 @@ export function openSol(wm: WM, rig?: string): void {
     const list = el(
       `<div class="sunken notepad" style="height:56px;overflow:auto;margin-bottom:6px;background:#fff"></div>`,
     );
-    // the verdict sits under the counts and wraps like the sentence it is
     const foot = el(`<div style="margin:0 2px"></div>`);
     rbody.append(head, list, foot);
     const R = GAMES_COPY.sol.review;
@@ -1010,7 +938,7 @@ export function openSol(wm: WM, rig?: string): void {
     answer.then(
       (r) => {
         if (gen !== reviewGen || !rwin.isOpen()) return;
-        /** Whether the verdict itself already said the search ran out. */
+        // whether the verdict line already said the search ran out
         let saidRanOut = false;
         head.textContent = R.head(r.homed);
         list.textContent = "";
@@ -1018,16 +946,13 @@ export function openSol(wm: WM, rig?: string): void {
         rowIn(list, R.counts.moves(r.moves, r.draws));
         if (r.passes) rowIn(list, R.counts.passes(r.passes));
         if (r.flipped) rowIn(list, R.counts.flipped(r.flipped));
-        // the verdict, under the confidence law: proven flat, unproven hedged
         if (r.won) rowIn(foot, R.won);
         else if (r.deal !== "won") {
           rowIn(foot, R.dealCold);
           rowIn(foot, R.dealColdSub);
         } else if (r.end === "won") rowIn(foot, R.alive);
         else if (r.lastWinnable !== null) {
-          // one proven line, then one about the machine: a closed bracket
-          // knows which play it couldn't win after, an open one only knows
-          // that it couldn't win at the end
+          // a closed bracket names the play; an open one only says "somewhere after"
           rowIn(foot, R.stillAt(r.lastWinnable));
           const ranOut = !r.converged;
           rowIn(
@@ -1040,13 +965,8 @@ export function openSol(wm: WM, rig?: string): void {
           );
           saidRanOut = ranOut;
         }
-        /* "It stopped looking before it was finished" is the difference
-           between a deal searched out and a deal that hit the cap, so it
-           belongs under every verdict except the one line that has already
-           said it in its own words. Gating it on `converged` instead was
-           wrong twice over: that flag is about the bisection, and it is
-           false on the cold-deal path — which is the branch that needs this
-           sentence most. */
+        // Not gated on `converged`: that flag is about the bisection and is false
+        // on the cold-deal path, which needs this sentence most.
         if (r.spent && !r.won && !saidRanOut) rowIn(foot, R.spent);
       },
       () => {
@@ -1083,11 +1003,7 @@ export function openSol(wm: WM, rig?: string): void {
 
   body.append(bar, felt, status);
 
-  /* The felt already grew with the window; now the deck does too. The unit is
-     the column pitch, so the seven columns keep their proportions and the
-     ceremony bounces cards the size you were playing with. Measured chrome: a
-     natural window is 512 wide around seven 68px pitches, and 640 tall around
-     a 560px felt. */
+  // chrome measured: natural window is 512 wide around seven 68px pitches, 640 tall around a 560px felt
   const relayout = fieldScaler({
     win: () => win.el,
     grid: () => ({ cols: 7, rows: FELT_H / PITCH }),
@@ -1098,8 +1014,7 @@ export function openSol(wm: WM, rig?: string): void {
       u = next;
       body.style.setProperty("--cw", `${cardW()}px`);
       body.style.setProperty("--ch", `${cardH()}px`);
-      // the piles are laid out in px, so a new pitch has to re-deal them —
-      // but only when it actually moved; every resize drag calls this
+      // piles are laid out in px; re-render only when the pitch actually moved
       if (changed) render();
     },
   });
@@ -1113,8 +1028,6 @@ export function openSol(wm: WM, rig?: string): void {
     w: 7 * PITCH + 16 + 20,
     body,
     buttons: ["min", "close"],
-    // the table scales with the window now, so the floor is the smallest deck
-    // still worth dealing rather than the authored one
     resizable: true,
     minW: 7 * 44 + 36,
     minH: Math.round((FELT_H * 44) / PITCH) + 80,
@@ -1132,7 +1045,7 @@ export function openSol(wm: WM, rig?: string): void {
       return;
     }
     if (wm.focused()?.id !== "sol") return;
-    // the menu says Ctrl+, the period spelling; Cmd answers too, like undo
+    // Cmd answers as well as Ctrl
     const cmd = e.metaKey || e.ctrlKey;
     if (cmd && e.key.toLowerCase() === "z") {
       e.preventDefault();
@@ -1148,8 +1061,7 @@ export function openSol(wm: WM, rig?: string): void {
   relayout();
 
   if (rig === "review") {
-    // a dozen draws is a game that has happened without being played, which
-    // is exactly what the pose needs: a journal to go back over
+    // a dozen draws gives the pose a journal to review
     for (let i = 0; i < 12; i++) {
       snap();
       drawFromStock(s);

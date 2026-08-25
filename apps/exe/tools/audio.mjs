@@ -1,23 +1,10 @@
 /**
- * The audio equivalent of `npm run shots`: renders every recipe in a real
- * browser, writes each one out as a wav, and prints what it measured.
- *
- * Sound can't be screenshotted and it can't be unit tested — a recipe that
- * schedules its oscillators after `startRendering` is silence that typechecks,
- * and an envelope with a typo is a click that passes every test in the repo.
- * So this listens for the two things a machine can hear (is it there, and how
- * loud) and hands the rest to Connor's ears as files.
- *
- * It also checks the laws from the outside, the way a player meets them: no
- * AudioContext may exist before the first gesture, one must exist and be
- * running after it, a suspended context has to come back, and the tray speaker
- * has to actually mute the machine.
- *
- * Usage:  npm run audio          (spawns its own dev server, like shots)
- * Env:    BASE    reuse a running dev server instead of spawning one
- *         CHROME  path to a Chrome binary
- * Output: apps/exe/shots/audio/ (gitignored), including all.wav — everything
- * in the printed order, half a second apart, because nobody opens 23 files.
+ * Audio harness: renders every recipe in a real browser to wav (presence and
+ * loudness measured; the rest is for ears), and checks the autoplay laws from
+ * outside — no AudioContext before the first gesture, running after it,
+ * resume after suspend, tray speaker really mutes.
+ * Usage:  npm run audio   Env: BASE, CHROME
+ * Output: apps/exe/shots/audio/ (gitignored) incl. all.wav, half a second apart.
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -53,17 +40,13 @@ if (!BASE) {
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-// A thrown exception fails the run; a console error is printed and doesn't.
-// The desktop has no favicon, and a run that fails on the browser asking for
-// one is a harness that cries wolf about the thing it can't hear.
+// exceptions fail the run; console errors only print (no favicon → 404 noise)
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && console.log("[console]", m.text()));
 
-// A handle on the real context, so the check below can suspend it behind the
-// desktop's back the way a backgrounded tab does. Nothing else may touch
-// `__ctx`: the point of these checks is that they only use what a player or
-// the OS uses.
+// `__ctx` is only for suspending the context like a backgrounded tab would;
+// every other check must use only what a player or the OS uses
 await page.addInitScript(() => {
   const Real = window.AudioContext;
   window.AudioContext = class extends Real {
@@ -74,8 +57,7 @@ await page.addInitScript(() => {
   };
 });
 
-// The volume is remembered, and a previous run leaving it muted would fail
-// every check below for the wrong reason.
+// volume persists; a previous run left muted would fail everything below
 await page.addInitScript(() => localStorage.removeItem("exe.audio"));
 
 await page.goto(BASE);
@@ -83,11 +65,10 @@ await page.waitForFunction(() => window.__exe !== undefined);
 await page.waitForSelector("#taskbar");
 
 // -- the autoplay law ---------------------------------------------------------
-// The rig is built at load so a reboot can chime at the real startup; on a
-// cold load the browser must be holding it shut.
+// the rig is built at load (so a reboot can chime); cold load must be held shut
 const before = await page.evaluate(() => window.__exe.audio.rigState());
 if (before === "running") throw new Error("audio was running before any gesture");
-// On the desk itself, not on a control: this must not also open something.
+// on the desk itself, so nothing else opens
 await page.mouse.click(640, 700);
 await page.waitForTimeout(500);
 const after = await page.evaluate(() => window.__exe.audio.rigState());
@@ -95,9 +76,8 @@ if (after !== "running") throw new Error(`audio did not start on a gesture: ${af
 console.log(`[autoplay] context: none before the gesture, "${after}" after it`);
 
 // -- coming back from an interruption -----------------------------------------
-// A tab that loses the foreground gets its context suspended, and coming back
-// is not a gesture — so nothing on the unlock path fires. The failure mode is a
-// desktop that is silent for the rest of the session and looks muted.
+// a backgrounded tab suspends the context; coming back is not a gesture, so
+// the unlock path never fires — failure mode is a silent-looking-muted desktop
 for (const [how, wake] of [
   ["a sound firing", () => window.__exe.audio.play("ding")],
   ["coming back to the foreground", () => document.dispatchEvent(new Event("visibilitychange"))],
@@ -116,12 +96,10 @@ for (const [how, wake] of [
 }
 
 // -- the tray speaker, worked the way a player works it -----------------------
-// Driven by clicking the icon in the taskbar, not by calling the store: the bug
-// this catches is a tray wired to a second copy of the setting.
+// click the taskbar icon, not the store: catches a tray wired to a second copy
 const level = () => page.evaluate(() => window.__exe.audio.masterLevel());
-// Poll for the fade rather than sleeping through it — headless Chrome's null
-// sink advances the audio clock slower than wall time, so a fixed wait reads
-// the fade partway through and fails a mute that works in a real browser.
+// poll for the fade: headless Chrome's null sink runs the audio clock slower
+// than wall time, so a fixed wait reads it partway through
 const settle = async (done, ms = 6000) => {
   const t0 = Date.now();
   let v = await level();
@@ -211,7 +189,7 @@ for (const name of names) {
   rows.push({ name, ...result, pcm: wav.subarray(44) });
 }
 
-// One file with everything in it, in the printed order, half a second apart.
+// all.wav: everything in printed order, half a second apart
 {
   const gap = Buffer.alloc(44100 * 2 * 0.5);
   const pcm = Buffer.concat(rows.flatMap((r) => [r.pcm, gap]));
@@ -248,9 +226,7 @@ console.log(
 // -- the two things a machine can hear ----------------------------------------
 const silent = rows.filter((r) => r.peak < 0.02);
 if (silent.length) throw new Error(`silent recipes: ${silent.map((r) => r.name).join(", ")}`);
-// A one-shot that takes a beat to start is a sound that misses its moment. The
-// boot swell is the one thing allowed to take its time, because it is the only
-// sound nothing is waiting on.
+// a one-shot that starts late misses its moment; only the boot swell may take its time
 const late = rows.filter((r) => r.name !== "startup" && r.startsAt > 0.05);
 if (late.length) {
   throw new Error(

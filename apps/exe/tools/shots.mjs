@@ -1,10 +1,7 @@
 /**
- * Screenshot the possessed desktop in its named states.
+ * Screenshot the desktop in its named states. Look at the output; that's the point.
  * Usage:  npm run shots [-- name ...]   (no args = everything)
- * Env:    BASE    reuse a running dev server instead of spawning one
- *         CHROME  path to a Chrome binary
- * Output: apps/exe/shots/ (gitignored). Look at them; that's the point —
- * this repo has repeatedly caught bugs this way that typechecked fine.
+ * Env:    BASE (reuse a dev server), CHROME.  Output: apps/exe/shots/ (gitignored)
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -40,33 +37,27 @@ const STATES = [
   ["mines", "?state=mines"],
   ["snake", "?state=snake"],
   ["sol", "?state=sol"],
-  // the review searches a real deal first, so it waits like the board's does
+  // third field: longer wait, the review solves a real game first
   ["sol-review", "?state=sol&rig=review", 15000],
   ["checkers", "?state=checkers"],
   ["chess", "?state=chess"],
-  // CHESS.EXE's endings, which stay on the board, and its own minor fever
   ["chess-mate", "?state=chess&fen=R5k1/5ppp/8/8/8/8/8/6K1 b - - 1 1"],
   ["chess-mated", "?state=chess&fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3"],
   ["chess-stalemate", "?state=chess&fen=7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"],
-  // the three steps of the window's own weather: a queen standing loose, the
-  // same with the king addressed, and a mate actually on the board
+  // CHESS.EXE weather: loose queen, king in check, mate on the board
   ["chess-loose", "?state=chess&fen=r3k2r/ppp2ppp/8/3q4/4P3/2N5/PPP2PPP/R3K2R w KQkq - 0 1"],
   ["chess-check", "?state=chess&fen=r3k3/ppp2ppp/8/3q4/4P3/2N5/PPP2PPP/R3K2r w Qq - 0 1"],
   ["chess-sharp", "?state=chess&fen=6k1/2p2ppp/8/8/8/5N2/7q/R4K2 w - - 0 1"],
   ["notepad", "?state=notepad"],
   ["paint", "?state=paint"],
   ["terminal", "?state=terminal"],
-  // the review solves a real game first; the third field is a longer wait
   ["review", "?state=review", 15000],
-  // the same review walked back to a position — the arrows' own screenshot
   ["review-walk", "?state=review&ply=6", 15000],
   ["games", "?state=games"],
   ["sounds", "?state=sounds"],
   ["shutdown", "?state=shutdown"],
-  // the restart beat, held at the POST — the real one has navigated by now
   ["reboot", "?state=reboot"],
-  // the beat acts — what the desktop does between tier crossings. Each puts
-  // itself back after a second or two, so they are posed rather than caught.
+  // beat acts, posed via ?act= since each undoes itself after a second or two
   ["beat-dialog-blunder", "?state=midgame&act=dialog&pool=move:blunder"],
   ["beat-dialog-threat", "?state=midgame&act=dialog&pool=threat:bot"],
   ["beat-dialog-nevermind", "?state=midgame&act=dialog&pool=swing:collapsing"],

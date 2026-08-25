@@ -1,33 +1,10 @@
 /**
- * The generator: llama.cpp on one side, the graders on the other, running
- * unattended. Phase 3, station 1 (llm_training.md).
- *
- *   npx vite-node apps/exe/tools/corpus/gen.ts --tier 4 --dry
- *   npx vite-node apps/exe/tools/corpus/gen.ts --tier 4 --n 200
- *   npx vite-node apps/exe/tools/corpus/gen.ts --tier 4 --n 4000 --slots 8
- *
- * Verification is inline rather than a second pass through `farm.ts`,
- * because the two costs aren't comparable: a candidate takes the model
- * fifteen seconds and the graders five milliseconds. Shelling out to the
- * farm during generation would buy parallelism nothing needs. The farm is
- * for re-grading a pool after a grader changes; this is for making one.
- *
- * What "unattended" actually demands, all of it learned the boring way:
- *
- * - **Append and flush per candidate.** A crash at 3am costs one program,
- *   not the night. The raw log holds rejects too — the histogram is the
- *   only thing steering the next batch.
- * - **A hard token cap.** A model that runs away producing eight thousand
- *   tokens for one program eats hours. `--max-tokens` is a budget, not a
- *   limit on ambition.
- * - **Thinking off by default.** A reasoning model will happily spend two
- *   thousand tokens deciding how to write pong, every time, all night.
- * - **Give up on a dead server.** Five consecutive failures stops the run,
- *   rather than writing four thousand `gen:unreachable` rows by morning.
- * - **Resume.** Point it at the same `--out` and it reloads the pool and the
- *   shot ration from it and carries on. `--n` is *how many more to attempt*,
- *   not a total to top up to: it bounds the model time this invocation is
- *   allowed to spend, which is the thing you actually schedule.
+ * The unattended generator: llama-server on one side, the graders inline on
+ * the other (verification is ms, generation is seconds). See corpus_howto.md.
+ *   npx vite-node apps/exe/tools/corpus/gen.ts --tier 4 --dry | --n 200 | --n 4000 --slots 8
+ * Appends and flushes per candidate (rejects too); thinking is off by default;
+ * five consecutive dead replies stop the run. Re-running with the same --out
+ * resumes: `--n` is how many more to *attempt*, not a total.
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -37,8 +14,7 @@ import { GOOD } from "./mutants.js";
 import { buildMessages, EDITS, HEADERS, pickShots, renderMessages, stampHeader } from "./prompt.js";
 import { histogram, verify, type Candidate, type Tier, type Verdict } from "./verify.js";
 
-/** One row of the raw log: the candidate, how it was asked for, and what the
-    machine made of it. */
+/** One row of the raw log. */
 export interface Produced extends Candidate {
   source: "freestyle" | "mutate";
   header: string;
@@ -62,23 +38,16 @@ export interface ModelOpts {
 
 export interface Reply {
   text: string;
-  /** "length" means the token cap cut it off mid-program. Dropping this on
-      the floor is how a batch reports `v0:syntax` all night when the actual
-      cause was `--max-tokens` — and the V0 histogram is exactly the number
-      that decides whether to build a host-side grammar. */
+  /** "length" = token cap cut it off. Must not be dropped, or truncation
+      reads as `v0:syntax` all night. */
   finish: string;
   tokens: number;
 }
 
 /**
- * Is the server alive, or merely slow?
- *
- * This exists because the slots do not fail independently. `-np 8` decodes
- * all eight streams in one batch, so requests issued together finish
- * together and get slower together — one uniformly slow batch crosses the
- * timeout in all eight slots within seconds, and a counter of *consecutive*
- * failures reads that single event as eight. Without this, a busy server
- * ends the night; with it, only a server that has stopped answering does.
+ * Alive, or merely slow? Slots don't fail independently: `-np 8` decodes all
+ * streams in one batch, so one slow batch times out in all eight slots at
+ * once and would read as eight consecutive failures.
  */
 async function alive(url: string): Promise<boolean> {
   try {
@@ -92,8 +61,7 @@ async function alive(url: string): Promise<boolean> {
 const timedOut = (e: unknown): boolean =>
   e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
 
-/** llama-server's OpenAI-compatible endpoint, so the model's own chat
-    template is applied server-side rather than guessed at here. */
+/** llama-server's OpenAI-compatible endpoint (chat template applied server-side). */
 export async function complete(msgs: ReturnType<typeof buildMessages>, o: ModelOpts): Promise<Reply> {
   const messages = o.think
     ? msgs
@@ -124,19 +92,12 @@ export async function complete(msgs: ReturnType<typeof buildMessages>, o: ModelO
   };
 }
 
-/**
- * The program out of the reply. Models fence code even when told not to, and
- * some write a sentence first; both are cheap to forgive and expensive to
- * reject, since the program underneath is usually fine.
- */
+/** The program out of the reply: forgives fences and a leading sentence. */
 export function extract(raw: string): string {
-  // Thinking comes off first: a reasoning model that drafts code inside
-  // <think> and then answers unfenced would otherwise hand over the draft.
+  // Strip <think> first, or an unfenced answer hands over the draft inside it.
   const clean = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
   const blocks = [...clean.matchAll(/```(?:[a-zA-Z]*)\n([\s\S]*?)```/g)].map((m) => m[1]!);
-  // Not the last block — the common shape is the program and then a second
-  // fence holding "sample output" or a note. The longest one holding a
-  // main() is the program.
+  // Not the last block (often "sample output"): longest block with main().
   const withMain = blocks.filter((b) => b.includes("main("));
   let text = [...(withMain.length ? withMain : blocks)].sort((a, b) => b.length - a.length)[0] ?? clean;
   const start = text.indexOf("/*");
@@ -167,8 +128,7 @@ export interface RunOpts extends ModelOpts {
   seed: number;
   out: string;
   keep?: string;
-  /** How long to wait after a timeout the server survived. Real value is
-      seconds; the test wants milliseconds. */
+  /** Wait after a timeout the server survived (seconds for real; ms in tests). */
   backoffMs?: number;
 }
 
@@ -179,11 +139,9 @@ export async function run(o: RunOpts): Promise<Produced[]> {
   const pool: Candidate[] = [...GOOD];
   let made = 0;
 
-  // Resume: what's already there counts, what passed rejoins the pool, and
-  // the shot ration carries over rather than restarting. Ids come off the
-  // highest index on disk and not the row count — a request the model
-  // dropped consumes an index without writing a row, so counting rows would
-  // re-issue ids that already exist, and the id is the provenance key.
+  // Resume. Ids come off the highest index on disk, not the row count: a
+  // dropped request consumes an index without a row, and the id is the
+  // provenance key.
   let highest = -1;
   if (existsSync(o.out))
     for (const line of readFileSync(o.out, "utf8").split("\n")) {
@@ -198,19 +156,14 @@ export async function run(o: RunOpts): Promise<Produced[]> {
   if (made) console.log(`resuming: ${made} already done, pool is ${pool.length}`);
 
   const produced: Produced[] = [];
-  // Attempts, not rows: a request the model dropped is not a candidate, and
-  // bounding attempts is what bounds the night.
+  // Attempts, not rows: bounding attempts is what bounds the night.
   const target = o.n;
   let issued = highest + 1;
   /** Consecutive replies the server failed to give at all. */
   let dead = 0;
-  /** Consecutive replies the token cap cut off. A different failure with a
-      different fix, so a different counter and a different message — being
-      told "the model stopped answering" when it answered eight times and
-      was cut off eight times sends you to the wrong knob. */
+  /** Consecutive replies the token cap cut off — a different knob than `dead`. */
   let clipped = 0;
-  /** Timeouts against a server that answered /health. Not fatal, but the
-      number belongs in the morning's report. */
+  /** Timeouts against a server that answered /health. Not fatal; reported. */
   let slow = 0;
 
   const one = async (index: number): Promise<void> => {
@@ -229,10 +182,9 @@ export async function run(o: RunOpts): Promise<Produced[]> {
       reply = await complete(msgs, o);
     } catch (e) {
       if (timedOut(e) && (await alive(o.url))) {
-        // Slow, not gone. Backing off matters here: undici drops the socket
-        // when the deadline fires, and whether llama-server frees that slot
-        // promptly is a property of the build — re-issuing instantly can
-        // queue the next request behind the leftover and time out again.
+        // Slow, not gone. Back off: undici drops the socket on timeout and
+        // llama-server may not free the slot promptly; re-issuing instantly
+        // can queue behind the leftover and time out again.
         slow++;
         await new Promise((ok) => setTimeout(ok, o.backoffMs ?? 5_000));
         return;
@@ -243,39 +195,29 @@ export async function run(o: RunOpts): Promise<Produced[]> {
       return;
     }
 
-    // The header we asked for goes on whatever came back. A document whose
-    // header doesn't match its body teaches that the request is a hint.
+    // Stamp the requested header: header/body mismatch teaches the request is a hint.
     const text = stampHeader(extract(reply.text), header);
     const id = `t${o.tier}/${kind}/${index}`;
     const cand: Candidate = { id, tier: o.tier, text };
     const base = { ...cand, source: (parent ? "mutate" : "freestyle") as Produced["source"], header, edit, parent: parent?.id };
     const chars = text.length;
 
-    // Two failures that are the harness's and not the program's, kept out of
-    // the V0/V1/V2 buckets so they can't be mistaken for bad C. Truncation
-    // would read as `v0:syntax`, which is the number that decides whether to
-    // build a grammar; emptiness would read as `v0:other` four thousand
-    // times over, which is what a model whose whole budget went into
-    // `reasoning_content` produces, silently, all night.
+    // Harness failures, kept out of the V0/V1/V2 buckets: truncation would
+    // read as `v0:syntax`, emptiness (budget spent in reasoning_content) as `v0:other`.
     const harness =
       reply.finish === "length"
         ? "gen:truncated"
         : !text.includes("main(") || chars < 60
           ? "gen:empty"
           : null;
-    // A reply that arrived empty is as useless as one that never arrived, so
-    // it shares `dead`. Truncation gets its own counter: the server is
-    // answering and the knob is --max-tokens.
+    // Empty shares `dead`; truncation has its own counter (knob is --max-tokens).
     if (harness === "gen:empty") {
       dead++;
       if (dead >= 5) throw new Error("the model answered five times with nothing");
     } else dead = 0;
     if (harness === "gen:truncated") {
       clipped++;
-      // Lower than it looks like it should be, because the false-positive
-      // rate is zero: a truncated reply buys no candidate by construction,
-      // so eight in a row is eight requests that bought nothing, and there
-      // is no healthy run where that is acceptable.
+      // Eight is enough: a truncated reply buys no candidate by construction.
       if (clipped >= 8) throw new Error("eight replies in a row were cut off — raise --max-tokens");
     } else clipped = 0;
 
@@ -285,8 +227,7 @@ export async function run(o: RunOpts): Promise<Produced[]> {
       try {
         verdict = verify(cand);
       } catch (e) {
-        // farm.ts made this call already: a grader that throws is a bug, but
-        // one candidate must not take the night down with it.
+        // A throwing grader is a bug, but must not take the night down.
         verdict = { id, tier: o.tier, ok: false, fail: "gen:threw", detail: String(e), chars };
       }
 
@@ -300,9 +241,7 @@ export async function run(o: RunOpts): Promise<Produced[]> {
     if (produced.length % 25 === 0) report(produced, slow);
   };
 
-  // Reserve before working, not after. Checking `produced.length` at the top
-  // of the loop lets every slot pass the check at target-1 and overshoot by
-  // one apiece, which is harmless at four and untidy at four thousand.
+  // Reserve before working, or every slot passes the check at target-1 and overshoots.
   let taken = 0;
   const worker = async (): Promise<void> => {
     while (taken < target) {
@@ -327,11 +266,7 @@ const report = (rows: readonly Produced[], slow = 0): void => {
   );
   for (const [key, count] of histogram(rows.map((r) => r.verdict))) console.log(`  ${String(count).padStart(5)}  ${key}`);
   if (slow) console.log(`  ${String(slow).padStart(5)}  timed out against a server that was still answering /health`);
-  // The streak counter catches "truncates always" and is blind to
-  // "truncates a third of the time" — which is the likelier state and the
-  // one that looks fine in the morning, because there *is* a corpus, just a
-  // smaller one than the throughput bought. The rate is free, so say it
-  // loudly rather than leaving it to be inferred from a missing third.
+  // The streak counter is blind to "truncates a third of the time"; the rate isn't.
   const recent = rows.slice(-100);
   const cut = recent.filter((r) => r.verdict.fail === "gen:truncated").length;
   if (cut / recent.length > 0.2)
@@ -346,9 +281,8 @@ const flag = (name: string, fallback: string): string => {
 };
 const has = (name: string): boolean => process.argv.includes(`--${name}`);
 
-// vite-node hands the script its flags but puts its own binary in argv[1],
-// so the usual "am I the entry" check can't work. The only importer that must
-// not run the CLI is the test, and it announces itself.
+// vite-node puts its own binary in argv[1], so the "am I the entry" check
+// can't work; the test is the only importer and announces itself.
 if (!process.env.VITEST) {
   const tier = Number(flag("tier", "4")) as Tier;
   const opts: RunOpts = {

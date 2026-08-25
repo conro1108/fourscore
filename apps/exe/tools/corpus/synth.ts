@@ -1,32 +1,10 @@
 /**
- * The synthesiser: source A, ~70% of the corpus. Phase 3, station 2
- * (llm_training.md).
- *
- *   npx vite-node apps/exe/tools/corpus/synth.ts --tier 1 --n 500
- *   npx vite-node apps/exe/tools/corpus/synth.ts --tier 4 --n 100 --check
- *
- * Valid by construction: every program here is built from the fence rather
- * than guessed at it, so a reject coming off the farm is a bug in this file,
- * not a cost of doing business. The plan's exit criterion is that the farm
- * keeps close to 100% of what this emits, and synth.test.ts holds a sample
- * to exactly 100%.
- *
- * Tiers 1 and 2 carry their own answer. The emitter built the program, so
- * it knows what it prints (`expect`) and what to type at it (`keys`), which
- * hands V2 an exact-stdout grade no grader could infer. The arithmetic is
- * simulated in 16-bit — w16/mul16/shl16 below — because "the generator
- * knows the answer" is only true if it wraps where the machine wraps, and
- * programs that call rand() draw their prediction from verify.ts's own
- * makeRng, seeded the way the probe seeds it.
- *
- * What varies here is axes: constants, geometry, glyphs, copy, names, loop
- * shape. What does NOT vary is structure — a skeleton is one program shape,
- * and structural variety is source B's job (model mutation). That is also
- * why pong stays one-player: a two-player court with nobody at the far
- * paddle can, for some axis rolls, cycle forever without a score, and this
- * file is not allowed to emit rejects. The 2P edit lives in prompt.ts's
- * EDITS, where every attempt is verified individually and a rare reject is
- * just yield.
+ * The synthesiser (source A, ~70% of the corpus). Valid by construction: a
+ * farm reject is a bug here, not yield. Tiers 1-2 carry `expect`/`keys`, so
+ * arithmetic must wrap where the machine wraps (w16/mul16/shl16) and rand()
+ * predictions must draw from verify.ts's makeRng, seeded as the probe seeds.
+ * Axes vary; structure doesn't — that's the model's job (prompt.ts EDITS).
+ * Pong stays one-player: a 2P court can cycle forever without a score.
  */
 
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -35,7 +13,7 @@ import "./graders.js";
 import { HEADERS } from "./prompt.js";
 import { codes, histogram, makeRng, verify, type Candidate, type Tier } from "./verify.js";
 
-/* ---- randomness for rolling axes (not the machine's rng) ---- */
+/* ---- axis rng (not the machine's) ---- */
 
 const rng = (seed: number): (() => number) => {
   let s = seed >>> 0 || 1;
@@ -49,7 +27,7 @@ const rng = (seed: number): (() => number) => {
 const pickOf = <T,>(xs: readonly T[], r: () => number): T => xs[Math.floor(r() * xs.length)]!;
 const int = (r: () => number, lo: number, hi: number): number => lo + Math.floor(r() * (hi - lo + 1));
 
-/* ---- 16-bit arithmetic, so expect wraps where the machine wraps ---- */
+/* ---- 16-bit arithmetic ---- */
 
 const w16 = (n: number): number => (((n | 0) & 0xffff) << 16) >> 16;
 const add16 = (a: number, b: number): number => w16(a + b);
@@ -70,8 +48,7 @@ interface Doc {
 }
 type Emitter = (r: () => number) => Doc;
 
-/** Render one counted loop three ways. The body must not depend on which —
-    the loop shape is an axis, not a semantic. */
+/** One counted loop three ways; the body must not depend on which. */
 const loopShape = (
   shape: string,
   iv: string,
@@ -312,14 +289,11 @@ const bitsEmit: Emitter = (r) => {
 };
 
 /* ================================================================
- * Tier 2 — the console family. expect AND keys: the emitter knows the
- * winning script because it knows the secret, and it knows the secret
- * because it draws from the probe's own rand stream (seed 1 — the
- * default every grading probe uses).
+ * Tier 2 — the console family. expect AND keys: the secret comes from the
+ * probe's own rand stream, seed 1 (every grading probe's default).
  * ================================================================ */
 
-/** The digit-at-a-time reader every tier-2 skeleton shares — the same shape
-    as GUESS_C's, so scripts of "42\n" lines drive all of them. */
+/** The digit-at-a-time reader every tier-2 skeleton shares (GUESS_C's shape). */
 const READNUM = (name: string): string[] => [
   `int ${name}() {`,
   "    int n;  int c;",
@@ -363,9 +337,7 @@ const guessEmit: Emitter = (r) => {
     r,
   );
   const loseA = pickOf(["NO MORE TRIES. IT WAS ", "OUT OF TRIES. IT WAS "], r);
-  // Echo forces the transcript to depend on the typed digits, which is what
-  // keeps two different losing scripts from producing one transcript — the
-  // grader's input-inert check probes exactly that.
+  // Echo makes the transcript depend on the typed digits (input-inert check).
   const echo = outcome === "lose" || r() < 0.4;
   const gv = pickOf(["g", "guess"], r);
   const reader = pickOf(["readnum", "getnum"], r);
@@ -373,8 +345,7 @@ const guessEmit: Emitter = (r) => {
   // The secret, from the probe's own stream.
   const secret = ((makeRng(1)() & 0x7fff) % range) + 1;
 
-  // The script: a binary search that wins, or distinct wrong guesses that
-  // run out the try budget.
+  // Script: a binary search that wins, or distinct wrong guesses that run out tries.
   const guesses: number[] = [];
   if (outcome === "win") {
     let lo = 1;
@@ -458,10 +429,8 @@ const quizEmit: Emitter = (r) => {
   const qa = Array.from({ length: q }, () => int(r, 2, 12));
   const qb = Array.from({ length: q }, () => int(r, 2, 12));
   // The grader's second probe answers 100, 99, 98, … and demands a different
-  // transcript. This transcript encodes only the right/wrong pattern, so no
-  // question may have 100 - i as its answer at position i — otherwise a rare
-  // roll makes the countdown's pattern match the script's and a correct
-  // program gets rejected. (Only products can reach 96+; sums top out at 24.)
+  // transcript, which encodes only the right/wrong pattern — so no question
+  // may have 100 - i as its answer at position i. (Only products reach 96+.)
   for (let i = 0; i < q; i++)
     while ((mul ? mul16(qa[i]!, qb[i]!) : qa[i]! + qb[i]!) === 100 - i) qb[i] = int(r, 2, 12);
   const title = pickOf(["THE MACHINE ASKS.", "ARITHMETIC. NO PAPER.", "QUIZ TIME."], r);
@@ -470,8 +439,7 @@ const quizEmit: Emitter = (r) => {
   const tally = pickOf(["SCORE ", "YOU GOT "], r);
   const reader = pickOf(["readnum", "answer"], r);
 
-  // At least one right and, when there's room, one wrong — an all-wrong
-  // script risks matching the fallback script's transcript (input-inert).
+  // At least one right and one wrong, or the transcript may match the fallback's.
   const rightAt = new Set<number>([int(r, 0, q - 1)]);
   for (let i = 0; i < q; i++) if (r() < 0.6) rightAt.add(i);
   if (rightAt.size === q && q > 1) rightAt.delete([...rightAt][int(r, 0, q - 1)]!);
@@ -579,8 +547,7 @@ const diceEmit: Emitter = (r) => {
 };
 
 /* ================================================================
- * Tier 3 — screen toys. No expect: the grader watches for life, and
- * these are alive by construction.
+ * Tier 3 — screen toys. No expect; alive by construction.
  * ================================================================ */
 
 const bounceEmit: Emitter = (r) => {
@@ -781,16 +748,15 @@ const clockEmit: Emitter = (r) => {
 };
 
 /* ================================================================
- * Tier 4 — pong. One skeleton, many constants; the structure is the
- * reference program's, because the reference is what the graders were
- * proven against. Structural pong variety is the model's job.
+ * Tier 4 — pong. One skeleton (the reference's structure, which the graders
+ * were proven against), many constants.
  * ================================================================ */
 
 const pongEmit: Emitter = (r) => {
   const h = int(r, 3, 6); // paddle height
   const win = int(r, 3, 7);
-  // The grader plays the whole game inside 6,000 frames; win * ballDiv is
-  // what stretches a game, so it stays under the measured ceiling.
+  // The grader plays the whole game inside 6,000 frames; win * ballDiv
+  // stretches a game, so keep it under that.
   const ballDiv = pickOf([2, 3, 4, 5].filter((d) => win * d <= 28), r);
   const aiDiv = int(r, 3, 6);
   const courtG = pickOf(["=", "-", "#", "."], r);
@@ -805,8 +771,7 @@ const pongEmit: Emitter = (r) => {
   const pcol = pickOf([2, 3], r);
   const acol = 39 - pcol;
   const scoreCol = pickOf([14, 18, 24], r);
-  // The ball must be the screen's one singleton, so the bottom line avoids
-  // every ball glyph (including the letter O).
+  // The ball must be the screen's one singleton: bottom line avoids every ball glyph.
   const bottom = pickOf(
     wasd ? [" W AND S ", " BAT AND BALL ", " KEEP IT IN PLAY "] : [" I AND K ", " THE RALLY ", " KEEP IT IN PLAY "],
     r,
@@ -972,20 +937,15 @@ const EMITTERS: Record<Tier, Emitter[]> = {
   4: [pongEmit],
 };
 
-/** The header whose filename matches the family — the filename is the
-    family key, and a header that mismatches its body teaches the model
-    that the request is only a hint. */
+/** Header whose filename matches the family (the filename is the family key). */
 const headerFor = (tier: Tier, family: string, r: () => number): string => {
   const match = HEADERS[tier].filter((x) => x.startsWith(`/* ${family}.`));
   return pickOf(match.length ? match : HEADERS[tier], r);
 };
 
-/**
- * n candidates for a tier, deterministic in the seed. Identical axis rolls
- * are re-rolled rather than emitted twice — synthesis that repeats itself
- * is corpus that lies about its size. (Real dedup policy — caps per
- * skeleton, held-out axis cells — is station 3's job, on the whole pool.)
- */
+/** n candidates for a tier, deterministic in the seed; identical axis rolls
+    are re-rolled. Real dedup (caps per skeleton, held-out cells) is done on
+    the whole pool later. */
 export function synthesize(tier: Tier, n: number, seed: number): Candidate[] {
   const r = rng(seed * 2_654_435 + tier);
   const seen = new Set<string>();
@@ -1026,9 +986,7 @@ if (!process.env.VITEST) {
   const tier = Number(flag("tier", "1")) as Tier;
   const n = Number(flag("n", "100"));
   const seed = Number(flag("seed", "1"));
-  // The seed is in the filename because the documented path to 40k documents
-  // is several seeds, and writeFileSync truncates — a default that made seed
-  // 2 overwrite seed 1 would eat a batch silently.
+  // Seed in the filename: writeFileSync truncates, and a night is several seeds.
   const out = flag("out", `data/corpus/raw/t${tier}-synth-${seed}.jsonl`);
   const cands = synthesize(tier, n, seed);
   mkdirSync(dirname(out), { recursive: true });
@@ -1036,8 +994,7 @@ if (!process.env.VITEST) {
   console.log(`${cands.length} candidates → ${out}`);
 
   if (process.argv.includes("--check")) {
-    // Inline and single-threaded: fine for a few hundred. A real batch goes
-    // through farm.ts, which is the same graders across every core.
+    // Single-threaded: fine for a few hundred; a real batch goes through farm.ts.
     const t0 = Date.now();
     const verdicts = cands.map(verify);
     const kept = verdicts.filter((v) => v.ok).length;

@@ -1,44 +1,9 @@
 /**
- * The board, as a bitboard.
- *
- * Layout is the standard Connect 4 packing: one column per `height + 1` bits,
- * bottom row first, with the extra bit per column left permanently empty. That
- * sentinel row is what makes the win check work — shifting a bitmask up by one
- * can't leak from the top of column N into the bottom of column N+1, because
- * there's always a zero in between.
- *
- * A position is two masks:
- *   - `position` — the discs belonging to the player *about to move*
- *   - `mask`     — every disc on the board, either colour
- *
- * The opponent's discs are `position ^ mask`. Storing it from the mover's point
- * of view rather than as red/yellow is what lets the search be a plain negamax:
- * playing a move flips the perspective, and nothing downstream has to care
- * which colour it's reasoning about.
- *
- * These are `bigint`, not `number` — 7x6 already needs 49 bits and the wider
- * boards need more. That costs us some speed against a typed-array board, but
- * it buys branch-free win detection with no loop over directions and no bounds
- * checks. The search calls it millions of times, and this file is the only
- * place the packing is known.
- *
- * ## Geometry is a value, not a constant
- *
- * Width, height and run length live in a `Variant` object rather than as module
- * constants, because Connect 5 needs a different board and Connect N needs an
- * arbitrary one. Everything derived from the geometry — masks, move order,
- * shift distances — is computed once per variant in `makeVariant` and read from
- * there, so no hot-path code does arithmetic on the packing.
- *
- * ## Why one sentinel row is enough for any run length
- *
- * The win check ANDs `pos` with copies of itself shifted 1, 2, ... N-1 steps
- * along a direction. A line that wrapped off an edge would be a false positive,
- * and the reason it can't happen is that every direction moves by exactly one
- * row per step, so a wrapping line has to *pass through* the sentinel row on
- * some intermediate step — and that step is itself one of the ANDed terms, so
- * the whole chain zeroes. That argument doesn't depend on N, which is why the
- * packing didn't have to change to support longer runs.
+ * The board as a bitboard. The only file that knows the packing: one column per
+ * `height + 1` bits, bottom row first, top bit of each column a permanent zero
+ * sentinel. `position` = discs of the player to move, `mask` = all discs;
+ * opponent = `position ^ mask`. Playing a move flips perspective (plain negamax).
+ * bigint, not number: 7x6 already needs 49 bits. See CLAUDE.md § bitboard packing.
  */
 
 const ONE = 1n;
@@ -120,9 +85,7 @@ export function makeVariant(spec: VariantSpec): Variant {
     (_, c) => ((ONE << hb) - ONE) << (BigInt(c) * h1),
   );
 
-  // Move ordering matters more than almost anything else for alpha-beta, and
-  // the centre column is part of more winning lines than any other, so it's the
-  // best static guess available. 3, 4, 2, 5, 1, 6, 0 for width 7.
+  // Centre-out: 3, 4, 2, 5, 1, 6, 0 for width 7.
   const moveOrder = (() => {
     const order: number[] = [];
     const mid = (width - 1) / 2;
@@ -133,8 +96,8 @@ export function makeVariant(spec: VariantSpec): Variant {
     return order;
   })();
 
-  // Vertical, horizontal, and the two diagonals. Each moves by exactly one row
-  // per step, which is what the sentinel-row argument above depends on.
+  // Vertical, horizontal, two diagonals. Each moves exactly one row per step —
+  // the sentinel-row argument depends on that.
   const dirs = [ONE, h1, h1 - ONE, h1 + ONE] as const;
 
   const runShifts = dirs.map((d) =>
@@ -168,19 +131,9 @@ export const CONNECT4 = makeVariant({
 });
 
 /**
- * Connect 5, on a board sized to feel like Connect 4 rather than to be the
- * smallest one that fits five in a row.
- *
- * 9x8 is not arbitrary. Line density is what makes a gravity game feel alive —
- * 7x6 Connect 4 has 69 winning lines over 42 cells, 1.64 per cell. Five in a
- * row on the same 7x6 board has 27 lines over 42 cells and plays like a draw
- * generator. 9x8 gives 116 lines over 72 cells, 1.61 per cell, which is as
- * close to Connect 4's texture as an integer board gets.
- *
- * Even height also matters more than it looks: the parity heuristic in
- * `evaluate.ts` — first player wants odd rows, second player even — is a real
- * theorem about alternating play on a board with an even number of rows. An odd
- * height would quietly make Vane's whole personality wrong.
+ * Line density per cell: C4 1.64, C5 1.61, C6 1.59, C7 1.58 — boards are sized
+ * to hold that. Width must stay odd (true centre column) and height even: the
+ * parity heuristic in `evaluate.ts` is a theorem only for even heights.
  */
 export const CONNECT5 = makeVariant({
   id: "connect5",
@@ -190,19 +143,6 @@ export const CONNECT5 = makeVariant({
   run: 5,
 });
 
-/**
- * Connect 6 and Connect 7, sized by the same law as Connect 5: keep the line
- * density near Connect 4's 1.64 lines per cell, keep the width odd so there is
- * a true centre column, and keep the height even for the parity theorem.
- *
- * 11x10 run 6 gives 175 lines over 110 cells (1.59/cell); 13x12 run 7 gives
- * 246 over 156 (1.58/cell). The sequence 1.64 → 1.61 → 1.59 → 1.58 is the
- * texture staying put while the board grows.
- *
- * These are also why the transposition table stores keys in five lanes: a
- * `key()` needs `width * (height + 1)` bits, which is 121 here and 169 for
- * Connect 7 — see the note on `TranspositionTable`.
- */
 export const CONNECT6 = makeVariant({
   id: "connect6",
   name: "Connect 6",
@@ -227,12 +167,7 @@ export const variantById = (id: string): Variant => {
   return v;
 };
 
-/**
- * Connect 4's geometry under its old names.
- *
- * Plenty of callers only ever deal with the default board, and making every one
- * of them thread a variant through would be churn for its own sake.
- */
+/** Connect 4 aliases for default-board callers only; not a licence to hardcode geometry. */
 export const WIDTH = CONNECT4.width;
 export const HEIGHT = CONNECT4.height;
 export const CELLS = CONNECT4.cells;
@@ -240,14 +175,7 @@ export const BOARD_MASK = CONNECT4.boardMask;
 export const COLUMN_MASKS = CONNECT4.columnMasks;
 export const MOVE_ORDER = CONNECT4.moveOrder;
 
-/**
- * True if `pos` contains a full run anywhere.
- *
- * ANDs the mask with copies of itself shifted 1..N-1 steps along each
- * direction; a bit survives only where a whole run starts. The early exit is
- * why the linear form is fine here rather than the logarithmic doubling trick —
- * most directions die on the first AND.
- */
+/** True if `pos` holds a full run. Linear ANDs with early exit beat the doubling trick here. */
 export function alignment(pos: bigint, v: Variant = CONNECT4): boolean {
   for (const shifts of v.runShifts) {
     let m = pos;
@@ -261,30 +189,16 @@ export function alignment(pos: bigint, v: Variant = CONNECT4): boolean {
 }
 
 /**
- * Empty cells that would give `pos` a full run if filled.
- *
- * The mirror image of `alignment`: instead of asking "is a run already here",
- * it builds, for each direction, the cells that would complete one.
- *
- * The naive form tests each of the N gap positions separately, which is N(N-1)
- * operations per direction and gets expensive fast as N grows. Instead this
- * builds two chains — `below[k]`, the cells with k of ours consecutively before
- * them along the direction, and `above[k]`, k of ours after — and then reads
- * off gap position g as `below[g] & above[N-1-g]`. That shares every
- * subexpression, so the cost is linear in N rather than quadratic, and at N=4
- * it lands within a couple of operations of the hand-tuned Connect 4 version it
- * replaced.
- *
- * This is the hottest function in the program: the solver calls it once per
- * candidate move per node for move ordering.
+ * Empty cells that would complete a run for `pos`. Hottest function in the
+ * program. Builds prefix/suffix chains (`below[k]`, `above[k]`) and reads gap g
+ * as `below[g] & above[N-1-g]` — linear in N. Don't rewrite as the obvious
+ * per-gap loop (quadratic).
  */
 export function computeAlignmentSpots(pos: bigint, mask: bigint, v: Variant = CONNECT4): bigint {
   const last = v.run - 1;
   let r = ZERO;
 
-  // Vertical is a special case worth taking: gravity means the only gap that
-  // can ever be filled is the one on top of the stack. The other N-1 gap
-  // positions would describe a cell with a disc already floating above it.
+  // Vertical: gravity means only the gap on top of the stack is fillable.
   {
     const shifts = v.gapShifts[0]!;
     let below = pos << shifts[1]!;
@@ -295,9 +209,7 @@ export function computeAlignmentSpots(pos: bigint, mask: bigint, v: Variant = CO
   for (let di = 1; di < 4; di++) {
     const shifts = v.gapShifts[di]!;
 
-    // above[k] = k of ours immediately after this cell along the direction.
-    // Built into a shared scratch array — this function is called once per
-    // candidate move per node, and allocating here showed up in the profile.
+    // above[k] = k of ours after this cell. Shared scratch: allocating here showed in the profile.
     let above = pos >> shifts[1]!;
     ABOVE[1] = above;
     for (let k = 2; k <= last; k++) {
@@ -305,26 +217,20 @@ export function computeAlignmentSpots(pos: bigint, mask: bigint, v: Variant = CO
       ABOVE[k] = above;
     }
 
-    // Gap at the start of the run needs no `below` chain at all.
     r |= above;
 
-    // Then walk the gap rightwards, growing `below` one disc at a time.
     let below = pos << shifts[1]!;
     for (let g = 1; g < last; g++) {
       r |= below & ABOVE[last - g]!;
       below &= pos << shifts[g + 1]!;
     }
-    // Gap at the end of the run: `below` is now the full chain.
     r |= below;
   }
 
   return r & (v.boardMask ^ mask);
 }
 
-/**
- * Scratch for the `above` chain. Safe to share because `computeAlignmentSpots`
- * doesn't recurse and doesn't yield.
- */
+/** Shared scratch; safe because `computeAlignmentSpots` neither recurses nor yields. */
 const ABOVE: bigint[] = [];
 
 export class Position {
@@ -362,13 +268,7 @@ export class Position {
     return this.variant.moveOrder.filter((c) => this.canPlay(c));
   }
 
-  /**
-   * Drop a disc in `col`. Assumes the move is legal — callers that take
-   * untrusted input (i.e. the UI) check `canPlay` first.
-   *
-   * The XOR is the perspective flip: after it, `position` describes the player
-   * who is now to move rather than the one who just played.
-   */
+  /** Drop a disc in `col`. Assumes legal; the XOR flips perspective to the new mover. */
   play(col: number): void {
     this.position ^= this.mask;
     this.mask |= this.mask + this.variant.bottomMaskCol[col]!;
@@ -407,36 +307,22 @@ export class Position {
   }
 
   /**
-   * Playable cells that don't hand the opponent an immediate win.
-   *
-   * Returns 0 in two distinct-looking but equivalent cases: the opponent has
-   * two separate threats (unstoppable), or every legal move opens one up. The
-   * caller treats both as "lost", which is correct — there's no move here that
-   * survives the next ply either way.
+   * Playable cells that don't hand the opponent an immediate win. Returns 0 both
+   * when the opponent has two threats and when every move opens one; both are lost.
    */
   nonLosingMoves(): bigint {
     let possible = this.possibleMoves();
     const opponentWin = this.opponentWinningPositions();
     const forced = possible & opponentWin;
     if (forced !== ZERO) {
-      // The opponent has a threat we must answer. If there are two of them we
-      // can only block one, so the position is already lost.
       if ((forced & (forced - ONE)) !== ZERO) return ZERO;
       possible = forced;
     }
-    // Never play directly beneath an opponent winning cell — that's just
-    // handing them the win on top of our own disc.
+    // Never play directly beneath an opponent winning cell.
     return possible & ~(opponentWin >> ONE);
   }
 
-  /**
-   * A key that identifies this position uniquely for the transposition table.
-   *
-   * `position + mask` works because adding the full mask sets, for each column,
-   * a bit one row above the stack — encoding the column heights — while leaving
-   * the mover's discs distinguishable underneath. Two different positions can't
-   * collide on it.
-   */
+  /** Unique TT key: `position + mask + bottom` encodes column heights above the mover's discs. */
   key(): bigint {
     return this.position + this.mask + this.variant.bottomAll;
   }
@@ -482,13 +368,7 @@ export class Position {
   }
 }
 
-/**
- * The same position reflected left-to-right.
- *
- * A gravity game is symmetric about the centre column, so a position and its
- * mirror always have identical scores with the columns swapped. Storing only
- * one of each pair halves an opening book.
- */
+/** The position reflected left-to-right (same score, columns swapped). */
 export function mirror(p: Position): Position {
   const { width, h1, height } = p.variant;
   const colBits = (ONE << BigInt(height)) - ONE;
@@ -503,13 +383,7 @@ export function mirror(p: Position): Position {
   return new Position(position, mask, p.moves, p.variant);
 }
 
-/**
- * The canonical key for book storage: the smaller of this position's key and
- * its mirror's.
- *
- * `mirrored` tells the caller whether the stored entry is the reflection, so a
- * looked-up result can have its columns flipped back.
- */
+/** Smaller of key and mirror key; `mirrored` says whether to flip columns back. */
 export function canonical(p: Position): { key: bigint; mirrored: boolean } {
   const a = p.key();
   const b = mirror(p).key();
@@ -525,13 +399,7 @@ const POP16 = (() => {
 
 const MASK16 = 0xffffn;
 
-/**
- * Population count, used to weigh how many threats a position holds.
- *
- * Chews through the bigint 16 bits at a time. The obvious `x &= x - 1n` loop
- * allocates a fresh bigint per set bit, and this sits in the search's move
- * ordering, which is hot enough for that to show up.
- */
+/** Popcount 16 bits at a time; the `x &= x - 1n` loop allocates per bit and is hot in move ordering. */
 export function popcount(m: bigint): number {
   let n = 0;
   let x = m;

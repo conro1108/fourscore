@@ -1,13 +1,7 @@
 /**
- * The machine against the oracle, token for token.
- *
- * llm.c compiled by CC, assembled, and run on the real processor against the
- * real drive image, with its output checked against the integer reference in
- * intref.ts. The two are independent transcriptions of the same fixed-point
- * scheme — one in TypeScript reading the image byte by byte, one in C and hand
- * assembly reading it through the ports — and the only way a bug in either
- * survives is by being in both, identically. It has caught one each way.
- *
+ * The machine against the oracle, token for token: llm.c compiled by CC and
+ * run on the VM vs intref.ts over the same WEIGHTS.BIN. Neither is the truth;
+ * a bug survives only by being in both identically.
  *   npx vite-node apps/exe/tools/llm/compare.ts -- [chars=60] [seed=1]
  */
 

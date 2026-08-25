@@ -1,8 +1,5 @@
 /**
- * Boot the possessed desktop and wire everything together.
- *
- * Deep links (the harness pattern from the proposals — screenshot before you
- * claim):
+ * Boot the desktop and wire everything together. Deep links (harness poses):
  *   ?state=midgame        a scripted opening, frozen mid-deliberation
  *   ?state=win&beat=N     the win sequence held at a beat (2..11)
  *   ?state=loss&beat=N    the coals parade held at a beat (2..10)
@@ -65,12 +62,11 @@ import type { DeskIcon } from "./desktop.js";
 const stage = q("#stage");
 fitStage(stage);
 
-/* ---- installed to a home screen, the machine works with the cable out ----
-   Production only: a service worker under the dev server would cache Vite's
-   transient module graph and serve yesterday's desktop. */
+/* Service worker, production only: under the dev server it would cache Vite's
+   transient module graph. */
 if (import.meta.env.PROD && "serviceWorker" in navigator)
   navigator.serviceWorker.register("/sw.js").catch(() => {
-    /* an uninstallable desktop still runs */
+    /* fine */
   });
 installGeneratedChips();
 
@@ -82,12 +78,10 @@ const engine = engineClient();
 const analysis = analysisClient();
 const director = makeDirector();
 const disk = makeDisk(localStorage);
-// the drive spins up in the background; nothing waits for it
 loadMedia();
 const movesPad = makeMovesPad(wm, disk);
 
-/* The scheme. Nothing is built until the first gesture (the autoplay law), and
-   fever is pulled rather than pushed so the director never learns audio exists. */
+/* Fever is pulled, not pushed, so the director never learns audio exists. */
 audio.installAudio({ fever: () => director.snapshot().fever });
 
 /** The harness freezes the endgame at a beat; live play never sets this. */
@@ -103,14 +97,11 @@ const boardDeps: BoardDeps = {
     analysis
       .evaluate(board.variant.id, history)
       .then((r) => {
-        // a stale reply from an abandoned game can't hurt a target, but don't bother
         director.feedEval(r.advantage, r.ply, board.variant.cells, r.source);
       })
       .catch(() => {});
   },
-  /* The synchronous half of the feed. The eval is a worker round-trip and a
-     threat is a bitboard test, so the board hands the cheap fact over the
-     instant the disc lands and the expensive one whenever it arrives. */
+  /* Synchronous half of the feed: threats are cheap, the eval is a worker round-trip. */
   onPly(mover, position) {
     director.feedPly({
       mover,
@@ -118,7 +109,7 @@ const boardDeps: BoardDeps = {
     });
   },
   onEnd(end) {
-    lastEnd = end; // REVIEW.EXE reads this — the game most recently finished
+    lastEnd = end; // REVIEW.EXE reads this
     effects.setGameOver();
     endgame.run(end, frozenBeat);
   },
@@ -141,9 +132,6 @@ const endgame = makeEndgame({
       director.event(kind);
     effects.gameEvent(kind);
   },
-  /* You left the ending — the desktop comes down without waiting for a new
-     game. Both halves hear it: the fever starts cooling, the litter starts
-     going out. */
   onDismiss() {
     director.event("dismissed");
     effects.endingDismissed();
@@ -172,14 +160,11 @@ const gameLaunchers = {
   chess: () => openChess(wm),
 };
 
-/* ---- the desk is C:\DESKTOP ----
-   The disk owns what exists; deskpos remembers where an icon was dropped;
-   everything else about the boot arrangement is authored right here. */
+/* ---- the desk is C:\DESKTOP: disk owns what exists, deskpos where it was dropped ---- */
 const deskPos = makeDeskPos(localStorage);
 const deskIcons = new Map<string, DeskIcon>();
 
-/** The programs, by the token their files carry (the MZ line). The rows are
-    the faces their desk icons wear. */
+/** Programs by the token their files carry (the MZ line). */
 const PROGRAMS: Record<string, { rows: readonly string[]; launch(): void }> = {
   board: { rows: ICONS.board, launch: () => desktopApps.openBoard() },
   flames: { rows: ICONS.flame, launch: () => desktopApps.openFlames() },
@@ -191,9 +176,7 @@ const PROGRAMS: Record<string, { rows: readonly string[]; launch(): void }> = {
   ),
 };
 
-/** The boot arrangement: the machine's own things down the left, the papers
-    in a second column. Lowercased desk keys; ":drive" is the one fixture
-    that isn't a file. Anything not listed takes nextSeat. */
+/** Boot arrangement. Lowercased desk keys; ":drive" is the one non-file. Unlisted → nextSeat. */
 const DESK_ORDER: readonly string[] = [
   "desktop\\board.exe",
   "desktop\\flames.scr",
@@ -205,9 +188,8 @@ const DESK_ORDER: readonly string[] = [
   "desktop\\rocket.spr",
   ":drive",
 ];
-/** On a desk narrower than the authored 1280 (a phone), the left column
-    disappears behind BOARD.EXE — authored seats become a dock above the
-    taskbar instead, where a thumb lives. Dragged icons stay put. */
+/** Under 1280 wide the left column hides behind BOARD.EXE, so seats become a
+    dock above the taskbar. Dragged icons stay put. */
 const defaultSeat = (key: string): [number, number] | undefined => {
   const i = DESK_ORDER.indexOf(key.toLowerCase());
   if (i < 0) return undefined;
@@ -219,9 +201,7 @@ const defaultSeat = (key: string): [number, number] | undefined => {
   return i < 6 ? [20, 22 + i * 100] : [112, 22 + (i - 6) * 100];
 };
 
-/** A free desk spot for something that has never been placed — files the
-    terminal just made, folders MKDIR made. Columns to the right of the
-    left rank, filled top to bottom. */
+/** A free seat for a never-placed item: columns right of the left rank, top to bottom. */
 function nextSeat(): [number, number] {
   const taken: [number, number][] = [];
   for (const ic of deskIcons.values()) taken.push([ic.el.offsetLeft, ic.el.offsetTop]);
@@ -246,16 +226,14 @@ const stagePoint = (ev: { clientX: number; clientY: number }): [number, number] 
   return [(ev.clientX - r.left) / k, (ev.clientY - r.top) / k];
 };
 
-/** What directory is under the pointer — an open container window, a folder
-    icon, anything wearing a data-drop. "" is the root; null is nothing. */
+/** Directory under the pointer (anything wearing data-drop). "" is root; null is nothing. */
 const dropTargetAt = (ev: PointerEvent): string | null => {
   const d = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-drop]")
     ?.dataset.drop;
   return d !== undefined && d.startsWith(DROP_PREFIX) ? d.slice(DROP_PREFIX.length) : null;
 };
 
-/** Opening a file: a program file boots its program, moves.txt is the pad's
-    door, a picture opens in Paint, words open in Notepad. */
+/** Program → its launcher, moves.txt → the pad, .spr → Paint, else Notepad. */
 const openFile = (name: string): void => {
   const path = normPath(name);
   if (path.toLowerCase() === MOVES_PATH.toLowerCase()) {
@@ -271,16 +249,14 @@ const openFile = (name: string): void => {
   else openEditor(wm, disk, path);
 };
 
-/** A .spr file's own art, for icons that wear their drawing. */
+/** A .spr file's art, as icon rows. */
 const sprFace = (name: string): readonly string[] | null => {
   if (!isSpriteFile(name)) return null;
   const cells = parseSprite(disk.read(name) ?? "");
   return cells ? cellsToRows(cells) : null;
 };
 
-/** What an item looks like, wherever it appears — the desk and every
-    container window ask here. A picture's icon is the picture; a program's
-    is its own face; a reserved folder keeps its dress. */
+/** Icon face + label for an item, shared by the desk and container windows. */
 const itemFaceOf = (path: string, isDir: boolean): { rows: readonly string[]; label: string } => {
   const lower = path.toLowerCase();
   if (isDir) {
@@ -318,7 +294,7 @@ function makeDeskIcon(path: string, isDir: boolean): DeskIcon {
   });
 }
 
-/** The desk re-reads C:\DESKTOP: icons appear, leave, and that is all. */
+/** Re-read C:\DESKTOP: icons appear and leave. */
 function syncDesk(): void {
   const listing = disk.listDir("DESKTOP") ?? { dirs: [], files: [] };
   const items = [
@@ -350,11 +326,10 @@ const containerDeps: ContainerDeps = {
     const target = dropTargetAt(ev);
     if (target !== null && target.toLowerCase() !== from.toLowerCase() &&
         target.toLowerCase() !== path.toLowerCase()) {
-      // a refused move just goes back
       if (disk.rename(path, normPath(`${target}\\${baseName(path)}`))) syncShell();
       return;
     }
-    // onto the open desk: the file moves to DESKTOP and sits where it landed
+    // onto the desk: move to DESKTOP, seat where it landed
     const dest = normPath(`DESKTOP\\${baseName(path)}`);
     const [px, py] = stagePoint(ev);
     const seat = clampDesk(px - 24, py - 20);
@@ -367,7 +342,7 @@ const containerDeps: ContainerDeps = {
   },
 };
 
-/* ---- the desk's own furniture: the drive ---- */
+/* ---- the drive fixture ---- */
 deskIcons.set(":drive", shell.addIcon({
   rows: ICONS.drive,
   label: TITLES.drive,
@@ -377,7 +352,7 @@ deskIcons.set(":drive", shell.addIcon({
   onMove: (nx, ny) => deskPos.set(":drive", [nx, ny]),
 }));
 syncDesk();
-/* Undragged icons follow the desk when it changes shape (the phone dock). */
+/* Undragged icons follow the desk when it changes shape. */
 onDeskResize(() => {
   for (const [key, ic] of deskIcons) {
     if (deskPos.get(key)) continue;
@@ -386,14 +361,11 @@ onDeskResize(() => {
   }
 });
 
-/* The other door into the same disk: a file the terminal or Notepad just
-   made grows an icon; one they deleted stops existing everywhere; a rename
-   keeps its spot. */
+/* Disk changes from the terminal/Notepad reach the desk here; a rename keeps its spot. */
 disk.onChange((ev) => {
   if (ev.kind === "rename" && ev.to) deskPos.migrate(ev.name, ev.to);
   if (ev.kind === "remove") deskPos.drop(ev.name);
-  // a repainted picture gets its desk icon repainted: drop it and let the
-  // sync grow it back wearing the new art (its spot is deskpos's memory)
+  // repainted .spr: drop the icon and let sync regrow it with the new art
   if (ev.kind === "write" && isSpriteFile(ev.name)) {
     const key = normPath(ev.name).toLowerCase();
     deskIcons.get(key)?.remove();
@@ -402,7 +374,7 @@ disk.onChange((ev) => {
   syncShell();
 });
 
-/* ---- pinned pictures: the desk art the rocket used to be ---- */
+/* ---- pinned pictures ---- */
 const pins = installPins({
   stage,
   disk,
@@ -410,7 +382,7 @@ const pins = installPins({
   menu: (e, entries) => contextMenu(e, entries),
 });
 
-/* ---- context menus: the desk makes folders, folders have their say ---- */
+/* ---- context menus ---- */
 let ctxMenu: HTMLElement | null = null;
 const closeCtx = (): void => {
   ctxMenu?.remove();
@@ -437,8 +409,7 @@ function contextMenu(e: MouseEvent, entries: [string, () => void][]): void {
   stage.appendChild(m);
   ctxMenu = m;
 }
-/** Every desk item's menu: open it, name it, lose it — and a picture's own
-    entries, because a drawing can also go up on the wall. */
+/** Desk item menu: open, pin (pictures), rename, delete. */
 function itemMenu(e: MouseEvent, path: string, isDir: boolean): void {
   const key = path.toLowerCase();
   const entries: [string, () => void][] = [
@@ -454,15 +425,14 @@ function itemMenu(e: MouseEvent, path: string, isDir: boolean): void {
           }],
     );
   entries.push(["Rename", () => renameItem(path)]);
-  // the rest can hold anything except itself
+  // the bin can't delete itself
   if (key !== "desktop\\recycled")
     entries.push(["Delete", () => {
       if (disk.rename(path, normPath(`DESKTOP\\RECYCLED\\${baseName(path)}`))) syncShell();
     }]);
   contextMenu(e, entries);
 }
-/** Rename in place, desk-style: the label becomes a text box. The disk has
-    the final word — a taken name just puts the old label back. */
+/** Rename in place; a name the disk refuses just restores the old label. */
 function renameItem(path: string): void {
   const ic = deskIcons.get(path.toLowerCase());
   const lbl = ic?.el.querySelector<HTMLElement>(".lbl");
@@ -495,13 +465,13 @@ stage.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   contextMenu(e, [
     ["New Folder", () => {
-      // terminal-typable names, the untitled.txt precedent: folder, folder2, …
+      // terminal-typable names: folder, folder2, …
       let name = "folder";
       for (let n = 2; disk.isDir(`DESKTOP\\${name}`) || disk.exists(`DESKTOP\\${name}`); n++)
         name = `folder${n}`;
       const [px, py] = stagePoint(e);
       deskPos.set(`desktop\\${name}`, clampDesk(px - 24, py - 20));
-      disk.mkdir(`DESKTOP\\${name}`); // onChange grows the icon at that seat
+      disk.mkdir(`DESKTOP\\${name}`); // onChange grows the icon
     }],
     ["New Text Document", () => {
       let name = "untitled.txt";
@@ -561,20 +531,14 @@ const desktopApps: DesktopApps = {
         last: () => lastEnd,
         review: (variantId, history) => analysis.review(variantId, history, "red"),
       },
-      // a harness pose only: the review opens on the finished game otherwise.
-      // Anything that isn't a number is nothing — `?ply=x` used to walk the
-      // window to NaN and paint a board that wasn't there.
+      // harness only; a non-numeric `?ply` must be nothing, not NaN
       Number.isFinite(Number(param("ply"))) ? Number(param("ply")) : undefined,
     ),
   shutdown: () => openShutdown(wm, { stage, help: () => desktopApps.openHelp() }),
 };
 
-/* ---- the other door ----
-   "Reset the whole screen" had a keystroke in 1995 and this is it. It opens
-   the same box the Start menu does rather than rebooting outright, which is
-   both what the real one did and the reason it is safe to leave on a hotkey.
-   Backspace as well as Delete: on this keyboard the key that says delete
-   reports as Backspace, and the reflex is the same reflex. */
+/* Ctrl+Alt+Del opens the Shut Down box, never reboots outright. Backspace too:
+   a Mac's delete key reports as Backspace. */
 addEventListener("keydown", (e) => {
   if (e.ctrlKey && e.altKey && (e.key === "Delete" || e.key === "Backspace")) {
     e.preventDefault();
@@ -582,18 +546,14 @@ addEventListener("keydown", (e) => {
   }
 });
 
-/* ---- boot order ----
-   The approved frame used to boot with BOARD.EXE, moves.txt and flames.scr
-   already open; the desk's owner asked for a machine that boots to a desk.
-   Any query param is a pose or a harness, and those still get the furniture
-   they were authored against. */
+/* ---- boot: a bare desk, unless posed by a query param (harnesses expect the furniture) ---- */
 const posed = location.search !== "";
 if (posed) {
   movesPad.open();
   effects.openFlames();
   board.win.focus();
 } else {
-  board.win.close(); // openBoard() rebuilds it the day it's double-clicked
+  board.win.close(); // openBoard() rebuilds it
 }
 
 /* ---- the director's clock ---- */
@@ -601,14 +561,12 @@ setInterval(() => {
   if (frozenFever) return;
   const moved = director.step(0.5);
   if (moved) effects.apply(moved);
-  // Beats are drained whether or not fever moved: a blunder in a level game
-  // still deserves an answer, and that is exactly the game that used to get
-  // nothing at all.
+  // drained whether or not fever moved: a blunder in a level game still gets an answer
   for (const b of director.takeBeats()) effects.beat(b);
 }, 500);
 effects.apply(director.snapshot());
 
-/* ---- real idle: the screensaver actually takes over ---- */
+/* ---- idle → screensaver ---- */
 shell.onIdle(90, () => effects.takeover(true));
 shell.onWake(() => {
   if (director.snapshot().tier < 4) effects.takeover(false);
@@ -626,8 +584,7 @@ if (posed && !variantParam && !botParam) board.newGame();
 
 const feverParam = param("fever");
 if (feverParam !== null) {
-  // walk up through the tiers so the desktop got here rather than spawning
-  // here — crossings fire, windows open, the trail exists
+  // walk up through the tiers so crossings fire on the way
   const target = Math.max(0, Math.min(1, parseFloat(feverParam)));
   for (const f of [0, 0.25, 0.5, 0.75, 1]) {
     if (f > target) break;
@@ -641,18 +598,16 @@ if (feverParam !== null) {
 
 const state = param("state");
 if (state === "midgame") {
-  // the mock's demo opening: red just moved, the bot deliberates, you hesitated
   board.script([3, 2, 3, 3, 2, 4, 1]);
   movesPad.lines(["and then you", "hesitated"]);
 } else if (state === "win") {
   frozenBeat = param("beat") !== null ? Number(param("beat")) : undefined;
-  // a verified legal game (02-win's): red completes the anti-diagonal
+  // verified legal: red completes the anti-diagonal
   board.script([3, 4, 4, 3, 5, 2, 3, 2, 2, 4, 2]);
   if (frozenBeat === undefined) frozenBeat = 11;
 } else if (state === "loss") {
   frozenBeat = param("beat") !== null ? Number(param("beat")) : 10;
-  // yellow stacks the far column while red builds a useless block — a
-  // vertical line, which also exercises the ants capsule's rotation
+  // yellow wins a vertical line (exercises the ants capsule's rotation)
   board.script([0, 6, 1, 6, 0, 6, 1, 6]);
 } else if (state === "pieces") {
   desktopApps.openPieces();
@@ -667,7 +622,6 @@ if (state === "midgame") {
 } else if (state === "terminal") {
   desktopApps.openTerminal();
 } else if (state === "paint") {
-  // the rocket, on the easel — the seed picture every disk arrives with
   openPaint(wm, disk, "DESKTOP\\rocket.spr");
 } else if (state === "sol") {
   openSol(wm, param("rig") ?? undefined);
@@ -680,24 +634,18 @@ if (state === "midgame") {
 } else if (state === "sounds") {
   desktopApps.openSounds();
 } else if (state === "review") {
-  // the win game, already over — the parade is cleared so the window poses alone
+  // the win game, parade cleared so the window poses alone
   board.script([3, 4, 4, 3, 5, 2, 3, 2, 2, 4, 2]);
   endgame.clear();
   desktopApps.openReview();
 } else if (state === "shutdown") {
   desktopApps.shutdown();
 } else if (state === "reboot") {
-  // the beat, held: the real one navigates out from under the shutter
   restart(stage, { hold: true });
 }
 
-/* ---- beat poses: the eyes for the acts ----
-   Every act puts itself back after a second or two, and `npm run shots` always
-   looks at 1800ms — so a pose that fired on load would be caught after the
-   icons had settled and the clock had found its minutes again, which is a
-   screenshot of the act not happening. Firing at 1500ms puts the shutter 300ms
-   into every act instead, inside the shortest of them. `npm run timeline` is
-   still the tool for watching one restore. */
+/* ---- beat poses. Fired at 1500ms so `npm run shots` (1800ms) lands 300ms
+   into the act — inside the shortest one — rather than after it restored. ---- */
 const actParam = param("act");
 if (actParam) {
   const pool = param("pool") ?? "move:fine";
@@ -705,7 +653,7 @@ if (actParam) {
   setTimeout(() => effects.beat(beatFromPool(pool), actParam as BeatAct), 1500);
 }
 
-/* ---- FEVER.CTL — dev chrome; does not ship in the fiction ---- */
+/* ---- FEVER.CTL — dev chrome only ---- */
 if (param("ctl")) {
   const body = el(`<div>
       <div class="trackbar" id="track"><div class="rail"></div><div class="thumb" id="thumb"></div></div>
@@ -724,8 +672,7 @@ if (param("ctl")) {
     body,
     buttons: ["close"],
     taskbar: false,
-    // dev chrome, above everything including the screensaver it drives — and
-    // fixed, because focusing it used to hand it back an ordinary z
+    // fixed z above the saver it drives; focusing must not hand it an ordinary z
     z: 400,
   });
   const setFever = (f: number): void => {
@@ -751,11 +698,7 @@ if (param("ctl")) {
   );
 }
 
-/* ---- the harness's ears ----
-   Sound can't be screenshotted, so `npm run audio` drives the real page
-   through this: it renders every recipe, checks the autoplay law from the
-   outside, and works the mute the way a player does. */
+/* `npm run audio` drives the real page through this. */
 (window as unknown as { __exe: { audio: typeof audio } }).__exe = { audio };
 
-// the console gets one honest line
 console.log(`BOARD.EXE — tier ${tierOf(director.snapshot().fever)}. This computer is functioning normally.`);

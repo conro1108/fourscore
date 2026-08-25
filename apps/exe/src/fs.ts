@@ -1,34 +1,15 @@
 /**
- * The disk. C:\ is a real place with real directories now: a file saved in
- * Notepad survives the tab closing, COMMAND.COM walks the tree with CD, and
- * the desktop is the directory C:\DESKTOP wearing icons. The whole volume is
- * one localStorage key, because the browser's storage is the only disk this
- * machine has — which keeps the period ratio intact: a few megabytes was a
- * hard drive in 1996, and a few megabytes is what we got.
- *
- * A path is segments joined by backslash ("DESKTOP\readme.txt"); the C:\ is
- * presentation, not storage. Lookup is DOS-cased on the whole path
- * (README.TXT and readme.txt are the same file) but a name keeps the case it
- * was saved with, which is also what the period did.
- *
- * The store is injected so the tests can hand in a plain object; the app
- * makes one disk in main.ts and passes it down. A corrupt volume loads as a
- * fresh one, not a crash — and a fresh volume gets the seed files, so a
- * machine always arrives with its own documentation on it. An old volume is
- * topped up with any seed it is missing (edits to a seed are kept; only its
- * absence is corrected), so documentation the machine grew later still
- * reaches every disk.
- *
- * A volume from before the directories (a bare JSON array) is formatted, not
- * migrated: the flat era's files, desk placement and pins are removed and
- * the machine boots arranged. The one deliberate data loss, version-gated,
- * and it happened when the machine grew a real filesystem.
+ * The disk: one localStorage key holding the whole volume. The desktop is
+ * the directory DESKTOP. Paths are backslash-joined segments with no drive
+ * ("DESKTOP\readme.txt"); lookup is case-blind on the whole path, names keep
+ * their saved case. A corrupt or pre-v2 volume is formatted (plus its sibling
+ * keys), not migrated. Missing seeds are re-added on every boot; edits kept.
  */
 
 import { SEED_DIRS, SEED_FILES } from "./copy.js";
 
 export interface FileEntry {
-  /** Full path — "DESKTOP\readme.txt". Case as saved. */
+  /** Full path, case as saved. */
   name: string;
   text: string;
 }
@@ -36,23 +17,19 @@ export interface FileEntry {
 export interface DiskChange {
   kind: "write" | "remove" | "rename" | "mkdir" | "rmdir";
   name: string;
-  /** The new name, for renames. */
   to?: string;
 }
 
 export interface Disk {
-  /** Every file on the volume, sorted by path. */
   list(): readonly FileEntry[];
-  /** One directory's own children. "" is the root. Null if no such dir. */
+  /** Direct children. "" is the root. Null if no such dir. */
   listDir(path: string): { dirs: string[]; files: FileEntry[] } | null;
   read(name: string): string | null;
   /** False if a directory already owns the name. Creates missing parents. */
   write(name: string, text: string): boolean;
   /** False if there was no such file. */
   remove(name: string): boolean;
-  /** Files and directories both. False if the source is missing, the target
-      is taken, or a directory would move into its own subtree. A directory
-      rename announces every file it carried, so placement and pins follow. */
+  /** Files and dirs. A dir rename also emits a rename per carried file (pins/placement re-key). */
   rename(from: string, to: string): boolean;
   exists(name: string): boolean;
   isDir(path: string): boolean;
@@ -60,7 +37,6 @@ export interface Disk {
   mkdir(path: string): boolean;
   /** False unless the directory exists and is empty. */
   rmdir(path: string): boolean;
-  /** The desk listens: files made in one place appear in the other. */
   onChange(cb: (ev: DiskChange) => void): void;
 }
 
@@ -71,10 +47,10 @@ export interface DiskStore {
 }
 
 const KEY = "exe.fs";
-/** The flat era's sibling keys — a format takes them along. */
+/** Removed together on a format. */
 const FORMAT_KEYS = ["exe.fs", "exe.shell", "exe.deskgames", "exe.pins", "exe.untitled", "exe.desk"];
 
-/** Canonical path: backslashes, no drive, no stray slashes or blank segments. */
+/** Canonical path: backslashes, no drive, no blank segments. */
 export const normPath = (p: string): string =>
   p
     .trim()
@@ -95,8 +71,7 @@ export const baseName = (path: string): string => {
   return i < 0 ? path : path.slice(i + 1);
 };
 
-/** Resolve a typed path against a working directory: absolute if it starts
-    with \ (or C:), relative otherwise; ".." climbs and can't climb past C:\. */
+/** Absolute if it starts with \ or C:, else relative to cwd; ".." can't climb past root. */
 export const resolvePath = (cwd: string, arg: string): string => {
   const abs = /^\s*([\\/]|[cC]:)/.test(arg);
   const out: string[] = [];
@@ -107,7 +82,7 @@ export const resolvePath = (cwd: string, arg: string): string => {
 };
 
 const lower = (p: string): string => p.toLowerCase();
-/** Is `path` inside `dir` (strictly)? Case-blind, like every lookup here. */
+/** Strictly inside, case-blind. */
 const inside = (path: string, dir: string): boolean =>
   lower(path).startsWith(lower(dir) + "\\");
 
@@ -117,7 +92,7 @@ interface Volume {
   files: FileEntry[];
 }
 
-/** Parse a stored volume; null means "format and reseed". */
+/** Null means format and reseed. */
 function loadVolume(raw: string | null): Volume | null {
   if (raw === null) return null;
   try {
@@ -139,9 +114,8 @@ function loadVolume(raw: string | null): Volume | null {
       };
     }
   } catch {
-    /* a corrupt volume is a fresh volume, not a crash */
+    /* corrupt = fresh */
   }
-  // a flat-era array, junk, or corruption: all format the same way
   return null;
 }
 
@@ -161,22 +135,17 @@ export function makeDisk(store: DiskStore): Disk {
     path === "" || dirs.some((d) => lower(d) === lower(path));
   const taken = (path: string): boolean => findFile(path) !== undefined || hasDir(path);
 
-  /** Every ancestor of `path` becomes real — a write can't dangle. */
   const ensureParents = (path: string): void => {
     for (let p = parentOf(path); p !== ""; p = parentOf(p))
       if (!hasDir(p)) dirs.push(p);
   };
-  /** A file can't be a directory: a path under an existing file is dead. */
   const fileInTheWay = (path: string): boolean => {
     for (let p = parentOf(path); p !== ""; p = parentOf(p)) if (findFile(p)) return true;
     return false;
   };
 
-  // seed law: documentation the machine grew after this volume was formatted
-  // arrives on it anyway. A deleted seed comes back on the next boot; the
-  // disk keeps saying it. (Edits to a seed are kept — only absence corrects.)
-  // Presence is judged by basename anywhere on the volume, so a seed the
-  // player merely filed somewhere else doesn't come back as a twin.
+  // Missing seeds return each boot; edits are kept. Presence is judged by
+  // basename anywhere on the volume, so a filed-away seed isn't twinned.
   for (const d of SEED_DIRS) if (!hasDir(d)) dirs.push(d);
   const seedPresent = (name: string): boolean =>
     files.some((f) => lower(baseName(f.name)) === lower(baseName(name)));
@@ -241,7 +210,6 @@ export function makeDisk(store: DiskStore): Disk {
       }
       const di = dirs.findIndex((d) => lower(d) === lower(src));
       if (di < 0 || taken(dst)) return false;
-      // a directory can't move into its own subtree — there is no floor to land on
       if (inside(dst, src)) return false;
       const was = dirs[di]!;
       ensureParents(dst);
@@ -257,7 +225,6 @@ export function makeDisk(store: DiskStore): Disk {
         }
       save();
       changed({ kind: "rename", name: was, to: dst });
-      // every carried file announces itself, so pins and desk seats re-key
       for (const m of moved) changed({ kind: "rename", name: m.name, to: m.to });
       return true;
     },
@@ -285,7 +252,7 @@ export function makeDisk(store: DiskStore): Disk {
     onChange: (cb) => void listeners.push(cb),
   };
 
-  if (fresh) save(); // persist the seeds so the volume exists from first boot
+  if (fresh) save();
 
   return disk;
 }

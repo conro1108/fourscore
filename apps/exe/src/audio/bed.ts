@@ -1,42 +1,22 @@
 /**
- * The machine you are sitting at.
- *
- * A 1995 desktop is never silent — a fan, a transformer, and a CRT's flyback
- * whining at the line frequency. That is the bed, and it is a live node graph
- * rather than a rendered loop for the same reason `flames.scr` is an automaton
- * rather than a gif: it has to *move*. Fever is the machine working harder, and
- * you should be able to hear the position sharpening with the desktop covered
- * up and every window shut.
- *
- * Nothing here is a sound effect. It is furniture that happens to be audible,
- * so all four voices live under the point where you'd call them a noise — the
- * test is that muting it should feel like the room got smaller, not like a
- * sound stopped.
+ * The ambient bed: fan, transformer hum, CRT flyback, disk seeks. A live node
+ * graph (not a rendered loop) so fever can bend it. Every voice stays below the
+ * level you'd call a noise; muting should feel like the room got smaller.
  */
 
 import { filter, gain, loopify, noiseBuffer } from "./synth.js";
 
 export interface Bed {
   update(fever: number): void;
-  /**
-   * Advance the housekeeping clock by `seconds` and call `fire` when the disk
-   * is next asked for something. The bed owns this rather than the bus because
-   * the schedule is scaled by the fever it was last handed.
-   */
+  /** Advance the seek clock by `seconds`; `fire` when the disk is next touched. Scaled by last fever. */
   tick(seconds: number, fire: () => void): void;
 }
 
-/**
- * How long the machine leaves the disk alone, in order, cycled. Fixed rather
- * than random: wrongness repeats (VISION.md), and a pattern of gaps you can
- * almost learn is what a real machine's housekeeping sounds like. Fever
- * compresses the whole schedule rather than picking from a shorter list, so
- * the same rhythm arrives faster instead of becoming a different rhythm.
- */
+/** Seconds between disk seeks, cycled. Fixed, not random (wrongness repeats); fever compresses the whole schedule. */
 const SEEK_GAPS: readonly number[] = [7.3, 4.1, 11.7, 2.9, 6.2, 15.4, 3.3, 8.8];
 
 export function startBed(ctx: AudioContext, bus: GainNode): Bed {
-  /* ---- mains hum: the transformer, and its first two harmonics ---- */
+  /* mains hum: 60Hz and first two harmonics */
   const humGain = gain(ctx, 0.03);
   const humTone = filter(ctx, "lowpass", 320, 1.2);
   for (const [i, f] of [60, 120, 180].entries()) {
@@ -51,7 +31,7 @@ export function startBed(ctx: AudioContext, bus: GainNode): Bed {
   humTone.connect(humGain);
   humGain.connect(bus);
 
-  /* ---- the fan: noise, looped off a buffer so it costs nothing per frame ---- */
+  /* fan: looped noise buffer */
   const fanGain = gain(ctx, 0.02);
   const fanTone = filter(ctx, "lowpass", 420, 0.7);
   const fan = ctx.createBufferSource();
@@ -62,9 +42,7 @@ export function startBed(ctx: AudioContext, bus: GainNode): Bed {
   fanGain.connect(bus);
   fan.start();
 
-  /* ---- the flyback: a CRT's horizontal scan, which is a real 15.7kHz and
-     the reason a room with a monitor in it sounds different. Quiet enough to
-     be deniable at rest; the fever is what makes you notice it. ---- */
+  /* flyback: CRT horizontal scan, real 15.7kHz. Deniable at rest; fever brings it up. */
   const whineGain = gain(ctx, 0.004);
   const whine = ctx.createOscillator();
   whine.type = "sine";
@@ -83,22 +61,19 @@ export function startBed(ctx: AudioContext, bus: GainNode): Bed {
       const f = Math.max(0, Math.min(1, fever));
       heat = f;
       const now = ctx.currentTime;
-      // the fan spins up and gets brighter — the machine under load
+      // fan louder and brighter under load
       fanGain.gain.setTargetAtTime(0.02 + 0.05 * f * f, now, SMOOTH);
       fanTone.frequency.setTargetAtTime(420 + 1500 * f, now, SMOOTH);
-      // the supply starts to buzz rather than hum
+      // hum becomes buzz
       humGain.gain.setTargetAtTime(0.03 + 0.026 * f, now, SMOOTH);
       humTone.frequency.setTargetAtTime(320 + 900 * f * f, now, SMOOTH);
-      // and the flyback slips off its own line frequency, which is the one
-      // thing in here a working monitor never does
+      // flyback drifts off line frequency — what a working monitor never does
       whineGain.gain.setTargetAtTime(0.004 + 0.013 * f, now, SMOOTH);
       whine.frequency.setTargetAtTime(15734 - 900 * f * f, now, SMOOTH * 2);
     },
 
     tick(seconds, fire) {
-      // The whole schedule compresses with fever rather than being redrawn, so
-      // at 1.0 it is the same uneven rhythm arriving five times as often and
-      // not a different machine.
+      // same rhythm ~5x faster at fever 1.0, not a different rhythm
       nextSeek -= seconds / (1 - 0.82 * heat);
       if (nextSeek > 0) return;
       fire();

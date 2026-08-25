@@ -1,30 +1,8 @@
 /**
- * The opponents.
- *
- * A ladder that only varies search depth produces one bot wearing seven hats —
- * every rung plays the same moves, just fewer of them well. So each bot here is
- * a weight vector as well as a depth, and the weights are what you actually
- * feel across the table: Bramble stacks up threats it can't cash because it
- * scores threats highly and parity not at all, while Vane plays the slow
- * positional game because for it parity outweighs everything else.
- *
- * Two other knobs do the rest of the work:
- *
- *   - `slipRate` — how often it declines to play its own best move. This is
- *     what makes the low rungs beatable in a way that reads as fallible rather
- *     than broken, because a slip is still a legal, plausible-looking move.
- *     The schedule decays roughly geometrically up the ladder (0.5, 0.34, 0.18,
- *     0.08, 0.05, 0.02, 0.008, 0) rather than falling off a cliff: an earlier
- *     version dropped 0.30 to 0.08 between tiers 2 and 3 — a 3.75x fall at the
- *     same rung where the depth doubled, so both strength knobs jumped at once
- *     at exactly the rung most casual players stop at, and the ladder read as
- *     getting hard far too fast. Keeping a real, non-zero rate up into tiers 6
- *     and 7 is the other half of it: above Vane the only lever left was depth,
- *     and depth alone reads as "never makes a mistake" rather than as a
- *     stronger opponent.
- *   - `exactFrom` — the ply at which it stops guessing and starts solving. Past
- *     this point the bot is not playing well, it is playing perfectly, and no
- *     amount of cleverness gets a win back.
+ * The roster. Each bot is a weight vector (personality) plus depth, `slipRate`
+ * and per-variant `exactFrom`. Slip schedule decays geometrically up the ladder
+ * (0.5 … 0.008, 0); a cliff between adjacent rungs reads as "too hard too fast".
+ * Retunes go through tools/ladder.ts — see CLAUDE.md § ladder.
  */
 
 import { CONNECT4, Position, type Variant } from "./board.js";
@@ -51,33 +29,17 @@ export interface BotProfile {
   tier: number;
   /** True only for the bot that is actually unbeatable once it starts solving. */
   perfect: boolean;
-  /**
-   * Search depth on Connect 4. Other boards derive from it — see `depthFor`.
-   */
+  /** Search depth on Connect 4; other boards derive via `depthFor`. */
   depth: number;
   /** Explicit per-variant depth, where the derived one measured badly. */
   depthByVariant?: Record<string, number>;
   weights: EvalWeights;
-  /**
-   * Per-variant weights, for bots whose vector is a strength knob rather than a
-   * personality. Use sparingly — for most of the roster the weights *are* the
-   * character, and changing them per board makes the bot a different opponent.
-   */
+  /** Per-variant weights. Use sparingly: for most bots the weights are the character. */
   weightsByVariant?: Record<string, EvalWeights>;
   slipRate: number;
   /**
-   * Ply from which it solves exactly, per variant. `Infinity` means never.
-   *
-   * This has to be per-variant because it's a statement about what's affordable,
-   * not about the bot's character, and affordability moves enormously with the
-   * board: the same node budget that reaches ply 10 on Connect 4's 42 cells
-   * reaches nowhere near that on Connect 5's 72.
-   *
-   * Measured with `packages/engine/tools/measure-solve.ts live <variant>`, which
-   * times the bot's *first* exact move — a cold `analyze`, one solve per legal
-   * column — because that's the one the player sits and waits through. Taking
-   * the worst case across games rather than the median, since a bot that stalls
-   * on the unlucky match is the failure people actually notice.
+   * Ply from which it solves exactly, per variant; absent = never. Measured, not
+   * chosen: `tools/measure-solve.ts live <variant>`, worst case across games.
    */
   exactFrom: Record<string, number>;
   /** Its face lies about how the game is going. */
@@ -116,10 +78,6 @@ export const ROSTER: readonly BotProfile[] = [
     perfect: false,
     depth: 2,
     weights: w({ parity: 0, center: 3 }),
-    // Slightly worse than it used to be, on purpose. This is the rung a casual
-    // player actually sits on, and the gap from here to Moss was the steepest
-    // step in the whole ladder; part of closing it was Moss slipping more and
-    // part was Pebble slipping a little more too.
     slipRate: 0.34,
     exactFrom: {},
     bluffs: false,
@@ -135,10 +93,7 @@ export const ROSTER: readonly BotProfile[] = [
     tier: 3,
     perfect: false,
     depth: 4,
-    // A weight sweep against Pebble showed centre weight barely moves the
-    // win rate at all — which is the useful kind of result, because it means
-    // Moss's whole personality is close to free. Its rung on the ladder is
-    // bought with the slip rate below, not with how much it loves the middle.
+    // Centre weight barely moves the win rate (measured); the rung is bought with slipRate.
     weights: w({ center: 12, threat: 14, parity: 3 }),
     slipRate: 0.18,
     exactFrom: {},
@@ -188,9 +143,7 @@ export const ROSTER: readonly BotProfile[] = [
     perfect: false,
     depth: 9,
     weights: w({ parity: 40, threat: 16, immediate: 26, center: 7 }),
-    // 0.004 was a slip every few hundred moves, which is nobody's experience of
-    // playing it — from here up the ladder used to be "flawless, then deeper".
-    // 0.02 is roughly one slip a game, which is what a strong human is.
+    // ~one slip a game; 0.004 read as flawless.
     slipRate: 0.02,
     exactFrom: {},
     bluffs: true,
@@ -207,31 +160,16 @@ export const ROSTER: readonly BotProfile[] = [
     perfect: false,
     depth: 10,
     weights: w({ parity: 34, threat: 18, immediate: 30, center: 9 }),
-    // Quill is the one bot whose weights aren't its personality — its character
-    // is "strong opening, then solves outright", so the vector is free to be a
-    // strength knob. It needs to be, on Connect 5: parity dominates even harder
-    // on a taller board with longer runs, and at Connect 4's weights Quill lost
-    // the rung to Vane no matter how deep it searched.
-    // Parity 46 and 52 both measure 56% against Vane; the effect plateaus, so
-    // this takes the smaller change. See the note on the Connect 5 ladder in
-    // CLAUDE.md — this rung is known soft and is not fixed by weights, depth or
-    // an earlier crossover.
+    // Quill's weights are a strength knob, not personality. Parity 46 and 52 both
+    // measure 56% vs Vane on Connect 5 (plateau); rung is known soft — CLAUDE.md § ladder.
     weightsByVariant: {
       connect5: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
-      // The taller the board, the harder parity dominates — same medicine as
-      // Connect 5, same measured plateau (see the dead-end note there).
       connect6: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
       connect7: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
     },
-    // Fallible while it is still estimating, and only then: `pick` never slips
-    // a move that came out of the exact solver, so "from there it does not make
-    // mistakes" stays literally true. A rate this low is a slip every few games
-    // in the opening — enough that the rung below the Oracle is a person you
-    // can catch out rather than a second unbeatable machine.
+    // `pick` never slips an exact move, so the blurb stays literally true.
     slipRate: 0.008,
-    // Six plies after the Oracle's measured crossover on every board, same as
-    // the gap Connect 4 and Connect 5 shipped with: Quill solving later than
-    // the Oracle is part of the rung, not a measurement of its own.
+    // Oracle's crossover + 6 on every board; part of the rung, not measured separately.
     exactFrom: { connect4: 16, connect5: 50, connect6: 88, connect7: 133 },
     bluffs: false,
     colors: { body: "#3f8fa8", shade: "#2a6274" },
@@ -250,10 +188,7 @@ export const ROSTER: readonly BotProfile[] = [
     depth: 10,
     weights: w({ parity: 36, threat: 18, immediate: 30, center: 10 }),
     slipRate: 0,
-    // Measured with `measure-solve.ts live <variant>`, worst case across
-    // games: Connect 6 crosses at 82 discs of 110 (six games, 77-82), Connect 7
-    // at 127 of 156 (five games, 125-127). Both are past half the board, so
-    // `exactnessNote` adds the "usually over first" caveat by itself.
+    // Measured worst case (measure-solve.ts live): C6 77-82 of 110, C7 125-127 of 156.
     exactFrom: { connect4: 10, connect5: 44, connect6: 82, connect7: 127 },
     bluffs: false,
     colors: { body: "#d8d2c4", shade: "#9d9483" },
@@ -266,29 +201,15 @@ export const byId = (id: string): BotProfile => {
   return bot;
 };
 
-/**
- * How deep this bot searches on a given board.
- *
- * A depth means different amounts of work on different boards: the tree grows
- * as the width to the power of the depth, so Connect 4's depth 10 costs 332k
- * nodes at 7 wide and about 4.4M at 9 wide. That matters more than it sounds,
- * because `searchHeuristic` shares one node budget across all root moves — blow
- * it on the first column and every remaining column falls back to a static
- * evaluation. The bot doesn't play worse gracefully, it plays almost blind.
- *
- * That is exactly what happened when Connect 5 was added: Quill (depth 10) lost
- * every single game to Vane (depth 9), because only Quill was over the budget.
- * The ladder inverted at the top and the weights had nothing to do with it.
- *
- * So depth is normalised to keep the tree roughly the same size: raising the
- * width from 7 to 9 divides the depth by log 9 / log 7. That keeps the rungs
- * ordered on any board without hand-tuning each one, which is what makes
- * Connect N a config change rather than a retune.
- */
 /** The weight vector this bot plays with on a given board. */
 export const weightsFor = (bot: BotProfile, v: Variant): EvalWeights =>
   bot.weightsByVariant?.[v.id] ?? bot.weights;
 
+/**
+ * Depth normalised by log(width)/log(7) so the tree stays about the same size;
+ * an unscaled depth blows the shared node budget and the bot goes nearly blind
+ * (CLAUDE.md § depth is not portable). Identity on Connect 4.
+ */
 export function depthFor(bot: BotProfile, v: Variant): number {
   const override = bot.depthByVariant?.[v.id];
   if (override !== undefined) return override;
@@ -298,38 +219,13 @@ export function depthFor(bot: BotProfile, v: Variant): number {
 }
 
 /**
- * Nodes a heuristic bot may spend on one move.
- *
- * Scaled with the board for the same reason as the depth: the budget is meant
- * to bound how long a move takes, and a fixed number quietly means "at most
- * this deep on a 7-wide board".
- *
- * Both factors are real. A bigger board holds more plies, so searches run
- * deeper into the game before terminal positions prune them, and a wider board
- * branches harder at every one of those plies. Connect 4 comes out at exactly
- * the original 400k, since both ratios are 1 there.
- *
- * The headroom matters as much as the scaling: a budget that lands just under
- * what the top rung needs is the same bug as no scaling at all, only harder to
- * spot. Connect 5's deepest intended search measures ~704k against a 882k
- * budget.
+ * Node budget per move, scaled by cells and width (400k on Connect 4). Needs
+ * headroom over the top rung: Connect 5's deepest search measures ~704k vs 882k.
  */
 export const heuristicBudget = (v: Variant): number =>
   Math.round(400_000 * (v.cells / CONNECT4.cells) * (v.width / CONNECT4.width));
 
-/**
- * What this bot can actually prove on this board, in a sentence, or null if it
- * never solves at all.
- *
- * Generated rather than written down, because "solves exactly from ten discs"
- * is a fact about Connect 4's 42 cells and becomes a lie on any other board.
- * The UI shows this instead of a hardcoded claim so the two can't drift apart.
- *
- * The second sentence is the one that matters on the bigger boards. Connect 5's
- * crossover sits so late that a decisive game is usually over before the solver
- * ever gets there — saying "perfect from the midgame" there would be selling
- * something that mostly doesn't happen.
- */
+/** The bot's proven-play claim for this board, generated from `exactFrom` so it can't drift; null if it never solves. */
 export function exactnessNote(bot: BotProfile, v: Variant): string | null {
   const from = bot.exactFrom[v.id];
   if (from === undefined || !Number.isFinite(from)) return null;
@@ -366,9 +262,7 @@ export class BotBrain {
   constructor(profile: BotProfile, rng: () => number = Math.random) {
     this.profile = profile;
     this.rng = rng;
-    // Kept across the whole match on purpose: positions the bot proved on an
-    // earlier turn are still proved, so its searches get cheaper as the game
-    // goes on — which is exactly when it wants to be searching hardest.
+    // Kept across the match: earlier proofs stay valid, so later solves get cheaper.
     this.table = new TranspositionTable(profile.perfect ? 23 : 20);
   }
 
@@ -429,23 +323,9 @@ export class BotBrain {
   }
 
   /**
-   * Choose among the scored moves, allowing for the bot's fallibility.
-   *
-   * A slip is the bot's *second thought*, not a random one. The moves that
-   * aren't best are ranked by their own search score and drawn from with
-   * geometrically decaying weight, so the near-miss is far likelier than the
-   * blunder. Picking uniformly — which is what this used to do — makes a
-   * slipping bot look drunk rather than weak: it answers a fight over the
-   * centre by dropping a disc on the far edge, which no human of any strength
-   * does. Plausible slips also cost less strength per slip than uniform ones,
-   * which is the trade that lets the rates above be several times higher.
-   *
-   * Two things it will not do. It never slips a move that came out of the exact
-   * solver: past its crossover a bot is reading the game, not guessing at it,
-   * and a "mistake" there would be the machinery showing. And bots above the
-   * bottom rung won't slip away a win or a loss they can actually see — missing
-   * a four already on the board is a beginner's mistake and it stays Acorn's
-   * alone.
+   * A slip draws from non-best moves by rank with geometric weight, never
+   * uniformly (uniform reads as drunk and costs more strength per slip). Never
+   * slips an exact move; above tier 1 never slips away a seen win or loss.
    */
   private pick(
     scores: { col: number; score: number }[],
@@ -467,11 +347,7 @@ export class BotBrain {
 
     let others = scores.filter((m) => !bestCols.includes(m.col));
 
-    // A seen *loss* has to be filtered here rather than guarded above, because
-    // the bot isn't losing on the move it was going to play: `best` is a
-    // perfectly ordinary score in a position where one column hands over a four.
-    // Above the bottom rung a slip is a worse move, never a suicidal one — and
-    // when every alternative loses, that means not slipping at all.
+    // Filtered here, not guarded above: `best` is ordinary when only one column hands over a four.
     if (this.profile.tier >= 2) {
       others = others.filter((m) => !(m.score < 0 && isDecisive(m.score, v)));
     }
@@ -497,27 +373,10 @@ export class BotBrain {
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
-/**
- * How much less likely each step down the ranking is when a bot slips.
- *
- * Ranked rather than proportional to the scores themselves, because the two
- * things that produce those scores are on wildly different scales — a heuristic
- * score is hundreds, a solved one is single digits — and a softmax tuned for
- * one is meaningless on the other. Rank is the same currency everywhere.
- *
- * At 0.5 the second-best move takes about half of all slips and the worst of
- * six alternatives takes about one in sixty, which is roughly the shape of a
- * weaker player's errors: usually the reasonable-looking alternative,
- * occasionally something worse, almost never the worst move on the board.
- */
+/** Per-rank slip decay. Rank, not score: heuristic scores are hundreds, solved ones single digits. */
 const SLIP_DECAY = 0.5;
 
-/**
- * Draw one of the non-best moves, favouring the ones the bot rated highest.
- *
- * Moves with equal scores share a rank, so a bot that genuinely can't tell two
- * moves apart doesn't quietly prefer the left-hand one.
- */
+/** Draw a non-best move by rank; equal scores share a rank. */
 function plausibleSlip<T extends { score: number }>(others: readonly T[], r: number): T {
   const ranked = [...others].sort((a, b) => b.score - a.score);
 
@@ -539,19 +398,12 @@ function plausibleSlip<T extends { score: number }>(others: readonly T[], r: num
   return ranked[ranked.length - 1]!;
 }
 
-/**
- * The face for a given conviction.
- *
- * `alarmed` overrides the rest: a bot that has just been handed two unanswerable
- * threats should look startled even if its score hasn't caught up, because from
- * the player's side of the board that's the moment worth reacting to.
- */
+/** Face for a conviction; `alarmed` (two unanswerable threats) overrides the score. */
 function moodFor(p: Position, col: number, conviction: number, exact: boolean): Mood {
   const after = p.clone();
   if (after.canPlay(col)) after.play(col);
 
-  // `after` is from the human's point of view now, so their winning cells are
-  // the ones to count.
+  // `after` is from the human's point of view.
   const theirThreats = after.winningPositions() & after.possibleMoves();
   if (theirThreats !== 0n && (theirThreats & (theirThreats - 1n)) !== 0n) return "alarmed";
 
@@ -562,14 +414,7 @@ function moodFor(p: Position, col: number, conviction: number, exact: boolean): 
   return "idle";
 }
 
-/**
- * Vane's tell, which is a lie.
- *
- * It doesn't invert the mood — a bot that beams while losing every single time
- * is a tell you read once and then own forever. It shows the honest face most
- * of the time and overplays its hand occasionally, so the information is real
- * but not free.
- */
+/** Honest face 65% of the time, not inverted — an always-inverted tell is read once and owned. */
 function bluff(mood: Mood, rng: () => number): Mood {
   if (rng() < 0.65) return mood;
   switch (mood) {

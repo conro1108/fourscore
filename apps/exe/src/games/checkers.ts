@@ -1,9 +1,6 @@
 /**
- * CHECKERS.EXE — English draughts against the machine itself, played with
- * the only counters this computer owns: the board's red and yellow chips.
- * Captures are compulsory, multi-jumps run to completion, kinging ends the
- * move. The opponent is a real alpha-beta search, not a script — it moves
- * its men in visible steps because the timing law would demand it anyway.
+ * CHECKERS.EXE — English draughts vs alpha-beta. Captures compulsory, multi-jumps
+ * run to completion, kinging ends the move.
  */
 
 import { el } from "../dom.js";
@@ -12,9 +9,9 @@ import { play } from "../audio/index.js";
 import { centered, fieldScaler, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
-/* ---- the pure part (the tests live on this) ---- */
+/* pure part (tested) */
 
-/** side 0 = you (red, at the bottom, moving up); 1 = the machine (yellow). */
+/** side 0 = you (red, bottom, moving up); 1 = machine (yellow). */
 export interface Piece {
   side: 0 | 1;
   king: boolean;
@@ -110,8 +107,7 @@ export function applyMove(b: CBoard, m: CMove): CBoard {
   return nb;
 }
 
-/** Positive is good for you (side 0). Men count, kings count more, men
-    that have gotten somewhere count a little extra. */
+/** Positive favours side 0. Men 100, kings 160, plus a little for advancement. */
 export function evaluate(b: CBoard): number {
   let score = 0;
   for (let r = 0; r < 8; r++)
@@ -168,7 +164,7 @@ export function bestMove(
   return best[(rand() * best.length) | 0]!;
 }
 
-/* ---- the window ---- */
+/* window */
 
 const SQ = 40;
 
@@ -181,7 +177,7 @@ export function openCheckers(wm: WM): void {
 
   let b = initialBoard();
   let over = false;
-  let busy = false; // the machine's turn, or hops mid-flight
+  let busy = false; // machine's turn or animation in flight
   let selected: [number, number] | null = null;
   let quietPlies = 0;
   const timers: ReturnType<typeof setTimeout>[] = [];
@@ -218,7 +214,7 @@ export function openCheckers(wm: WM): void {
     }, 500);
   }
 
-  /** Walk a move hop by hop — steps, never a glide — then hand the turn on. */
+  /** Animate a move hop by hop (steps, never a glide), then `then()`. */
   function animate(m: CMove, then: () => void): void {
     busy = true;
     let i = 1;
@@ -231,7 +227,6 @@ export function openCheckers(wm: WM): void {
       render();
       b = keep;
       i++;
-      // every hop lands; a jump is several, which is what a jump sounds like
       play("disc-land", 0.45);
       if (i < m.path.length) later(hop, 150);
       else
@@ -337,9 +332,7 @@ export function openCheckers(wm: WM): void {
 
   body.append(bar, frame, status);
 
-  /* The board is the window: drag either bigger and the squares follow, on the
-     stepped ladder every game here uses. Measured chrome — a natural window is
-     366x406 around a 320px board, and 40 comes straight back out. */
+  // chrome measured: natural window is 366x406 around a 320px board
   const naturalMargin = frame.style.margin;
   const relayout = fieldScaler({
     win: () => win.el,

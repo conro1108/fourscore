@@ -1,9 +1,6 @@
 /**
- * Raw solver throughput on a fixed Connect 4 position.
- *
- * Deliberately written against only the API that predates variants, so it can
- * be run on an older checkout to compare against.
- *
+ * Raw solver throughput on a fixed Connect 4 position. Uses only pre-variant
+ * API so it runs on old checkouts for comparison.
  *   npx vite-node packages/engine/tools/bench-solve.ts
  */
 

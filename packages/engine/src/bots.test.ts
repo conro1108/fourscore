@@ -3,7 +3,6 @@ import { BotBrain, ROSTER, byId } from "./bots.js";
 import { Match } from "./match.js";
 import { Position } from "./board.js";
 
-/** Deterministic RNG, so a flaky ladder can't pass by luck. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -22,7 +21,6 @@ function playMatch(aId: string, bId: string, seed: number): string | null {
   const match = new Match();
 
   while (match.status === "playing") {
-    // Red moves on even plies, and `a` is red.
     const brain = match.position.moves % 2 === 0 ? a : b;
     const { col } = brain.decide(match.position);
     if (!match.play(col)) throw new Error(`${brain.profile.id} chose illegal column ${col}`);
@@ -47,7 +45,7 @@ describe("basic competence", () => {
     // Red threatens to finish at column 3; yellow has to stop it.
     const p = Position.fromMoves([0, 6, 1, 6, 2]);
     expect(p.turn).toBe("yellow");
-    // Blocking needs one ply of lookahead, so Acorn is exempt by design.
+    // Acorn is exempt by design.
     for (const bot of ROSTER.filter((b) => b.tier >= 2)) {
       const brain = new BotBrain(bot, mulberry32(11));
       expect(brain.decide(p).col).toBe(3);
@@ -55,8 +53,7 @@ describe("basic competence", () => {
   });
 
   it("never returns an illegal column", () => {
-    // The top rungs and the Oracle play whole games in seconds, not
-    // milliseconds; `tools/ladder.ts` exercises them.
+    // Top rungs take seconds a game; `tools/ladder.ts` covers them.
     const rng = mulberry32(3);
     for (const bot of ROSTER.filter((b) => b.tier <= 5)) {
       const brain = new BotBrain(bot, rng);
@@ -71,9 +68,7 @@ describe("basic competence", () => {
 });
 
 describe("the ladder is actually a ladder", () => {
-  // One cheap rung as a regression check that the roster hasn't become seven
-  // flavours of the same bot. The full sweep — every rung, every variant — is
-  // `tools/ladder.ts`, run by hand when a bot is retuned.
+  // One cheap rung; the full sweep is `tools/ladder.ts`.
   it("moss beats pebble", () => {
     const games = 40;
     let points = 0;

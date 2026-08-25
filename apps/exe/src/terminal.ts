@@ -1,19 +1,8 @@
 /**
- * The Terminal — the one black window. It is a real shell over a real disk
- * (fs.ts) and a real processor (vm.ts): ls reads the volume, cat prints
- * it, run assembles the file to machine words and executes them. It speaks
- * unix — the owner's fingers outvoted the fiction — with the DOS spellings
- * kept as quiet aliases. The law holds hardest here — a prompt that faked
- * its output would be a poster of a computer, so nothing in this file knows
- * what a program is going to do.
- *
- * A running program gets a slice of steps per animation frame rather than a
- * loop, so an infinite loop animates instead of hanging the desktop, and
- * ESC is always heard. Keys go to the KEY port's queue while a program
- * runs; the prompt comes back when it halts, faults, or is stopped.
- *
- * The drive is here too, in the sense that a program that reaches for it
- * gets the machine's media (drive.ts) — llm.c is the one that does.
+ * The Terminal: a real shell over fs.ts and vm.ts. Nothing here fakes output
+ * or knows what a program will do. A running program gets STEPS_PER_FRAME per
+ * animation frame (so infinite loops animate and ESC is heard); keys queue to
+ * the KEY port while it runs.
  */
 
 import { el } from "./dom.js";
@@ -32,14 +21,12 @@ export interface TerminalDeps {
   edit(name: string): void;
   /** PAINT hands it to PAINT.EXE. */
   paint(name: string): void;
-  /** A file whose text is a program (the MZ line) launches instead of
-      assembling — typing MINES runs MINES.EXE. False if it wasn't one. */
+  /** Launches a program file (MZ line) instead of assembling it. False if not one. */
   launch(text: string): boolean;
 }
 
 const MAX_LINES = 500;
 const STEPS_PER_FRAME = 30_000;
-/** How many assembler complaints fit on a period screen. */
 const MAX_ERRORS = 8;
 
 export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): void {
@@ -52,26 +39,22 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
   const body = el(`<div></div>`);
   const well = el(`<div class="sunken termwell flexwell"></div>`);
   const outEl = el(`<div class="termout"></div>`);
-  /** The 40x24 screen (vm.ts's VCHR page). While a program has it lit, it
-      is the terminal; the console comes back when the program ends. */
+  /** The 40x24 VCHR screen; shown while a program has it lit. */
   const screenEl = el(`<div class="termscreen"></div>`);
   const tailEl = el(`<div class="termout"></div>`);
   const lineEl = el(`<div class="termline"></div>`);
   const promptEl = el(`<span class="termprompt"></span>`);
   const input = el(`<input class="termin" spellcheck="false" autocomplete="off">`) as HTMLInputElement;
-  /** The working directory — the prompt wears it, every path resolves off it. */
   let cwd = "";
   const prompt = (): string => TERM.promptFor(cwd);
   const resolve = (arg: string): string => resolvePath(cwd, arg);
-  /** A path the way the shell shows it: forward slashes, rooted. */
   const disp = (p: string): string => "/" + p.replace(/\\/g, "/");
   promptEl.textContent = prompt();
   lineEl.append(promptEl, input);
   well.append(outEl, screenEl, tailEl, lineEl);
   body.appendChild(well);
 
-  /* ---- output ---- */
-  let tail = ""; // the unfinished line a program is still printing
+  let tail = ""; // unfinished line a program is still printing
   const scroll = (): void => {
     well.scrollTop = well.scrollHeight;
   };
@@ -85,7 +68,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     tailEl.textContent = tail;
   };
 
-  /* ---- the processor's side of the ports ---- */
   let proc: Vm | null = null;
   let raf = 0;
   const keyQueue: number[] = [];
@@ -98,19 +80,17 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
         tail = tail.slice(0, -1);
       } else if (c >= 32 || c === 9) {
         tail += String.fromCharCode(c);
-      } // other control codes are quietly not characters
+      }
     },
     putNum(n: number): void {
       tail += String(n);
     },
     key: (): number => keyQueue.shift() ?? 0,
     rand: (): number => Math.floor(Math.random() * 0x10000),
-    // the drive is only asked for when a program actually touches it, so
-    // everything else on the disk pays nothing for it being there
+    // mounted lazily; only llm.c touches it
     drive: mount,
   };
 
-  /** The cell grid as text — codes the period font has; the rest are space. */
   const renderScreen = (screen: Uint16Array): void => {
     const rows: string[] = [];
     for (let y = 0; y < SCREEN_H; y++) {
@@ -132,24 +112,20 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     flushTail();
     proc = null;
     cancelAnimationFrame(raf);
-    // the monitor drops back to text mode; the console was there all along
     well.classList.remove("screening");
     screenEl.textContent = "";
     promptEl.textContent = prompt();
     scroll();
   };
 
-  /** The display's own clock. rAF follows the monitor (or nothing at all,
-      headless), so the machine meters itself: ~60 frames a second is what
-      STEPS_PER_FRAME's ~1.8M instructions/sec has always assumed, and it is
-      what a VSYNC-paced program's speed now hangs on. */
+  /** Self-metered 60Hz clock: STEPS_PER_FRAME assumes ~1.8M instr/sec, and
+      VSYNC-paced programs hang on it, so rAF rate (monitor or headless) must not leak in. */
   let lastFrame = 0;
   const frame = (t: number): void => {
     if (!proc) return;
     if (t - lastFrame >= 14) {
-      // advance the clock by one frame, not to t — resetting to t discards
-      // the remainder and a 75/144Hz display would run the machine slow. The
-      // clamp keeps a throttled background tab from fast-forwarding on return.
+      // advance one frame, not to t (75/144Hz would run slow); clamp stops a
+      // throttled tab fast-forwarding on return
       lastFrame = Math.max(lastFrame + 1000 / 60, t - 40);
       proc.run(STEPS_PER_FRAME);
       if (proc.screenOn) {
@@ -173,9 +149,7 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     raf = requestAnimationFrame(frame);
   };
 
-  /** Resolve NAME to a runnable file: against the cwd first, then — for a
-      bare name — the places programs live (a small, honest PATH), trying the
-      runnable extensions on each. */
+  /** cwd first, then (bare names) a small PATH, trying runnable extensions. */
   const findSource = (name: string): { name: string; text: string } | null => {
     const bases = [resolve(name)];
     if (!/[\\/]/.test(name.trim()))
@@ -193,8 +167,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     print(TERM.asmErrCount(errors.length));
   };
 
-  /** Machine words for a source file: .c compiles first, everything else is
-      assembly. Either toolchain's complaints print the same way. */
   const toWords = (src: { name: string; text: string }): AsmResult => {
     if (!/\.c$/i.test(src.name)) return assemble(src.text);
     const cc = compileC(src.text);
@@ -214,7 +186,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
       print(TERM.noSuchFile("run", name));
       return;
     }
-    // a real program file boots its program; the processor gets the rest
     if (launch(src.text)) return;
     const res = toWords(src);
     if (!res.ok) {
@@ -223,12 +194,10 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     }
     keyQueue.length = 0;
     proc = makeVm(res.words, io);
-    promptEl.textContent = ""; // the prompt steps aside while a program has the screen
+    promptEl.textContent = "";
     raf = requestAnimationFrame(frame);
   };
 
-  /* ---- the commands ---- */
-  /** rm on a directory: everything under it, deepest first, then the dir. */
   const rmTree = (path: string): void => {
     const listing = disk.listDir(path);
     if (!listing) return;
@@ -244,7 +213,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
       print(TERM.noSuchFile("ls", arg ?? disp(path)));
       return;
     }
-    // names in columns, directories wearing a slash — an empty dir prints nothing
     const names = [
       ...listing.dirs.map((d) => baseName(d) + "/"),
       ...listing.files.map((f) => baseName(f.name)),
@@ -267,7 +235,7 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
     const parts = raw.trim().split(/\s+/);
     let first = parts[0] ?? "";
     if (!first) return;
-    // the period's glued spellings: CD.. and CD\ arrive as one word
+    // CD.. and CD\ arrive as one word
     const glued = /^(CD|CHDIR)([\\.].*)$/i.exec(first);
     if (glued) {
       parts.splice(0, 1, glued[1]!, glued[2]!);
@@ -300,14 +268,12 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
         print(text || "ECHO is on.");
         break;
       }
-      // the DOS names still answer — the machine remembers being something else
       case "LS":
       case "DIR":
         ls(arg1);
         break;
       case "CD":
       case "CHDIR": {
-        // cd alone goes to the root — the nearest thing to a home here
         const t = arg1 ? resolve(arg1) : "";
         if (disk.isDir(t)) {
           cwd = t;
@@ -331,7 +297,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
       }
       case "RM":
       case "DEL": {
-        // flags are muscle memory — rm -rf and rm read the same here
         const target = parts.slice(1).find((a) => !a.startsWith("-"));
         if (!target) {
           print(TERM.usage("rm file-or-dir"));
@@ -339,14 +304,12 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
         }
         const t = resolve(target);
         if (disk.isDir(t)) {
-          // a directory deletes whole (-r is assumed), but never the root
-          // or the floor you stand on
+          // -r assumed; never the root or the cwd
           const underfoot = t === "" || cwd.toLowerCase() === t.toLowerCase() ||
             cwd.toLowerCase().startsWith(t.toLowerCase() + "\\");
           if (underfoot) print(TERM.rmRefused(target));
           else rmTree(t);
         } else if (!disk.remove(t)) print(TERM.noSuchFile("rm", target));
-        // success is silence, the way rm always said it
         break;
       }
       case "MV":
@@ -357,7 +320,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
         }
         const src = resolve(arg1);
         let dst = resolve(arg2);
-        // a directory target means "into it", the way mv always read it
         if (disk.isDir(dst) && !disk.isDir(src)) dst = `${dst}\\${baseName(src)}`;
         if (!disk.rename(src, dst)) print(TERM.duplicateOrMissing);
         break;
@@ -398,7 +360,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
           break;
         }
         const t = resolve(arg1);
-        // the floor you stand on is not removable, even empty
         const underfoot = t !== "" && (cwd.toLowerCase() === t.toLowerCase() ||
           cwd.toLowerCase().startsWith(t.toLowerCase() + "\\"));
         if (underfoot || !disk.rmdir(t)) print(TERM.rmdirRefused(arg1));
@@ -424,7 +385,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
           print(TERM.usage("cc file.c"));
           break;
         }
-        // cc resolves the .c itself so cc fizz and cc fizz.c both compile
         const cPath = resolve(/\.c$/i.test(arg1) ? arg1 : `${arg1}.c`);
         const text = disk.read(cPath) ?? disk.read(resolve(arg1));
         if (text === null) {
@@ -442,7 +402,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
           printAsmErrors(asm.errors);
           break;
         }
-        // the .asm lands beside its source, wherever that was
         const outName = `${cPath.replace(/\.c$/i, "")}.asm`;
         disk.write(outName, cc.asm);
         print(TERM.ccOk(disp(cPath), disp(outName), asm.words.length));
@@ -455,18 +414,15 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
         win.close();
         break;
       default:
-        // a program's name is a command, like it always was
         if (findSource(first)) runProgram(first);
         else print(TERM.badCommand(first));
     }
   };
 
-  /* ---- input: one line, a history, and the KEY port while running ---- */
   const history: string[] = [];
   let hIdx = 0;
   input.addEventListener("keydown", (e) => {
     if (proc) {
-      // the program has the keyboard; ESC takes it back
       e.preventDefault();
       if (e.key === "Escape" || (e.ctrlKey && e.key.toLowerCase() === "c")) {
         endRun();
@@ -492,7 +448,6 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
       input.value = hIdx < history.length - 1 ? (history[++hIdx] ?? "") : ((hIdx = history.length), "");
     }
   });
-  // a click focuses the prompt, unless the click was selecting output
   well.addEventListener("click", () => {
     if (getSelection()?.isCollapsed) input.focus();
   });

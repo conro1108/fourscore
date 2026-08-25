@@ -1,20 +1,9 @@
 /**
- * The graders' own test set: programs known to work, and programs broken on
- * purpose with the taxonomy key each one is supposed to earn.
- *
- * llm_training.md's day-one warning is that **a grader that rejects nothing
- * is the failure mode**, and the only defence is a set of things it has to
- * reject. Every mutant below is one letter of one line away from a program
- * that passes, which is the interesting distance — a grader that catches
- * garbage but waves through a pong whose paddle is wired to nothing has not
- * caught the thing that will actually come out of a 27B.
- *
- * The known-good set is the four `/src` C programs that stand alone, plus a
- * tier-2 and a tier-3 reference written here because the disk has none — the
- * seeded `guess.asm` is assembly, and there is no screen toy smaller than
- * pong. Those two double as the tier's first few-shot examples. `llm.c` is
- * the fifth `/src` program and is deliberately not here: it needs its drive
- * mounted to do anything, and it belongs to no curriculum tier.
+ * The graders' test set: known-good programs, and programs broken on purpose
+ * with the taxonomy key each must earn. Every mutant is one edit from a
+ * passing program — that is the interesting distance. GOOD is the four
+ * standalone `/src` C programs plus tier-2/3 references written here (they
+ * double as few-shot examples); `llm.c` is excluded — needs its drive, no tier.
  */
 
 import { SEED_FILES } from "../../src/copy.js";
@@ -24,9 +13,8 @@ const seed = (name: string): string => SEED_FILES.find((f) => f.name.endsWith(na
 
 /* ---- references the disk doesn't carry ---- */
 
-/** Tier 2's reference: loops, `getc`, `rand`, a transcript that depends on
-    what you typed. Reads a number a digit at a time and stops at anything
-    else, so a script of lines or of bare digits both drive it. */
+/** Tier 2's reference. Reads digits and stops at anything else, so scripts
+    of lines or bare digits both drive it. */
 export const GUESS_C = [
   "/* guess.c — the machine thinks of a number and you go and find it. */",
   "",
@@ -100,9 +88,7 @@ export const BOUNCE_C = [
   "}",
 ].join("\n");
 
-/** Tier 1's reference for the *exact* path: the producer knows what it
-    prints, which is the strongest grade available and the one synthesis gets
-    for free. */
+/** Tier 1's reference for the exact path (producer knows the output). */
 export const SUM_C = [
   "/* sum.c — the first ten squares, and what they come to. */",
   "",
@@ -143,9 +129,7 @@ export interface Mutant extends Candidate {
   why: string;
 }
 
-/** One substitution against a known-good program, so a mutant stays one
-    edit away from passing. Throws rather than silently mutating nothing —
-    a mutant that didn't take is a test that stops testing. */
+/** One substitution; throws on a missing anchor so a mutant can't silently not take. */
 const bend = (src: string, from: string, to: string): string => {
   if (!src.includes(from)) throw new Error(`mutant anchor missing: ${from}`);
   return src.replace(from, to);

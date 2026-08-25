@@ -1,7 +1,4 @@
-/**
- * Pixel icons, drawn onto tiny canvases and upscaled with
- * image-rendering:pixelated — the period way. Ported from proposals/lib.js.
- */
+/** Pixel icons: tiny canvases upscaled with image-rendering:pixelated. */
 
 export const PAL: Record<string, string> = {
   b: "#000080",
@@ -30,9 +27,8 @@ export function px(canvas: HTMLCanvasElement, rows: readonly string[], pal = PAL
   );
 }
 
-/** An icon canvas at a given CSS size, already painted. The system icons are
-    all 16x16, but a player's .spr can be any shape up to the cap — the art's
-    own dimensions set the canvas, and the CSS box keeps the aspect. */
+/** Painted icon canvas. System icons are 16x16; a player's .spr can be any
+    shape up to the cap — the art sets the canvas, the CSS box keeps aspect. */
 export function iconCanvas(rows: readonly string[], cssSize = 32): HTMLCanvasElement {
   const c = document.createElement("canvas");
   const w = Math.max(1, ...rows.map((r) => r.length));
@@ -78,7 +74,7 @@ export const ICONS = {
     "k.......kkkkkkk.","k..............k","k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k",
     "k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k","k.yyyyyyyyyyyy.k",
     "k..............k",".kkkkkkkkkkkkkk.","................","................"],
-  // the drive itself — the box the whole tree lives in, light and all
+  // the drive
   drive: [
     "................","................","................",".kkkkkkkkkkkkkk.",
     ".kcccccccccccck.",".kcwwwwwwwwwwck.",".kcccccccccccck.",".kcssssssssssck.",
@@ -89,13 +85,13 @@ export const ICONS = {
     ".rrrr..ggggg....","................",".bbbb..yyyyy....",".bbbb..yyyyy....",
     ".bbbb..yyyyy....",".bbbb..yyyyy....","................","................",
     "................","................","................","................"],
-  // COMMAND.COM: a monitor showing a prompt and its cursor
+  // COMMAND.COM
   term: [
     "................",".kkkkkkkkkkkkk..",".kwwwwwwwwwwwk..",".kwkkkkkkkkkwk..",
     ".kwkskkkkkkkwk..",".kwkkskkkkkkwk..",".kwkskssskkkwk..",".kwkkkkkkkkkwk..",
     ".kwwwwwwwwwwwk..",".kkkkkkkkkkkkk..","....kkkkkkk.....","......kkk.......",
     "....kkkkkkk.....","................","................","................"],
-  // the tray speaker, and the same speaker with the waves crossed out
+  // tray speaker, and muted
   speaker: [
     "................","................","...........k....",".......k..k.k...",
     "......kk..k.k...",".....kdk.k.k.k..","..kkkkdk.k.k.k..","..kwdddk.k.k.k..",
@@ -106,14 +102,13 @@ export const ICONS = {
     ".....kdk.r...r..","..kkkkdk..r.r...","..kwdddk...r....","..kwdddk...r....",
     "..kkkkdk..r.r...",".....kdk.r...r..","......kk........",".......k........",
     "................","................","................","................"],
-  // a regular file on C:\ — a plain page, dog-eared. System things (moves.txt,
-  // the games folder) keep their own icons; this one means "yours, on the disk"
+  // a user file on C:\ (system things keep their own icons)
   file: [
     "................","...kkkkkkkkk....","...kwwwwwwwkk...","...kwwwwwwwkwk..",
     "...kwwwwwwwkkkk.","...kwwwwwwwwwwk.","...kwdddddddwwk.","...kwwwwwwwwwwk.",
     "...kwdddddwwwwk.","...kwwwwwwwwwwk.","...kwddddddwwwk.","...kwwwwwwwwwwk.",
     "...kwddddwwwwwk.","...kwwwwwwwwwwk.","...kkkkkkkkkkkk.","................"],
-  // the games folder is furniture, not a folder you made — it wears a disc
+  // games folder
   gamesFolder: [
     "................","................","..kkkkk.........",".k.....k........",
     "k.......kkkkkkk.","k..............k","k.yyyyyyyyyyyy.k","k.yyykkkkyyyyy.k",
@@ -124,25 +119,25 @@ export const ICONS = {
     ".kcrrrckcckcck..",".kcrrrckcckcck..",".kcckcyyyckcck..",".kcckcyyyckcck..",
     ".kcckcckcbbbck..",".kcckcckcbbbck..",".kcckcckcckcck..",".kccccccccccck..",
     ".kkkkkkkkkkkkk..","................","................","................"],
-  // Help: the manual, closed, asking its one question
+  // Help
   helpbook: [
     "................","..kkkkkkkkkkkk..","..kkyyyyyyyyyk..","..kkyyywwwyyyk..",
     "..kkyyywyyywyk..","..kkyyyyyyywyk..","..kkyyyyyywyyk..","..kkyyyyywyyyk..",
     "..kkyyyyyyyyyk..","..kkyyyyywyyyk..","..kkyyyyyyyyyk..","..kkyyyyyyyyyk..",
     "..kkkkkkkkkkkk..","................","................","................"],
-  // Shut Down: the same monitor as flames.scr, switched off
+  // Shut Down
   off: [
     "................",".kkkkkkkkkkkkk..",".kwwwwwwwwwwwk..",".kwkkkkkkkkkwk..",
     ".kwkkkkkkkkkwk..",".kwkkkkwkkkkwk..",".kwkkkkkkkkkwk..",".kwkkkkkkkkkwk..",
     ".kwwwwwwwwwwwk..",".kkkkkkkkkkkkk..","....kkkkkkk.....","......kkk.......",
     "....kkkkkkk.....","................","................","................"],
-  // PAINT.EXE: the color box, and a brush leaving through the corner
+  // PAINT.EXE
   paint: [
     "................",".kkkkkkkkkkkkk..",".kwwwwwwwwwwwk..",".kwrrwyywbbwwk..",
     ".kwrrwyywbbwwk..",".kwwwwwwwwwwwk..",".kwnnwttwddwwk..",".kwnnwttwddwwk..",
     ".kwwwwwwwwkkwk..",".kkkkkkkkkoykk..","..........koyk..","...........koyk",
     "............kk..","................","................","................"],
-  // pieces.ctl: one red checker
+  // pieces.ctl
   disc: [
     "................","................","....kkkkkkkk....","...krrwwrrrrk...",
     "..krwwrrrrrrrk..","..krwrrrrrrrrk..","..krrrrrrrrrrk..","..krrrrrrrrrrk..",
@@ -150,5 +145,4 @@ export const ICONS = {
     "................","................","................","................"],
 } as const;
 
-// The rocket that used to live here as chrome is rocket.spr now — a seed
-// file on the disk (copy.ts SEED_FILES), drawn in its own format.
+// The rocket is rocket.spr now (copy.ts SEED_FILES), not chrome.

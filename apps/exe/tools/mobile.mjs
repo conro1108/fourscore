@@ -1,13 +1,7 @@
 /**
- * The phone harness: drive the desktop through a touchscreen the way an
- * iPhone would (touch events, coarse pointer, phone viewport) and screenshot
- * what a PWA user actually gets. Chromium's touch emulation isn't Safari,
- * but every pointer-event path and the small-desk fit are exercised for real.
- *
- * Usage:  npm run mobile        (in apps/exe)
- * Env:    BASE    reuse a running dev server instead of spawning one
- *         CHROME  path to a Chrome binary
- * Output: apps/exe/shots/mobile-*.png — look at them; that's the point.
+ * Phone harness: touch events, coarse pointer, phone viewport (Chromium
+ * emulation, not Safari). Screenshots to apps/exe/shots/mobile-*.png.
+ * Usage:  npm run mobile     Env: BASE, CHROME
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -65,14 +59,13 @@ async function phone(viewport, tag) {
   return { ctx, page };
 }
 
-/* ---- portrait: the desk shrinks to finger size, a game is playable ---- */
+/* ---- portrait ---- */
 {
   const { ctx, page } = await phone({ width: 393, height: 852 }, "portrait");
   await page.goto(`${BASE}/`);
   await page.waitForTimeout(1500);
 
-  // the machine boots to a desk; a phone user taps BOARD.EXE to play
-  // (a tap launches an icon — no double-click on a touchscreen)
+  // a single tap launches an icon on a touchscreen
   const boardIcon = await page.evaluate(() => {
     const ic = [...document.querySelectorAll(".icon")].find(
       (i) => i.querySelector(".lbl")?.textContent === "BOARD.EXE",
@@ -91,14 +84,14 @@ async function phone(viewport, tag) {
   }
   await page.waitForTimeout(500);
 
-  // the small-desk fit engaged: a 64px cell must be finger-sized on screen
+  // small-desk fit: a 64px cell must be finger-sized on screen
   const cellPx = await page.evaluate(() => {
     const c = document.querySelector(".cell");
     return c ? c.getBoundingClientRect().width : 0;
   });
   if (cellPx < 38) fail(`portrait cell is ${cellPx.toFixed(1)} device px — too small to tap`);
 
-  // the board window is actually on the desk, not clamped off an edge
+  // window on the desk, not clamped off an edge
   const onDesk = await page.evaluate(() => {
     const w = [...document.querySelectorAll(".win")].find((el) =>
       el.querySelector(".titlebar .t")?.textContent.includes("BOARD"),
@@ -111,7 +104,6 @@ async function phone(viewport, tag) {
   await page.screenshot({ path: here("../shots/mobile-desktop.png") });
   console.log("shot mobile-desktop");
 
-  // a tap on a column drops a disc; the opponent answers
   const cell = await center(page, '#grid .cellrow:last-child .cell[data-col="2"]');
   await page.touchscreen.tap(cell.x, cell.y);
   try {
@@ -135,7 +127,6 @@ async function phone(viewport, tag) {
     before,
     { timeout: 15000 },
   );
-  // now a real slide for the next move
   const drag = async () => {
     const cdp = await ctx.newCDPSession(page);
     const steps = 8;
@@ -167,7 +158,6 @@ async function phone(viewport, tag) {
     fail("drag-aim never dropped");
   }
 
-  // a single tap launches a desk icon (no double-click on a touchscreen)
   const games = await page.evaluate(() => {
     const ic = [...document.querySelectorAll(".icon")].find(
       (i) => i.querySelector(".lbl")?.textContent === "games",
@@ -181,7 +171,7 @@ async function phone(viewport, tag) {
   if (!folderOpen) fail("tapping the games icon did not open the folder");
   else console.log("icon tap launches");
 
-  // the Start menu opens on tap and sits above the thickened taskbar
+  // Start menu sits above the thickened taskbar
   const start = await center(page, "#start");
   await page.touchscreen.tap(start.x, start.y);
   await page.waitForTimeout(300);
@@ -191,7 +181,7 @@ async function phone(viewport, tag) {
   await ctx.close();
 }
 
-/* ---- landscape: the wider desk takes the big variants ---- */
+/* ---- landscape: big variants ---- */
 {
   const { ctx, page } = await phone({ width: 852, height: 393 }, "landscape");
   await page.goto(`${BASE}/?state=midgame&variant=connect5`);

@@ -1,10 +1,6 @@
 /**
- * Head-to-head sweep for a variant, to check the ladder is still a ladder.
- *
- * `bots.test.ts` only plays one cheap rung; this is the real measurement, and a
- * new board is exactly the kind of change that can invert a rung: the weights
- * were tuned against 7x6 Connect 4, and depth interacts with them. Run this
- * before trusting a variant's roster, and after retuning any bot.
+ * Head-to-head rung sweep — the real ladder measurement (CLAUDE.md § ladder).
+ * Run after any retune or new variant.
  *
  *   npx vite-node packages/engine/tools/ladder.ts -- connect5 8
  *   npx vite-node packages/engine/tools/ladder.ts -- checks     # slip guard, tells, oracle
@@ -54,12 +50,7 @@ const RUNGS = [
   ["quill", "vane"],
 ] as const;
 
-/**
- * Behavioural checks that used to be tests: the slip guard (nobody above Acorn
- * slips away a visible win or block, and Acorn does), slips landing on the
- * runner-up rather than the worst move, tells in range and honest except for
- * Vane, and the Oracle solving exactly once the board is deep enough.
- */
+/** Behavioural checks: slip guard, slip ranking, tells, Oracle crossover. */
 function checks(): void {
   const report = (name: string, ok: boolean, detail = "") =>
     console.log(`${ok ? "ok  " : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`);
@@ -137,7 +128,7 @@ if (args[0] === "checks") {
 }
 const v = variantById(args[0] ?? "connect4");
 const games = Number(args[1] ?? 8);
-/** Optional substring filter, so a single broken rung can be iterated on. */
+/** Optional substring filter on rung name. */
 const only = args[2];
 
 const rungs = only ? RUNGS.filter(([s, w]) => `${s} ${w}`.includes(only)) : RUNGS;
@@ -151,8 +142,7 @@ for (const [strong, weak] of rungs) {
   const t0 = performance.now();
 
   for (let g = 0; g < games; g++) {
-    // Alternate who opens: on a gravity board the first player has a real edge,
-    // and a one-sided sweep would measure that instead of the rung.
+    // Alternate who opens; first player has a real edge.
     const strongOpens = g % 2 === 0;
     const seed = 1 + g * 7919;
     const r = strongOpens

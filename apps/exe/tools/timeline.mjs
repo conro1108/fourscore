@@ -1,12 +1,8 @@
 /**
- * Screenshot ONE state at a series of elapsed times — the eyes for anything
- * that happens over seconds rather than on load (the fever's rise, the
- * screensaver letting go, the cursor trail retracting). `shots.mjs` always
- * looks at 1800ms, so it is blind to every one of those.
- *
+ * Screenshot one state at a series of elapsed seconds — for anything that
+ * happens over time, which shots.mjs (fixed 1800ms) is blind to.
  * Usage:  npm run timeline -- "?state=win" 3 8 13 16 25 40
- * Env:    BASE, CHROME (same as shots.mjs)
- * Output: apps/exe/shots/t-<seconds>s.png
+ * Env: BASE, CHROME.  Output: apps/exe/shots/t-<seconds>s.png
  */
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -44,7 +40,7 @@ if (!BASE) {
 
 const browser = await chromium.launch({ executablePath: CHROME });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-// the desktop takes over on real idle too, so keep the pointer alive but still
+// real idle triggers the screensaver, so park the pointer
 await page.mouse.move(640, 400);
 const t0 = Date.now();
 await page.goto(`${BASE}/${query}`, { waitUntil: "domcontentloaded" });

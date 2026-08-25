@@ -1,14 +1,8 @@
 /**
- * CHESS.EXE — the whole game, honestly: castling both ways, en passant,
- * promotion (you get asked; the machine does not need to be asked), check,
- * checkmate, stalemate, the fifty-move rule and threefold repetition. The
- * move generator is verified by perft against the published node counts,
- * because chess move generation passes every hand-written case and then
- * fails quietly on one pinned en-passant capture.
- *
- * The opponent is an iterative-deepening alpha-beta search with a capture
- * quiescence, time-boxed and yielding between depths so the desktop's fires
- * barely stutter while it considers all of it.
+ * CHESS.EXE — full rules (castling, en passant, promotion, fifty-move, threefold).
+ * Movegen is verified by perft against published counts; hand-written cases miss
+ * pinned en-passant. Opponent: iterative-deepening alpha-beta with capture
+ * quiescence, time-boxed and yielding between depths.
  */
 
 import { el } from "../dom.js";
@@ -18,10 +12,10 @@ import { play } from "../audio/index.js";
 import { centered, fieldScaler, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
-/* ---- the pure part (perft lives on this) ---- */
+/* pure part (perft-tested) */
 
 export type PieceT = "p" | "n" | "b" | "r" | "q" | "k";
-/** s: 0 = white (you, at the bottom), 1 = black (the machine). */
+/** s: 0 = white (you, bottom), 1 = black (machine). */
 export interface ChPiece {
   t: PieceT;
   s: 0 | 1;
@@ -181,7 +175,7 @@ export function genMoves(s: ChessState): ChessMove[] {
       }
     }
 
-  // castling: rights + empty lane + the king never touches an attacked square
+  // castling: rights, empty lane, king never crosses an attacked square
   const row = side === 0 ? 7 : 0;
   const [ks, qs] = side === 0 ? [s.castle[0], s.castle[1]] : [s.castle[2], s.castle[3]];
   const kingHome = b[row]![4];
@@ -207,7 +201,7 @@ export function applyMove(s: ChessState, m: ChessMove): ChessState {
   const p = nb[fr]![fc]!;
   let half = s.half + 1;
   if (p.t === "p" || nb[tr]![tc]) half = 0;
-  // en passant: a pawn landing diagonally on an empty square eats sideways
+  // en passant
   if (p.t === "p" && fc !== tc && !nb[tr]![tc]) nb[fr]![tc] = null;
   nb[fr]![fc] = null;
   nb[tr]![tc] = m.promo ? { t: m.promo, s: p.s } : p;
@@ -240,7 +234,7 @@ export function legalMoves(s: ChessState): ChessMove[] {
   return genMoves(s).filter((m) => !inCheck(applyMove(s, m), s.turn));
 }
 
-/** Leaf count to a depth — the movegen's lie detector. */
+/** Leaf count to a depth. */
 export function perft(s: ChessState, depth: number): number {
   if (depth === 0) return 1;
   let n = 0;
@@ -252,12 +246,11 @@ export function perft(s: ChessState, depth: number): number {
   return n;
 }
 
-/* ---- the opponent ---- */
+/* opponent */
 
 const VAL: Record<PieceT, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 
-/** Positive is good for white. Material, pawns that have gone somewhere,
-    knights that live near the middle. */
+/** Positive favours white: material, pawn advancement, minor-piece centrality. */
 export function evaluate(b: ChessBoard): number {
   let score = 0;
   for (let r = 0; r < 8; r++)
@@ -321,8 +314,7 @@ function alphabeta(s: ChessState, depth: number, alpha: number, beta: number): n
   return alpha;
 }
 
-/** One full-depth pass over shuffled root moves; first-found wins ties, and
-    the shuffle is where the variety comes from. */
+/** One full-depth pass over shuffled root moves; the shuffle is the only variety. */
 export function searchDepth(
   s: ChessState,
   depth: number,
@@ -358,8 +350,7 @@ export function searchDepth(
   return best;
 }
 
-/** Iterative deepening on a time budget, yielding between depths so the
-    desktop keeps burning while the machine considers all of it. */
+/** Iterative deepening on a time budget, yielding between depths. */
 export function bestMoveTimed(
   s: ChessState,
   budgetMs: number,
@@ -384,20 +375,13 @@ export function bestMoveTimed(
   setTimeout(step, 0);
 }
 
-/* ---- what the window is allowed to say ----
-
-   Two readings of the same position, and the difference between them is the
-   confidence law. `outcomeOf` is the rules speaking: checkmate, stalemate and
-   the two drawing counts are facts, so the window states them flat and leaves
-   them on the board. `sharpness` is a heuristic — material standing loose, a
-   king addressed, a mate available, the evaluation lurching — so everything it
-   drives hedges and everything it drives is reversible. It may never end a
-   game or claim one; all it does is make the window sit up. ---- */
+/* What the window may say. `outcomeOf` is the rules (facts, stated flat).
+   `sharpness` is a heuristic: everything it drives hedges and is reversible;
+   it may never end or claim a game. */
 
 export type ChessEnd = "youWin" | "machineWins" | "stalemate" | "fifty" | "threefold";
 
-/** The result, if there is one. `repeats` is how many times this exact
-    position has now stood, including this one. */
+/** `repeats` counts this position's occurrences, including this one. */
 export function outcomeOf(s: ChessState, repeats: number): ChessEnd | null {
   if (repeats >= 3) return "threefold";
   if (s.half >= 100) return "fifty";
@@ -405,21 +389,17 @@ export function outcomeOf(s: ChessState, repeats: number): ChessEnd | null {
   return inCheck(s, s.turn) ? (s.turn === 0 ? "machineWins" : "youWin") : "stalemate";
 }
 
-/** The squares the OS selects to say what happened. A mate or a stalemate is
-    about one king — the one with nowhere to go. A draw by count is about both
-    of them, so both get selected. */
+/** Squares selected at game end: the stuck king, or both kings for a draw by count. */
 export function endSquares(s: ChessState, kind: ChessEnd): [number, number][] {
   if (kind === "fifty" || kind === "threefold")
     return [kingSquare(s.board, 0), kingSquare(s.board, 1)];
   return [kingSquare(s.board, s.turn)];
 }
 
-/** Kings are priceless rather than free when the question is "who can take
-    this" — a king is the most expensive attacker there is, not the cheapest. */
+/** For "cheapest attacker", a king is the most expensive, not free. */
 const ATT: Record<PieceT, number> = { ...VAL, k: 10000 };
 
-/** The cheapest piece of `by` attacking (r,c), by value; Infinity for none.
-    Same scan as `isAttacked`, kept honest by reporting what it found. */
+/** Value of `by`'s cheapest attacker of (r,c); Infinity for none. Same scan as `isAttacked`. */
 export function attackerValue(b: ChessBoard, r: number, c: number, by: 0 | 1): number {
   let best = Infinity;
   const keep = (t: PieceT): void => {
@@ -457,9 +437,7 @@ export function attackerValue(b: ChessBoard, r: number, c: number, by: 0 | 1): n
   return best;
 }
 
-/** The most material standing where it can be taken for less, either colour —
-    undefended costs everything, defended costs the difference. A guess, and
-    the copy it drives says so. */
+/** Largest loose material either colour: undefended costs all, defended costs the difference. A guess. */
 export function hangingValue(b: ChessBoard): number {
   let worst = 0;
   for (let r = 0; r < 8; r++)
@@ -476,8 +454,7 @@ export function hangingValue(b: ChessBoard): number {
   return worst;
 }
 
-/** Does the side to move have mate on the board right now. One ply deep, once
-    per move — the search costs a hundred times this. */
+/** Side to move has mate in one. */
 export function mateInOne(s: ChessState): boolean {
   for (const m of legalMoves(s)) {
     const ns = applyMove(s, m);
@@ -491,14 +468,13 @@ export type PressureNote = "check" | "loose" | "swing" | "mate";
 export interface Sharpness {
   /** 0..1, and only ever a guess. */
   level: number;
-  /** 0 calm, 3 as far as this window goes — a fraction of the desktop's. */
+  /** 0 calm .. 3; this window's own scale. */
   tier: 0 | 1 | 2 | 3;
-  /** Which reading is loudest, for the hedged line the titlebar carries. */
+  /** Loudest reading, for the titlebar's hedged note. */
   note: PressureNote | null;
 }
 
-/** How sharp the position looks, from four honest readings of it. `swing` is
-    how far the evaluation moved on the last ply. */
+/** `swing` is the eval change over the last ply. */
 export function sharpness(s: ChessState, swing = 0): Sharpness {
   const parts: [PressureNote, number][] = [
     ["check", inCheck(s, 0) || inCheck(s, 1) ? 0.34 : 0],
@@ -512,12 +488,9 @@ export function sharpness(s: ChessState, swing = 0): Sharpness {
   return { level, tier, note: tier === 0 ? null : top[0] };
 }
 
-/* ---- the window ---- */
+/* window */
 
-/* The men are drawn, not typeset — 16x16 sprites through the same px() the
-   desk's icons go through, because an antialiased font glyph is the one
-   thing on this machine that could never have shipped in 1995. One shape
-   per man; the sides are palettes (k outline, f fill, s shade). */
+/* 16x16 sprites via px(), never font glyphs. One shape per man; sides are palettes (k outline, f fill, s shade). */
 const PIECE_ART: Record<PieceT, readonly string[]> = {
   p: [
     "................",
@@ -630,8 +603,8 @@ const PIECE_ART: Record<PieceT, readonly string[]> = {
 };
 
 const PIECE_PAL: readonly Record<string, string>[] = [
-  { k: "#000", f: "#fff", s: "#a8a8a8" }, // white: paper and pencil
-  { k: "#000", f: "#404040", s: "#6a6a6a" }, // black: coal with a sheen
+  { k: "#000", f: "#fff", s: "#a8a8a8" }, // white
+  { k: "#000", f: "#404040", s: "#6a6a6a" }, // black
 ];
 
 const pieceCanvas = (t: PieceT, side: 0 | 1): HTMLCanvasElement => {
@@ -645,14 +618,9 @@ const repKey = (s: ChessState): string =>
   `|${s.turn}|${s.castle.join("")}|${s.ep ?? "-"}`;
 
 /**
- * CHESS.EXE's own chrome, which nothing else on the desktop shares. It ships
- * its own rules rather than adding to chrome.css for the reason the fever is
- * local in the first place: a game on the shelf may degrade itself and may not
- * reach the desktop, and a stylesheet is a way of reaching the desktop.
- *
- * Everything here is sized off `--sq`, the live square, so a dragged window
- * keeps its ants and its ants keep their proportions. Nothing eases: the
- * ants step, the tiers land instantly.
+ * CHESS.EXE's own styles, scoped under `.chessfx` rather than in chrome.css: a
+ * shelf game may degrade itself but must not reach the desktop. Sized off `--sq`
+ * so resizing keeps proportions. Nothing eases.
  */
 let styleInstalled = false;
 function installChessStyle(): void {
@@ -683,7 +651,7 @@ function installChessStyle(): void {
   );
 }
 
-/** The board's three warmer states, and the one it goes back to. */
+/** Board colours by heat tier 0..3. */
 const HEAT: readonly (readonly [string, string])[] = [
   ["#9c5a3c", "#ecd8b0"],
   ["#96513a", "#e7cfa2"],
@@ -702,9 +670,7 @@ export function openChess(wm: WM, fen?: string): void {
 
   let s = fen ? parseFen(fen) : initialState();
 
-  /* Skill: how much of it the computer considers. Novice and Standard are
-     fixed shallow searches (still no hung pieces — the quiescence sees
-     captures); Expert is the timed iterative deepening. */
+  // Novice/Standard: fixed shallow depth (quiescence still sees captures). Expert: timed deepening.
   type Skill = "novice" | "standard" | "expert";
   const SKILLS: readonly (readonly [Skill, string])[] = [
     ["novice", "Novice"],
@@ -733,11 +699,9 @@ export function openChess(wm: WM, fen?: string): void {
   let selected: [number, number] | null = null;
   let lastMove: ChessMove | null = null;
   let seen = new Map<string, number>();
-  /** The finished position's selection. Set once, cleared only by a new game —
-      this is the record, and the record is what was missing. */
+  /** End-of-game selection; cleared only by a new game. */
   let ended: [number, number][] = [];
-  /** The window's own temperature (0..3) and the evaluation it last read, for
-      the swing. Neither leaves this window. */
+  /** Window-local heat (0..3) and last eval, for the swing. */
   let heat = 0;
   let lastEval = evaluate(s.board);
   const timers: ReturnType<typeof setTimeout>[] = [];
@@ -770,8 +734,7 @@ export function openChess(wm: WM, fen?: string): void {
           pc.appendChild(pieceCanvas(p.t, p.s));
           sq.appendChild(pc);
         }
-        // the result, redrawn with the board so it survives every re-render
-        // and every resize — the ants are a fraction of the square, not of 40
+        // end selection redrawn with the board so it survives re-render and resize
         if (ended.some(([er, ec]) => er === r && ec === c)) {
           sq.classList.add("chdone");
           sq.appendChild(el(`<div class="chants"><i></i><i></i></div>`));
@@ -780,11 +743,8 @@ export function openChess(wm: WM, fen?: string): void {
       }
   }
 
-  /* ---- the window's own weather ----
-     A fraction of what the desktop does, and it cannot reach the desktop: the
-     board warms, the window's gray gets dirtier, the titlebar loses some blood
-     and carries a hedged note. Three steps, all reversible, none of them over
-     the board — the squares stay exactly as clickable as they were. */
+  // Window-local fever: board warms, gray dirties, titlebar carries a hedged note.
+  // Three reversible steps; never reaches the desktop or covers the board.
   function setHeat(tier: number, note: PressureNote | null): void {
     const rose = tier > heat;
     heat = tier;
@@ -793,12 +753,11 @@ export function openChess(wm: WM, fen?: string): void {
     frame.style.setProperty("--dk", dk);
     frame.style.setProperty("--lt", lt);
     win.setTitle(note ? TITLES.chessNote(GAMES_COPY.chess.pressure[note]) : TITLES.chess);
-    // the room changing, filed as the system event it is — and quietly, because
-    // BOARD.EXE is the machine's fever and this is a window's
+    // quiet: this is a window's fever, not the machine's
     if (rose && tier >= 2) play("tier-cross", 0.3);
   }
 
-  /** Read the position and let the window answer it. Once per ply. */
+  /** Once per ply. */
   function takeTemperature(): void {
     const now = evaluate(s.board);
     const sharp = sharpness(s, now - lastEval);
@@ -806,18 +765,11 @@ export function openChess(wm: WM, fen?: string): void {
     setHeat(sharp.tier, sharp.note);
   }
 
-  /**
-   * The result, and it stays. The mated king's square is selected the way the
-   * OS selects anything and is still selected when the dialog has gone; the
-   * statusbar keeps saying what happened; the titlebar carries the word for
-   * good. One dialog, no cascade — the win in BOARD.EXE is the biggest thing
-   * this machine announces and nothing on the shelf goes near it.
-   */
+  /** The result stays on the board, statusbar and title after the dialog. One dialog, no cascade. */
   function end(kind: ChessEnd): void {
     over = true;
     busy = false;
     ended = endSquares(s, kind);
-    // whatever the position was doing, it has stopped doing it
     setHeat(0, null);
     win.setTitle(TITLES.chessNote(GAMES_COPY.chess.overTitle[kind]));
     statusEl.textContent = GAMES_COPY.chess.over[kind];
@@ -827,8 +779,7 @@ export function openChess(wm: WM, fen?: string): void {
       wm.dialog({
         ...GAMES_COPY.chess[kind],
         buttons: GAMES_COPY.chess.overButtons,
-        // under the window, not over it: the finished position is the point,
-        // and the machine has never covered a board to talk about one
+        // under the window, not over the finished position
         x: 440,
         y: 552,
         w: 360,
@@ -839,7 +790,7 @@ export function openChess(wm: WM, fen?: string): void {
     }, 500);
   }
 
-  /** After a move lands: the facts first, then how sharp it all looks. */
+  /** After a move: outcome first, then sharpness. */
   function settle(next: () => void): void {
     const key = repKey(s);
     seen.set(key, (seen.get(key) ?? 0) + 1);
@@ -879,7 +830,6 @@ export function openChess(wm: WM, fen?: string): void {
     selected = null;
     s = applyMove(s, m);
     lastMove = m;
-    // a piece set down — the same knock the discs land with, on wood
     play("disc-land", 0.45);
     render();
     settle(() => machineTurn());
@@ -910,7 +860,7 @@ export function openChess(wm: WM, fen?: string): void {
       playerMove(matches[0]!);
       return;
     }
-    // four ways up the same square: the pawn must become something
+    // promotion: ask
     busy = true;
     let chosen = false;
     const dlg = wm.dialog({
@@ -926,7 +876,7 @@ export function openChess(wm: WM, fen?: string): void {
         playerMove(matches.find((m) => m.promo === promo)!);
       },
     });
-    // closing the dialog without answering means the obvious thing
+    // dialog closed without answering: queen
     const watch = setInterval(() => {
       if (chosen || !win.isOpen()) {
         clearInterval(watch);
@@ -949,7 +899,6 @@ export function openChess(wm: WM, fen?: string): void {
     selected = null;
     lastMove = null;
     seen = new Map();
-    // the record comes down with the game it was a record of
     ended = [];
     lastEval = evaluate(s.board);
     setHeat(0, null);
@@ -980,7 +929,7 @@ export function openChess(wm: WM, fen?: string): void {
     if (id === skill) return;
     skill = id;
     localStorage.setItem("exe.chessSkill", id);
-    // rebuild the bar so the checkmark moves; takes hold on the next move
+    // rebuild so the checkmark moves
     const next = makeBar();
     bar.replaceWith(next);
     bar = next;
@@ -988,8 +937,6 @@ export function openChess(wm: WM, fen?: string): void {
 
   body.append(bar, frame, status);
 
-  /* Same board family as CHECKERS.EXE, so the same squares and the same
-     ladder: drag the window and the pieces grow with their squares. */
   const naturalMargin = frame.style.margin;
   const relayout = fieldScaler({
     win: () => win.el,
@@ -1006,7 +953,6 @@ export function openChess(wm: WM, fen?: string): void {
     id: "chess",
     title: TITLES.chess,
     icon: CHESS_ICON,
-    // everything this window does to itself is scoped under this class
     cls: "chessfx",
     x: 430,
     y: 120,
@@ -1042,9 +988,7 @@ export function openChess(wm: WM, fen?: string): void {
   statusEl.textContent = inCheck(s, 0) ? GAMES_COPY.chess.check : GAMES_COPY.chess.yourMove;
   render();
   relayout();
-  // A pose (?state=chess&fen=...) can hand the window a position that is
-  // already over, or already sharp, so the opening goes through the same
-  // settle every move does rather than a shortcut that only reads the turn.
+  // a fen pose may already be over or sharp, so open through the same settle as a move
   settle(() => {
     if (s.turn === 1) machineTurn();
   });

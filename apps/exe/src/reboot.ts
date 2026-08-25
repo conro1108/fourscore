@@ -1,37 +1,9 @@
 /**
- * Shut Down, and the restart behind it.
- *
- * A long possessed session leaves the desk littered — dialogs the fever
- * opened, six games running, windows dragged into corners, a screensaver that
- * won. The period already owns the verb for "reset the whole screen", so this
- * machine reboots rather than growing a Clear Desktop button no 1995 desktop
- * ever had. Start ▸ Shut Down is the mouse's door; Ctrl+Alt+Del is the other
- * one (wired in main.ts), because that is the gesture the reflex reaches for.
- *
- * **What a restart clears is the machine's runtime**: every window, the fever
- * and everything it did (drifted icons, the drag-ghost trail, the clock's
- * grip, the extra flames.scr previews), the screensaver, the beats, and the
- * game in progress. The desktop comes back at its authored boot pose.
- *
- * **What it does not touch is the disk or the Control Panel.** `exe.fs` — the
- * player's readme.txt, asm.txt and anything they saved — survives untouched;
- * a reboot that ate your files is exactly the fake data loss DIRECTION.md
- * forbids. So do the settings: the chip style, the sound scheme and volume,
- * Minesweeper's size, the chess skill, and the game icons dragged out of the
- * folder onto the desk. A machine that forgot how you had set it up would not
- * be the same machine coming back. The plain restart never touches
- * localStorage at all, which is how that promise is kept rather than
- * maintained. The one exception is the shutdown box's third option — "forget
- * everything" — which wipes every `exe.*` key on the way out. That is not the
- * fake data loss DIRECTION.md forbids: the player asked for it by name, and
- * the wipe happens at the navigation itself so nothing can write itself back
- * during the POST.
- *
- * The mechanism is an honest page load, which is why the paragraphs above are
- * a description and not a teardown that could drift out of date: nothing can
- * be left half-torn-down by a navigation. It is `replace()` rather than
- * `reload()` because a reload carries the harness's pose back in with it, and
- * a restart out of `?state=win` has to land on a desktop, not back in the win.
+ * Shut Down box and the restart behind it (also Ctrl+Alt+Del, wired in main.ts).
+ * A restart is a real page load: it clears all runtime state and never touches
+ * localStorage — the disk and settings survive — except the "forget everything"
+ * option, which wipes every `exe.*` key at the navigation itself.
+ * `replace()` not `reload()`, so a restart out of `?state=win` lands on a desktop.
  */
 
 import { el } from "./dom.js";
@@ -42,11 +14,10 @@ import type { WM, Win } from "./wm.js";
 /** Where a restart lands: this page, with every deep-link param stripped. */
 export const cleanUrl = (href: string): string => new URL(href).pathname;
 
-/* ---- the beat, as data, so a test can hold it to its promise ----
-   Short by law: the player asked for a clean desk, not a cutscene. */
+/* ---- the beat, as data; short by law ---- */
 /** When the POST replaces the shutdown line. */
 export const POST_AT = 700;
-/** Between POST lines. Stepped, like everything else here — never eased. */
+/** Between POST lines. Stepped, never eased. */
 export const LINE_GAP = 180;
 /** When the machine actually goes. */
 export const GO_AT = 1700;
@@ -54,29 +25,19 @@ export const GO_AT = 1700;
 const FAILSAFE = 4000;
 
 export interface RestartOpts {
-  /** Draw the beat and stop there — the `?state=reboot` pose, so the shutter
-      and `npm run timeline` can look at a screen that would otherwise have
-      navigated out from under them. Never set in play. */
+  /** Draw the beat and stop: the `?state=reboot` pose for harnesses. Never set in play. */
   hold?: boolean;
-  /** Wipe every `exe.*` localStorage key before the load — the disk, the
-      settings, the desk. Only the shutdown box's third option sets this. */
+  /** Wipe every `exe.*` localStorage key before the load. */
   forget?: boolean;
 }
 
 /**
- * Reboot the machine: a black screen, the POST, and then a real page load.
- *
- * The player cannot get stuck in it three ways over — any key or click skips
- * straight to the load, the load is scheduled the moment the screen goes
- * black rather than at the end of a chain, and if the navigation is somehow
- * refused the overlay takes itself off and hands the desk back.
+ * Black screen, POST, then a real page load. Can't get stuck: any key/click
+ * skips to the load, the load is scheduled up front, and a refused navigation
+ * removes the overlay after FAILSAFE.
  */
 export function restart(stage: HTMLElement, opts: RestartOpts = {}): void {
-  /* The machine's own console: the terminal's black, its grey and its
-     Courier. Inline because this is one element that exists for 1.7 seconds,
-     and chrome.css is the shared sheet. It lives on the stage so it scales
-     with the monitor, and above everything the chrome owns (#saver 240,
-     #startmenu 300, FEVER.CTL 400). */
+  // On the stage so it scales; z 500 sits above #saver 240, #startmenu 300, FEVER.CTL 400.
   const screen = el(
     `<div id="reboot" style="position:absolute;inset:0;z-index:500;background:#000;` +
       `color:#c0c0c0;font:14px 'Courier New',monospace;line-height:1.45;padding:14px 16px;` +
@@ -89,10 +50,7 @@ export function restart(stage: HTMLElement, opts: RestartOpts = {}): void {
   };
   line(REBOOT.wait);
   stage.appendChild(screen);
-  // "Exit Windows" — the scheme already has it, and this is finally the event
-  // it was named for. The boot chime is deliberately not played here: after
-  // the load the machine has been sitting there since the page loaded and
-  // plays `startup` at the first touch, which is the audio law, not a gap.
+  // No boot chime here: after the load, `startup` plays at first touch (audio law).
   play("shutdown-chime", 0.7);
 
   const timers: number[] = [];
@@ -105,7 +63,6 @@ export function restart(stage: HTMLElement, opts: RestartOpts = {}): void {
     REBOOT.post.forEach((text, i) =>
       at(i * LINE_GAP, () => {
         line(text);
-        // the drive light, on the line that claims to be looking for one
         if (text.includes("IDE")) play("drive-seek", 0.5);
       }),
     );
@@ -122,16 +79,14 @@ export function restart(stage: HTMLElement, opts: RestartOpts = {}): void {
     if (opts.forget)
       for (const k of Object.keys(localStorage))
         if (k.startsWith("exe.")) localStorage.removeItem(k);
-    // armed before the navigation, not after: a refused `replace()` that
-    // throws would otherwise leave the player looking at a black screen
+    // armed before the navigation: a throwing `replace()` must not leave a black screen
     setTimeout(() => screen.remove(), FAILSAFE);
     const url = cleanUrl(location.href);
     if (location.search || location.hash) location.replace(url);
     else location.reload();
   };
   at(GO_AT, go);
-  // A skip, but not from the click that pressed Yes — that pointer is still
-  // on its way up when this runs.
+  // skip listeners armed late so the Yes click's own pointer doesn't trigger them
   if (!opts.hold)
     at(300, () => {
       addEventListener("pointerdown", go, true);
@@ -141,15 +96,10 @@ export function restart(stage: HTMLElement, opts: RestartOpts = {}): void {
 
 /* ---- Start ▸ Shut Down ---- */
 
-/** One at a time: two doors open onto this, and the Start menu repeats. */
+/** One at a time. */
 let chooser: Win | undefined;
 
-/**
- * The period's Shut Down box: a question, radio buttons, Yes / No / Help.
- * Every control does something (the second law) — shutting down is refused in
- * the machine's own words, restarting is real, and Help opens help.txt the
- * way the real button did.
- */
+/** Shut Down box: radio options, Yes / No / Help. Shutdown is refused, restart is real. */
 export function openShutdown(wm: WM, deps: { stage: HTMLElement; help(): void }): void {
   if (chooser?.isOpen()) {
     chooser.focus();
@@ -179,7 +129,7 @@ export function openShutdown(wm: WM, deps: { stage: HTMLElement; help(): void })
         deps.help();
         return;
       }
-      if (i !== 0) return; // No. The machine goes on being the way it is.
+      if (i !== 0) return; // No
       if (choice === 1) restart(deps.stage);
       else if (choice === 2) restart(deps.stage, { forget: true });
       else
@@ -192,7 +142,6 @@ export function openShutdown(wm: WM, deps: { stage: HTMLElement; help(): void })
           y: 310,
           ax: "center",
           w: 360,
-          // it does not shut down, but it says the thing it says on the way out
           sound: "shutdown-chime",
         });
     },

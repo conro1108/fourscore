@@ -1,23 +1,10 @@
 /**
- * The verify farm: the same graders, across every core.
- *
+ * Verify farm: the graders across every core. JSONL in, JSONL out, one
+ * `Candidate`/`Verdict` per line; rejects are written too.
  *   npx vite-node apps/exe/tools/corpus/farm.ts                     self-test
  *   npx vite-node apps/exe/tools/corpus/farm.ts in.jsonl out.jsonl  a batch
- *
- * One candidate costs a few milliseconds — a whole game of pong is about
- * twenty — so the farm is not here because verification is slow. It is here
- * because generation is the bottleneck and verification should never become
- * one: at a hundred thousand candidates a batch, single-file is most of an
- * hour and this is a few minutes.
- *
- * JSONL in, JSONL out, one `Candidate` and one `Verdict` per line, so the
- * contract holds whatever ends up producing candidates. Rejects are written
- * too. **The histogram is the output that matters** — it is the only signal
- * steering the next batch's prompts, since nothing in this pipeline trains.
- *
- * The self-test is not a nicety. llm_training.md's day-one warning is that a
- * grader which rejects nothing is the failure mode, so the farm can prove
- * itself against `mutants.ts` before a batch runs, and says so out loud.
+ * The histogram is the output that steers the next batch. Run the self-test
+ * (GOOD passes, every MUTANT fails with its key) before trusting a batch.
  */
 
 import { spawn } from "node:child_process";
@@ -52,8 +39,7 @@ function worker(): void {
       try {
         v = verify(c);
       } catch (e) {
-        // A grader that throws is a bug, but one candidate must not take the
-        // batch down with it — the histogram will say how often it happened.
+        // A throwing grader is a bug, but must not take the batch down.
         v = { id: c.id, tier: c.tier, ok: false, fail: "farm:threw", detail: String(e), chars: c.text.length };
       }
       process.stdout.write(`${JSON.stringify(v)}\n`);
@@ -113,7 +99,7 @@ async function run(inPath: string, outPath: string, workers: number): Promise<Ve
   return verdicts;
 }
 
-/* ---- the self-test: prove the graders before trusting a batch ---- */
+/* ---- self-test ---- */
 
 function selftest(): number {
   let bad = 0;

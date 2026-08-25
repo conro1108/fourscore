@@ -1,9 +1,5 @@
-/**
- * pieces.ctl — the chip lab. Flat 16 is the chosen default (2026-08-13);
- * the other ten styles stay because the picker should exist in the real app
- * (DIRECTION.md, the second law). Pixel and Faces chips are generated at
- * runtime, not drawn — a Bayer-dithered sphere and a deadpan face.
- */
+/** pieces.ctl — the chip style picker. Flat 16 is the default; Pixel and
+    Faces are generated at runtime. */
 
 import { el } from "./dom.js";
 import { PIECES_NOTE, TITLES } from "./copy.js";
@@ -23,7 +19,7 @@ const STYLES: readonly (readonly [string, string])[] = [
   ["rings", "Rings"],
 ];
 
-/** The pixel chips are generated, not drawn: a Bayer-dithered sphere. */
+/** Bayer-dithered sphere. */
 function pixelDisc(light: string, base: string, dark: string, outline: string): string {
   const cv = document.createElement("canvas");
   cv.width = cv.height = 16;
@@ -53,7 +49,6 @@ function pixelDisc(light: string, base: string, dark: string, outline: string): 
   return cv.toDataURL();
 }
 
-/** The faces are drawn, deadpan, and not explained. */
 function faceDisc(bodyC: string, shade: string, outline: string): string {
   const rows = [
     "....kkkkkkkk....", "..kkbbbbbbbbkk..", ".kbbbbbbbbbbbbk.", ".kbbbbbbbbbbbbk.",
@@ -75,10 +70,8 @@ function faceDisc(bodyC: string, shade: string, outline: string): string {
   return cv.toDataURL();
 }
 
-/** Inject the generated chip textures once. 16px of art on a live-sized chip:
-    the size is `--disc` (board.ts sets it on every rung of the cell ladder),
-    never the authored 48, or a dragged window gets 16px art at 48px inside a
-    32px hole. */
+/** Inject generated textures once. Size is `--disc` (set by board.ts per cell
+    rung), never the authored 48, or a resized window gets 48px art in a 32px hole. */
 export function installGeneratedChips(): void {
   const size = "var(--disc,48px) var(--disc,48px)";
   const style = document.createElement("style");

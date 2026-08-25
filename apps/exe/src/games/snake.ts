@@ -1,9 +1,4 @@
-/**
- * SNAKE.EXE — the QBasic lineage, genuinely stepping on its own clock. The
- * snake moves in steps because that is what snakes in 1995 did (and the
- * timing law would demand it anyway). It eats the board's chips; nobody has
- * asked why the chips are in this program.
- */
+/** SNAKE.EXE. Stepped on its own clock; eats the board's chips. */
 
 import { el, onPointerDrag } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
@@ -14,8 +9,7 @@ import { menubar } from "./ui.js";
 const COLS = 22;
 const ROWS = 16;
 const PX = 4; // canvas pixels per cell
-/** Screen px per canvas px. Whole numbers only — the pit is a 88x64 bitmap
-    and a nearest-neighbour upscale at 3.5x is a fence with a wobble in it. */
+/** Screen px per canvas px. Whole numbers only: a fractional nearest-neighbour upscale wobbles. */
 const ZOOM = 4;
 const STEP_MS = 110;
 
@@ -63,7 +57,7 @@ export function openSnake(wm: WM): void {
   const cell = (x: number, y: number, color: string, round = false): void => {
     ctx.fillStyle = color;
     if (round) {
-      // a 4x4 disc: the corners stay dark, which is all a circle is down here
+      // 4x4 disc: corners dark
       ctx.fillRect(x * PX + 1, y * PX, 2, 4);
       ctx.fillRect(x * PX, y * PX + 1, 4, 2);
     } else {
@@ -89,14 +83,14 @@ export function openSnake(wm: WM): void {
 
   function step(): void {
     if (!alive || !dir) return;
-    // the snake waits politely while its window is not the one you're using
+    // paused while unfocused
     if (wm.focused()?.id !== "snake") return;
     if (pending) {
       dir = pending;
       pending = null;
     }
     const head: [number, number] = [snake[0]![0] + dir[0], snake[0]![1] + dir[1]];
-    // the sides go around; the top and the bottom are final
+    // sides wrap; top and bottom kill
     head[0] = (head[0] + COLS) % COLS;
     if (head[1] < 0 || head[1] >= ROWS) {
       die("wall");
@@ -108,7 +102,6 @@ export function openSnake(wm: WM): void {
     }
     snake.unshift(head);
     if (head[0] === chip[0] && head[1] === chip[1]) {
-      // it eats the board's chips, so it eats them with the board's own knock
       play("disc-land", 0.55);
       grow += 2;
       chip = free();
@@ -136,7 +129,7 @@ export function openSnake(wm: WM): void {
   const steer = (d: Dir): void => {
     if (!alive) return;
     if (!dir) {
-      // first move: any way but backwards into your own body
+      // first move: not backwards into the body
       if (d[0] === -1) return;
       dir = d;
       statusEl.textContent = GAMES_COPY.snake.score(snake.length);
@@ -165,8 +158,7 @@ export function openSnake(wm: WM): void {
   };
   addEventListener("keydown", onKey);
 
-  // a touchscreen has no arrow keys, so the field itself steers: swipe the
-  // way you want the snake to go
+  // touch: swipe the field to steer
   let swipeFrom: [number, number] = [0, 0];
   onPointerDrag(
     frame,
@@ -197,10 +189,7 @@ export function openSnake(wm: WM): void {
 
   body.append(bar, frame, status);
 
-  /* The pit is a bitmap, so it takes the one scale a bitmap can take: a whole
-     multiple. The ladder's step is 1 screen px per canvas px, which on an
-     88x64 pit is 88px of window at a time — the coarsest rung on the desk,
-     and the only one that keeps a 4px chip square. */
+  // Bitmap, so the scale ladder steps by whole px (88px of window per rung) to keep chips square.
   const naturalMargin = frame.style.margin;
   const relayout = fieldScaler({
     win: () => win.el,
@@ -239,8 +228,7 @@ export function openSnake(wm: WM): void {
   timer = setInterval(step, STEP_MS);
 }
 
-// n, not g: g is the desktop's own teal, and a snake the colour of the desk
-// vanishes the moment it's dragged out of the folder
+// n, not g: g is the desktop teal and the icon would vanish against it
 export const SNAKE_ICON = [
   "................", "................", "....nnnnnnnn....", "...nnnnnnnnnn...",
   "...nn......nn...", "...nn...........", "...nnnnnnnnn....", "....nnnnnnnnnn..",

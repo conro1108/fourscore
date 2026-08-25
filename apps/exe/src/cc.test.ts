@@ -1,10 +1,5 @@
-/**
- * The C compiler's tests. Every program here is compiled to real assembly,
- * assembled to real words and run on the real CPU — the whole toolchain in
- * one bite, which is the only honest way to test a compiler. The .c seed on
- * the disk compiles and runs here too, so c.txt, fizz.c and cc.ts can't
- * drift apart without a test going red.
- */
+/** C compiler tests: every program is compiled, assembled and run on the real
+ * CPU. The seeded .c files run here too, so c.txt, fizz.c and cc.ts can't drift. */
 
 import { describe, expect, it } from "vitest";
 import { assemble, makeVm, SCREEN_H, SCREEN_W, type Vm, type VmIO } from "./vm.js";
@@ -35,8 +30,7 @@ function runC(src: string, opts: { keys?: string; rand?: number; maxSteps?: numb
 }
 
 
-/** Compile and hand back the machine itself — for programs that draw, which
-    runC's console string can't see. The caller drives run() frame by frame. */
+/** Compile and return the Vm, for programs that draw to the screen. */
 function vmOf(src: string, opts: { keys?: number[]; rand?: number } = {}): Vm {
   const cc = compileC(src);
   if (!cc.ok) throw new Error(cc.errors.map((e) => `line ${e.line}: ${e.msg}`).join("; "));
@@ -119,8 +113,7 @@ describe("expressions, at random", () => {
   function gen(depth: number): { c: string; v: number } {
     const pick = rnd(depth <= 0 ? 2 : 12);
     if (pick < 1) {
-      // the sign boundary is where imm(), the compare bias and FOLD all
-      // change their minds, and a uniform draw over 65536 rarely lands there
+      // bias toward the sign boundary, where imm(), the compare bias and FOLD all change
       const EDGES = [0, 1, 2, 15, 16, 31, 32, 127, 128, 0x7fff, 0x8000, 0x8001, 0xfffe, 0xffff];
       const n = rnd(3) ? rnd(0x10000) : EDGES[rnd(EDGES.length)]!;
       return { c: String(n), v: n };
@@ -135,7 +128,7 @@ describe("expressions, at random", () => {
       return { c: `${op}(${e.c})`, v: op === "-" ? U(-e.v) : op === "~" ? U(~e.v) : e.v === 0 ? 1 : 0 };
     }
     if (pick < 4) {
-      // only ever by a literal that is not zero, so nothing has to fault
+      // divisor is a nonzero literal so nothing faults
       const e = gen(depth - 1);
       const k = 1 + rnd(200);
       const op = rnd(2) ? "/" : "%";
@@ -143,23 +136,20 @@ describe("expressions, at random", () => {
       return { c: `(${e.c}) ${op} ${k}`, v: op === "/" ? U(q) : U(S(e.v) - q * k) };
     }
     if (pick < 5) {
-      // an index the compiler cannot see through, off an array and off a
-      // pointer at the same array — the two go down different peepholes
+      // opaque index via array and via pointer to it — different peepholes
       const e = gen(depth - 1);
       const name = rnd(2) ? "a" : "p";
       return { c: `${name}[(${e.c}) & 3]`, v: ARR[e.v & 3]! };
     }
     if (pick < 6) {
-      // a call, so that fixed frames get filled from expressions that are
-      // themselves calls
+      // calls whose arguments are themselves calls fill fixed frames
       const a = gen(depth - 1);
       if (rnd(2)) return { c: `id(${a.c})`, v: a.v };
       const b = gen(depth - 1);
       return { c: `sum(${a.c}, ${b.c})`, v: U(a.v + b.v) };
     }
     if (pick < 7) {
-      // a conditional as an operand puts emitBranch's labels and jumps
-      // inside whatever window the enclosing operator has opened
+      // conditional as operand: emitBranch's jumps inside an open peephole window
       const c = gen(depth - 1);
       const t = gen(depth - 1);
       const f = gen(depth - 1);
@@ -194,10 +184,8 @@ describe("expressions, at random", () => {
     `int g = ${G};\nint a[] = {${ARR.join(", ")}};\nint *p;\n` +
     `int id(int v) { return v; }\nint sum(int x, int y) { return x + y; }\n`;
 
-  /** The same work in a frame that stacks. The self-call never runs — it is
-      there to put `say` on a cycle of the call graph, so its locals go on the
-      data stack and the frame-pointer half of the compiler gets exercised at
-      all. Without it every name in this test resolves to a fixed address. */
+  /** Same work in a stacking frame: the never-run self-call puts `say` on a
+      call-graph cycle so its locals go on the data stack (frame-pointer path). */
   const HARNESSES = [
     (body: string): string => `${PRELUDE}int main() { int l; l = ${L}; p = a;\n  ${body}\n}`,
     (body: string): string =>

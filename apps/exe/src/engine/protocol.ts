@@ -19,15 +19,12 @@ export interface ReviewRequest {
   forPlayer?: Player;
 }
 
-/**
- * Score one position for the live eval feed, on the same axis the review draws.
- * Cheap by design: this runs once per ply while a game is in progress.
- */
+/** Score one position for the live eval feed (review's axis). Runs once per ply, so cheap. */
 export interface EvaluateRequest {
   type: "evaluate";
   id: number;
   variantId: string;
-  /** The game so far. The position scored is the one *after* every move here. */
+  /** Position scored is the one *after* every move here. */
   history: number[];
 }
 
@@ -45,7 +42,7 @@ export interface DecideResponse {
   type: "decided";
   id: number;
   decision: BotDecision;
-  /** Wall-clock time the search took, so the UI can pace itself. */
+  /** Wall-clock ms the search took, for UI pacing. */
   elapsed: number;
 }
 
@@ -58,14 +55,11 @@ export interface ReviewResponse {
 export interface EvaluateResponse {
   type: "evaluated";
   id: number;
-  /** Plies played in the position scored, so a stale reply can be recognised. */
+  /** Plies in the scored position, to detect stale replies. */
   ply: number;
   /** Advantage from red's point of view, -1..1 — `advantageOf`'s axis. */
   advantage: number;
-  /**
-   * Where the number came from. Live play is `estimated` except at a finished
-   * game, where the result is a fact rather than a search.
-   */
+  /** `estimated` mid-game; `proven` only for a finished game. */
   source: ScoreSource;
 }
 

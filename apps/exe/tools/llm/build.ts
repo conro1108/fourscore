@@ -1,11 +1,7 @@
 /**
- * Build the drive image and check it before shipping it: calibrate on the
- * float model, quantise, then generate from the integer pipeline and print
- * both, side by side. If the integer text has stopped being English this is
- * where it shows, long before any of it reaches the machine.
- *
- *   npx vite-node apps/exe/tools/llm/build.ts          look
- *   npx vite-node apps/exe/tools/llm/build.ts --write  ship it
+ * Build the drive image: calibrate on the float model, quantise, generate from
+ * both pipelines side by side. Needs .cache/stories260K.bin + tok512.bin.
+ *   npx vite-node apps/exe/tools/llm/build.ts [--write]   (--write ships WEIGHTS.BIN)
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";

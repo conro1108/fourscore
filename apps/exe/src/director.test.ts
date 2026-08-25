@@ -16,11 +16,11 @@ describe("director", () => {
   it("leaving the ending starts the desktop coming down at once", () => {
     const d = makeDirector();
     d.event("win");
-    for (let i = 0; i < 12; i++) d.step(0.5); // the crescendo, mid-hold
+    for (let i = 0; i < 12; i++) d.step(0.5); // mid-hold
     expect(d.snapshot().tier).toBe(4);
     d.event("dismissed");
     for (let i = 0; i < 4; i++) d.step(0.5);
-    expect(d.snapshot().tier).toBeLessThan(4); // and it is already letting go
+    expect(d.snapshot().tier).toBeLessThan(4);
     for (let i = 0; i < 40; i++) d.step(0.5);
     expect(d.snapshot().tier).toBe(0);
   });
@@ -28,7 +28,7 @@ describe("director", () => {
 
   it("a sharp late position on the real estimate scale gets past tier 1", () => {
     const d = makeDirector();
-    // 0.42 is inside the estimated band (p90 of real games is ~0.40)
+    // 0.42 is inside the estimated band (real-game p90 ~0.40)
     d.feedEval(0.42, 34, 42);
     for (let i = 0; i < 120; i++) d.step(0.5);
     expect(d.snapshot().tier).toBeGreaterThanOrEqual(3);
@@ -44,9 +44,7 @@ function fromKey(key: string): Beat {
 
 describe("the beat roster", () => {
   it("every act that needs copy has copy in every pool that draws it", () => {
-    // A `dialog` act with no dialog filed under its key is a beat that fires
-    // and does nothing — silent, untypecheckable, and exactly the failure this
-    // whole change is fixing.
+    // An act with no copy under its key fires silently and nothing typechecks it.
     for (const key of POOL_KEYS) {
       const drawn = new Set<string>();
       for (let i = 0; i < 400; i++) {
@@ -61,8 +59,7 @@ describe("the beat roster", () => {
 });
 
 describe("the harness game scripts stay legal", () => {
-  // main.ts deep-links replay these; if the engine ever rejects one, the
-  // screenshot harness dies silently. Keep them honest here.
+  // main.ts deep-links replay these; a rejected script kills the shot harness silently.
   it("win, loss and midgame all replay to the state they claim", () => {
     const win = Match.fromMoves([3, 4, 4, 3, 5, 2, 3, 2, 2, 4, 2]);
     expect([win.status, win.winner]).toEqual(["won", "red"]);

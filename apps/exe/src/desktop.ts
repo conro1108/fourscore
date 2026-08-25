@@ -1,7 +1,6 @@
 /**
- * The desktop: icons, taskbar, Start menu, clock, idle watch.
- * Second law (DIRECTION.md): nothing is dead. Every icon launches, every
- * menu item does something, the clock genuinely keeps (its own) time.
+ * Desktop: icons, taskbar, Start menu, clock, idle watch. Nothing is dead
+ * (DIRECTION.md); the clock keeps its own time.
  */
 
 import { el, onPointerDrag, q } from "./dom.js";
@@ -31,11 +30,7 @@ export interface DesktopApps {
   shutdown(): void;
 }
 
-/**
- * The clock string. Starts at 6:66 PM and keeps honest minutes from there;
- * fever adds `drift` minutes on top. Minutes past 59 are not a bug the clock
- * is aware of. Past tier 3 the caller shows "—:——" instead.
- */
+/** Starts at 6:66 PM, honest minutes from there plus fever `drift`. Minutes past 59 are intended. */
 export function clockText(elapsedMin: number, drift: number): string {
   const m = Math.min(99, 66 + elapsedMin + drift);
   return `6:${m} PM`;
@@ -82,10 +77,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   stage.appendChild(el(`<div id="smears"></div>`));
   stage.appendChild(el(`<div id="trail"></div>`));
 
-  /* ---- icons ----
-     The desk stopped owning a list: it renders C:\DESKTOP (main.ts grows an
-     icon per entry through addIcon), plus main's two fixtures — moves.txt
-     and the drive. This file only knows how an icon behaves. */
+  /* ---- icons: main.ts adds one per C:\DESKTOP entry; this file only knows behaviour ---- */
   const iconEls: HTMLElement[] = [];
   function makeIcon(spec: DeskIconSpec): DeskIcon {
     const icon = el(`<div class="icon" style="left:${spec.x}px;top:${spec.y}px"></div>`);
@@ -102,8 +94,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
         e.stopPropagation();
         spec.onContext!(e);
       });
-    // icons drag like anything else on a real desktop; a finger-tap launches
-    // outright, because a double-click asked of a touchscreen is a dead icon
+    // a single touch tap launches — double-tap on a touchscreen is a dead icon
     let moved = false;
     onPointerDrag(
       icon,
@@ -119,7 +110,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
           if (Math.hypot(ev.clientX / k - sx - icon.offsetLeft, ev.clientY / k - sy - icon.offsetTop) > 4)
             moved = true;
           if (!moved) return;
-          icon.style.zIndex = "500"; // in flight it rides over every window
+          icon.style.zIndex = "500"; // above every window while dragging
           icon.style.left = `${Math.round(ev.clientX / k - sx)}px`;
           icon.style.top = `${Math.round(ev.clientY / k - sy)}px`;
         };
@@ -128,14 +119,13 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
         icon.style.zIndex = "";
         if (moved) {
           if (!cancelled && spec.onDrop) {
-            // the icon rides under the pointer, so it has to step aside for
-            // the drop handler's elementFromPoint to see what's beneath it
+            // hide so onDrop's elementFromPoint sees what's beneath
             icon.style.visibility = "hidden";
             const consumed = spec.onDrop(e);
             icon.style.visibility = "";
             if (consumed) return;
           }
-          icon.dataset.dragged = "1"; // you put it there; a re-stage lets it be
+          icon.dataset.dragged = "1"; // a re-stage leaves dragged icons alone
           spec.onMove?.(icon.offsetLeft, icon.offsetTop);
         } else if (!cancelled && e.pointerType === "touch") spec.launch();
       },
@@ -159,9 +149,6 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     if (e.target === stage) iconEls.forEach((i) => i.classList.remove("sel"));
   });
 
-  /* The rocket that used to be nailed here is rocket.spr on C:\ now — desk
-     art is the player's business (PAINT.EXE, pins.ts), not the chrome's. */
-
   /* ---- taskbar ---- */
   const taskbar = el(`<div id="taskbar"></div>`);
   const start = el(`<div id="start" class="btn"></div>`);
@@ -180,8 +167,6 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
     </div>`);
   const inner = q(".inner", menu);
   type SubEntry = readonly [string, () => void, (readonly string[])?];
-  // every row wears its program's own icon — the menu is a hallway of the
-  // same doors the desk has, not a list of words
   const item = (label: string, rows: readonly string[], act?: () => void, sub?: SubEntry[]): HTMLElement => {
     const it = el(`<div></div>`);
     it.appendChild(iconCanvas(rows, 24));
@@ -263,7 +248,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
   setInterval(renderClock, 5_000);
   renderClock();
 
-  /* ---- idle watch: the screensaver takes over on REAL idle ---- */
+  /* ---- idle watch ---- */
   let lastActivity = Date.now();
   let idle = false;
   const idleCbs: { seconds: number; cb: () => void }[] = [];
@@ -275,8 +260,7 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       wakeCbs.forEach((cb) => cb());
     }
   };
-  // pointer events, not mouse events: a finger playing the whole game must
-  // not read as an idle machine, or the screensaver takes the desktop mid-move
+  // pointer events, not mouse events, or touch play reads as idle
   for (const ev of ["pointermove", "pointerdown", "keydown"] as const)
     addEventListener(ev, noteActivity);
   setInterval(() => {
@@ -298,7 +282,6 @@ export function buildShell(stage: HTMLElement, apps: () => DesktopApps): Shell {
       renderClock();
     },
     shiftIcons(shifts) {
-      // the pattern cycles over however many icons the desk currently has
       iconEls.forEach((icon, i) => {
         const [dx, dy] = shifts.length ? shifts[i % shifts.length]! : [0, 0];
         icon.style.transform = `translate(${dx}px,${dy}px)`;

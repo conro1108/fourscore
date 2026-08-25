@@ -1,14 +1,9 @@
 /**
- * SRC\maze.c, SRC\tetris.c, SRC\c4.c — three more programs for the
- * machine's own processor, kept here rather than in copy.ts for the same
- * reason llm.c is: they are pages of another language and copy.ts is prose.
- * `String.raw` so the C's backslashes stay the C's. cc.test.ts compiles and
- * runs each on the real CPU so c.txt's "known to work" stays true.
- *
- * Things the dialect taught, worth knowing before writing the next one:
- * an array's size must be a literal; a #define line takes nothing but the
- * name and the number; and a word is signed, so rand() % n goes negative
- * half the time — mask to 15 bits first.
+ * SRC\maze.c, SRC\tetris.c, SRC\c4.c — programs seeded onto the disk, kept
+ * out of copy.ts because they are pages of C. `String.raw` so the C's
+ * backslashes stay the C's; cc.test.ts compiles and runs each on the CPU.
+ * Dialect footguns: array sizes must be literals; #define takes only a name
+ * and a number; words are signed, so mask rand() to 15 bits before % n.
  */
 
 export const MAZE_C = String.raw`/* maze.c — a maze, carved while you watch, then walked.

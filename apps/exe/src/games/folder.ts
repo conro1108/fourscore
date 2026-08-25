@@ -1,8 +1,4 @@
-/**
- * The games roster: which games exist, their icons, their labels. The window
- * that shows them is containers.ts — the games folder became one container
- * among several the day the desk grew folders of its own.
- */
+/** The games roster: ids, icons, labels. The window showing them is containers.ts. */
 
 import { TITLES } from "../copy.js";
 import { GAME_ICON_MINE } from "./mines.js";

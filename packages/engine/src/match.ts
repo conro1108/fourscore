@@ -1,17 +1,8 @@
 /**
- * Match state, and the post-game review.
- *
- * The review is the reason this file is bigger than a move list needs to be.
- * Beating everyone you know means never finding out where your play actually
- * breaks, and "you lost" is not that information — the move that loses a game
- * of Connect 4 is usually eight plies before the position looks bad. So every
- * ply gets scored against what was available instead, and the one move that
- * turned a won or drawn game into a lost one gets called out by name.
- *
- * This is only honest where the solver is exact, which is the back half of the
- * game. Plies it can't prove within budget are graded `unknown` rather than
- * guessed at — an analysis feature that quietly makes things up is worse than
- * one that admits its range.
+ * Match state and the post-game review. Every ply carries a `source`: `proven`
+ * is a fact, `estimated` is this engine's read. An estimated ply may never set
+ * `turningPoint`, and the advantage axis keeps proven strictly above estimated.
+ * See CLAUDE.md § say what the solver actually knows.
  */
 
 import { CONNECT4, Position, type Cell, type Player, type Variant } from "./board.js";
@@ -56,10 +47,7 @@ export class Match {
     return this.status === "playing" && this.position.canPlay(col);
   }
 
-  /**
-   * Drop a disc. Returns false if the move wasn't legal, so UI code can call
-   * this on a stray click without checking first.
-   */
+  /** Drop a disc; false if illegal, so the UI can call it on a stray click. */
   play(col: number): boolean {
     if (!this.canPlay(col)) return false;
 
@@ -126,54 +114,22 @@ export function findWinningLine(
 
 export type Grade = "best" | "good" | "inaccuracy" | "mistake" | "blunder" | "unknown";
 
-/**
- * Where a ply's numbers came from.
- *
- * This is the whole honesty mechanism. The review used to emit nothing at all
- * for plies the solver couldn't reach, on the grounds that a guess presented as
- * a result is worse than silence — which is true, but silence was the crude fix.
- * The engine has an opinion about those positions; it just wasn't being asked.
- * So now it is asked, and the answer is labelled rather than withheld.
- *
- * Consumers must keep the two visibly distinct. `proven` is a fact about the
- * game. `estimated` is this engine's read, and a better engine could disagree.
- */
+/** `proven` is a fact about the game; `estimated` is this engine's read. */
 export type ScoreSource = "proven" | "estimated";
 
 /**
- * Depth for the estimating pass. Consistency matters more than strength here.
- *
- * Alternate plies search one deeper. That looks like a wart and is the opposite:
- * a static evaluation quietly favours whoever is to move, so a fixed depth makes
- * every other leaf a tempo up and the curve comes out as a hard zigzag that's an
- * artifact of the evaluator, not the game. Searching to a constant *absolute*
- * ply parity puts every leaf on the same side to move and the tempo bias becomes
- * a constant offset instead of an oscillation.
- *
- * Exported for the same reason `advantageOf` is: a client estimating positions
- * live has to search to the same absolute parity as the review, or its numbers
- * zigzag against a curve that doesn't.
+ * Estimating depth. Alternate plies search one deeper on purpose: constant
+ * absolute leaf parity turns the evaluator's tempo bias into an offset instead
+ * of a zigzag. Live clients must use this same parity or their numbers zigzag.
  */
 const REVIEW_DEPTH = 6;
 export const estimateDepth = (ply: number): number => REVIEW_DEPTH + (ply % 2);
 
 /**
- * The three bands of the advantage axis.
- *
- * Reading up from level: quiet estimates fill `0 .. ESTIMATE_CEILING`, a forced
- * win the evaluator can see but hasn't proved sits just above them, and proven
- * results own everything from `PROVEN_FLOOR` up. Keeping proven strictly above
- * estimated is the product rule (CLAUDE.md); the *size* of the gap between them
- * is not, and it used to be enormous — nothing an estimate produced ever cleared
- * 0.08, so 44% of each half of the chart was empty and the curve read as
- * win/lose/draw with nothing in between.
- *
- * `ESTIMATE_SCALE` is the evaluator's actual dynamic range, measured over bot
- * games at `estimateDepth`: |score| runs p50 24, p75 50, p90 106, max ~194.
- * Dividing by 260 put the median ply at 0.046 — under 2px of a 92px chart —
- * and never reached the part of tanh that curves. At 80 the median ply is 0.15,
- * p90 is 0.40, and the compression is doing its job at the top instead of
- * flattening everything.
+ * Advantage axis bands: estimates in 0..ESTIMATE_CEILING, seen-but-unproven
+ * wins just above, proven from PROVEN_FLOOR up (must stay strictly above).
+ * ESTIMATE_SCALE is measured: |score| at `estimateDepth` runs p50 24, p90 106,
+ * max ~194; 80 puts the median ply at 0.15.
  */
 const ESTIMATE_SCALE = 80;
 const ESTIMATE_CEILING = 0.5;
@@ -182,33 +138,13 @@ const DECISIVE_SPAN = 0.06;
 const PROVEN_FLOOR = 0.6;
 
 /**
- * Estimated-drop bands, on that same axis — the units of `PlyRecord.drop`.
- *
- * They have to be the same units, and once weren't: `gradeEstimate` read `tanh`
- * with no ceiling applied while `drop` went through `advantageOf`, so the grade
- * was describing a number twice the size of the one printed beside it. Both
- * come off `dropOf` now, which is what keeps "inaccuracy" and the number next
- * to it the same claim.
- *
- * Measured over bot games at `estimateDepth`, these produce roughly
- * best 76% / good 12% / inaccuracy 6% / mistake 4% / blunder 2%.
+ * Estimated-drop bands in `PlyRecord.drop` units (must share `dropOf`, or the
+ * grade and the printed number disagree). Measured mix: best 76 / good 12 /
+ * inaccuracy 6 / mistake 4 / blunder 2 %.
  */
 const ESTIMATE_DROP = { good: 0.06, inaccuracy: 0.15, mistake: 0.32 };
 
-/**
- * Advantage from red's point of view, in -1..1.
- *
- * Both scales collapse to the same axis so one curve can run the whole game:
- * proven scores are discs-to-spare over the maximum, estimated ones are squashed
- * through tanh the way bot conviction already is. They don't mean the same
- * thing — one is a distance to a proven result, the other a positional hunch —
- * which is exactly why the curve has to render them differently.
- *
- * Exported because a live client wants the same axis mid-game that the review
- * draws afterwards. Two implementations of "how good is this position, in -1..1"
- * would drift apart, and the proven-band separation is a product rule, not a
- * chart detail.
- */
+/** Advantage from red's point of view, -1..1. The one axis for review and live client alike. */
 export function advantageOf(
   scoreForMover: number,
   moverIsRed: boolean,
@@ -217,10 +153,7 @@ export function advantageOf(
 ): number {
   let a: number;
   if (source === "proven") {
-    // Outcome first, distance second. A proven win is a win, so it belongs at
-    // the top of the chart with the margin modulating inside that band — mapping
-    // it linearly instead puts "won, two discs to spare" at 0.11 out of 1, which
-    // draws a lost game as a shrug.
+    // Outcome first, margin inside the band; linear would draw "won by two" at 0.11.
     a =
       scoreForMover === 0
         ? 0
@@ -228,16 +161,7 @@ export function advantageOf(
           (PROVEN_FLOOR +
             (1 - PROVEN_FLOOR) * Math.min(1, Math.abs(scoreForMover) / maxScoreOf(v)));
   } else if (isDecisive(scoreForMover, v)) {
-    // A forced win the evaluator can see is decisive, but it stays below the
-    // proven band: the solver has the last word on this axis.
-    //
-    // Not one constant, though. A mate score is `WIN_SCORE - discs`, so it says
-    // *when* the win lands, and a win that lands with most of the board still
-    // empty is a harder read than one that lands as the board fills — the same
-    // discs-to-spare idea the proven band is built on. That turns what was a
-    // flat plateau from the first forced win to the end of the game into a line
-    // that still moves. It is a narrow ramp on purpose: the honest content here
-    // is "this is over", and the timing is a detail inside that.
+    // Seen win: below the proven band, on a narrow ramp by when it lands so the line still moves.
     const winsAt = WIN_SCORE - Math.abs(scoreForMover);
     const spare = Math.min(1, Math.max(0, (v.cells - winsAt) / v.cells));
     a = Math.sign(scoreForMover) * (DECISIVE_FLOOR + DECISIVE_SPAN * spare);
@@ -273,12 +197,7 @@ export interface PlyRecord {
   grade: Grade;
   /** Whether the scores above are proven or this engine's estimate. */
   source: ScoreSource;
-  /**
-   * True if this move dropped the mover to a strictly worse outcome — the move
-   * that actually lost (or drew) a game that was won. Only ever set from proven
-   * scores: calling an estimated dip "the move that lost it" would be exactly
-   * the overclaim the `source` split exists to prevent.
-   */
+  /** Dropped the mover to a strictly worse outcome. Only ever set from proven scores. */
   turningPoint: boolean;
   /** How much advantage this move cost the mover, in 0..2. */
   drop: number;
@@ -288,10 +207,7 @@ export interface Review {
   plies: PlyRecord[];
   /** The first move that cost the reviewed player the game, if any. */
   turningPoint: PlyRecord | null;
-  /**
-   * The reviewed player's worst estimated drop, for when nothing was proven.
-   * A lead, not a verdict.
-   */
+  /** Worst estimated drop, for when nothing was proven. A lead, not a verdict. */
   biggestSwing: PlyRecord | null;
   /** Advantage from red's point of view across the whole game. */
   curve: CurvePoint[];
@@ -307,12 +223,7 @@ export interface ReviewOptions {
   variant?: Variant;
 }
 
-/**
- * Positions get monotonically harder as you walk back toward the opening, so
- * the first one that blows its budget is the last one worth attempting. Trying
- * anyway turned a review of a full game from seconds into minutes, all of it
- * spent failing.
- */
+// Walking back toward the opening only gets harder; trying past the first abort turned seconds into minutes.
 const STOP_AFTER_FIRST_ABORT = true;
 
 export function gradeMove(bestScore: number, playedScore: number): Grade {
@@ -321,8 +232,7 @@ export function gradeMove(bestScore: number, playedScore: number): Grade {
   const before = outcomeOf(bestScore);
   const after = outcomeOf(playedScore);
 
-  // Changing the result of the game is categorically worse than playing a
-  // slower version of the same result, however large the numeric drop.
+  // Changing the result outranks any numeric drop.
   if (after < before) return before === 1 && after === -1 ? "blunder" : "mistake";
 
   const drop = bestScore - playedScore;
@@ -331,20 +241,11 @@ export function gradeMove(bestScore: number, playedScore: number): Grade {
   return "mistake";
 }
 
-/**
- * Score every ply of a finished game.
- *
- * Walks backwards from the final position on purpose. Late positions are cheap
- * to solve and they fill the shared transposition table with the subtrees the
- * earlier ones need, so going in reverse gets several plies deeper into the
- * opening for the same budget than going forwards would.
- */
+/** Score every ply of a finished game. */
 export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}): Review {
   const { forPlayer, nodeLimit = 2_000_000, variant = CONNECT4 } = opts;
 
-  // Pass one: estimate every ply. Cheap, total, and the same depth throughout,
-  // so the curve it produces is comparable along its whole length. This is what
-  // fills the opening, where the solver has nothing to say and used to say so.
+  // Pass one: estimate every ply at a consistent depth.
   const byPly = new Map<number, PlyRecord>();
   for (let ply = 0; ply < history.length; ply++) {
     const before = Position.fromMoves(history.slice(0, ply), variant);
@@ -366,21 +267,14 @@ export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}
     });
   }
 
-  // Pass two: prove what's affordable and upgrade those plies in place. Walks
-  // backwards because late positions are cheap and fill the shared table with
-  // the subtrees the earlier ones need.
+  // Pass two: prove what's affordable, walking backwards — late positions are
+  // cheap and seed the shared table with the subtrees earlier ones need.
   const table = new TranspositionTable(23);
   let skipped = 0;
   let giveUp = false;
 
-  // Every ply, not just the reviewed player's. `forPlayer` decides whose moves
-  // get *listed*, but the curve is a statement about the position, and mixing a
-  // proven point next to an estimated one puts two different scales on one line
-  // — it renders as a sawtooth that says nothing about the game.
-  //
-  // Close to free, as it turns out: grading one player's ply already solves
-  // every child of that position, and the opponent's next position is one of
-  // those children, so it's in the shared table by the time we ask for it.
+  // Every ply, not just `forPlayer`'s: mixing proven and estimated points on the
+  // curve renders as a sawtooth. Near free — the opponent's position is a child already in the table.
   for (let ply = history.length - 1; ply >= 0; ply--) {
     const record = byPly.get(ply)!;
 
@@ -415,8 +309,7 @@ export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}
   const all = [...byPly.values()].sort((a, b) => a.ply - b.ply);
   const plies = forPlayer ? all.filter((p) => p.player === forPlayer) : all;
 
-  // The curve covers the whole game regardless of whose moves are being graded —
-  // half a curve isn't a shape. Point 0 is the empty board, dead level.
+  // Whole game regardless of `forPlayer`. Point 0 is the empty board.
   const curve: CurvePoint[] = [{ ply: 0, advantage: 0, source: "estimated" }];
   for (const p of all) {
     curve.push({
@@ -426,18 +319,11 @@ export function reviewMatch(history: readonly number[], opts: ReviewOptions = {}
     });
   }
 
-  // The earliest one is the one worth showing: later drops are usually just the
-  // position being already lost, and telling someone they blundered on move 30
-  // when the game was decided on move 12 is worse than saying nothing.
+  // Earliest, not worst: later drops are usually the position already being lost.
   const turningPoint = plies.find((p) => p.turningPoint) ?? null;
 
-  // A lead for when nothing was proven. Deliberately the largest drop rather
-  // than the earliest: with no proof of what changed the result, "where did most
-  // of your advantage go" is the honest question this can answer.
-  // "At least a mistake" — the same threshold the grade uses, so the lead can't
-  // point at a move the list calls an inaccuracy. The old gate was 0.25 on an
-  // axis where an estimated drop could only clear it by crossing the
-  // decisive boundary, which made this unreachable in an ordinary game.
+  // Largest, not earliest, and gated at "at least a mistake" — the grade's own
+  // threshold, so the lead can't point at a move the list calls an inaccuracy.
   const swings = plies.filter(
     (p) => p.source === "estimated" && p.drop > ESTIMATE_DROP.inaccuracy,
   );
@@ -460,21 +346,12 @@ function dropOf(
   return Math.abs(a - b);
 }
 
-/**
- * Grade an estimated move.
- *
- * Deliberately blunter than `gradeMove`. That one compares proven outcomes and
- * can say a move turned a won game into a lost one; this one is comparing two
- * hunches, so it grades on how much positional ground was given up and never
- * claims a result changed. The thresholds are loose on purpose — a depth-6
- * evaluator disagreeing with itself by a few points is noise, not a mistake.
- */
+/** Grade an estimated move by ground given up; never claims a result changed. Loose on purpose. */
 function gradeEstimate(best: number, played: number, v: Variant): Grade {
   if (played === best) return "best";
   if (isDecisive(best, v) && !isDecisive(played, v)) return "blunder";
 
-  // Point of view doesn't matter: both ends flip together, and the drop is a
-  // magnitude.
+  // Point of view is irrelevant: the drop is a magnitude.
   const drop = dropOf(best, played, true, "estimated", v);
   if (drop <= ESTIMATE_DROP.good) return "good";
   if (drop <= ESTIMATE_DROP.inaccuracy) return "inaccuracy";

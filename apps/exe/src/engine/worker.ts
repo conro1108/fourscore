@@ -1,15 +1,7 @@
 /**
- * The search, off the main thread.
- *
- * Quill spends up to ~700ms on a move and the Oracle's exact search can run for
- * seconds. On the main thread that freezes the page — including the whole
- * fever-dream render loop, which is precisely the thing that's supposed to be
- * reassuring you the game hasn't died. So all of it happens here.
- *
- * Brains are cached per bot because `BotBrain` keeps a transposition table
- * across moves: positions it proved on an earlier turn are still proved, so its
- * searches get cheaper deeper into the game, which is exactly when it needs the
- * headroom. The UI resets a brain when its match ends.
+ * The search worker. Quill takes ~700ms a move, the Oracle seconds.
+ * Brains are cached per bot@variant because `BotBrain` keeps its transposition
+ * table across moves; the UI resets one when its match ends.
  */
 
 import {
@@ -26,11 +18,7 @@ import {
 } from "@fourscore/engine";
 import type { Request, Response } from "./protocol.js";
 
-/**
- * Brains are keyed by bot *and* variant. A transposition table holds positions
- * from one geometry and its keys mean nothing under another, so sharing one
- * across variants would feed the solver garbage hits.
- */
+// Keyed by bot *and* variant: TT keys from one geometry are garbage hits under another.
 const brains = new Map<string, BotBrain>();
 
 const brainKey = (botId: string, variantId: string): string => `${botId}@${variantId}`;
@@ -47,24 +35,14 @@ function brainFor(botId: string, variantId: string): BotBrain {
 
 const post = (msg: Response): void => self.postMessage(msg);
 
-/**
- * Node ceiling for the live eval feed.
- *
- * Well under the bots' budget on purpose: this fires once per ply for the
- * Director's benefit, and fever arriving a beat late is better than a search
- * that competes with the bot for a core. A clipped search here degrades to a
- * static evaluation, which for a tension number is a shrug, not a wrong move.
- */
+// Live-eval node ceiling, well under the bots' budget: fires once per ply and
+// must not compete with the bot for a core. Clipping degrades to static eval, which is fine here.
 const EVAL_NODES = 150_000;
 
 /**
- * Score the position after `history` on `advantageOf`'s axis, red's point of view.
- *
- * A finished game is not searched at all: the result is a fact, and running a
- * heuristic over a terminal position returns garbage (no legal moves means no
- * best score). That's also the only `proven` the live feed ever produces —
- * everything mid-game is this engine's read, which is what gates spectacle from
- * making claims it can't back (see PLAN.md's product truths).
+ * Score the position after `history` on `advantageOf`'s axis, red's view.
+ * A finished game is never searched (heuristic over a terminal position is garbage);
+ * that's the only `proven` the live feed produces.
  */
 function evaluatePosition(
   history: readonly number[],

@@ -1,10 +1,7 @@
 /**
- * Every string BOARD.EXE says, in one place — fever's copy.ts pattern, because
- * it's what made the copy pass possible there.
- *
- * Voice (DIRECTION.md): sincere period software, deadpan. The software
- * believes it is fine. Bots get persona lines (they're software); the win
- * cascade is sincere, never sarcastic; nothing winks.
+ * Every string BOARD.EXE says, in one place. Voice: see DIRECTION.md.
+ * Confidence law (CLAUDE.md): proven copy is flat, estimated copy hedges,
+ * and the machinery is never named.
  */
 
 import { LLM_C } from "./llmc.js";
@@ -17,8 +14,7 @@ export interface BotVoice {
   waiting: string;
   /** Statusbar while it deliberates. */
   thinking: string;
-  /** Dialog body when it wins — a function of the run, so a bot can't claim
-      "four" on a Connect 5 board (the claim is generated, never written). */
+  /** Generated from the run so a bot can't claim "four" on Connect 5. */
   winBody: (run: number) => string;
   /** Statusbar after it wins. */
   winStatus: string;
@@ -26,7 +22,6 @@ export interface BotVoice {
   lostStatus: string;
 }
 
-/** "connected four" / "connected five" — the claim, generated from the run. */
 const connected = (run: number): string => `connected ${numberWord(run).toLowerCase()}`;
 
 export const BOT_VOICE: Record<string, BotVoice> = {
@@ -139,7 +134,6 @@ export const DIALOG = {
     title: "About BOARD.EXE",
     body: "BOARD.EXE<br>Version 4.0 (of 4)<br><br>This computer is functioning normally.",
   },
-  /** What the machine says when you ask it to stop. It declines, sincerely. */
   shutdown: {
     title: "Shut Down Windows",
     body: "The system is not ready to shut down.<br>The system may never be ready.",
@@ -154,15 +148,11 @@ export const DIALOG = {
   },
 } as const;
 
-/**
- * Start ▸ Shut Down — the period's own dialog, and the period's own answer to
- * "reset the whole screen". A question, the ways of answering it, Yes/No/Help.
- * Shutting down is still refused (`DIALOG.shutdown`); restarting is real.
- */
+/** Start ▸ Shut Down. Shutting down is refused (`DIALOG.shutdown`); restart is real. */
 export const SHUTDOWN = {
   title: "Shut Down Windows",
   prompt: "Are you sure you want to:",
-  /** In the period's order, and the period's default: shut down is first.
+  /** Period order and default: shut down first.
       The third is this machine's own — a restart that also empties C:\ and
       every setting, offered out loud rather than done to anyone. */
   options: [
@@ -175,14 +165,7 @@ export const SHUTDOWN = {
   help: "Help",
 } as const;
 
-/**
- * The restart, out loud. A machine that came back without saying anything
- * would have been a page reload; this one counts its memory first, the way
- * every machine of the period did, in the same console the terminal uses.
- *
- * The version number is the one COMMAND.COM already claims and the clock
- * already believes.
- */
+/** Restart console text. Version must match what COMMAND.COM and the clock claim. */
 export const REBOOT = {
   wait: "Please wait while your computer restarts.",
   post: [
@@ -193,11 +176,7 @@ export const REBOOT = {
   ],
 } as const;
 
-/**
- * The cascade (approved in 02-win.html): sincere dialogs scattered across the
- * desktop at hand-tuned positions on irregular beats. Tuned, not random —
- * wrongness repeats.
- */
+/** Win cascade. Positions and beats are hand-tuned, not random — wrongness repeats. */
 export interface CascadeSpec {
   title: string;
   body: string;
@@ -220,18 +199,12 @@ export const CASCADE: readonly CascadeSpec[] = [
   { title: "FOURSCORE.EXE — not responding (it is)", body: "This win is running normally.", buttons: ["OK", "OK"], x: 560, y: 250, w: 372, dwell: 420 },
 ];
 
-/** The cascade names the run it saw. */
 export const cascadeFor = (run: number): CascadeSpec[] =>
   CASCADE.map((c, i) =>
     i === 0 ? { ...c, body: `${numberWord(run).charAt(0)}${numberWord(run).slice(1).toLowerCase()} have been connected.` } : c,
   );
 
-/**
- * The loss cascade: the same sincere furniture, the opposite register. The
- * win multiplies announcements; the loss files paperwork. Quiet, no taskbar
- * crush — the crushed taskbar is the win's signature. `behind` puts a dialog
- * underneath the board window, where you find it later.
- */
+/** Loss cascade. No taskbar crush (that is the win's signature). `behind` = under the board window. */
 export const LOSS_CASCADE: readonly (CascadeSpec & { behind?: boolean })[] = [
   { title: "Sound", body: "No fanfare has played.", x: 175, y: 265, w: 310, dwell: 620 },
   { title: "moves.txt", body: "The file now says you lost.<br>It will keep saying it.", x: 924, y: 292, w: 306, dwell: 900 },
@@ -240,26 +213,10 @@ export const LOSS_CASCADE: readonly (CascadeSpec & { behind?: boolean })[] = [
 ] as const;
 
 /**
- * What the desktop says between tier crossings — the beat roster's words.
- *
- * Two laws bind every string in here.
- *
- * **The confidence law (CLAUDE.md).** A beat's grade comes from the live feed,
- * which is `estimated` on every ply of every game — this engine's read, not a
- * fact about the game. So nothing here may declare a result. No line says a
- * move lost, or won, or was wrong; the blunder dialogs notice that something
- * happened and then decline to say what they think of it, which is both honest
- * and funnier than a verdict. `endgame.ts` is where the software is allowed to
- * be flat and declarative, because by then the game is actually over.
- *
- * **The voice.** Sincere period software, deadpan, believes it is fine. The OS
- * is not commenting on your game; it is filing, printing, previewing and
- * acknowledging, and your game is simply what is happening while it does that.
- *
- * Positions are authored against 1280x800 and carry anchors, like every other
- * window spec. They are hand-tuned per line rather than drawn from a hat: the
- * cascade's rule holds here too — randomness picks which act fires, never how
- * it looks.
+ * Beat dialogs. Beat grades are always `estimated`, so nothing here may declare
+ * a result (no "lost", "won", "wrong") — only endgame.ts gets to be flat.
+ * Positions are authored against 1280x800 with anchors, hand-tuned per line;
+ * randomness picks which act fires, never how it looks.
  */
 export interface BeatDialog {
   title: string;
@@ -271,7 +228,7 @@ export interface BeatDialog {
   ax?: "left" | "center" | "right";
   ay?: "top" | "bottom";
   w: number;
-  /** Milliseconds before the OS takes it back. You may close it first. */
+  /** ms before the OS closes it. */
   dwell: number;
 }
 
@@ -291,7 +248,7 @@ export const BEAT_DIALOGS: Record<string, readonly BeatDialog[]> = {
     { title: "Display", body: "The display noticed.<br>The display is saying nothing.", x: 300, y: 390, ax: "center", w: 330, dwell: 2400 },
     { title: "moves.txt", body: "The file has recorded that.<br>The file is not editorialising.", x: 900, y: 250, ax: "right", w: 336, dwell: 2600 },
   ],
-  // Hedged by law, and better for it. Not one of these says the move was bad.
+  // Hedged by law: none of these says the move was bad.
   "move:blunder": [
     { title: "Information", body: "This program has an opinion.<br>It is keeping it.", x: 480, y: 260, ax: "center", w: 330, dwell: 3000 },
     { title: "Display", body: "That looked like something.<br>The display is not sure what.", x: 700, y: 180, ax: "center", w: 348, dwell: 2800 },
@@ -310,21 +267,18 @@ export const BEAT_DIALOGS: Record<string, readonly BeatDialog[]> = {
     { title: "System", body: "The room has changed temperature.<br>No action is required.", x: 600, y: 170, ax: "center", w: 352, dwell: 2600 },
     { title: "flames.scr", body: "The fire has increased.<br>This is within tolerance.", x: 880, y: 490, ax: "right", w: 316, dwell: 2600 },
   ],
-  // The best line in fever's roster, and this is the only beat that plays it.
   "swing:collapsing": [
     { title: "Information", body: "Never mind.", x: 540, y: 280, ax: "center", w: 300, dwell: 2400 },
     { title: "Display", body: "That has passed.<br>The display was ready for nothing.", x: 320, y: 330, ax: "center", w: 344, dwell: 2600 },
   ],
 };
 
-/** What BOARD.EXE's titlebar says when it briefly says something else. */
 export const BEAT_TITLES: Record<string, readonly string[]> = {
   "move:fine": ["BOARD.EXE — working", "BOARD.EXE — please wait", "BOARD.EXE — (1 move)"],
   "move:dubious": ["BOARD.EXE — thinking about it", "BOARD.EXE — (not responding)", "BOARD.EXE — hm"],
   "swing:collapsing": ["BOARD.EXE — never mind", "BOARD.EXE — (nothing)", "BOARD.EXE — working"],
 };
 
-/** What moves.txt volunteers, in its own lowercase. */
 export const BEAT_NOTES: Record<string, readonly string[]> = {
   "move:fine": ["that happened.", "noted without comment.", "the file is keeping up.", "still writing this down."],
   "move:brilliant": ["that one is going in.", "underlined.", "the file approves. the file is a file."],
@@ -392,10 +346,7 @@ export const BIN_TEXT = [
   "be restored.",
 ].join("\n");
 
-/**
- * The other things the machine can run. Same voice: sincere period software,
- * deadpan, believes it is fine.
- */
+/** The other programs' copy. */
 export const GAMES_COPY = {
   mines: {
     win: { title: "MINES.EXE", body: "All mines have been avoided.<br>They remain where they are." },
@@ -414,13 +365,8 @@ export const GAMES_COPY = {
     stuckDeal: "The deck has started over. It does this.",
     nothingToUndo: "Nothing to take back.",
     help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back.<br>Click a card, then where it should go. Dragging is also permitted." },
-    /* ---- the review ----
-       The confidence law, dealt again (see REVIEW above and solreview.ts).
-       The machine can *prove* a deal was winnable — it holds the line it won
-       with — and it can never prove one wasn't, because it stops looking. So
-       every "yes" here is flat and every "no" is a sentence about the
-       machine, not about the deal. The absolution is the honest one or it
-       isn't worth having. */
+    /* Review (solreview.ts): winnable is provable, unwinnable is not (the search
+       stops). Every "yes" is flat; every "no" is about the machine, not the deal. */
     review: {
       none: { title: "SOL.EXE", body: "Nothing has been played yet.<br>There is nothing to go over." },
       working: "The machine is going back over it.",
@@ -437,19 +383,14 @@ export const GAMES_COPY = {
         flipped: (n: number): string =>
           n === 1 ? "One card came off its face." : `${n} cards came off their faces.`,
       },
-      /** Proven, so it says so. Counted in plays, because a draw is a play and
-          the one that loses a Klondike game is very often a draw — the counts
-          above say how many of each. */
+      /** Proven. Counted in plays (a draw is a play). */
       won: "You won it. There is nothing to explain.",
       alive: "There is still a way through from here. This is known.",
       stillAt: (play: number): string =>
         play === 0
           ? "The deal had a way through. This is known."
           : `${play} plays in, there was still a way through. This is known.`,
-      /* The other half is never proven and never written as if it were. Not
-         "the door closed here" — the machine looked and didn't find one, and
-         which play that started with is a third thing it may not know either.
-         Each of these names exactly what was actually tested. */
+      /* Never proven; each names exactly what was tested. */
       lostAfterFirst: "The machine could not find one after your first play.",
       lostAfter: "The machine could not find one after that.",
       lostSomewhereAfter:
@@ -481,11 +422,7 @@ export const GAMES_COPY = {
     threefold: { title: "CHESS.EXE", body: "This position keeps happening.<br>The rules say three times is enough." },
     promote: { title: "Promotion", body: "The pawn has reached the end.<br>It must become something." },
     help: { title: "CHESS.EXE", body: "It is chess.<br>You may already know how this goes." },
-    /* ---- the result, which is a fact ----
-       Checkmate and stalemate are proven by the rules, not read off an
-       evaluation, so this half of the file is allowed to be flat and
-       declarative. It stays in the statusbar for as long as the position
-       stands, because the position stands. */
+    /* Proven by the rules — flat. Stays in the statusbar while the position stands. */
     over: {
       youWin: "CHECKMATE. You win.",
       machineWins: "CHECKMATE. The computer wins.",
@@ -493,7 +430,6 @@ export const GAMES_COPY = {
       fifty: "DRAW. Fifty moves and nothing happened.",
       threefold: "DRAW. The position happened three times.",
     },
-    /** What the titlebar carries afterwards, for good. */
     overTitle: {
       youWin: "Checkmate",
       machineWins: "Checkmate",
@@ -502,11 +438,7 @@ export const GAMES_COPY = {
       threefold: "Draw",
     },
     overButtons: ["OK", "New Game"],
-    /* ---- and the pressure, which is a guess ----
-       These hang off a heuristic reading of the position — material standing
-       loose, a king addressed, a mate on the board — so every one of them
-       hedges, and not one says a move won or lost anything. The titlebar
-       carries them while they last and drops them when the position calms. */
+    /* Heuristic — every line hedges. Titlebar drops them when the position calms. */
     pressure: {
       check: "The king is aware",
       loose: "Something is loose",
@@ -526,8 +458,6 @@ export const GAMES_COPY = {
     }),
     noName: { title: "Notepad", body: "The file needs a name.<br>It can be almost anything." },
   },
-  /* PAINT.EXE speaks the same flat filing language as Notepad — a picture is
-     just another file, and the machine is not impressed by either. */
   paint: {
     saved: (name: string): { title: string; body: string } => ({
       title: "Paint",
@@ -546,15 +476,8 @@ export const GAMES_COPY = {
 } as const;
 
 /**
- * REVIEW.EXE — the game, gone back over.
- *
- * The confidence law (CLAUDE.md) binds every string here harder than anywhere
- * else, because this is the one window that grades moves. A ply's score is
- * either a fact about the game or this machine's read of it, and the sentence
- * has to carry which one it is without ever naming the machinery: flat and
- * declarative where it is known, hedged everywhere else. One line on the
- * chart, no legend, no badges — the player is never asked to hold the
- * distinction, only protected from the overclaim.
+ * REVIEW.EXE. The confidence law bites hardest here: proven plies get flat
+ * verdicts, estimated plies hedge, and neither names the machinery.
  */
 export const REVIEW = {
   /** While the machine reads the game back. */
@@ -568,32 +491,29 @@ export const REVIEW = {
     title: "REVIEW.EXE",
     body: "The review has stopped working.<br>The game remains played.",
   },
-  /** The result is a fact — the game is over, so this half is flat. */
+  /** Proven — flat. */
   result: {
     win: "YOU WON.",
     loss: (name: string): string => `${name} WON.`,
     draw: "NOBODY WON.",
   },
-  /** The statusbar, which is where a period program said how to drive it. */
   walk: "Left and Right walk the game.",
-  /** The caption under the walked board: whose move it was, and where it went.
-      Yours can carry a remark; theirs is just the fact of it. */
+  /** Caption under the walked board. Yours can carry a remark; theirs is just the fact. */
   pan: {
     start: "The board before anyone moved.",
     yours: (move: number, col: number): string => `Move ${move}, column ${col}. Yours.`,
-    /** The same move once the machine has an opinion about it. */
     yoursGraded: (move: number, col: number, remark: string): string =>
       `Move ${move}, column ${col} — ${remark}`,
     theirs: (move: number, col: number, name: string): string =>
       `Move ${move}, column ${col}. ${name}.`,
   },
-  /** Proven: the sentence is allowed to be a verdict. */
+  /** Proven: a verdict. */
   turningPoint: (move: number): string => `Move ${move} is where it went. This is known.`,
-  /** Estimated: the sentence is a lead, and sounds like one. */
+  /** Estimated: a lead. */
   biggestSwing: (move: number): string => `Move ${move} looks like the loose one.`,
   clean: "Nothing stands out. It was simply played.",
   moveRow: (move: number, col: number): string => `Move ${move}, column ${col}`,
-  /** One remark per grade, in two registers: proven says, estimated hedges. */
+  /** Per grade: proven says, estimated hedges. */
   remark: {
     proven: {
       best: "correct.",
@@ -616,8 +536,6 @@ export const REVIEW = {
 
 export const TITLES = {
   board: "BOARD.EXE",
-  /** The titlebar carries which game this is — a Connect 6 window should
-      never have to be counted to be identified. */
   boardVariant: (name: string): string => `BOARD.EXE — ${name}`,
   moves: "moves.txt — Notepad",
   flames: "flames.scr — Preview",
@@ -635,8 +553,6 @@ export const TITLES = {
   snake: "SNAKE.EXE",
   checkers: "CHECKERS.EXE",
   chess: "CHESS.EXE",
-  /** CHESS.EXE's titlebar carries what the window currently knows — a hedged
-      note while the position is sharp, the result once there is one. */
   chessNote: (note: string): string => `CHESS.EXE — ${note}`,
   notepad: (name: string): string => `${name} — Notepad`,
   paint: (name: string): string => `${name} — Paint`,
@@ -652,19 +568,9 @@ export const TITLES = {
 export const PIECES_NOTE = "Applies immediately. No restart required, unusually.";
 
 /**
- * The Sounds control panel's event list — one row per sound in the scheme, in
- * the Control Panel's own flat language.
- *
- * The joke is the filing, and it only works if nothing in here winks: the
- * machine lists the fever's symptoms in the same list as Minimize and Maximize,
- * because from inside the OS they are the same kind of event. `Clock corrected`
- * is a clock losing four minutes. `Icons rearranged` is the desk flinching.
- * Neither is described as a problem, because this computer is functioning
- * normally.
- *
- * A test keeps this list and the library exactly in step in both directions —
- * a sound with no event row is a sound the player can never find, and an event
- * row with no sound is a dead control.
+ * Sounds control panel event list, one row per sound. Fever symptoms are
+ * filed alongside Minimize/Maximize without comment. A test keeps this list
+ * and the sound library in step both ways.
  */
 export const SOUND_EVENTS: readonly { sound: SoundName; label: string }[] = [
   { sound: "startup", label: "Start Windows" },
@@ -703,7 +609,6 @@ export const SOUNDS = {
     possessed: "BOARD 95 (as it is now)",
     none: "No Sounds",
   },
-  /** The note under the list, which changes with what the panel can do. */
   note: {
     ok: "This scheme is the one the machine came with.",
     possessed: "The machine prefers this one. It has not said why.",
@@ -724,15 +629,9 @@ export const START_MENU = {
   shutdown: "Shut Down...",
 } as const;
 
-/** The clock believes these, in order of fever tier. */
 export const CLOCK_BASE = { h: 6, m: 66 } as const;
 
-/**
- * The terminal. The DOS dress is gone — the owner wanted their own shell
- * back — so the prompt, ls and the errors speak unix. The old spellings
- * (DIR, TYPE, DEL...) still answer, quietly; the possession moved into the
- * hostname and the login line.
- */
+/** Terminal copy. Speaks unix; the DOS spellings (DIR, TYPE, DEL...) still answer quietly. */
 export const TERM = {
   banner: ["Last login: Wed Aug 14 18:66:06 1996 on ttys666", "The disk is genuine. Type help.", ""],
   promptFor: (cwd: string): string =>
@@ -779,8 +678,6 @@ export const TERM = {
   asmOk: (name: string, words: number): string => `${name}: ${words} words. The processor accepts it.`,
   ccOk: (src: string, outName: string, words: number): string =>
     `${src} -> ${outName}: ${words} words. The processor accepts it.`,
-  /** CC emitted assembly its own assembler rejects — the compiler's fault,
-      and the machine says so instead of blaming the program. */
   ccBadAsm: "CC has produced something the processor refuses. This is CC's fault:",
   asmErrLine: (line: number, msg: string): string => (line > 0 ? `Line ${line}: ${msg}` : msg),
   asmErrCount: (n: number): string => `${n} error(s). Nothing was run.`,
@@ -789,14 +686,10 @@ export const TERM = {
 } as const;
 
 /**
- * What a fresh disk arrives holding: the machine's own documentation, its
- * programs as actual files, and two programs known to work. Names are full
- * paths now — the desk is C:\DESKTOP, the manuals live in C:\DOCS, the
- * sources in C:\SRC. asm.txt is real documentation — it must agree with
- * vm.ts, and vm.test.ts assembles both .asm seeds to keep everyone honest.
+ * Seed disk contents. Names are full paths (C:\DESKTOP, C:\DOCS, C:\SRC).
+ * asm.txt must agree with vm.ts; vm.test.ts assembles both .asm seeds.
  */
 
-/** The directories a fresh (or amnesiac) volume always has. */
 export const SEED_DIRS: readonly string[] = [
   "DESKTOP",
   "DESKTOP\\games",
@@ -805,11 +698,7 @@ export const SEED_DIRS: readonly string[] = [
   "SRC",
 ];
 
-/**
- * A program file's text. The MZ line names what runs — dispatch reads the
- * file, not the file name, so COPY BOARD.EXE ME.EXE still boots the board.
- * The rest is what TYPE always printed when you typed a binary at it.
- */
+/** Program file text. Dispatch reads the MZ line, not the file name — COPY BOARD.EXE ME.EXE still boots the board. */
 const programBody = (token: string): string =>
   [
     `MZ ${token}`,
@@ -817,7 +706,7 @@ const programBody = (token: string): string =>
     "This program can only be run in this mode.",
   ].join("\n");
 
-/** The MZ token, if this text is a program. The other half of programBody. */
+/** Inverse of programBody. */
 export const programTokenOf = (text: string): string | null =>
   /^MZ ([a-z]+)(\n|$)/.exec(text)?.[1] ?? null;
 
@@ -876,8 +765,7 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     ].join("\n"),
   },
   {
-    /* The pad (notepad.ts) writes the game's minutes here as they happen;
-       the seed just makes sure the file exists before the first game does. */
+    /* notepad.ts writes here; the seed only ensures it exists. */
     name: "DESKTOP\\moves.txt",
     text: "",
   },
@@ -1313,10 +1201,7 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     ].join("\n"),
   },
   {
-    /* The reference implementation for the screen hardware (llm_llm_llm.md
-       Phase 1): a human-written pong, compiled by CC, playable in the
-       terminal. The corpus gets graded against this file, so it stays a
-       seed the player can cat, edit, break and get back at the next boot. */
+    /* Reference program for the screen hardware; the corpus is graded against it. */
     name: "SRC\\pong.c",
     text: [
       "/* pong.c — the television game, on this machine's own screen.",
@@ -1438,9 +1323,7 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     ].join("\n"),
   },
   {
-    /* A maze carved in front of you, the falling blocks, and the game this
-       machine is named for with a three-ply bot doing its thinking at the
-       period clock. Sources in games_c.ts. */
+    /* Sources in games_c.ts. */
     name: "SRC\\maze.c",
     text: MAZE_C,
   },
@@ -1453,16 +1336,11 @@ export const SEED_FILES: readonly { name: string; text: string }[] = [
     text: C4_C,
   },
   {
-    /* llm_llm_llm.md Phase 2: a language model on the machine's own
-       processor. The text lives in llmc.ts because it is 400 lines of
-       another language; in every other way it is a seed like the rest. */
+    /* Source in llmc.ts; see llm_llm_llm.md. */
     name: "SRC\\llm.c",
     text: LLM_C,
   },
   {
-    /* The rocket used to be chrome nobody asked for; now it is a file. It
-       arrives on every disk in the picture format, where it can be repainted,
-       pinned up, filed away, or thrown in the rest like anything else. */
     name: "DESKTOP\\rocket.spr",
     text: [
       ".....rr.....",

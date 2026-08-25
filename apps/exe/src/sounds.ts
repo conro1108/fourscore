@@ -1,16 +1,7 @@
 /**
- * sounds.ctl and the tray speaker — where the scheme is a thing you can open.
- *
- * The second law (DIRECTION.md): nothing is dead. A desktop that makes noises
- * has to have the Control Panel that admits it, and every control in here does
- * what it says — the list is the real library, Play renders and plays the real
- * recipe, the schemes really change how the machine sounds, and the tray
- * speaker is the tray speaker.
- *
- * The one thing that is *not* dead but is deliberately grayed: Play, when the
- * scheme is No Sounds or the machine is muted. A grayed control is period
- * software saying why it can't, which is the opposite of a control that
- * silently doesn't — and `Forfeit` in BOARD.EXE already does exactly this.
+ * sounds.ctl (the Sounds control panel) and the tray speaker. Every control is
+ * live (see DIRECTION.md); Play is deliberately grayed, not dead, when muted
+ * or on No Sounds.
  */
 
 import { el, onPointerDrag, q } from "./dom.js";
@@ -30,7 +21,6 @@ export function openSounds(wm: WM): void {
 
   const body = el(`<div style="padding:8px 10px 10px"></div>`);
 
-  /* ---- the event list ---- */
   body.appendChild(el(`<div style="margin-bottom:3px">${SOUNDS.events}</div>`));
   const list = el(`<div class="listbox" id="soundList"></div>`);
   let selected = 0;
@@ -51,9 +41,8 @@ export function openSounds(wm: WM): void {
   body.appendChild(playRow);
   playBtn.addEventListener("click", () => preview());
 
-  /* ---- the schemes ---- */
   body.appendChild(el(`<div style="margin-bottom:3px">${SOUNDS.scheme}</div>`));
-  // three rows and no more, so it gets the box without the scroll gutter
+  // fixed three rows: no scroll gutter
   const schemeBox = el(`<div class="listbox" style="height:auto;overflow:hidden;margin-bottom:8px"></div>`);
   const schemeRows = new Map<Scheme, HTMLElement>();
   for (const id of SCHEME_ORDER) {
@@ -68,7 +57,6 @@ export function openSounds(wm: WM): void {
   }
   body.appendChild(schemeBox);
 
-  /* ---- volume and mute ---- */
   const volRow = el(`<div style="display:flex;align-items:center;gap:8px"></div>`);
   volRow.appendChild(el(`<div style="flex:none">${SOUNDS.volume}</div>`));
   const track = el(`<div class="trackbar" style="flex:1;margin:0"><div class="rail"></div><div class="thumb"></div></div>`);
@@ -107,7 +95,6 @@ export function openSounds(wm: WM): void {
     if (!quiet) play("click", 0.4);
   }
 
-  /** Play the selected event's own sound, at the level the panel is set to. */
   function preview(): void {
     if (!audible()) return;
     play(SOUND_EVENTS[selected]!.sound);
@@ -133,21 +120,13 @@ export function openSounds(wm: WM): void {
   render();
 }
 
-/**
- * The switch, wherever it is. The click fires before the fade so it is heard on
- * the way out — a mute that silences its own confirmation reads as a control
- * that didn't take.
- */
+/** Click fires before the mute so the confirmation is heard. */
 function toggleMute(): void {
   play("click", 0.5);
   setAudio({ muted: !audioSettings().muted });
 }
 
-/**
- * The tray: a real speaker next to the clock. One click is the volume slider,
- * two is the Control Panel — which is what the icon did, and is also the only
- * way to reach the scheme without going through Start.
- */
+/** Tray speaker: one click is the volume popup, two is the panel. */
 export function installTray(taskbar: HTMLElement, before: HTMLElement, openPanel: () => void): void {
   const tray = el(`<div id="tray" title="${SOUNDS.tray.on}"></div>`);
   const on = iconCanvas(ICONS.speaker, 16);
@@ -176,9 +155,8 @@ export function installTray(taskbar: HTMLElement, before: HTMLElement, openPanel
   addEventListener("click", close);
   pop.addEventListener("click", (e) => e.stopPropagation());
 
-  // A double-click is two clicks, so the popup opens and then has to get out of
-  // the way again — checked by the timestamp rather than by a `dblclick`
-  // handler, which fires *after* the second `click` has already toggled it.
+  // double-click detected by timestamp: `dblclick` fires after the second
+  // `click` has already toggled the popup
   let lastClick = 0;
   tray.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -193,7 +171,6 @@ export function installTray(taskbar: HTMLElement, before: HTMLElement, openPanel
     const opening = pop.style.display !== "block";
     pop.style.display = opening ? "block" : "none";
     if (opening) {
-      // above the tray, aligned to its right edge — the desk may be any width
       pop.style.right = `${taskbar.offsetWidth - tray.offsetLeft - tray.offsetWidth}px`;
       play("click", 0.5);
     }
@@ -212,19 +189,13 @@ export function installTray(taskbar: HTMLElement, before: HTMLElement, openPanel
   render();
 }
 
-/**
- * Drag a period trackbar and report 0..1. Ratios rather than pixels, so the
- * stage's scale cancels out — the desk is a CSS transform and `clientX` is not
- * in desk units.
- */
+/** Reports 0..1 as a ratio, not pixels: the desk is CSS-scaled and clientX is not in desk units. */
 function dragTrack(track: HTMLElement, set: (v: number) => void, axis: "horizontal" | "vertical" = "horizontal"): void {
   const from = (e: PointerEvent): void => {
     const r = track.getBoundingClientRect();
     const v = axis === "horizontal" ? (e.clientX - r.left) / r.width : 1 - (e.clientY - r.top) / r.height;
     set(Math.max(0, Math.min(1, v)));
   };
-  // listeners for the length of the drag only — sounds.ctl can be opened and
-  // closed all evening, and the desktop's icons drag the same way
   onPointerDrag(track, (e) => {
     e.preventDefault();
     e.stopPropagation();

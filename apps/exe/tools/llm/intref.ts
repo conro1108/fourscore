@@ -1,19 +1,10 @@
 /**
- * The integer pipeline, in TypeScript, reading the same drive image the
- * 16-bit machine will read, through the same byte-at-a-time port discipline.
- *
- * This is not a second implementation for its own sake — it is the oracle.
- * Every arithmetic step here is one the machine can do (a 16-bit multiply of
- * two bytes, a 32-bit accumulate through the carry flag, shifts, an unsigned
- * divide, a table lookup), so if this babbles then llm.c babbling is a matter
- * of transcription, and when llm.c disagrees with this, this says what the
- * right answer was. Nothing here uses a float.
- *
- * `row()` is the shape the whole thing is built out of: three header bytes,
- * then n bytes off the drive multiplied into n words of RAM, then the bias
- * subtracted back out and the result shifted to its exponent. A weight row, a
- * cached key, and a cached value's history down the sequence are all that
- * same shape, which is why the machine has one inner loop and not three.
+ * The oracle: llm.c's fixed-point pipeline in TypeScript over the same drive
+ * image, byte at a time. Every step must be one the machine can do (16-bit
+ * multiply of two bytes, 32-bit accumulate, shifts, unsigned divide, table
+ * lookup) — no floats. `row()` is the one shape everything is built from: three
+ * header bytes, n drive bytes MAC'd against n RAM words, bias undone, shifted.
+ * A weight row, a cached key and a value's history are all that shape.
  */
 
 import {
@@ -59,26 +50,19 @@ export interface LayerExp {
   ah: number;
 }
 
-/** Arithmetic shift right, or left when the count is negative — the machine
-    has both and the exponent arithmetic can land either way. */
+/** Arithmetic shift right, or left when the count is negative. */
 const shift = (v: number, s: number): number =>
   s >= 0 ? Math.floor(v / Math.pow(2, s)) : v * Math.pow(2, -s);
-/** The same, rounded rather than floored: half a step added before the
-    shift. Truncation drags every value toward negative infinity, which on an
-    eight-bit number is a bias and not a rounding error — measured, it is
-    worth about 0.2 nats of agreement with the float model, for one
-    instruction per output. */
+/** Rounded shift (half a step added first). Flooring biases int8 toward -inf;
+    rounding is worth ~0.2 nats against the float model. */
 const rshift = (v: number, s: number): number =>
   s > 0 ? Math.floor((v + Math.pow(2, s - 1)) / Math.pow(2, s)) : shift(v, s);
 const sat8 = (v: number): number => (v < -127 ? -127 : v > 127 ? 127 : v);
-/** What mvrow and sadd both do: a value that fits is passed through, and one
-    that does not is clamped to -32767 rather than -32768, so that negating a
-    word is always safe (normQuant takes the absolute value of the residual
-    stream). -32768 itself fits, and goes through untouched. */
+/** As mvrow/sadd: clamps to -32767 (not -32768) so negating is always safe —
+    normQuant takes |x| of the residual. A genuine -32768 passes untouched. */
 const sat16 = (v: number): number => (v < -32768 ? -32767 : v > 32767 ? 32767 : v);
 
-/** Integer square root, the way the machine does it: two bits at a time, no
-    floats and no division. */
+/** Integer square root as the machine does it: two bits at a time, no division. */
 export function isqrt(n: number): number {
   let rem = n;
   let root = 0;
@@ -105,13 +89,12 @@ export class Machine {
   private readonly q8: Int16Array;
   private readonly k8: Int16Array;
   private readonly v8: Int16Array;
-  /** Scores, then the table's answer, then the weights: one array, because
-      the machine has 128 words to spare exactly once. */
+  /** Scores, then exps, then weights, in one array: the machine has 128 spare words once. */
   private readonly att: Int16Array;
   private readonly xb: Int16Array;
-  /** The normalised vector, before it is squeezed into eight bits. */
+  /** Normalised vector before the int8 squeeze. */
   private readonly norm: Int16Array;
-  /** What a token cost, so the machine's clock can be believed. */
+  /** MACs per token, for the machine's clock. */
   macs = 0;
   saturations = 0;
 
@@ -178,14 +161,9 @@ export class Machine {
   }
 
   /**
-   * The inner loop, and everything wrapped around it.
-   *
-   *   sum(w'a') = sum(wa) + 128*sum(a) + 128*sum(w')
-   *
-   * `sa` is the sum of the unbiased words in `a`, worked out once per matrix;
-   * the row's own sum comes off the drive in front of it. `base` is the part
-   * of the shift the row does not know: ax - ay. Returns the result already
-   * at exponent ay, saturated to sixteen bits.
+   * The inner loop:  sum(w'a') = sum(wa) + 128*sum(a) + 128*sum(w')
+   * `sa` = sum of unbiased words in `a` (once per matrix); the row's own sum
+   * is its header. `base` = ax - ay. Returns at exponent ay, saturated to 16 bits.
    */
   private row(a: ArrayLike<number>, at: number, n: number, sa: number, base: number): number {
     const exp = this.next() - EXP_BIAS;
@@ -196,7 +174,7 @@ export class Machine {
     return sat16(rshift(s - 128 * sa - 128 * sumwb, base + exp));
   }
 
-  /** Sum of the unbiased words — the other half of undoing the bias. */
+  /** Sum of the unbiased words. */
   private static unbiasedSum(a: ArrayLike<number>, at: number, n: number): number {
     let s = 0;
     for (let i = 0; i < n; i++) s += a[at + i]!;
@@ -209,12 +187,10 @@ export class Machine {
   }
 
   /**
-   * RMSNorm and the quantisation after it, which are one pass: the normalised
-   * vector is exactly what the next matvec wants in int8. Scale free, so the
-   * residual's own exponent never enters — x goes down to seven bits first
-   * (any wider and t*t leaves the low half of a 16-bit multiply) and the
-   * division puts the scale back. Returns the output's exponent, measured
-   * here rather than calibrated.
+   * RMSNorm + int8 quantisation in one pass. Scale free, so the residual's
+   * exponent never enters: x drops to seven bits first (wider and t*t leaves
+   * the low half of a 16-bit multiply), the division restores scale. Returns
+   * the output exponent, measured here rather than calibrated.
    */
   private normQuant(vecAddr: number, out: Uint8Array): number {
     const n = this.h.dim;
@@ -226,8 +202,7 @@ export class Machine {
     }
     let sx = 0;
     while (max >> sx > 127) sx++;
-    // the mean of the squares, accumulated already divided: 64 terms of at
-    // most 16129/64 stay inside one unsigned word, so no carry chain here
+    // mean of squares accumulated pre-divided: 64 terms of ≤16129/64 fit one unsigned word
     const t = this.norm;
     const lg = Math.log2(n);
     let mean = 0;
@@ -249,9 +224,8 @@ export class Machine {
     }
     let sn = 0;
     while (omax >> sn > 127) sn++;
-    // sn leaves seven bits after a floor-shift, but the store rounds, and
-    // rounding can carry one past — 255 with sn=1 lands on 256. The bottom
-    // cannot: the same sn bounds the most negative at -128, which biases to 0.
+    // rounding can carry one past seven bits (255 with sn=1 → 256); min it.
+    // The bottom cannot: sn bounds the most negative at -128, which biases to 0.
     for (let i = 0; i < n; i++) out[i] = Math.min(255, rshift(t[i]!, sn) + 128);
     return ag - sn;
   }
@@ -263,8 +237,7 @@ export class Machine {
     return z8 >= 0 ? Math.floor((128 * LUT_ONE) / (LUT_ONE + u)) : Math.floor((128 * u) / (LUT_ONE + u));
   }
 
-  /** One token in, the next token out. `rand` gives sixteen bits, the way
-      the RND port does. */
+  /** One token in, next token out. `rand` gives sixteen bits, like the RND port. */
   forward(token: number, pos: number, rand: () => number): number {
     const { dim, hidden, kvDim, headSize, heads, kvMul, maxSeq, ares } = this.h;
     const x = this.x;
@@ -312,9 +285,8 @@ export class Machine {
         }
       }
 
-      // into the cache, each in the shape it will be read back in: a key as a
-      // row of its own, sum in front, so the score loop is the row loop; a
-      // value spread down its component's run so the weighted sum streams
+      // cache in read-back shape: a key is a row (sum in front) so the score
+      // loop is the row loop; a value is spread down its component's run
       for (let g = 0; g < this.h.kvHeads; g++) {
         this.seek(this.h.kCache + l * kLayer + (g * maxSeq + pos) * kRow + 1);
         let sum = 0;
@@ -369,9 +341,8 @@ export class Machine {
       for (let j = 0; j < dim; j++)
         x[j] = sat16(x[j]! + this.row(this.xq, 0, dim, so, E.axo - ares));
 
-      // the feed-forward half. w1 and w3 alternate down one stream, so a
-      // hidden unit is finished — gated, multiplied and requantised — before
-      // the next one starts, and 172 words of scratch never have to exist.
+      // w1 and w3 alternate down one stream so each hidden unit finishes
+      // (gated, multiplied, requantised) before the next — no 172-word scratch
       const ffn = base + 1 + dim + (2 * dim + 2 * kvDim) * (ROW_HEADER + dim);
       const anf = this.normQuant(ffn, this.xq);
       const sf = Machine.unbiasedSum(this.xq, 0, dim);
@@ -391,13 +362,12 @@ export class Machine {
     this.lastNormExp = anl;
     const sl = Machine.unbiasedSum(this.xq, 0, dim);
     this.seek(this.h.classifier);
-    // Gumbel-max: the largest logit-plus-noise is a draw from the softmax, so
-    // the machine samples in the same pass that computes the logits and never
-    // has to hold 512 of them or add them up
+    // Gumbel-max: argmax(logit + noise) is a softmax draw, so sampling happens
+    // in the classifier pass and 512 logits are never held
     let best = 0;
     let bestV = -0x8000;
     for (let t = 0; t < this.h.vocab; t++) {
-      // one shift less while the story is still choosing what it is about
+      // one shift less (hotter) for the first `warm` tokens
       const logit = this.row(this.xq, 0, dim, sl, anl - SCORE_BITS + (pos < this.h.warm ? 1 : 0));
       const g = this.h.gumbel + (rand() & (GUMBEL_ENTRIES - 1)) * 2;
       const raw = this.drive[g]! | (this.drive[g + 1]! << 8);
@@ -410,9 +380,7 @@ export class Machine {
     return best;
   }
 
-  /** The logits of the last forward(), for grading. Sampling does not need
-      them kept, so this recomputes the classifier rather than the machine
-      growing 512 words it has nowhere to put. */
+  /** Logits of the last forward(), recomputed for grading (never stored). */
   logitsFor(out: Float64Array): void {
     const sl = Machine.unbiasedSum(this.xq, 0, this.h.dim);
     const anl = this.lastNormExp;
@@ -422,7 +390,7 @@ export class Machine {
   }
   private lastNormExp = 0;
 
-  /** What a token prints, from the table on the drive. */
+  /** A token's text, from the table on the drive. */
   text(token: number): string {
     const at = this.h.text + token * TEXT_STRIDE;
     let s = "";

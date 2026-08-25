@@ -1,9 +1,6 @@
 /**
- * Pinned pictures: a .spr put up on the desk big — the furniture role the
- * hardcoded rocket used to play, except the player draws it now. A pin is a
- * view of a file, not a copy: editing the file repaints the pin, renaming it
- * carries the pin along, deleting it takes the pin down. One localStorage
- * key holds which files are up and where.
+ * Pinned .spr pictures on the desk. A pin is a view of a file, not a copy:
+ * writes repaint, renames carry, removes take down. State keyed by lowercase path.
  */
 
 import { el, onPointerDrag } from "./dom.js";
@@ -13,7 +10,7 @@ import { deskHeight, deskWidth, stageScale, taskbarH } from "./wm.js";
 import type { Disk } from "./fs.js";
 
 const KEY = "exe.pins";
-/** Pinned art is shown at the same period ratio the rocket wore (12px → 60). */
+/** 12px art → 60px. */
 const SCALE = 5;
 
 export interface Pins {
@@ -25,9 +22,7 @@ export interface Pins {
 export interface PinDeps {
   stage: HTMLElement;
   disk: Disk;
-  /** A double-click on a pin opens the picture for editing. */
   edit(name: string): void;
-  /** The desk's own context menu machinery. */
   menu(e: MouseEvent, entries: [string, () => void][]): void;
 }
 
@@ -37,7 +32,7 @@ export function installPins(deps: PinDeps): Pins {
   try {
     state = JSON.parse(localStorage.getItem(KEY) ?? "{}") as typeof state;
   } catch {
-    /* a corrupt pinboard is a bare wall, not a crash */
+    /* corrupt = empty */
   }
   const save = (): void => localStorage.setItem(KEY, JSON.stringify(state));
   const els = new Map<string, HTMLCanvasElement>();
@@ -51,13 +46,11 @@ export function installPins(deps: PinDeps): Pins {
     }
   };
 
-  /** Paint (or repaint) one pin from what the disk holds right now. */
   const render = (lower: string): void => {
     const spot = state[lower];
     if (!spot) return;
     const cells = parseSprite(disk.read(lower) ?? "");
     if (!cells) {
-      // the file left, or stopped being a picture; the wall follows the disk
       takeDown(lower);
       return;
     }

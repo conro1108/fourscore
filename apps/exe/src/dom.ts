@@ -14,15 +14,10 @@ export function el<T extends HTMLElement = HTMLElement>(html: string): T {
 }
 
 /**
- * A disc falls with real gravity, no easing curve: v += g each frame, one
- * cheap frame of overshoot on landing. Positions are local `top` pixels.
- *
- * `g` is px per 60Hz frame squared, and the step is scaled by the frame time
- * actually elapsed. Integrating per *frame* instead makes the drop twice as
- * fast on a 120Hz laptop as on the 60Hz monitor it's plugged into, which is
- * what "the drop got slow" means when nothing in the code changed. The step
- * is clamped so a backgrounded tab resumes falling rather than teleporting
- * through the board.
+ * Gravity drop, no easing; one frame of overshoot on landing. Positions are
+ * local `top` px. `g` is px per 60Hz-frame², scaled by elapsed time (per-frame
+ * integration runs 2x fast at 120Hz); step clamped so a backgrounded tab
+ * resumes rather than teleports.
  */
 export function gravityFall(
   elt: HTMLElement,
@@ -56,11 +51,9 @@ export function gravityFall(
 }
 
 /**
- * A pointer drag: down on `target`, then window-level moves until the pointer
- * lifts or the browser cancels it (a touch that turned into a scroll). One
- * path for mouse and finger — touch pointers are implicitly captured by the
- * pointerdown target, so moves keep arriving after the finger leaves it.
- * `begin` returns the move handler, or null to let the event go.
+ * Pointer drag: down on `target`, window-level moves until up/cancel (cancel =
+ * touch became a scroll). Touch pointers are implicitly captured by the
+ * pointerdown target. `begin` returns the move handler, or null to ignore.
  */
 export function onPointerDrag(
   target: HTMLElement,
@@ -88,6 +81,6 @@ export function onPointerDrag(
   });
 }
 
-/** Deep-link parameter, the harness pattern from the proposals. */
+/** Deep-link query parameter. */
 export const param = (name: string): string | null =>
   new URLSearchParams(location.search).get(name);

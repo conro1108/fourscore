@@ -1,56 +1,35 @@
 /**
- * The sound scheme, computed.
- *
- * The law (DIRECTION.md): **build the period artifact; never illustrate it.**
- * The fire in `flames.scr` is not a picture of fire, it is the 1995 demoscene
- * automaton actually running — so the dings are not recordings of a 1995
- * machine either. Every sound in here is a struck bell, a filtered noise sweep
- * or a relay tick, synthesized per render out of `synth.ts`, the way a period
- * sound card's own scheme would have been made. There is no `public/sounds/`
- * directory and there should never be one; a wav file is the audio equivalent
- * of a pixel-art illustration pretending to be a screenshot.
- *
- * Three rules hold across all of them:
- *
- * - **Deterministic.** Same recipe, same bytes, every time. The draw picks
- *   which sound fires; nothing picks how one sounds.
- * - **Dry by default.** Period software has no reverb. The room only opens as
- *   the fever rises, and it opens on the *bus* (`index.ts`), never in a recipe
- *   — the machine sounding wrong is a property of the evening, not of the ding.
- * - **Short.** Everything that answers a click is under a fifth of a second.
- *   The four that aren't (`startup`, `tada`, `chord`, `saver-thunk`) are the
- *   ones the machine means.
- *
- * Sounds are addressed by semantic name, never by what they're made of:
- * `disc-land` is what the moment means, and its recipe can be rebuilt from
- * scratch without a caller changing.
+ * The sound scheme, synthesized from `synth.ts` — never wav files (see DIRECTION.md).
+ * Rules: deterministic (same recipe, same bytes); dry by default (fever's room is
+ * applied on the bus in `index.ts`, never in a recipe); anything answering a click
+ * is under 0.2s. Names are semantic (`disc-land`), never descriptive of the recipe.
  */
 
 import { env, filter, gain, gate, noise, osc, RATE, room } from "./synth.js";
 
 export type SoundName =
-  // -- the system scheme: what the OS says about itself --
+  // system
   | "startup"
   | "ding"
   | "chord"
   | "tada"
   | "shutdown-chime"
-  // -- chrome: what a control sounds like when it works --
+  // chrome
   | "click"
   | "menu"
   | "window-open"
   | "window-close"
   | "window-min"
   | "window-max"
-  // -- the board --
+  // board
   | "hover-tick"
   | "disc-drop"
   | "disc-land"
   | "bot-step"
-  // -- the endgame --
+  // endgame
   | "line-catch"
   | "smolder"
-  // -- the fever, made audible --
+  // fever
   | "tier-cross"
   | "flare"
   | "clock-tick"
@@ -61,19 +40,15 @@ export type SoundName =
 export interface Recipe {
   /** Rendered length, seconds. */
   seconds: number;
-  /** One line on what it is, for `sounds.ctl` and for the next reader. */
+  /** One line for `sounds.ctl`. */
   note: string;
   /** Schedule the whole sound into `ctx`. Everything must start before render. */
   build(ctx: OfflineAudioContext): void;
 }
 
-/* ---- the parts a period scheme is built out of ---- */
+/* building blocks */
 
-/**
- * A struck bell: one partial per entry, each decaying at its own rate — the
- * high ones first, which is the whole difference between a bell and an organ.
- * The ratios are inharmonic on purpose; a harmonic stack reads as a synth pad.
- */
+/** Bell partials [ratio, level, decay]. Inharmonic on purpose (harmonic reads as a pad); high ones decay first. */
 const PARTIALS: readonly (readonly [ratio: number, level: number, decay: number])[] = [
   [1, 1, 1],
   [2.76, 0.42, 0.62],
@@ -104,7 +79,7 @@ function bell(
   }
 }
 
-/** A short pitched voice that slides. The blips, the drop, the thump. */
+/** Short pitched voice that slides. */
 function slide(
   ctx: OfflineAudioContext,
   dest: AudioNode,
@@ -129,7 +104,7 @@ function slide(
   g.connect(dest);
 }
 
-/** Noise through a band that moves — every whoosh in the scheme. */
+/** Noise through a moving bandpass — every whoosh. */
 function sweep(
   ctx: OfflineAudioContext,
   dest: AudioNode,
@@ -152,7 +127,7 @@ function sweep(
   g.connect(dest);
 }
 
-/** A transient — the click under everything mechanical. */
+/** Highpassed noise transient. */
 function tick(
   ctx: OfflineAudioContext,
   dest: AudioNode,
@@ -171,7 +146,7 @@ function tick(
   g.connect(dest);
 }
 
-/** Crackle: noise let through in hard steps, the way a fire is drawn here. */
+/** Noise gated in hard steps. */
 function crackle(
   ctx: OfflineAudioContext,
   dest: AudioNode,
@@ -185,7 +160,7 @@ function crackle(
   const lp = filter(ctx, "lowpass", opts.cut, 1.1);
   noise(ctx, opts.seconds + 0.02, opts.seed ?? 0xf12e5, at).connect(lp);
   lp.connect(g);
-  // and it fades out rather than stopping dead, or the fire has an off switch
+  // fade out; a dead stop sounds like an off switch
   const tail = env(ctx, [
     [at, 1],
     [at + opts.seconds * 0.7, 1],
@@ -195,7 +170,7 @@ function crackle(
   tail.connect(dest);
 }
 
-/** The output every recipe plays into. `space` is for the four that get one. */
+/** Output node; `space` = [seconds, decay, wet] adds a room (only four recipes get one). */
 function out(ctx: OfflineAudioContext, space?: [seconds: number, decay: number, wet: number]): GainNode {
   const input = gain(ctx, 1);
   input.connect(ctx.destination);
@@ -209,21 +184,15 @@ function out(ctx: OfflineAudioContext, space?: [seconds: number, decay: number, 
   return input;
 }
 
-/* ---- the scheme ---- */
+/* recipes */
 
 export const RECIPES: Record<SoundName, Recipe> = {
-  /**
-   * The machine finishing its boot. It plays on the first gesture and only
-   * then — which is not a workaround for the autoplay rule but the best use
-   * anyone has found for it: the desktop has been sitting there since the page
-   * loaded, and the moment you touch it, it comes up.
-   */
   startup: {
     seconds: 3,
     note: "The machine finishing its boot.",
     build(ctx) {
       const o = out(ctx, [2.4, 2.4, 0.3]);
-      // an A-major swell that takes its time, the way a period boot logo does
+      // slow A-major swell
       for (const [i, f] of [110, 164.81, 220, 329.63].entries()) {
         const at = 0.05 + i * 0.06;
         const g = env(ctx, [
@@ -234,7 +203,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
         ]);
         const lp = filter(ctx, "lowpass", 1800 + i * 400, 0.9);
         osc(ctx, "sawtooth", f, at, 2.65).connect(lp);
-        // two saws a hair apart, because one is a test tone
+        // two saws detuned; one alone is a test tone
         const o2 = osc(ctx, "sawtooth", f, at, 2.65);
         o2.detune.value = 6;
         o2.connect(lp);
@@ -246,7 +215,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The information ding. The one the OS says most often, and it means nothing. */
   ding: {
     seconds: 1.1,
     note: "Information.",
@@ -257,11 +225,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /**
-   * The error chord. Same bells, one of them thirty cents flat — a sour stack
-   * is how a scheme says something is wrong without a word in it, and it is
-   * why this is unmistakable at a tenth the length of the sentence in the box.
-   */
+  // error chord: one bell ~30 cents flat is what makes it read as wrong
   chord: {
     seconds: 1.3,
     note: "A problem the machine can hear.",
@@ -274,7 +238,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The win. Four notes up and the top one held — the biggest thing it has. */
   tada: {
     seconds: 2.6,
     note: "Congratulations.",
@@ -305,7 +268,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
         g.connect(o);
         bell(ctx, o, f * 2, { at, seconds: held ? 1.8 : 0.4, level: held ? 0.12 : 0.07 });
       }
-      // the chord underneath arrives with the top note, not before it
+      // chord underneath arrives with the top note
       for (const f of [261.63, 329.63, 392]) {
         const g = env(ctx, [
           [0.33, 0],
@@ -319,7 +282,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** Shut Down. Three notes down, and it does not shut down. */
   "shutdown-chime": {
     seconds: 1.7,
     note: "Shutting down.",
@@ -331,7 +293,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** A control that worked. Dry, tiny, and under half the desktop. */
   click: {
     seconds: 0.05,
     note: "A control accepting a click.",
@@ -342,7 +303,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** A menu opening: the click, plus the little breath of it unrolling. */
   menu: {
     seconds: 0.12,
     note: "A menu unrolling.",
@@ -353,7 +313,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** A window arriving. Period whooshes are noise through a moving band. */
   "window-open": {
     seconds: 0.3,
     note: "A window opening.",
@@ -392,12 +351,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /**
-   * The picker crossing a column. This one is quiet at the callsite too, and it
-   * has to stay the smallest thing in here: you can drag across seven columns
-   * in a flick, and a scheme that goes *tick tick tick tick* at that is the
-   * sound of a broken machine rather than an attentive one.
-   */
+  // must stay the smallest sound here: a flick crosses seven columns
   "hover-tick": {
     seconds: 0.03,
     note: "The disc crossing a column.",
@@ -407,7 +361,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** Letting go of it. */
   "disc-drop": {
     seconds: 0.14,
     note: "Releasing a disc.",
@@ -418,11 +371,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /**
-   * The disc arriving in the cabinet. Two things at once, which is what a knock
-   * is: the low thump of the stack taking the weight, and the hard plastic
-   * rattle of the disc against the frame.
-   */
+  // a knock is two things: low thump plus plastic rattle
   "disc-land": {
     seconds: 0.24,
     note: "A disc landing in the cabinet.",
@@ -443,7 +392,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The opponent's disc walking a column. Duller and quieter than yours. */
+  // duller and quieter than the player's
   "bot-step": {
     seconds: 0.03,
     note: "The opponent moving its disc.",
@@ -455,7 +404,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The line catching: the whoosh, and then the seam burning along it. */
   "line-catch": {
     seconds: 1.4,
     note: "The winning line catching.",
@@ -466,7 +414,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The loss version: it does not blaze, and it does not go out. */
   smolder: {
     seconds: 1.5,
     note: "The line smoldering.",
@@ -477,20 +424,14 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /**
-   * A tier crossing: the machine changing gear. A relay somewhere lets go and
-   * something bigger takes over — this is the only sound with real sub in it,
-   * because four crossings in a game can afford to be felt.
-   */
+  // the only recipe with real sub; only ~4 crossings a game
   "tier-cross": {
     seconds: 1.2,
     note: "The machine changing gear.",
     build(ctx) {
       const o = out(ctx, [1.4, 2.2, 0.2]);
       tick(ctx, o, { seconds: 0.007, cut: 1600, level: 0.34 });
-      // The sub was measured at twice the rms of everything else in the scheme
-      // and it read as the mix being broken rather than as the machine being
-      // big. It stays the heaviest thing in here, but only by a little.
+      // sub level: at 2x the scheme's rms it read as a broken mix; keep it only slightly heaviest
       slide(ctx, o, "sine", 44, 58, { seconds: 0.75, level: 0.3 });
       const g = env(ctx, [
         [0.02, 0],
@@ -504,7 +445,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The fire, shoved. */
   flare: {
     seconds: 0.5,
     note: "The fire jumping.",
@@ -514,7 +454,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The clock losing several minutes: two ticks of something mechanical. */
   "clock-tick": {
     seconds: 0.18,
     note: "The clock losing its grip.",
@@ -527,7 +466,6 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /** The icons flinching: something small dragged across a desk. */
   twitch: {
     seconds: 0.16,
     note: "The icons moving without being asked.",
@@ -542,11 +480,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /**
-   * The screensaver taking the desktop — a degauss, which is a real thing a
-   * period monitor does when the picture changes hands: mains hum modulated by
-   * its own dying coil, and a thunk from the case.
-   */
+  // a degauss: mains hum gated by a decaying ripple, plus a case thunk
   "saver-thunk": {
     seconds: 1.3,
     note: "The monitor changing hands.",
@@ -570,11 +504,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
     },
   },
 
-  /**
-   * The disk working. Fired by the bed, more often the worse things get — a
-   * 1995 machine under load is a machine you can *hear* thinking, and it is the
-   * one channel that reports the fever without a window opening.
-   */
+  // fired by the bed; more often with fever
   "drive-seek": {
     seconds: 0.3,
     note: "The disk being asked for something.",
@@ -585,7 +515,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
       noise(ctx, 0.28, 0xd12e6).connect(band);
       band.connect(g);
       g.connect(o);
-      // the arm has mass; each seek lands on something
+      // each seek lands with a thud
       for (const at of [0, 0.071, 0.187])
         slide(ctx, o, "sine", 220, 150, { at, seconds: 0.02, level: 0.07 });
     },
@@ -594,10 +524,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
 
 export const SOUND_NAMES = Object.keys(RECIPES) as SoundName[];
 
-/**
- * Render a recipe once and keep it. The promise is cached, not the buffer, so
- * twenty callers during the warm-up share one render instead of starting twenty.
- */
+// Promise cached, not buffer: concurrent warm-up callers share one render.
 const cache = new Map<SoundName, Promise<AudioBuffer>>();
 
 export function soundBuffer(name: SoundName): Promise<AudioBuffer> {
