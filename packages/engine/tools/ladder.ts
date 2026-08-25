@@ -1,17 +1,19 @@
 /**
  * Head-to-head sweep for a variant, to check the ladder is still a ladder.
  *
- * `bots.test.ts` asserts adjacent rungs beat each other, but the thresholds in
- * it came from a sweep like this one, and a new board is exactly the kind of
- * change that can invert a rung: the weights were tuned against 7x6 Connect 4,
- * and depth interacts with them. Run this before trusting a variant's roster.
+ * `bots.test.ts` only plays one cheap rung; this is the real measurement, and a
+ * new board is exactly the kind of change that can invert a rung: the weights
+ * were tuned against 7x6 Connect 4, and depth interacts with them. Run this
+ * before trusting a variant's roster, and after retuning any bot.
  *
  *   npx vite-node packages/engine/tools/ladder.ts -- connect5 8
+ *   npx vite-node packages/engine/tools/ladder.ts -- checks     # slip guard, tells, oracle
  */
 
-import { Position, variantById, type Variant } from "../src/board.js";
-import { BotBrain, byId } from "../src/bots.js";
+import { CONNECT4, Position, variantById, type Variant } from "../src/board.js";
+import { BotBrain, ROSTER, byId } from "../src/bots.js";
 import { Match } from "../src/match.js";
+import { searchHeuristic } from "../src/evaluate.js";
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -52,7 +54,87 @@ const RUNGS = [
   ["quill", "vane"],
 ] as const;
 
+/**
+ * Behavioural checks that used to be tests: the slip guard (nobody above Acorn
+ * slips away a visible win or block, and Acorn does), slips landing on the
+ * runner-up rather than the worst move, tells in range and honest except for
+ * Vane, and the Oracle solving exactly once the board is deep enough.
+ */
+function checks(): void {
+  const report = (name: string, ok: boolean, detail = "") =>
+    console.log(`${ok ? "ok  " : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`);
+
+  const win = Position.fromMoves([0, 6, 1, 6, 2, 5]);
+  const block = Position.fromMoves([0, 6, 1, 6, 2]);
+  const misses = (bot: (typeof ROSTER)[number], p: Position, seeds: number) => {
+    let n = 0;
+    for (let seed = 0; seed < seeds; seed++) {
+      if (new BotBrain(bot, mulberry32(seed)).decide(p).col !== 3) n++;
+    }
+    return n;
+  };
+  for (const bot of ROSTER.filter((b) => b.tier >= 2)) {
+    const always = { ...bot, slipRate: 1 };
+    report(`${bot.id} never slips a win or block`, misses(always, win, 5) + misses(always, block, 5) === 0);
+  }
+  const acornWin = misses(byId("acorn"), win, 100);
+  const acornBlock = misses(byId("acorn"), block, 100);
+  report("acorn does miss them", acornWin > 10 && acornBlock > 10, `${acornWin}/100 wins, ${acornBlock}/100 blocks`);
+
+  {
+    const p = Position.fromMoves([3, 3, 4]);
+    const scored = searchHeuristic(p, 4, byId("moss").weights, 400_000);
+    const ranked = [...scored.moves].sort((a, b) => b.score - a.score);
+    const runnerUp = ranked.find((m) => !scored.bestCols.includes(m.col))!.col;
+    const worst = ranked[ranked.length - 1]!.col;
+    const counts = new Map<number, number>();
+    const slippy = { ...byId("moss"), slipRate: 1 };
+    for (let seed = 0; seed < 400; seed++) {
+      const { col } = new BotBrain(slippy, mulberry32(seed)).decide(p);
+      counts.set(col, (counts.get(col) ?? 0) + 1);
+    }
+    const ru = counts.get(runnerUp) ?? 0;
+    const w = counts.get(worst) ?? 0;
+    report("slips favour the runner-up over the worst move", ru > 2 * w, `runner-up ${ru}, worst ${w}`);
+  }
+
+  {
+    const brain = new BotBrain(byId("cinder"), mulberry32(21));
+    const match = new Match();
+    let ok = true;
+    let honest = true;
+    while (match.status === "playing") {
+      const d = brain.decide(match.position);
+      if (d.conviction < -1 || d.conviction > 1 || !d.mood) ok = false;
+      if (match.position.moves < 8 && d.mood !== d.trueMood) honest = false;
+      match.play(d.col);
+    }
+    report("cinder's tells are in range", ok);
+    report("cinder's mood is honest", honest);
+    const liar = new BotBrain(byId("vane"), mulberry32(5));
+    let divergences = 0;
+    for (let seed = 0; seed < 40; seed++) {
+      const p = Position.fromMoves([3, 3, 4, 2, 5].slice(0, (seed % 5) + 1));
+      const d = liar.decide(p);
+      if (d.mood !== d.trueMood) divergences++;
+    }
+    report("vane's mood lies sometimes", divergences > 0, `${divergences}/40`);
+  }
+
+  {
+    const brain = new BotBrain(byId("oracle"), mulberry32(2));
+    const deep = Position.fromMoves([3, 3, 4, 4, 2, 2, 5, 5, 1, 1, 0]);
+    report("oracle solves exactly past exactFrom", deep.moves >= brain.exactFrom(CONNECT4) && brain.decide(deep).exact);
+    const d = brain.decide(new Position());
+    report("oracle estimates in the opening", !d.exact && d.col >= 0);
+  }
+}
+
 const args = process.argv.slice(2).filter((a) => a !== "--");
+if (args[0] === "checks") {
+  checks();
+  process.exit(0);
+}
 const v = variantById(args[0] ?? "connect4");
 const games = Number(args[1] ?? 8);
 /** Optional substring filter, so a single broken rung can be iterated on. */

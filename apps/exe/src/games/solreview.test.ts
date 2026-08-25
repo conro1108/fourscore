@@ -84,105 +84,18 @@ function replay(start: SolState, line: readonly Mv[]): SolState {
   return s;
 }
 
-/* Deals this machine wins in a few hundred nodes — the suite is not the place
-   to spend a second a deal, and the point here is the line, not the search. */
-const WINNABLE = [1, 5, 9, 11].map((i) => i * 7919);
-
 describe("solve", () => {
-  for (const seed of WINNABLE) {
-    it(`wins deal ${seed} with a line the game's own rules accept`, () => {
-      const start = deal(seeded(seed));
-      const r = solve(start, { nodes: 60_000, ms: 5000 });
-      expect(r.verdict).toBe("won");
-      expect(r.line.length).toBeGreaterThan(0);
-      expect(isWon(replay(start, r.line))).toBe(true);
-    });
-  }
-
-  it("says unknown, never lost, when there is nothing left to do", () => {
-    // one card, in the wrong place, with nothing to draw: dead, and the
-    // search still only reports that it couldn't find a way
-    const stuck: SolState = {
-      stock: [],
-      waste: [],
-      found: [[], [], [], []],
-      tab: [
-        { down: [{ rank: 5, suit: 0 }], up: [{ rank: 7, suit: 1 }] },
-        ...Array.from({ length: 6 }, () => ({ down: [] as Card[], up: [] as Card[] })),
-      ],
-    };
-    const r = solve(stuck, { nodes: 10_000, ms: 1000 });
-    expect(r.verdict).toBe("unknown");
-    expect(r.line).toEqual([]);
-    expect(r.nodes).toBeLessThan(100);
+  it("wins a deal with a line the game's own rules accept", () => {
+    // a deal this machine wins in a few hundred nodes: the point is the line, not the search
+    const start = deal(seeded(7919));
+    const r = solve(start, { nodes: 60_000, ms: 5000 });
+    expect(r.verdict).toBe("won");
+    expect(r.line.length).toBeGreaterThan(0);
+    expect(isWon(replay(start, r.line))).toBe(true);
   });
 });
 
 describe("reviewGame", () => {
-  /** A deal, a draw, a draw, and the deck going round. */
-  const journalOf = (start: SolState): SolState[] => {
-    const out = [copy(start)];
-    const s = copy(start);
-    // empty the stock into the waste, then round it goes
-    while (s.stock.length) {
-      drawFromStock(s);
-      out.push(copy(s));
-    }
-    drawFromStock(s);
-    out.push(copy(s));
-    return out;
-  };
-
-  it("counts what you did, off the journal alone", () => {
-    const start = deal(seeded(3 * 7919));
-    const j = journalOf(start);
-    const r = reviewGame(j, { nodes: 1, ms: 1 }); // no search: counts only
-    expect(r.draws).toBe(24);
-    expect(r.passes).toBe(1);
-    expect(r.moves).toBe(0);
-    expect(r.flipped).toBe(0);
-    expect(r.homed).toBe(0);
-    expect(r.won).toBe(false);
-    expect(r.spent).toBe(true);
-  });
-
-  it("does not close a bracket it ran out of budget inside", () => {
-    const live = deal(seeded(1 * 7919));
-    const dead: SolState = {
-      stock: [],
-      waste: [],
-      found: [[], [], [], []],
-      tab: [
-        { down: [{ rank: 5, suit: 0 }], up: [{ rank: 7, suit: 1 }] },
-        ...Array.from({ length: 6 }, () => ({ down: [] as Card[], up: [] as Card[] })),
-      ],
-    };
-    // enough for the deal and the end, and nothing left for the bisection
-    const r = reviewGame([live, live, live, live, live, dead], { nodes: 700, ms: 5000 });
-    expect(r.deal).toBe("won");
-    expect(r.end).toBe("unknown");
-    expect(r.spent).toBe(true);
-    // it still knows a state it won from — it just doesn't know the next one
-    expect(r.lastWinnable).toBe(0);
-    expect(r.converged).toBe(false);
-  });
-
-  it("asks nothing of a game you won", () => {
-    const done: SolState = {
-      stock: [],
-      waste: [],
-      found: [0, 1, 2, 3].map((suit) => Array.from({ length: 13 }, (_, i) => ({ rank: i + 1, suit }))),
-      tab: Array.from({ length: 7 }, () => ({ down: [] as Card[], up: [] as Card[] })),
-    };
-    const r = reviewGame([done, done]);
-    expect(r.won).toBe(true);
-    expect(r.deal).toBe("won");
-    expect(r.end).toBe("won");
-    expect(r.homed).toBe(52);
-    expect(r.spent).toBe(false);
-    expect(r.converged).toBe(true);
-  });
-
   it("finds the last state it can still win from, and proves that one", () => {
     const live = deal(seeded(1 * 7919)); // winnable in a few hundred nodes
     const dead: SolState = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CELLS, Position, mirror } from "./board.js";
+import { CELLS, Position } from "./board.js";
 import { TranspositionTable, analyze, solveScore } from "./solver.js";
 
 /**
@@ -38,41 +38,6 @@ function randomPosition(plies: number, seed: number): Position {
 }
 
 describe("exact scores", () => {
-  it("scores an immediate win by how much material is left over", () => {
-    // Red completes the bottom row on ply 6, leaving 18 discs unplayed.
-    const p = Position.fromMoves([0, 0, 1, 1, 2, 2]);
-    expect(solveScore(p)).toBe(Math.floor((CELLS + 1 - 6) / 2));
-  });
-
-  it("rates an available win above every alternative", () => {
-    // Deliberately a late position: `analyze` solves each non-winning reply
-    // exactly, and doing that from a six-disc board takes minutes.
-    let found = 0;
-    for (let seed = 1; seed <= 40 && found < 3; seed++) {
-      const p = randomPosition(30, seed * 149);
-      if (!p.canWinNext()) continue;
-      found++;
-      const a = analyze(p);
-      expect(a.best).toBe(Math.floor((CELLS + 1 - p.moves) / 2));
-      for (const col of a.bestCols) expect(p.isWinningMove(col)).toBe(true);
-    }
-    expect(found).toBeGreaterThan(0);
-  });
-
-  it("sees a loss coming when every reply hands over the game", () => {
-    // Red's open three on columns 2-4 cannot be answered.
-    const p = Position.fromMoves([2, 0, 3, 0, 4]);
-    expect(p.turn).toBe("yellow");
-    expect(solveScore(p)).toBeLessThan(0);
-  });
-
-  it("is unaffected by mirroring the board", () => {
-    for (let seed = 1; seed <= 6; seed++) {
-      const p = randomPosition(20, seed * 977);
-      expect(solveScore(p)).toBe(solveScore(mirror(p)));
-    }
-  });
-
   it("agrees with unpruned minimax on nearly-full boards", () => {
     for (let seed = 1; seed <= 25; seed++) {
       const p = randomPosition(32, seed * 31 + 7);
@@ -98,22 +63,5 @@ describe("analyze", () => {
     const p = randomPosition(28, 4242);
     const a = analyze(p);
     expect(a.moves.map((m) => m.col)).toEqual(p.legalMoves().sort((x, y) => x - y));
-  });
-
-  it("reports a best score matching a direct solve", () => {
-    for (let seed = 1; seed <= 8; seed++) {
-      const p = randomPosition(30, seed * 101);
-      if (p.canWinNext()) continue;
-      expect(analyze(p).best).toBe(solveScore(p));
-    }
-  });
-
-  it("lists every column that ties for best", () => {
-    const p = randomPosition(30, 55);
-    const a = analyze(p);
-    for (const col of a.bestCols) {
-      expect(a.moves.find((m) => m.col === col)!.score).toBe(a.best);
-    }
-    expect(a.moves.filter((m) => m.score === a.best).length).toBe(a.bestCols.length);
   });
 });

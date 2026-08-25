@@ -24,7 +24,7 @@ for a draw is the scoring being honest about a game that neither side lost.
 Don't tune weights to chase the 65% bar here; the fix, if one is ever wanted,
 is a bigger board — which today means raising `TT_MAX_KEY_BITS`, since 13x12's
 169-bit keys already sit near the 181-bit lane limit. Only `pebble > acorn`
-(92%) is asserted in `bots.test.ts`.
+(92%) was ever measured comfortably clear; `tools/ladder.ts connect7` sweeps it.
 
 ## Dead end: the soft rungs on Connect 6
 

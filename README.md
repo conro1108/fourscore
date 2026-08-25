@@ -48,7 +48,7 @@ is the game.
 ```bash
 npm install
 npm run dev        # dev server
-npm test           # unit tests (Vitest)
+npm test           # ~3s, the whole gate
 npm run build      # typecheck + production build
 npm run typecheck  # types only
 ```
@@ -79,8 +79,8 @@ Each bot is a weight vector as well as a search depth, and the weights are what
 you feel across the table. Bramble scores threats highly and parity at zero, so
 it attacks constantly and folds when made to defend; Vane weights parity above
 everything, so it plays the slow game that actually wins Connect 4 between good
-players. `packages/engine/src/bots.test.ts` plays each rung against the one
-below it and fails if the ladder stops being a ladder — which it caught during
+players. `packages/engine/tools/ladder.ts` plays each rung against the one
+below it and flags the ladder if it stops being a ladder — which it caught during
 development, when Moss's love of the centre made it lose to the tier beneath it.
 
 ### The Oracle, precisely

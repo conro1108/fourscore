@@ -137,7 +137,7 @@ It is the reference implementation the corpus gets graded against.
 auto-incrementing head — and `SRC\llm.c`, which runs Karpathy's stories260K
 on the 16-bit processor. *Exit met: `cd /src; cc llm.c; run llm` babbles
 TinyStories in the terminal at **1.7 seconds a token**, ~2.95M instructions
-each, and `llm.test.ts` checks its tokens against an integer oracle that
+each, and `tools/llm/compare.ts` checks its tokens against an integer oracle that
 reads the same drive image.* What it actually says, out of the machine:
 "Once upon a time, there was a little girl named Lily. She had an idea."
 
@@ -171,8 +171,8 @@ The parts that were decided rather than planned:
   helpers, RMSNorm, softmax and the sampler already in `asm("...")`. Anything
   much larger than a transformer is not writing itself in this dialect. Note
   that the heap runs past `DATA_STACK_TOP`, which is safe only because
-  nothing in llm.c recurses — `llm.test.ts` asserts that rather than the
-  consequence. The MMIO page has 246 unused words in it if a future phase
+  nothing in llm.c recurses (r7 is set once at startup and never moved) — the
+  first recursive helper would land its frame in the attention weights. The MMIO page has 246 unused words in it if a future phase
   gets desperate.
 
 **Phase 3 — Distill a model that only knows this machine.** No corpus exists

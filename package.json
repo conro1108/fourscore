@@ -17,7 +17,7 @@
     "audio": "npm run audio -w @fourscore/exe",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && FAST=1 vitest run",
+    "check": "npm run typecheck && vitest run",
     "corpus:selftest": "vite-node apps/exe/tools/corpus/farm.ts",
     "corpus:synth": "vite-node apps/exe/tools/corpus/synth.ts --",
     "corpus:farm": "vite-node apps/exe/tools/corpus/farm.ts --",

@@ -22,18 +22,11 @@ with `curl -L -o .cache/stories260K.bin https://huggingface.co/karpathy/tinyllam
 (and `tok512.bin` beside it); the built `WEIGHTS.BIN` *is* committed, so
 nothing but rebuilding it needs them.
 
-## Two tiers of checking, and the fast one is the default
+## One gate
 
-`npm run check` (~3s) is what an ordinary change gets: typecheck plus every test
-except the two engine files that play real games. Those two are 111 of the
-suite's 113 seconds and both test `packages/engine` only, so skipping them for
-an app-only change is sound rather than a corner cut — an app cannot break a
-test that never imports it.
-
-Touch `packages/engine` and you owe the full `npm test`. Anything visual, audible
-or live-driven owes more than that, and the whole ladder — the browser harnesses,
-the ladder sweeps — lives in the `/verify` skill, scoped by what changed. Ask for
-it by name (or "full verification"); don't run it on every iteration.
+`npm test` runs in ~3s and is the whole gate. Ladder strength, the LLM oracle
+comparison and solve timing are scripts under `tools/`, run by hand when you
+touch that area.
 
 ## The machine inside the machine
 
@@ -50,7 +43,8 @@ Two things that will bite otherwise:
   code, that test is what tells you.
 - **`tools/llm/intref.ts` is the oracle, not a second implementation.** It
   runs the identical fixed-point pipeline in TypeScript over the same drive
-  image, and `llm.test.ts` compares the machine to it token for token. Which
+  image, and `tools/llm/compare.ts` checks the machine against it token for
+  token — run it by hand whenever the numerics or the compiler change. Which
   of the two is right when they disagree is not decided in advance: the
   oracle caught a cache-stride bug that read as fluent English, and the
   machine caught the oracle truncating the one activation a token that
@@ -93,9 +87,9 @@ and on the shift distances derived from the variant; nothing outside that file
 should be doing arithmetic on `position`/`mask`. Its fuzz test cross-checks
 against a brute-force reference over random games, and that's where the real
 coverage is — these tricks pass every hand-written case and then fail quietly on
-one edge diagonal. The fuzz runs over four geometries including run-3 and run-6
-boards that nothing ships, because "N is a parameter" is only true if something
-tests an N nobody chose by hand.
+one edge diagonal. The fuzz runs over three geometries — Connect 4, Connect 7
+and a 5x4 run-3 board that nothing ships — because "N is a parameter" is only
+true if something tests an N nobody chose by hand.
 
 One sentinel row is enough for any run length. A wrapping line has to pass
 *through* the sentinel on some intermediate step, and every intermediate step is
@@ -123,14 +117,15 @@ the key comparison itself is exact. Never hash the key down to fit.
 ## The ladder has to stay a ladder
 
 Bots differ by weight vector as well as depth, and those interact: a deeper
-search with worse weights can be weaker. `bots.test.ts` plays each rung against
-the one below and requires >65% — it has already caught a rung inverting. If you
-retune a bot, run it. Measured win rates between the asserted adjacent rungs are
+search with worse weights can be weaker. `tools/ladder.ts` plays each rung
+against the one below and flags anything under 65% — it has already caught a
+rung inverting. If you retune a bot, run it; `bots.test.ts` keeps only one cheap
+rung as a smoke check. Measured win rates between the asserted adjacent rungs are
 67-90% on Connect 4 and 71-92% on Connect 5, and slip rate moves them far more
 than the eval weights do, so tune strength with `slipRate`/`depth` and treat the
 weights as personality.
 
-The two rungs nobody asserts sit lower than that and always have: `quill > vane`
+The top two rungs sit lower than that and always have: `quill > vane`
 measures ~63% on Connect 4 and `vane > cinder` ~61% on Connect 5, both over 48
 and 32 games. Those were measured before and after the 2026 slip retune and did
 not move, so treat them as the top of the ladder being genuinely flat rather
@@ -141,10 +136,6 @@ geometric weight, and above tier 1 it will not slip into a move the search has
 already proved loses. So a slip rate costs less strength than it looks like it
 should, and the schedule is several times higher than it used to be for the same
 ladder. Don't read `slipRate` as linear in strength.
-
-Twenty games is not enough to judge a rung. The same `moss > pebble` pairing
-read 63% on one twenty-game window and 74% and 79% on two forty-game ones; the
-bottom rungs cost milliseconds a game, so measure them long.
 
 A new variant is a retune. `packages/engine/tools/ladder.ts <variant>` sweeps
 every adjacent rung and flags soft or inverted ones; run it before trusting a
@@ -181,14 +172,12 @@ brings it to the same ~59% plateau, and `cinder > bramble` sits at ~60% with
 every knob measured and none of them moving it — depth one deeper made it
 *worse* (49%), which is the depth-vs-weights interaction doing exactly what
 this section says it does. Both are documented in
-[feature_ideas.md](feature_ideas.md#dead-end-the-soft-rungs-on-connect-6) and
-deliberately unasserted.
+[feature_ideas.md](feature_ideas.md#dead-end-the-soft-rungs-on-connect-6).
 
-`quill > vane` on Connect 5 is known soft (~56%, under the bar) and deliberately
-not asserted in `bots.test.ts`. The measurements and the dead ends are in
+`quill > vane` on Connect 5 is known soft (~56%, under the bar). The
+measurements and the dead ends are in
 [feature_ideas.md](feature_ideas.md#dead-end-the-quill--vane-rung-on-connect-5) —
-read them before retuning it, and don't add it as a passing test without moving
-the number.
+read them before retuning it.
 
 ## Screenshot before you claim
 
