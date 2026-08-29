@@ -313,8 +313,14 @@ export function makeBoard(deps: BoardDeps): BoardApp {
       const col = Math.floor((ev.clientX - gr.left) / stageScale() / cell);
       return Math.max(0, Math.min(variant.width - 1, col));
     };
+    /* A tap on a background board only brings it forward (the WM focuses on
+       pointerdown, after us — bubble order). The no-op aim keeps touchDrop
+       firing so the synthetic click stays muted even on a long press. */
+    let tapToFocus = false;
     const touchAim = (e: PointerEvent): ((ev: PointerEvent) => void) | null => {
       if (e.pointerType !== "touch" || phase !== "your-turn") return null;
+      tapToFocus = deps.wm.focused()?.id !== "board";
+      if (tapToFocus) return () => {};
       const aim = (ev: PointerEvent): void => {
         const col = colFrom(ev);
         if (col !== hoverCol && phase === "your-turn") play("hover-tick", 0.55);
@@ -327,6 +333,10 @@ export function makeBoard(deps: BoardDeps): BoardApp {
     const touchDrop = (e: PointerEvent, cancelled: boolean): void => {
       if (e.pointerType !== "touch") return;
       clickSuppressedUntil = performance.now() + 700;
+      if (tapToFocus) {
+        tapToFocus = false;
+        return;
+      }
       if (cancelled || phase !== "your-turn") return; // scroll took the gesture
       const k = stageScale();
       const fr = frame.getBoundingClientRect();
