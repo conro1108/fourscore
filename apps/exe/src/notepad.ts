@@ -302,7 +302,7 @@ export function openFilePicker(
   const body = el(`<div style="padding:6px 8px 2px"></div>`);
   const where = el(`<div style="margin-bottom:4px;overflow:hidden;white-space:nowrap"></div>`);
   const list = el(`<div class="listbox" style="height:110px;margin-bottom:6px"></div>`);
-  const input = el(`<input class="pickin" spellcheck="false" autocomplete="off">`) as HTMLInputElement;
+  const input = el(`<input class="pickin" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">`) as HTMLInputElement;
   input.value = baseName(start);
   let cwd = start === "" ? "DESKTOP" : parentOf(start);
   if (!disk.isDir(cwd)) cwd = "";

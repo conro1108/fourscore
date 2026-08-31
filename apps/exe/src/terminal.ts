@@ -44,7 +44,7 @@ export function openTerminal({ wm, disk, edit, paint, launch }: TerminalDeps): v
   const tailEl = el(`<div class="termout"></div>`);
   const lineEl = el(`<div class="termline"></div>`);
   const promptEl = el(`<span class="termprompt"></span>`);
-  const input = el(`<input class="termin" spellcheck="false" autocomplete="off">`) as HTMLInputElement;
+  const input = el(`<input class="termin" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">`) as HTMLInputElement;
   let cwd = "";
   const prompt = (): string => TERM.promptFor(cwd);
   const resolve = (arg: string): string => resolvePath(cwd, arg);

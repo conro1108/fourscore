@@ -437,7 +437,7 @@ function renameItem(path: string): void {
   const ic = deskIcons.get(path.toLowerCase());
   const lbl = ic?.el.querySelector<HTMLElement>(".lbl");
   if (!ic || !lbl) return;
-  const input = el<HTMLInputElement>(`<input class="ren" type="text">`);
+  const input = el<HTMLInputElement>(`<input class="ren" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">`);
   input.value = baseName(path);
   lbl.textContent = "";
   lbl.appendChild(input);
