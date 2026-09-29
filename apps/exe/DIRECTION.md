@@ -249,7 +249,9 @@
 > and every undo, and speaks only on a proof: the status line says "There is
 > no way through from here." and a box says the machine has looked ahead and
 > offers Deal, once per dead stretch. Unknown stays silence, per the review's
-> law. The `dead` rig is a seven on a buried five. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> law. The `dead` rig is a seven on a buried five. And regardless of proof,
+> "Deal" sits on the menubar as a verb (ui.ts `act`, the way BOARD.EXE's
+> Forfeit does): one tap out of a hand that isn't going anywhere. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.

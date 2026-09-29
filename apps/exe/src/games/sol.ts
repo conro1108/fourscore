@@ -874,7 +874,7 @@ export function openSol(wm: WM, rig?: string): void {
      a thumb): one tap turns the deck, two send a card home, a swipe left
      undoes. The single tap waits a short beat so the second can cancel it;
      the beat is the lag on every deal, so it stays tight. */
-  const TABLE_TAP_MS = 170;
+  const TABLE_TAP_MS = 220;
   let tableDown: { x: number; y: number } | null = null;
   let tableTapTimer: number | null = null;
   const tableTap = (): void => {
@@ -1206,6 +1206,8 @@ export function openSol(wm: WM, rig?: string): void {
         () => wm.dialog({ ...GAMES_COPY.sol.help, x: 420, y: 320, w: 340 }),
       ]],
     },
+    // a verb on the bar: one tap out of a hand that isn't going anywhere
+    { label: "Deal", items: [], act: newDeal },
   ]);
 
   const status = el(`<div class="statusbar"><div></div></div>`);

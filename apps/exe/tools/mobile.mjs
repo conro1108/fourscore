@@ -345,6 +345,30 @@ async function phone(viewport, tag) {
   if (!waste) fail("tapping the stock dealt nothing to the waste");
   else console.log("stock deals on a tap");
 
+  // Deal on the bar is one tap out of the hand
+  {
+    const tops = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll(".tabcol")].map((c) => [...c.querySelectorAll("[data-card]")].pop()?.dataset.card).join(","),
+      );
+    const before = await tops();
+    const dealVerb = await page.evaluate(() => {
+      const win = [...document.querySelectorAll(".win")].find((el) =>
+        el.querySelector(".titlebar .t")?.textContent.startsWith("SOL"),
+      );
+      const span = [...win.querySelectorAll(".menu span")].find((s) => s.textContent === "Deal");
+      const r = span.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.touchscreen.tap(dealVerb.x, dealVerb.y);
+    await page.waitForTimeout(300);
+    if ((await tops()) === before) fail("Deal on the bar did not deal");
+    else console.log("Deal on the bar deals");
+    // back to the fixed deal for the rest
+    await page.goto(`${BASE}/?state=sol&rig=deal`);
+    await page.waitForTimeout(1200);
+  }
+
   // a tap on the table (below the cards, nothing chosen) turns the deck too
   const wasteTop = () =>
     page.evaluate(() => document.querySelector('.slot[data-pile="waste"] [data-card]')?.dataset.card);

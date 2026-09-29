@@ -7,6 +7,8 @@ export interface Menu {
   /** [label, action, checked?]; "-" is a separator. "\t" splits off an accelerator
       label ("Deal\tF2") — display only, the window binds the key itself. */
   items: readonly (readonly [string, () => void, boolean?])[];
+  /** A verb, not a menu: the click does this and opens nothing (BOARD.EXE's Forfeit). */
+  act?: () => void;
 }
 
 export function menubar(menus: readonly Menu[]): HTMLElement {
@@ -47,6 +49,10 @@ export function menubar(menus: readonly Menu[]): HTMLElement {
       e.stopPropagation();
       const was = openPopup;
       closeAll();
+      if (m.act) {
+        m.act();
+        return;
+      }
       if (was !== popup) {
         popup.style.display = "block";
         btn.classList.add("open");
