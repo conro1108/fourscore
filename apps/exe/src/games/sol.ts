@@ -855,7 +855,7 @@ export function openSol(wm: WM, rig?: string): void {
      a thumb): one tap turns the deck, two send a card home, a swipe left
      undoes. The single tap waits a short beat so the second can cancel it;
      the beat is the lag on every deal, so it stays tight. */
-  const TABLE_TAP_MS = 220;
+  const TABLE_TAP_MS = 240;
   let tableDown: { x: number; y: number } | null = null;
   let tableTapTimer: number | null = null;
   const tableTap = (): void => {
