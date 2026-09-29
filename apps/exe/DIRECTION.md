@@ -231,10 +231,12 @@
 > every 90ms, stepped, "The rest is arithmetic." — instead of asking for
 > twenty-eight more taps. SNAKE.EXE went from a swipe that lost every tight
 > bend to the two-button snake: a tap on either half of the field turns it
-> that way relative to its heading, turns queue three deep for keys and taps
-> alike (a U-turn is two quick inputs), every edge wraps so only the snake
-> is in its own way, it quickens a touch per chip toward a floor, and it
-> remembers its longest.
+> that way relative to its heading — then, because one tap anywhere read as
+> a turn, to the arrow keys as buttons: four bevel arrows under the field on
+> a touchscreen (`.snakepad`, counted in the fit's chrome), absolute like the
+> keys, answering on pointerdown. Turns queue three deep (a U-turn is two
+> quick inputs), every edge wraps so only the snake is in its own way, it
+> quickens a touch per chip toward a floor, and it remembers its longest.
 
 > **The machine looks ahead (2026-09-28).** The review could prove a hand
 > winnable and never that it wasn't: `solve` drops moves, caps depth and lets

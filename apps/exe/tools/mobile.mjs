@@ -467,27 +467,40 @@ async function phone(viewport, tag) {
   const { ctx, page } = await phone({ width: 393, height: 852 }, "snake");
   await page.goto(`${BASE}/?state=snake`);
   await page.waitForTimeout(1200);
-  const field = await page.evaluate(() => {
-    const r = document.querySelector(".snakefield").getBoundingClientRect();
-    return { l: r.left + r.width * 0.25, r: r.left + r.width * 0.75, y: r.top + r.height / 2 };
-  });
+  const arrow = (d) =>
+    page.evaluate((d) => {
+      const b = document.querySelector(`.snakepad [data-d="Arrow${d}"]`);
+      const r = b?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height } : null;
+    }, d);
   const status = () => page.evaluate(() => document.querySelector("#snakeStatus")?.textContent ?? "");
-  await page.touchscreen.tap(field.r, field.y);
+  const right = await arrow("Right");
+  if (!right) fail("no arrow pad on the phone");
+  if (right && right.h < 20) fail(`arrow buttons are ${right.h.toFixed(0)} device px tall`);
+  // the pad sits inside the window, above the status bar
+  const padFits = await page.evaluate(() => {
+    const p = document.querySelector(".snakepad").getBoundingClientRect();
+    const s = document.querySelector("#snakeStatus").getBoundingClientRect();
+    return p.bottom <= s.top + 1;
+  });
+  if (!padFits) fail("the arrow pad overlaps the status bar");
+  await page.touchscreen.tap(right.x, right.y);
   await page.waitForTimeout(300);
-  if (!(await status()).startsWith("LENGTH")) fail("a tap did not start the snake");
-  else console.log("a tap starts the snake");
-  // steer it around for a while: left, left (a U-turn), right, right — and it
-  // crosses an edge or two on the way; only itself can stop it
-  for (const side of ["l", "l", "r", "r", "l", "r"]) {
-    await page.touchscreen.tap(field[side], field.y);
+  if (!(await status()).startsWith("LENGTH")) fail("an arrow did not start the snake");
+  else console.log("an arrow starts the snake");
+  // a lap: up, left, down, right — around a square its own length, and on
+  // across an edge; only itself can stop it
+  for (const d of ["Up", "Left", "Down", "Right", "Up", "Right"]) {
+    const a = await arrow(d);
+    await page.touchscreen.tap(a.x, a.y);
     await page.waitForTimeout(450);
   }
   await page.waitForTimeout(1500);
   const dialogs = await page.evaluate(
     () => [...document.querySelectorAll(".win")].filter((w) => w.querySelector(".dlg-body")).length,
   );
-  if (dialogs) fail("the snake died steering around by taps");
-  else console.log("taps turn the snake; it is still going");
+  if (dialogs) fail("the snake died steering around by arrows");
+  else console.log("arrows steer the snake; it is still going");
   await page.screenshot({ path: here("../shots/mobile-snake.png") });
   console.log("shot mobile-snake");
   await ctx.close();

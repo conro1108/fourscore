@@ -231,6 +231,11 @@ canvas.pix{image-rendering:pixelated;display:block}
 .solghost{position:absolute;width:var(--cw,62px);z-index:500;pointer-events:none}
 .solbounce{position:absolute;inset:0;z-index:210}
 
+/* SNAKE.EXE's touch arrows: PAD_H in snake.ts is this block's height (30+4+30+6) */
+.snakepad{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 10px 6px}
+.snakepad .row{display:flex;gap:4px}
+.snakepad .btn{min-width:64px;height:30px;line-height:29px;font-size:15px;font-weight:bold}
+
 /* the games folder */
 .folderpane{margin:3px;background:#fff;display:flex;flex-wrap:wrap;gap:8px;padding:12px 8px;min-height:76px;align-items:flex-start;align-content:flex-start}
 .binpoem{white-space:pre-wrap;color:#808080;font-size:10px;line-height:1.5;padding:0 4px}

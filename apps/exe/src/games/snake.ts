@@ -1,6 +1,6 @@
 /** SNAKE.EXE. Stepped on its own clock, a little faster per chip; every edge
- * wraps. Arrows point it; a tap on either half of the field turns it that way
- * relative to its heading. Turns queue, so a tight bend is two quick inputs. */
+ * wraps. Arrow keys point it, and on a touchscreen four arrow buttons under
+ * the field do the same. Turns queue, so a tight bend is two quick inputs. */
 
 import { el, onPointerDrag } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
@@ -20,6 +20,8 @@ const STEP_PER_CHIP_MS = 2;
 /** Turns waiting to be taken. Three is a U-turn and a correction. */
 const QUEUE = 3;
 const BEST_KEY = "exe.snake.best";
+/** The touch arrow pad's height, chrome the fit must count (chrome.css .snakepad). */
+const PAD_H = 70;
 
 type Dir = readonly [number, number];
 const DIRS: Record<string, Dir> = {
@@ -42,6 +44,14 @@ export function openSnake(wm: WM): void {
     `<canvas class="pix" width="${COLS * PX}" height="${ROWS * PX}" style="width:${COLS * PX * ZOOM}px;height:${ROWS * PX * ZOOM}px"></canvas>`,
   ) as HTMLCanvasElement;
   frame.appendChild(canvas);
+  // a touchscreen gets the arrow keys as buttons; a keyboard already has them
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const pad = coarse
+    ? el(`<div class="snakepad">
+        <div class="btn" data-d="ArrowUp">↑</div>
+        <div class="row"><div class="btn" data-d="ArrowLeft">←</div><div class="btn" data-d="ArrowDown">↓</div><div class="btn" data-d="ArrowRight">→</div></div>
+      </div>`)
+    : null;
   const status = el(`<div class="statusbar"><div id="snakeStatus"></div></div>`);
   const statusEl = status.firstElementChild as HTMLElement;
   const ctx = canvas.getContext("2d")!;
@@ -141,9 +151,6 @@ export function openSnake(wm: WM): void {
   const heading = (): Dir => queue[queue.length - 1] ?? dir ?? [1, 0];
   const steer = (d: Dir): void => {
     if (!alive) return;
-    const cur = heading();
-    if (d[0] === -cur[0] && d[1] === -cur[1]) return; // straight back into the body
-    if (d[0] === cur[0] && d[1] === cur[1]) return; // already going that way
     if (!dir) {
       // first move: the body lies to the left, so not that way
       if (d[0] === -1) return;
@@ -151,20 +158,18 @@ export function openSnake(wm: WM): void {
       statusEl.textContent = GAMES_COPY.snake.score(length());
       return;
     }
+    const cur = heading();
+    if (d[0] === -cur[0] && d[1] === -cur[1]) return; // straight back into the body
+    if (d[0] === cur[0] && d[1] === cur[1]) return; // already going that way
     if (queue.length < QUEUE) queue.push(d);
   };
-  /** Turn left or right of the heading (a tap on that half of the field). */
-  const turn = (side: -1 | 1): void => {
-    if (!alive) return;
-    const [x, y] = heading();
-    // left of (x,y) is (y,-x); right is (-y,x)
-    const d: Dir = side < 0 ? [y, -x] : [-y, x];
-    if (!dir) {
-      dir = [1, 0]; // it sets off to the right, then takes the turn
-      statusEl.textContent = GAMES_COPY.snake.score(length());
-    }
-    steer(d);
-  };
+  // the pad answers on pointerdown: a snake can't wait for a click
+  pad?.addEventListener("pointerdown", (e) => {
+    const d = (e.target as HTMLElement).closest<HTMLElement>("[data-d]")?.dataset.d;
+    if (!d) return;
+    e.preventDefault();
+    steer(DIRS[d]!);
+  });
 
   const onKey = (e: KeyboardEvent): void => {
     if (!win.isOpen()) {
@@ -184,11 +189,12 @@ export function openSnake(wm: WM): void {
   };
   addEventListener("keydown", onKey);
 
-  // the field: a tap on either half turns that way; a swipe points outright
+  // a swipe on the field points it too; a tap is not a direction
   let swipeFrom: [number, number] = [0, 0];
   onPointerDrag(
     frame,
     (e) => {
+      if (e.pointerType !== "touch") return null;
       swipeFrom = [e.clientX, e.clientY];
       return () => {};
     },
@@ -196,11 +202,7 @@ export function openSnake(wm: WM): void {
       if (cancelled) return;
       const dx = e.clientX - swipeFrom[0];
       const dy = e.clientY - swipeFrom[1];
-      if (Math.hypot(dx, dy) < 18) {
-        const r = frame.getBoundingClientRect();
-        turn(e.clientX < r.left + r.width / 2 ? -1 : 1);
-        return;
-      }
+      if (Math.hypot(dx, dy) < 18) return;
       steer(Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
     },
   );
@@ -216,14 +218,14 @@ export function openSnake(wm: WM): void {
     },
   ]);
 
-  body.append(bar, frame, status);
+  body.append(bar, frame, ...(pad ? [pad] : []), status);
 
   // Bitmap, so the scale ladder steps by whole px (88px of window per rung) to keep chips square.
   const naturalMargin = frame.style.margin;
   const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: COLS * PX, rows: ROWS * PX }),
-    chrome: { w: 32, h: 86 },
+    chrome: { w: 32, h: 86 + (pad ? PAD_H : 0) },
     cell: { base: ZOOM, step: 1, min: 2, max: 12 },
     apply(z, wide) {
       canvas.style.width = `${COLS * PX * z}px`;
