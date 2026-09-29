@@ -3,7 +3,7 @@
 import { el, onPointerDrag } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { centered, fieldScaler, type WM } from "../wm.js";
+import { centered, fieldScaler, type FieldFit, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 const COLS = 22;
@@ -191,7 +191,7 @@ export function openSnake(wm: WM): void {
 
   // Bitmap, so the scale ladder steps by whole px (88px of window per rung) to keep chips square.
   const naturalMargin = frame.style.margin;
-  const relayout = fieldScaler({
+  const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: COLS * PX, rows: ROWS * PX }),
     chrome: { w: 32, h: 86 },
@@ -201,7 +201,8 @@ export function openSnake(wm: WM): void {
       canvas.style.height = `${ROWS * PX * z}px`;
       frame.style.margin = wide ? centered(naturalMargin) : naturalMargin;
     },
-  });
+  };
+  const relayout = fieldScaler(fit);
 
   const win = wm.open({
     id: "snake",
@@ -215,6 +216,7 @@ export function openSnake(wm: WM): void {
     resizable: true,
     minW: COLS * PX * 2 + 32,
     minH: ROWS * PX * 2 + 86,
+    fit,
     onResize: relayout,
     onMaximize: relayout,
 

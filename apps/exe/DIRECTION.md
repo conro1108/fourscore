@@ -212,6 +212,23 @@
 > nothing in it are the same to a program. `npm run llm` photographs it every
 > five seconds, because one screenshot cannot tell thinking from stuck.
 
+> **The shelf games fit a hand (2026-09-28).** On a phone the desk is
+> shrunk to fit BOARD.EXE, but every other game still opened at its
+> desktop size — chess squares the width of a fingernail, Minesweeper cells
+> half that. Now a game window carries its `fit` (the same grid/chrome/cell
+> the resize ladder reads) and on a cramped desk wm.ts opens it as if
+> hand-resized to the desk: snug around the biggest cell that fits, or
+> (`tall`) every pixel of height, re-fit on rotation until it's been
+> dragged. Windows wider than a phone desk are capped to it. SOL.EXE learned
+> the finger's grammar: a wider strip of each face-up card on a coarse
+> pointer, a column that would run off the felt closing up the way the
+> period's did, a drop judged by the carried card's middle when the finger
+> misses, a tap slop so a wobble is still a tap, and one send-home per
+> double-tap. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> by finger, a real drag, the stock — and taps the board's titlebar before
+> its drag, because a beat dialog can take focus and a touch on an unfocused
+> board only focuses it.
+
 Connect 4 played inside a possessed Windows 95 that believes it is functioning
 normally. The game never leaves the operating system.
 

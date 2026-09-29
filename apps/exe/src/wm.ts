@@ -35,6 +35,10 @@ export interface WindowSpec {
   minH?: number;
   /** Fires during a resize drag, after each new size lands. */
   onResize?: () => void;
+  /** On a phone-sized desk the window opens as big as the desk allows instead
+      of at its authored size (needs `resizable`); re-fits on rotation until
+      it's been dragged. The window's own first relayout() picks the size up. */
+  fit?: GridFit;
   /** Stay above the screensaver (the board, and dialogs by default). */
   overSaver?: boolean;
   /** A fixed z-index, opting out of the stack entirely. Dev chrome only. */
@@ -52,6 +56,8 @@ export interface Win {
   isOpen(): boolean;
   /** Re-place against the desk, in authored (1280x800) coordinates. */
   moveTo(x: number, y: number): void;
+  /** Re-run the phone-desk fit after the natural size changed (a level change). No-op on a full desk. */
+  refit(): void;
 }
 
 export interface DialogSpec {
@@ -115,6 +121,8 @@ const resizeCbs: (() => void)[] = [];
 export const stageScale = (): number => scale;
 export const deskWidth = (): number => deskW;
 export const deskHeight = (): number => deskH;
+/** A phone: the desk was shrunk to FIT_W/FIT_H, so authored sizes don't fit. */
+export const cramped = (): boolean => deskW < DESIGN_W || deskH < DESIGN_H;
 /** Taskbar's real height: 36px of chrome plus the home-indicator inset. */
 export const taskbarH = (): number => 36 + taskbarPad;
 /** Fires after the desk changes size, so placed things can re-anchor. */
@@ -143,18 +151,39 @@ export function fitCell(f: CellFit): number {
   return Math.max(min, Math.min(max, Math.floor(raw / step) * step));
 }
 
-/** Everything a window needs to answer its own resize with a size. */
-export interface FieldFit {
-  /** Measured live, mid-drag. */
-  win(): HTMLElement;
+/** A game window's geometry: what the phone-desk fit and `fieldScaler` both read. */
+export interface GridFit {
   /** Live (level/variant can change it); may be fractional. */
   grid(): { cols: number; rows: number };
   /** Non-field px per axis. Measure off a natural window, don't sum the stylesheet,
       or the natural size won't round-trip to `cell.base`. */
   chrome: { w: number; h: number };
   cell: { base: number; step: number; min: number; max: number };
+  /** The field uses any extra height it's given (sol's tableau); default keeps the grid's aspect. */
+  tall?: boolean;
+}
+
+/** Everything a window needs to answer its own resize with a size. */
+export interface FieldFit extends GridFit {
+  /** Measured live, mid-drag. */
+  win(): HTMLElement;
   /** `wide` once dragged or maximized — centre the well in the extra gray. */
   apply(size: number, wide: boolean): void;
+}
+
+/** The size a grid window takes on a cramped desk: snug around the biggest cell the desk holds. */
+function fitToDesk(f: GridFit): { w: number; h: number } {
+  const availW = deskW;
+  const availH = deskH - taskbarH();
+  const { cols, rows } = f.grid();
+  const size = Math.min(
+    fitCell({ space: availW - f.chrome.w, count: cols, ...f.cell }),
+    fitCell({ space: availH - f.chrome.h, count: rows, ...f.cell }),
+  );
+  return {
+    w: Math.min(availW, Math.ceil(cols * size + f.chrome.w)),
+    h: f.tall ? availH : Math.min(availH, Math.ceil(rows * size + f.chrome.h)),
+  };
 }
 
 /** The one resize path for game windows: hand to `onResize`/`onMaximize`, call once after first paint. */
@@ -279,18 +308,44 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     // kept to re-anchor on desk resize
     const authored: [number, number] = [spec.x, spec.y];
     let dragged = false;
+    let fitted = false;
     const place = (): void => {
+      // wider than a phone desk: cap it (the terminal is authored at 520 on a 512 desk)
+      if (!w.classList.contains("sized") && w.offsetWidth > deskW) w.style.width = `${deskW}px`;
       let x = anchorX(authored[0], spec.ax);
       let y = anchorY(authored[1], spec.ay);
-      // clamp on-desk only on a cramped axis: a full desk keeps hand-tuned
-      // positions, including the win cascade's intentional half-off dialog
-      if (deskW < DESIGN_W) x = Math.max(0, Math.min(x, deskW - w.offsetWidth));
-      if (deskH < DESIGN_H) y = Math.max(0, Math.min(y, deskH - taskbarH() - w.offsetHeight));
+      // clamp on-desk only on a cramped axis (or a window fitted to the desk):
+      // a full desk keeps hand-tuned positions, including the win cascade's
+      // intentional half-off dialog
+      if (deskW < DESIGN_W || fitted) x = Math.max(0, Math.min(x, deskW - w.offsetWidth));
+      if (deskH < DESIGN_H || fitted) y = Math.max(0, Math.min(y, deskH - taskbarH() - w.offsetHeight));
       w.style.left = `${x}px`;
       w.style.top = `${y}px`;
     };
+    /** Phone desk: size to the desk (as if hand-resized, so it still drags).
+        Back on a full desk the authored size returns. True if a fit applied. */
+    const fitDesk = (): boolean => {
+      if (!spec.fit) return false;
+      if (cramped()) {
+        const { w: fw, h: fh } = fitToDesk(spec.fit);
+        w.classList.add("sized");
+        w.style.width = `${fw}px`;
+        w.style.height = `${fh}px`;
+        fitted = true;
+        return true;
+      }
+      if (!fitted) return false;
+      fitted = false;
+      w.classList.remove("sized");
+      w.style.width = spec.w ? `${spec.w}px` : "";
+      w.style.height = "";
+      return true;
+    };
     onDeskResize(() => {
-      if (!dragged && !maximized && w.isConnected) place();
+      if (dragged || maximized || !w.isConnected) return;
+      const refit = fitDesk();
+      place();
+      if (refit) spec.onResize?.();
     });
     const bar = el(`<div class="titlebar inactive"><span class="t"></span></div>`);
     bar.querySelector(".t")!.textContent = spec.title;
@@ -305,6 +360,7 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
     w.appendChild(spec.body);
     stage.appendChild(w);
     // after DOM insert: the clamp needs a measured size
+    fitDesk();
     place();
 
     if (spec.resizable) {
@@ -398,6 +454,13 @@ export function makeWM(stage: HTMLElement, tasksEl: HTMLElement): WM {
         authored[1] = y;
         // a dragged window isn't re-staged
         if (!dragged) place();
+      },
+      refit() {
+        if (dragged || maximized) return;
+        if (fitDesk()) {
+          place();
+          spec.onResize?.();
+        }
       },
     };
 

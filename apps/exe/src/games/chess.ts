@@ -9,7 +9,7 @@ import { el } from "../dom.js";
 import { px } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { centered, fieldScaler, type WM } from "../wm.js";
+import { centered, fieldScaler, type FieldFit, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 /* pure part (perft-tested) */
@@ -938,7 +938,7 @@ export function openChess(wm: WM, fen?: string): void {
   body.append(bar, frame, status);
 
   const naturalMargin = frame.style.margin;
-  const relayout = fieldScaler({
+  const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: 8, rows: 8 }),
     chrome: { w: 46, h: 86 },
@@ -947,7 +947,8 @@ export function openChess(wm: WM, fen?: string): void {
       frame.style.setProperty("--sq", `${sq}px`);
       frame.style.margin = wide ? centered(naturalMargin) : naturalMargin;
     },
-  });
+  };
+  const relayout = fieldScaler(fit);
 
   const win = wm.open({
     id: "chess",
@@ -962,6 +963,7 @@ export function openChess(wm: WM, fen?: string): void {
     resizable: true,
     minW: 8 * 24 + 46,
     minH: 8 * 24 + 86,
+    fit,
     onResize: relayout,
     onMaximize: relayout,
 

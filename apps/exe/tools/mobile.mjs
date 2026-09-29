@@ -41,6 +41,8 @@ const fail = (msg) => {
   console.log("FAIL", msg);
 };
 
+const innerW = (page) => page.viewportSize().width;
+
 const center = async (page, sel) =>
   page.evaluate((s) => {
     const r = document.querySelector(s)?.getBoundingClientRect();
@@ -127,6 +129,12 @@ async function phone(viewport, tag) {
     before,
     { timeout: 15000 },
   );
+  // the bot's disc lands before the turn comes back; a drag before then is ignored
+  await page.waitForFunction(
+    () => document.querySelector("#stYou")?.textContent.startsWith("YOUR MOVE"),
+    null,
+    { timeout: 15000 },
+  );
   const drag = async () => {
     const cdp = await ctx.newCDPSession(page);
     const steps = 8;
@@ -142,6 +150,21 @@ async function phone(viewport, tag) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   };
   const count = await page.evaluate(() => document.querySelectorAll("#grid .disc").length);
+  // a beat dialog may have taken focus meanwhile; a touch on an unfocused
+  // board only focuses it, so tap its titlebar first the way a thumb would
+  const boardBar = await page.evaluate(() => {
+    const w = [...document.querySelectorAll(".win")].find((el) =>
+      el.querySelector(".titlebar .t")?.textContent.includes("BOARD"),
+    );
+    const bar = w.querySelector(".titlebar");
+    if (bar.classList.contains("active")) return null;
+    const r = bar.querySelector(".t").getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (boardBar) {
+    await page.touchscreen.tap(boardBar.x, boardBar.y);
+    await page.waitForTimeout(200);
+  }
   await drag();
   try {
     await page.waitForFunction(
@@ -179,6 +202,171 @@ async function phone(viewport, tag) {
   console.log("shot mobile-start");
 
   await ctx.close();
+}
+
+/* ---- solitaire, portrait: the window fits the desk, a finger can pick a
+   card, tap-tap and a drag both move one, the stock deals ---- */
+{
+  const { ctx, page } = await phone({ width: 393, height: 852 }, "sol");
+  await page.goto(`${BASE}/?state=sol&rig=deal`);
+  await page.waitForTimeout(1500);
+
+  const fitsDesk = async (tag) => {
+    const r = await page.evaluate(() => {
+      const w = [...document.querySelectorAll(".win")].find((el) =>
+        el.querySelector(".titlebar .t")?.textContent.startsWith("SOL"),
+      );
+      const b = w.getBoundingClientRect();
+      const t = document.querySelector("#taskbar").getBoundingClientRect().top;
+      return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, taskbar: t };
+    });
+    if (r.left < -1 || r.right > innerW(page) + 1 || r.top < -1 || r.bottom > r.taskbar + 1)
+      fail(`${tag} SOL.EXE hangs off the desk: ${JSON.stringify(r)}`);
+    else console.log(`${tag} SOL.EXE fits the desk`);
+  };
+  await fitsDesk("portrait");
+
+  const cardPx = await page.evaluate(() => {
+    const c = document.querySelector(".tabcol .card");
+    const r = c?.getBoundingClientRect();
+    return r ? { w: r.width, strip: parseFloat(getComputedStyle(document.querySelector("#stage")).getPropertyValue("--cw")) } : null;
+  });
+  if (!cardPx || cardPx.w < 40) fail(`portrait card is ${cardPx?.w.toFixed(1)} device px wide — too small to pick`);
+  else console.log(`portrait card is ${cardPx.w.toFixed(0)} device px wide`);
+
+  /** A legal single-card tableau move [fromTag, toCol] read off the DOM, or null. */
+  const legalMove = () =>
+    page.evaluate(() => {
+      const cols = [...document.querySelectorAll(".tabcol")];
+      const parse = (s) => ({ rank: parseInt(s), red: /[hd]$/.test(s) });
+      const tops = cols.map((col) => {
+        const cards = [...col.querySelectorAll("[data-card]")];
+        return cards.length ? cards[cards.length - 1] : null;
+      });
+      for (let i = 0; i < 7; i++) {
+        const c = tops[i];
+        if (!c) continue;
+        const cv = parse(c.dataset.card);
+        for (let j = 0; j < 7; j++) {
+          if (j === i) continue;
+          const t = tops[j];
+          if (!t) {
+            if (cv.rank === 13 && cols[j].classList.contains("empty") && cols[i].querySelectorAll(".card").length > 1)
+              return { card: c.dataset.card, from: c.dataset.drag, to: j, viaCard: null };
+            continue;
+          }
+          const tv = parse(t.dataset.card);
+          if (tv.rank === cv.rank + 1 && tv.red !== cv.red)
+            return { card: c.dataset.card, from: c.dataset.drag, to: j, viaCard: t.dataset.card };
+        }
+      }
+      return null;
+    });
+  const cardCenter = (card) => center(page, `.tabcol [data-card="${card}"]`);
+  const colCenter = async (j, viaCard) =>
+    viaCard ? cardCenter(viaCard) : center(page, `.tabcol[data-pile="t${j}"]`);
+  const landed = (card, j) =>
+    page.evaluate(
+      ([c, j]) => !!document.querySelector(`.tabcol[data-pile="t${j}"] [data-card="${c}"]`),
+      [card, j],
+    );
+
+  // tap-tap: the run wears the dither, then goes where the second tap says
+  let mv = await legalMove();
+  if (!mv) fail("the fixed deal offers no tableau move to tap (rig changed?)");
+  else {
+    const a = await cardCenter(mv.card);
+    await page.touchscreen.tap(a.x, a.y);
+    await page.waitForTimeout(150);
+    const sel = await page.evaluate(() => document.querySelectorAll(".card.sel").length);
+    if (!sel) fail("tapping a face-up card did not select it");
+    const b = await colCenter(mv.to, mv.viaCard);
+    await page.touchscreen.tap(b.x, b.y);
+    await page.waitForTimeout(200);
+    if (await landed(mv.card, mv.to)) console.log(`tap-tap moved ${mv.card} to column ${mv.to}`);
+    else fail(`tap-tap: ${mv.card} did not land on column ${mv.to}`);
+  }
+
+  // Game > Undo by finger puts it back (the menu is the only undo a phone has)
+  const menuTap = async (label, item) => {
+    const m = await page.evaluate((l) => {
+      // BOARD.EXE has a Game menu too; only SOL.EXE's counts
+      const win = [...document.querySelectorAll(".win")].find((el) =>
+        el.querySelector(".titlebar .t")?.textContent.startsWith("SOL"),
+      );
+      const span = [...win.querySelectorAll(".menu span")].find((s) => s.textContent === l);
+      const r = span?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    }, label);
+    await page.touchscreen.tap(m.x, m.y);
+    await page.waitForTimeout(150);
+    const it = await page.evaluate((l) => {
+      const d = [...document.querySelectorAll(".popup div")].find(
+        (d) => d.firstChild?.textContent === l && d.offsetParent,
+      );
+      const r = d?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    }, item);
+    if (!it) return false;
+    await page.touchscreen.tap(it.x, it.y);
+    await page.waitForTimeout(150);
+    return true;
+  };
+  const undone = mv && (await menuTap("Game", "Undo"));
+  if (mv && (!undone || (await landed(mv.card, mv.to))))
+    fail("Game > Undo by touch did not put the card back");
+  else if (mv) console.log("Game > Undo by touch put the card back");
+
+  // drag: finger down on the card, slide to the column, lift
+  mv = await legalMove();
+  if (!mv) fail("no tableau move to drag after the undo");
+  else {
+    const a = await cardCenter(mv.card);
+    const b = await colCenter(mv.to, mv.viaCard);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: a.x, y: a.y }] });
+    const steps = 10;
+    for (let i = 1; i <= steps; i++)
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: a.x + ((b.x - a.x) * i) / steps, y: a.y + ((b.y - a.y) * i) / steps }],
+      });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(200);
+    if (await landed(mv.card, mv.to)) console.log(`drag moved ${mv.card} to column ${mv.to}`);
+    else fail(`drag: ${mv.card} did not land on column ${mv.to}`);
+  }
+
+  // the stock deals on a tap
+  const stock = await center(page, '.slot[data-pile="stock"]');
+  await page.touchscreen.tap(stock.x, stock.y);
+  await page.waitForTimeout(200);
+  const waste = await page.evaluate(() => !!document.querySelector('.slot[data-pile="waste"] .card'));
+  if (!waste) fail("tapping the stock dealt nothing to the waste");
+  else console.log("stock deals on a tap");
+
+  await page.screenshot({ path: here("../shots/mobile-sol.png") });
+  console.log("shot mobile-sol");
+  await ctx.close();
+
+  // landscape: same deal, the whole table on screen
+  const land = await phone({ width: 852, height: 393 }, "sol-landscape");
+  await land.page.goto(`${BASE}/?state=sol&rig=deal`);
+  await land.page.waitForTimeout(1500);
+  {
+    const r = await land.page.evaluate(() => {
+      const w = [...document.querySelectorAll(".win")].find((el) =>
+        el.querySelector(".titlebar .t")?.textContent.startsWith("SOL"),
+      );
+      const b = w.getBoundingClientRect();
+      return { bottom: b.bottom, taskbar: document.querySelector("#taskbar").getBoundingClientRect().top };
+    });
+    if (r.bottom > r.taskbar + 1) fail(`landscape SOL.EXE runs under the taskbar: ${JSON.stringify(r)}`);
+    else console.log("landscape SOL.EXE fits the desk");
+  }
+  await land.page.screenshot({ path: here("../shots/mobile-sol-landscape.png") });
+  console.log("shot mobile-sol-landscape");
+  await land.ctx.close();
 }
 
 /* ---- landscape: big variants ---- */

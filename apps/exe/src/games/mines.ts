@@ -4,7 +4,7 @@ import { el } from "../dom.js";
 import { px } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { fieldScaler, type WM } from "../wm.js";
+import { fieldScaler, type FieldFit, type WM } from "../wm.js";
 import { lcd, menubar } from "./ui.js";
 
 interface Level {
@@ -351,18 +351,20 @@ export function openMines(wm: WM): void {
     win.el.style.width = `${level.w * MC + 32}px`;
     winSpec.minW = Math.max(level.w * MC_MIN + 32, 210); // the LCDs need a row
     winSpec.minH = level.h * MC_MIN + 112;
+    win.refit(); // a phone desk re-fits the new field
     relayout();
     reset();
   }
 
   // chrome measured: natural Beginner window is 248x328 around a 9x9 field of 24px cells
-  const relayout = fieldScaler({
+  const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: level.w, rows: level.h }),
     chrome: { w: 32, h: 112 },
     cell: { base: MC, step: 4, min: MC_MIN, max: 48 },
     apply: (mc) => body.style.setProperty("--mc", `${mc}px`),
-  });
+  };
+  const relayout = fieldScaler(fit);
 
   const winSpec = {
     id: "mines",
@@ -376,6 +378,7 @@ export function openMines(wm: WM): void {
     resizable: true,
     minW: Math.max(level.w * MC_MIN + 32, 210),
     minH: level.h * MC_MIN + 112,
+    fit,
     onResize: () => relayout(),
     onMaximize: () => relayout(),
     onClose: stopClock,

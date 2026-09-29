@@ -8,7 +8,7 @@ import { el } from "../dom.js";
 import { PAL } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { deskHeight, deskWidth, fieldScaler, stageScale, taskbarH, type WM } from "../wm.js";
+import { deskHeight, deskWidth, fieldScaler, stageScale, taskbarH, type FieldFit, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 import {
   canFoundation,
@@ -362,7 +362,8 @@ const seededRand = (seed: number) => {
   return (): number => ((v = (v * 48271) % 2147483647) / 2147483647);
 };
 
-/** `rig` is a harness pose: "won" (one double-click from the bounce) or "review" (fixed deal, review open). */
+/** `rig` is a harness pose: "won" (one double-click from the bounce), "review"
+    (fixed deal, review open) or "deal" (the same fixed deal, nothing else). */
 export function openSol(wm: WM, rig?: string): void {
   const existing = wm.get("sol");
   if (existing?.isOpen()) {
@@ -370,7 +371,7 @@ export function openSol(wm: WM, rig?: string): void {
     return;
   }
 
-  let s = rig === "review" ? deal(seededRand(7919)) : deal();
+  let s = rig === "review" || rig === "deal" ? deal(seededRand(7919)) : deal();
   if (rig === "won") {
     s = {
       stock: [],
@@ -412,12 +413,16 @@ export function openSol(wm: WM, rig?: string): void {
   const cardW = (): number => scaleOf(u, CARD_W);
   const cardH = (): number => Math.round((cardW() * CARD_H) / CARD_W);
   const COL_X = (i: number): number => scaleOf(u, 10) + i * u;
-  const UP_DY = (): number => scaleOf(u, 20);
+  // a finger needs a wider strip of each face-up card than a mouse does
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const UP_DY = (): number => scaleOf(u, coarse ? 32 : 20);
   const DOWN_DY = (): number => scaleOf(u, 6);
 
-  /** A card div with its own canvas at the live pitch. Rebuilt every render. */
+  /** A card div with its own canvas at the live pitch. Rebuilt every render.
+      A face-up card says what it is (`data-card="13s"`) — for harnesses, not styling. */
   function cardEl(c: Card, faceUp: boolean): HTMLElement {
     const d = el(`<div class="card"></div>`);
+    if (faceUp) d.dataset.card = `${c.rank}${"shdc"[c.suit]}`;
     const cv = document.createElement("canvas");
     const w = cardW();
     const h = cardH();
@@ -436,8 +441,14 @@ export function openSol(wm: WM, rig?: string): void {
     hidden: HTMLElement[];
     dx: number;
     dy: number;
+    /** Where the pointer went down (client px); a drag is real past `slop`. */
+    x0: number;
+    y0: number;
+    slop: number;
     moved: boolean;
   } | null = null;
+  /** dblclick fires for a touch double-tap too; the pointerup path already answered it. */
+  let lastPointerType = "mouse";
 
   /* click-to-move: tag of the chosen run's head card */
   let selTag: string | null = null;
@@ -518,24 +529,31 @@ export function openSol(wm: WM, rig?: string): void {
     }
 
     // tableau: the column div is the full-height drop target
+    const colTop = top + cardH() + scaleOf(u, 14);
+    // a column that would run off the felt closes up (the period's own trick)
+    const room = felt.clientHeight - colTop - 6 - cardH();
     for (let i = 0; i < 7; i++) {
       const col = el(
-        `<div class="tabcol" data-pile="t${i}" style="left:${COL_X(i)}px;top:${top + cardH() + scaleOf(u, 14)}px"></div>`,
+        `<div class="tabcol" data-pile="t${i}" style="left:${COL_X(i)}px;top:${colTop}px"></div>`,
       );
       const pile = s.tab[i]!;
+      const need = pile.down.length * DOWN_DY() + Math.max(0, pile.up.length - 1) * UP_DY();
+      const k = room > 0 && need > room ? room / need : 1;
+      const downDy = Math.max(2, Math.floor(DOWN_DY() * k));
+      const upDy = Math.max(scaleOf(u, 12), Math.floor(UP_DY() * k));
       let y = 0;
       for (const c of pile.down) {
         const e = cardEl(c, false);
         e.style.top = `${y}px`;
         col.appendChild(e);
-        y += DOWN_DY();
+        y += downDy;
       }
       pile.up.forEach((c, j) => {
         const e = cardEl(c, true);
         e.style.top = `${y}px`;
         e.dataset.drag = `t${i}:${j}`;
         col.appendChild(e);
-        y += UP_DY();
+        y += upDy;
       });
       if (!pile.down.length && !pile.up.length) col.classList.add("empty");
       felt.appendChild(col);
@@ -606,6 +624,7 @@ export function openSol(wm: WM, rig?: string): void {
   /* input */
   felt.addEventListener("pointerdown", (e) => {
     if (won || e.button !== 0 || !e.isPrimary) return;
+    lastPointerType = e.pointerType;
     const target = e.target as HTMLElement;
     if (pileAt(e.clientX, e.clientY) === "stock") {
       play("click", 0.5);
@@ -649,6 +668,10 @@ export function openSol(wm: WM, rig?: string): void {
       hidden,
       dx: (e.clientX - cardBox.left) / k,
       dy: (e.clientY - cardBox.top) / k,
+      x0: e.clientX,
+      y0: e.clientY,
+      // a finger wobbles on a tap; a mouse doesn't
+      slop: e.pointerType === "touch" ? 8 : 3,
       moved: false,
     };
     ghost.style.left = `${(cardBox.left - stageR.left) / k}px`;
@@ -659,6 +682,7 @@ export function openSol(wm: WM, rig?: string): void {
   addEventListener("pointermove", (e) => {
     if (!drag) return;
     if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < drag.slop) return;
       // originals hide only once the drag is real, so a double-click never disturbs the DOM under the cursor
       drag.moved = true;
       clearSel();
@@ -682,9 +706,14 @@ export function openSol(wm: WM, rig?: string): void {
     if (!drag) return;
     const { cards, from, ghost, hidden, moved } = drag;
     drag = null;
+    // the pointer decides; failing that, the middle of the card being carried
+    // (a finger holds a card by its edge and sees the pile under the card)
+    const carried = ghost.firstElementChild?.getBoundingClientRect();
     ghost.remove();
     if (moved) {
-      const to = pileAt(e.clientX, e.clientY);
+      const to =
+        pileAt(e.clientX, e.clientY) ??
+        (carried ? pileAt(carried.left + carried.width / 2, carried.top + carried.height / 2) : null);
       if (to && to !== "stock" && tryDrop(cards, from, to)) {
         play("disc-land", 0.4);
         render();
@@ -744,7 +773,9 @@ export function openSol(wm: WM, rig?: string): void {
       checkWin();
     }
   };
-  felt.addEventListener("dblclick", (e) => autoHome(e.target as HTMLElement));
+  felt.addEventListener("dblclick", (e) => {
+    if (lastPointerType !== "touch") autoHome(e.target as HTMLElement);
+  });
 
   // touch: two quick taps on the same card send it home
   let lastTap: { tag: string; at: number } | null = null;
@@ -1004,20 +1035,25 @@ export function openSol(wm: WM, rig?: string): void {
   body.append(bar, felt, status);
 
   // chrome measured: natural window is 512 wide around seven 68px pitches, 640 tall around a 560px felt
-  const relayout = fieldScaler({
+  let feltH = 0;
+  const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: 7, rows: FELT_H / PITCH }),
     chrome: { w: 36, h: 80 },
     cell: { base: PITCH, step: 2, min: 44, max: 110 },
+    // the tableau spreads into any height a phone gives it
+    tall: true,
     apply(next) {
-      const changed = next !== u;
+      const changed = next !== u || felt.clientHeight !== feltH;
       u = next;
+      feltH = felt.clientHeight;
       body.style.setProperty("--cw", `${cardW()}px`);
       body.style.setProperty("--ch", `${cardH()}px`);
-      // piles are laid out in px; re-render only when the pitch actually moved
+      // piles are laid out in px; re-render only when the pitch or the felt's height moved
       if (changed) render();
     },
-  });
+  };
+  const relayout = fieldScaler(fit);
 
   const win = wm.open({
     id: "sol",
@@ -1031,6 +1067,7 @@ export function openSol(wm: WM, rig?: string): void {
     resizable: true,
     minW: 7 * 44 + 36,
     minH: Math.round((FELT_H * 44) / PITCH) + 80,
+    fit,
     onResize: relayout,
     onMaximize: relayout,
     onClose: () => {

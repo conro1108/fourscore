@@ -6,7 +6,7 @@
 import { el } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { centered, fieldScaler, type WM } from "../wm.js";
+import { centered, fieldScaler, type FieldFit, type WM } from "../wm.js";
 import { menubar } from "./ui.js";
 
 /* pure part (tested) */
@@ -334,7 +334,7 @@ export function openCheckers(wm: WM): void {
 
   // chrome measured: natural window is 366x406 around a 320px board
   const naturalMargin = frame.style.margin;
-  const relayout = fieldScaler({
+  const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: 8, rows: 8 }),
     chrome: { w: 46, h: 86 },
@@ -343,7 +343,8 @@ export function openCheckers(wm: WM): void {
       frame.style.setProperty("--sq", `${sq}px`);
       frame.style.margin = wide ? centered(naturalMargin) : naturalMargin;
     },
-  });
+  };
+  const relayout = fieldScaler(fit);
 
   const win = wm.open({
     id: "checkers",
@@ -357,6 +358,7 @@ export function openCheckers(wm: WM): void {
     resizable: true,
     minW: 8 * 24 + 46,
     minH: 8 * 24 + 86,
+    fit,
     onResize: relayout,
     onMaximize: relayout,
 
