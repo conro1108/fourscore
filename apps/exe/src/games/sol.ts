@@ -812,7 +812,9 @@ export function openSol(wm: WM, rig?: string): void {
 
   /* The table (felt with no card under the finger — the stock is a reach for
      a thumb): one tap turns the deck, two send a card home, a swipe left
-     undoes. The single tap waits a beat so the second can cancel it. */
+     undoes. The single tap waits a short beat so the second can cancel it;
+     the beat is the lag on every deal, so it stays tight. */
+  const TABLE_TAP_MS = 170;
   let tableDown: { x: number; y: number } | null = null;
   let tableTapTimer: number | null = null;
   const tableTap = (): void => {
@@ -825,7 +827,7 @@ export function openSol(wm: WM, rig?: string): void {
     tableTapTimer = window.setTimeout(() => {
       tableTapTimer = null;
       if (!won) turnDeck();
-    }, 280);
+    }, TABLE_TAP_MS);
   };
   /** The first card that can leave — waste top, then tableau tops. */
   const homeOne = (): void => {
