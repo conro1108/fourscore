@@ -354,9 +354,22 @@ async function phone(viewport, tag) {
     return { x: f.left + f.width / 2, y: f.bottom - 40 };
   });
   await page.touchscreen.tap(table.x, table.y);
-  await page.waitForTimeout(200);
-  if ((await wasteTop()) === was) fail("a tap on the table did not turn the deck");
+  await page.waitForTimeout(500);
+  const turned = await wasteTop();
+  if (turned === was) fail("a tap on the table did not turn the deck");
   else console.log("a tap on the table turns the deck");
+
+  // a swipe left on the table takes it back
+  {
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: table.x + 80, y: table.y }] });
+    for (let i = 1; i <= 6; i++)
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: table.x + 80 - i * 20, y: table.y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(400);
+    if ((await wasteTop()) !== was) fail("a swipe left on the table did not undo the turn");
+    else console.log("a swipe left on the table undoes");
+  }
 
   await page.screenshot({ path: here("../shots/mobile-sol.png") });
   console.log("shot mobile-sol");
@@ -364,10 +377,14 @@ async function phone(viewport, tag) {
   // decided: stock spent, everything face up — one card home and the machine plays the rest
   await page.goto(`${BASE}/?state=sol&rig=decided`);
   await page.waitForTimeout(1200);
-  const six = await center(page, '.tabcol [data-card="6h"]');
-  await page.touchscreen.tap(six.x, six.y);
-  await page.waitForTimeout(120);
-  await page.touchscreen.tap(six.x, six.y);
+  // two taps on the table send the first card that can leave
+  const tbl = await page.evaluate(() => {
+    const f = document.querySelector(".felt").getBoundingClientRect();
+    return { x: f.left + f.width / 2, y: f.bottom - 40 };
+  });
+  await page.touchscreen.tap(tbl.x, tbl.y);
+  await page.waitForTimeout(100);
+  await page.touchscreen.tap(tbl.x, tbl.y);
   try {
     await page.waitForFunction(
       () => [...document.querySelectorAll(".titlebar .t")].some((t) => t.textContent === "SOL.EXE") &&

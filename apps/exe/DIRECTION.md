@@ -224,8 +224,9 @@
 > pointer, a column that would run off the felt closing up the way the
 > period's did, a drop judged by the carried card's middle when the finger
 > misses, a tap slop so a wobble is still a tap, and one send-home per
-> double-tap. A tap on the table with nothing chosen turns the deck (the
-> stock is a reach for a thumb), and once the stock is spent and nothing is
+> double-tap. The table itself answers a thumb (the stock is a reach): one
+> tap turns the deck, after a beat so that two taps can instead send the
+> first card that can leave home, and a swipe left takes a move back. Once the stock is spent and nothing is
 > face down the game is decided, so the machine plays it out — a card home
 > every 90ms, stepped, "The rest is arithmetic." — instead of asking for
 > twenty-eight more taps. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo

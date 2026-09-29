@@ -658,7 +658,10 @@ export function openSol(wm: WM, rig?: string): void {
       return;
     }
     const tag = target.closest<HTMLElement>("[data-drag]")?.dataset.drag;
-    if (!tag) return;
+    if (!tag) {
+      tableDown = { x: e.clientX, y: e.clientY };
+      return;
+    }
     e.preventDefault();
 
     const src = runOf(tag);
@@ -762,11 +765,21 @@ export function openSol(wm: WM, rig?: string): void {
     }
     const tag = (e.target as HTMLElement).closest<HTMLElement>("[data-drag]")?.dataset.drag ?? null;
     if (!tag || tag === selTag) {
-      // nothing chosen and nothing under the finger: the table turns the deck
-      // (the stock is a reach for a thumb); with a run chosen, it only lets go
+      const down = tableDown;
+      tableDown = null;
       const had = selTag !== null;
       clearSel();
-      if (!had && !tag && !finishing) turnDeck();
+      if (!down || tag || finishing) return;
+      const dx = e.clientX - down.x;
+      const dy = e.clientY - down.y;
+      // a swipe left on the table takes a move back
+      if (dx < -40 && Math.abs(dy) < -dx) {
+        undo();
+        return;
+      }
+      if (Math.hypot(dx, dy) > 12) return; // a stroke that meant nothing
+      // with a run chosen, a tap on the table only lets go of it
+      if (!had) tableTap();
       return;
     }
     clearSel();
@@ -797,6 +810,44 @@ export function openSol(wm: WM, rig?: string): void {
     }
   };
 
+  /* The table (felt with no card under the finger — the stock is a reach for
+     a thumb): one tap turns the deck, two send a card home, a swipe left
+     undoes. The single tap waits a beat so the second can cancel it. */
+  let tableDown: { x: number; y: number } | null = null;
+  let tableTapTimer: number | null = null;
+  const tableTap = (): void => {
+    if (tableTapTimer !== null) {
+      clearTimeout(tableTapTimer);
+      tableTapTimer = null;
+      homeOne();
+      return;
+    }
+    tableTapTimer = window.setTimeout(() => {
+      tableTapTimer = null;
+      if (!won) turnDeck();
+    }, 280);
+  };
+  /** The first card that can leave — waste top, then tableau tops. */
+  const homeOne = (): void => {
+    if (won) return;
+    const w = s.waste[s.waste.length - 1];
+    if (w && sendHome({ kind: "waste" }, w)) {
+      play("disc-land", 0.4);
+      settle();
+      return;
+    }
+    for (let i = 0; i < 7; i++) {
+      const up = s.tab[i]!.up;
+      const c = up[up.length - 1];
+      if (c && sendHome({ kind: "tab", i }, c)) {
+        play("disc-land", 0.4);
+        settle();
+        return;
+      }
+    }
+    statusEl.textContent = GAMES_COPY.sol.nothingHome;
+  };
+
   /* Stock and waste empty, nothing face down: the game is decided, and the
      rest is a card home every 90ms until the bounce. Stepped, not eased. */
   let finishing: number | null = null;
@@ -805,6 +856,9 @@ export function openSol(wm: WM, rig?: string): void {
   const stopFinishing = (): void => {
     if (finishing !== null) clearTimeout(finishing);
     finishing = null;
+    // a table tap still waiting on its second must not deal into the next game
+    if (tableTapTimer !== null) clearTimeout(tableTapTimer);
+    tableTapTimer = null;
   };
   function settle(): void {
     render();
