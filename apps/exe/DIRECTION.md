@@ -217,9 +217,9 @@
 > desktop size — chess squares the width of a fingernail, Minesweeper cells
 > half that. Now a game window carries its `fit` (the same grid/chrome/cell
 > the resize ladder reads) and on a cramped desk wm.ts opens it as if
-> hand-resized to the desk: snug around the biggest cell that fits, or
-> (`tall`) every pixel of height, re-fit on rotation until it's been
-> dragged. Windows wider than a phone desk are capped to it. SOL.EXE learned
+> hand-resized to the desk: snug around the biggest cell that fits (a felt
+> given the whole height was a strip of cards over a field of green), re-fit
+> on rotation until it's been dragged. Windows wider than a phone desk are capped to it. SOL.EXE learned
 > the finger's grammar: a wider strip of each face-up card on a coarse
 > pointer, a column that would run off the felt closing up the way the
 > period's did, a drop judged by the carried card's middle when the finger

@@ -1041,8 +1041,6 @@ export function openSol(wm: WM, rig?: string): void {
     grid: () => ({ cols: 7, rows: FELT_H / PITCH }),
     chrome: { w: 36, h: 80 },
     cell: { base: PITCH, step: 2, min: 44, max: 110 },
-    // the tableau spreads into any height a phone gives it
-    tall: true,
     apply(next) {
       const changed = next !== u || felt.clientHeight !== feltH;
       u = next;
