@@ -275,7 +275,13 @@
 > at equal specificity it had never applied — every titlebar button on a
 > phone was the 16px original. It's last in the file now, says why, and the
 > buttons also catch a thumb past their bevel (`.tbtn::after`). The harness
-> checks a tap just under the close button closes the window. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> checks a tap just under the close button closes the window. CHESS.EXE's
+> men were redrawn (still 16x16, 2x at the natural square): kings read as
+> bishops and queens as rooks, so now the king is the tallest piece with a
+> cross over a narrow tower, the queen a three-point crown with an orb on a
+> stem, the rook flat battlements on a straight body, the bishop a pointed
+> mitre with its slit; black pieces carry a lit edge so they hold on dark
+> squares, white ones their black outline. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.
