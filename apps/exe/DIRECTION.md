@@ -253,7 +253,10 @@
 > here." / "There is no way through from here."), unknown is about the
 > machine ("It could not tell."). A move made while it looks makes the
 > answer stale, and it's dropped. The `dead` rig is a seven on a buried
-> five. Status-bar verbs are `.sbtn`; on a coarse pointer that bar is 28px. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> five. Status-bar verbs are `.sbtn`; on a coarse pointer that bar is 28px.
+> The win cascade launches a card every five frames instead of waiting for
+> each to clear — a dozen in the air, the desk buried in five seconds, the
+> box at eight, where the period took over a minute one card at a time. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.

@@ -983,9 +983,13 @@ export function openSol(wm: WM, rig?: string): void {
     const cw = cardW();
     const ch = cardH();
     const floor = deskHeight() - taskbarH() - ch;
+    // a card leaves every few frames, so a dozen are in the air at once — the
+    // period's cascade, without the period's wait for each card to clear
+    const LAUNCH_EVERY = 5;
     let raf = 0;
+    let frames = 0;
     let idx = 0; // 0..51: kings first, cycling suits
-    let card: { c: Card; x: number; y: number; vx: number; vy: number } | null = null;
+    const flying: { c: Card; x: number; y: number; vx: number; vy: number }[] = [];
     let done = false;
 
     const paint = (c: Card, x: number, y: number): void =>
@@ -993,33 +997,36 @@ export function openSol(wm: WM, rig?: string): void {
 
     const frame = (): void => {
       if (done) return;
-      if (!card) {
-        if (idx >= 52) {
-          finish();
-          return;
-        }
+      if (idx < 52 && frames++ % LAUNCH_EVERY === 0) {
         const rank = 13 - ((idx / 4) | 0);
         const suit = idx % 4;
         const [sx, sy] = starts[suit] ?? [600, 20];
-        card = {
+        flying.push({
           c: { rank, suit },
           x: sx,
           y: sy,
-          vx: (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 4),
-          vy: -(2 + Math.random() * 6),
-        };
+          vx: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 7),
+          vy: -(3 + Math.random() * 8),
+        });
         idx++;
       }
-      card.vy += 0.6;
-      card.x += card.vx;
-      card.y += card.vy;
-      if (card.y > floor) {
-        card.y = floor;
-        card.vy = -card.vy * 0.72;
-        if (Math.abs(card.vy) < 1.2) card.vy = -8; // kick a settled card back up
+      for (let i = flying.length - 1; i >= 0; i--) {
+        const card = flying[i]!;
+        card.vy += 0.7;
+        card.x += card.vx;
+        card.y += card.vy;
+        if (card.y > floor) {
+          card.y = floor;
+          card.vy = -card.vy * 0.72;
+          if (Math.abs(card.vy) < 1.2) card.vy = -8; // kick a settled card back up
+        }
+        paint(card.c, card.x, card.y);
+        if (card.x < -cw - 10 || card.x > deskWidth() + 10) flying.splice(i, 1);
       }
-      paint(card.c, card.x, card.y);
-      if (card.x < -cw - 10 || card.x > deskWidth() + 10) card = null;
+      if (idx >= 52 && !flying.length) {
+        finish();
+        return;
+      }
       raf = requestAnimationFrame(frame);
     };
 
