@@ -229,7 +229,12 @@
 > first card that can leave home, and a swipe left takes a move back. Once the stock is spent and nothing is
 > face down the game is decided, so the machine plays it out — a card home
 > every 90ms, stepped, "The rest is arithmetic." — instead of asking for
-> twenty-eight more taps. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> twenty-eight more taps. SNAKE.EXE went from a swipe that lost every tight
+> bend to the two-button snake: a tap on either half of the field turns it
+> that way relative to its heading, turns queue three deep for keys and taps
+> alike (a U-turn is two quick inputs), every edge wraps so only the snake
+> is in its own way, it quickens a touch per chip toward a floor, and it
+> remembers its longest. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.

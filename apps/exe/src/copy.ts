@@ -354,11 +354,16 @@ export const GAMES_COPY = {
     help: { title: "MINES.EXE", body: "The numbers count the mines nearby.<br>The mines count nothing." },
   },
   snake: {
-    dead: { title: "SNAKE.EXE", body: "The snake has met itself.<br>It could not agree." },
-    wall: { title: "SNAKE.EXE", body: "The snake has reached the edge.<br>There was nothing out there." },
+    /** `best` is the record before this run; a new one is stated flat. */
+    dead: (n: number, best: number): { title: string; body: string } => ({
+      title: "SNAKE.EXE",
+      body:
+        "The snake has met itself.<br>It could not agree.<br>" +
+        (n > best ? `LENGTH: ${n}. That is the longest it has been.` : `LENGTH: ${n}. It has been ${best}.`),
+    }),
     score: (n: number): string => `LENGTH: ${n}. The snake is being reasonable about it.`,
-    idle: "Press an arrow key. The snake is waiting.",
-    help: { title: "SNAKE.EXE", body: "The snake goes where you point it. It cannot stop.<br>The sides go around. The top and the bottom are final." },
+    idle: "Press an arrow key, or tap a side. The snake is waiting.",
+    help: { title: "SNAKE.EXE", body: "The snake goes where you point it. It cannot stop.<br>Every edge goes around. Only the snake is in the way.<br>Tap the left of the field to turn left, the right to turn right; the arrow keys point it outright." },
   },
   sol: {
     win: { title: "SOL.EXE", body: "The cards have been freed.<br>They will be recaptured." },

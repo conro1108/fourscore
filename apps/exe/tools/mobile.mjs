@@ -420,6 +420,37 @@ async function phone(viewport, tag) {
   await land.ctx.close();
 }
 
+/* ---- snake: a tap on either half turns it; it goes around every edge ---- */
+{
+  const { ctx, page } = await phone({ width: 393, height: 852 }, "snake");
+  await page.goto(`${BASE}/?state=snake`);
+  await page.waitForTimeout(1200);
+  const field = await page.evaluate(() => {
+    const r = document.querySelector(".snakefield").getBoundingClientRect();
+    return { l: r.left + r.width * 0.25, r: r.left + r.width * 0.75, y: r.top + r.height / 2 };
+  });
+  const status = () => page.evaluate(() => document.querySelector("#snakeStatus")?.textContent ?? "");
+  await page.touchscreen.tap(field.r, field.y);
+  await page.waitForTimeout(300);
+  if (!(await status()).startsWith("LENGTH")) fail("a tap did not start the snake");
+  else console.log("a tap starts the snake");
+  // steer it around for a while: left, left (a U-turn), right, right — and it
+  // crosses an edge or two on the way; only itself can stop it
+  for (const side of ["l", "l", "r", "r", "l", "r"]) {
+    await page.touchscreen.tap(field[side], field.y);
+    await page.waitForTimeout(450);
+  }
+  await page.waitForTimeout(1500);
+  const dialogs = await page.evaluate(
+    () => [...document.querySelectorAll(".win")].filter((w) => w.querySelector(".dlg-body")).length,
+  );
+  if (dialogs) fail("the snake died steering around by taps");
+  else console.log("taps turn the snake; it is still going");
+  await page.screenshot({ path: here("../shots/mobile-snake.png") });
+  console.log("shot mobile-snake");
+  await ctx.close();
+}
+
 /* ---- landscape: big variants ---- */
 {
   const { ctx, page } = await phone({ width: 852, height: 393 }, "landscape");

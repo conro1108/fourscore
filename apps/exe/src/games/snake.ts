@@ -1,4 +1,6 @@
-/** SNAKE.EXE. Stepped on its own clock; eats the board's chips. */
+/** SNAKE.EXE. Stepped on its own clock, a little faster per chip; every edge
+ * wraps. Arrows point it; a tap on either half of the field turns it that way
+ * relative to its heading. Turns queue, so a tight bend is two quick inputs. */
 
 import { el, onPointerDrag } from "../dom.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
@@ -11,7 +13,13 @@ const ROWS = 16;
 const PX = 4; // canvas pixels per cell
 /** Screen px per canvas px. Whole numbers only: a fractional nearest-neighbour upscale wobbles. */
 const ZOOM = 4;
+/** First step and the floor it speeds toward, ms; each chip takes off a little. */
 const STEP_MS = 110;
+const STEP_MIN_MS = 62;
+const STEP_PER_CHIP_MS = 2;
+/** Turns waiting to be taken. Three is a U-turn and a correction. */
+const QUEUE = 3;
+const BEST_KEY = "exe.snake.best";
 
 type Dir = readonly [number, number];
 const DIRS: Record<string, Dir> = {
@@ -40,12 +48,14 @@ export function openSnake(wm: WM): void {
 
   let snake: [number, number][] = [];
   let dir: Dir | null = null;
-  let pending: Dir | null = null;
+  let queue: Dir[] = [];
   let grow = 0;
+  let stepMs = STEP_MS;
   let chip: [number, number] = [0, 0];
   let chipColor: "r" | "y" = "r";
   let alive = true;
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const length = (): number => snake.length + grow;
 
   const free = (): [number, number] => {
     for (;;) {
@@ -72,41 +82,41 @@ export function openSnake(wm: WM): void {
     snake.forEach(([x, y], i) => cell(x, y, i === 0 ? "#3cd43c" : "#18a018"));
   }
 
-  function die(kind: "dead" | "wall"): void {
+  function die(): void {
     alive = false;
     play("chord", 0.7);
-    const spec = GAMES_COPY.snake[kind];
+    const n = length();
+    const best = Number(localStorage.getItem(BEST_KEY)) || 0;
+    if (n > best) localStorage.setItem(BEST_KEY, String(n));
     setTimeout(() => {
-      wm.dialog({ ...spec, x: 260, y: 480, w: 330 });
+      wm.dialog({ ...GAMES_COPY.snake.dead(n, best), x: 260, y: 480, w: 330 });
     }, 500);
   }
 
   function step(): void {
+    if (!win.isOpen()) return;
+    timer = setTimeout(step, stepMs);
     if (!alive || !dir) return;
     // paused while unfocused
     if (wm.focused()?.id !== "snake") return;
-    if (pending) {
-      dir = pending;
-      pending = null;
-    }
-    const head: [number, number] = [snake[0]![0] + dir[0], snake[0]![1] + dir[1]];
-    // sides wrap; top and bottom kill
-    head[0] = (head[0] + COLS) % COLS;
-    if (head[1] < 0 || head[1] >= ROWS) {
-      die("wall");
-      return;
-    }
+    const next = queue.shift();
+    if (next) dir = next;
+    const head: [number, number] = [
+      (snake[0]![0] + dir[0] + COLS) % COLS,
+      (snake[0]![1] + dir[1] + ROWS) % ROWS,
+    ];
     if (snake.some(([x, y]) => x === head[0] && y === head[1])) {
-      die("dead");
+      die();
       return;
     }
     snake.unshift(head);
     if (head[0] === chip[0] && head[1] === chip[1]) {
       play("disc-land", 0.55);
       grow += 2;
+      stepMs = Math.max(STEP_MIN_MS, stepMs - STEP_PER_CHIP_MS);
       chip = free();
       chipColor = chipColor === "r" ? "y" : "r";
-      statusEl.textContent = GAMES_COPY.snake.score(snake.length + grow);
+      statusEl.textContent = GAMES_COPY.snake.score(length());
     }
     if (grow > 0) grow--;
     else snake.pop();
@@ -117,8 +127,9 @@ export function openSnake(wm: WM): void {
     const cy = ROWS >> 1;
     snake = [[10, cy], [9, cy], [8, cy], [7, cy]];
     dir = null;
-    pending = null;
+    queue = [];
     grow = 0;
+    stepMs = STEP_MS;
     alive = true;
     chip = free();
     chipColor = "r";
@@ -126,18 +137,33 @@ export function openSnake(wm: WM): void {
     paint();
   }
 
+  /** The heading the next turn is relative to: the last one queued. */
+  const heading = (): Dir => queue[queue.length - 1] ?? dir ?? [1, 0];
   const steer = (d: Dir): void => {
     if (!alive) return;
+    const cur = heading();
+    if (d[0] === -cur[0] && d[1] === -cur[1]) return; // straight back into the body
+    if (d[0] === cur[0] && d[1] === cur[1]) return; // already going that way
     if (!dir) {
-      // first move: not backwards into the body
+      // first move: the body lies to the left, so not that way
       if (d[0] === -1) return;
       dir = d;
-      statusEl.textContent = GAMES_COPY.snake.score(snake.length);
+      statusEl.textContent = GAMES_COPY.snake.score(length());
       return;
     }
-    const cur = pending ?? dir;
-    if (d[0] === -cur[0] && d[1] === -cur[1]) return; // no U-turns
-    pending = d;
+    if (queue.length < QUEUE) queue.push(d);
+  };
+  /** Turn left or right of the heading (a tap on that half of the field). */
+  const turn = (side: -1 | 1): void => {
+    if (!alive) return;
+    const [x, y] = heading();
+    // left of (x,y) is (y,-x); right is (-y,x)
+    const d: Dir = side < 0 ? [y, -x] : [-y, x];
+    if (!dir) {
+      dir = [1, 0]; // it sets off to the right, then takes the turn
+      statusEl.textContent = GAMES_COPY.snake.score(length());
+    }
+    steer(d);
   };
 
   const onKey = (e: KeyboardEvent): void => {
@@ -158,12 +184,11 @@ export function openSnake(wm: WM): void {
   };
   addEventListener("keydown", onKey);
 
-  // touch: swipe the field to steer
+  // the field: a tap on either half turns that way; a swipe points outright
   let swipeFrom: [number, number] = [0, 0];
   onPointerDrag(
     frame,
     (e) => {
-      if (e.pointerType !== "touch") return null;
       swipeFrom = [e.clientX, e.clientY];
       return () => {};
     },
@@ -171,7 +196,11 @@ export function openSnake(wm: WM): void {
       if (cancelled) return;
       const dx = e.clientX - swipeFrom[0];
       const dy = e.clientY - swipeFrom[1];
-      if (Math.hypot(dx, dy) < 18) return; // a tap is not a direction
+      if (Math.hypot(dx, dy) < 18) {
+        const r = frame.getBoundingClientRect();
+        turn(e.clientX < r.left + r.width / 2 ? -1 : 1);
+        return;
+      }
       steer(Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)]);
     },
   );
@@ -221,13 +250,13 @@ export function openSnake(wm: WM): void {
     onMaximize: relayout,
 
     onClose: () => {
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       timer = null;
     },
   });
   reset();
   relayout();
-  timer = setInterval(step, STEP_MS);
+  timer = setTimeout(step, stepMs);
 }
 
 // n, not g: g is the desktop teal and the icon would vanish against it
