@@ -139,6 +139,11 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .statusbar{display:flex;gap:2px;margin:3px}
 .statusbar div{flex:1;height:20px;line-height:20px;padding:0 6px;white-space:nowrap;overflow:hidden;
       box-shadow:inset 1px 1px #808080,inset -1px -1px #fff}
+/* verbs in a status bar (SOL.EXE's Deal / Look ahead): raised, sized to their word */
+.statusbar .sbtn{flex:none;text-align:center;padding:0 10px;
+      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.statusbar .sbtn:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf}
+@media (pointer: coarse){.statusbar.verbs div{height:28px;line-height:28px}}
 
 /* dialog */
 .dlg-body{display:flex;gap:14px;align-items:flex-start;padding:14px 12px 10px}

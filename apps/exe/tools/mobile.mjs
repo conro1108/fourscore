@@ -345,25 +345,25 @@ async function phone(viewport, tag) {
   if (!waste) fail("tapping the stock dealt nothing to the waste");
   else console.log("stock deals on a tap");
 
-  // Deal on the bar is one tap out of the hand
+  // Deal, bottom left, is one tap out of the hand
+  const verb = (label) =>
+    page.evaluate((l) => {
+      const b = [...document.querySelectorAll(".statusbar .sbtn")].find((b) => b.textContent === l);
+      const r = b?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height } : null;
+    }, label);
   {
     const tops = () =>
       page.evaluate(() =>
         [...document.querySelectorAll(".tabcol")].map((c) => [...c.querySelectorAll("[data-card]")].pop()?.dataset.card).join(","),
       );
     const before = await tops();
-    const dealVerb = await page.evaluate(() => {
-      const win = [...document.querySelectorAll(".win")].find((el) =>
-        el.querySelector(".titlebar .t")?.textContent.startsWith("SOL"),
-      );
-      const span = [...win.querySelectorAll(".menu span")].find((s) => s.textContent === "Deal");
-      const r = span.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    });
-    await page.touchscreen.tap(dealVerb.x, dealVerb.y);
+    const dealBtn = await verb("Deal");
+    if (dealBtn.h < 20) fail(`the Deal button is ${dealBtn.h.toFixed(0)} device px tall — not for a thumb`);
+    await page.touchscreen.tap(dealBtn.x, dealBtn.y);
     await page.waitForTimeout(300);
-    if ((await tops()) === before) fail("Deal on the bar did not deal");
-    else console.log("Deal on the bar deals");
+    if ((await tops()) === before) fail("Deal did not deal");
+    else console.log("Deal deals");
     // back to the fixed deal for the rest
     await page.goto(`${BASE}/?state=sol&rig=deal`);
     await page.waitForTimeout(1200);
@@ -423,33 +423,23 @@ async function phone(viewport, tag) {
   await page.screenshot({ path: here("../shots/mobile-sol-finished.png") });
   console.log("shot mobile-sol-finished");
 
-  // dead: the look-ahead proves there is no way through, says so, and offers a deal
+  // dead: Look ahead proves there is no way through and says so in the status line
   await page.goto(`${BASE}/?state=sol&rig=dead`);
+  await page.waitForTimeout(1200);
+  const look = await verb("Look ahead");
+  await page.touchscreen.tap(look.x, look.y);
   try {
     await page.waitForFunction(
-      () => [...document.querySelectorAll(".dlg-body")].some((d) => d.textContent.includes("no way through")),
+      () => document.querySelector(".statusbar.verbs div:last-child")?.textContent.includes("no way through"),
       null,
       { timeout: 8000 },
     );
-    console.log("the look-ahead called the dead hand");
+    console.log("Look ahead called the dead hand");
   } catch {
-    fail("the look-ahead never called the dead hand");
+    fail("Look ahead never called the dead hand");
   }
   await page.screenshot({ path: here("../shots/mobile-sol-dead.png") });
   console.log("shot mobile-sol-dead");
-  const dealBtn = await page.evaluate(() => {
-    const b = [...document.querySelectorAll(".btnrow .btn")].find((b) => b.textContent === "Deal");
-    const r = b?.getBoundingClientRect();
-    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-  });
-  if (!dealBtn) fail("the dead box has no Deal button");
-  else {
-    await page.touchscreen.tap(dealBtn.x, dealBtn.y);
-    await page.waitForTimeout(300);
-    const stock = await page.evaluate(() => !!document.querySelector('.slot[data-pile="stock"] .card'));
-    if (!stock) fail("Deal on the dead box did not deal");
-    else console.log("Deal on the dead box deals");
-  }
   await ctx.close();
 
   // landscape: same deal, the whole table on screen

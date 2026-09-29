@@ -372,14 +372,13 @@ export const GAMES_COPY = {
     /** Stock and waste empty, nothing face down: the machine plays the rest out. */
     finishing: "The rest is arithmetic.",
     nothingHome: "Nothing is ready to leave.",
-    /* The look-ahead (solreview.ts `prove`): a proof, so the "no" is flat.
-       Said once per dead stretch — the status line keeps saying it, the box asks once. */
+    /* The look-ahead (solreview.ts `prove`), asked for by its button. Won and
+       lost are proofs and flat; unknown is about the machine, not the deal. */
+    lookAhead: "Look ahead",
+    looking: "The machine is looking ahead.",
+    alive: "There is still a way through from here.",
     dead: "There is no way through from here.",
-    deadBox: {
-      title: "SOL.EXE",
-      body: "The machine has looked ahead.<br>There is no way through from here.",
-      buttons: ["Deal", "Leave it"],
-    },
+    unsure: "The machine looked as far as it could. It could not tell.",
     help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back.<br>Click a card, then where it should go. Dragging is also permitted.<br>On the table: one click turns the deck, two send a card home, a swipe left takes one back." },
     /* Review (solreview.ts): winnable is provable, unwinnable is not (the search
        stops). Every "yes" is flat; every "no" is about the machine, not the deal. */

@@ -434,54 +434,35 @@ export function openSol(wm: WM, rig?: string): void {
     journal.pop();
     s = prev;
     statusEl.textContent = "";
+    staleLook();
     render();
-    probe();
   };
 
-  /* The look-ahead: after every real move the worker searches for a proof
-     that no line from here wins (solreview.ts `prove`). Only a proof is
-     spoken — "unknown" is silence. The box asks once per dead stretch; the
-     status line keeps saying it through undos until a live state is reached. */
+  /* Look ahead (the status-bar button): the worker searches for a proof either
+     way (solreview.ts `prove`) and the answer lands in the status line. Any
+     move made meanwhile makes the answer stale, so it's dropped. */
   let prober: Worker | null = null;
   let probeGen = 0;
-  let probeBusy = false;
-  let deadSaid = false;
-  const probe = (): void => {
-    if (won || rig === "won") return;
+  const lookAhead = (): void => {
+    if (won) return;
     const gen = ++probeGen;
-    if (probeBusy) {
-      // a solve in flight is for a position that no longer exists
-      prober?.terminate();
-      prober = null;
-    }
-    if (!prober) {
-      prober = new Worker(new URL("./solworker.ts", import.meta.url), { type: "module" });
-      prober.onmessage = (e: MessageEvent<SolReviewResponse>): void => {
-        probeBusy = false;
-        if (!("probe" in e.data) || e.data.gen !== probeGen || won || !win.isOpen()) return;
-        if (e.data.probe !== "lost") {
-          deadSaid = false;
-          return;
-        }
-        statusEl.textContent = GAMES_COPY.sol.dead;
-        if (deadSaid) return;
-        deadSaid = true;
-        wm.dialog({
-          ...GAMES_COPY.sol.deadBox,
-          x: 420,
-          y: 320,
-          w: 340,
-          onButton: (i) => {
-            if (i === 0) newDeal();
-          },
-        });
-      };
-      prober.onerror = (): void => {
-        probeBusy = false;
-      };
-    }
-    probeBusy = true;
+    prober?.terminate(); // a solve in flight is for a position that no longer matters
+    prober = new Worker(new URL("./solworker.ts", import.meta.url), { type: "module" });
+    prober.onmessage = (e: MessageEvent<SolReviewResponse>): void => {
+      if (!("probe" in e.data) || e.data.gen !== probeGen || won || !win.isOpen()) return;
+      const C = GAMES_COPY.sol;
+      statusEl.textContent = e.data.probe === "lost" ? C.dead : e.data.probe === "won" ? C.alive : C.unsure;
+    };
+    prober.onerror = (): void => {
+      if (gen === probeGen) statusEl.textContent = GAMES_COPY.sol.unsure;
+    };
+    statusEl.textContent = GAMES_COPY.sol.looking;
     prober.postMessage({ probe: cloneState(s), gen } satisfies SolReviewRequest);
+  };
+  /** A move after a look-ahead: the answer was about a position that's gone. */
+  const staleLook = (): void => {
+    probeGen++;
+    if (statusEl.textContent === GAMES_COPY.sol.looking) statusEl.textContent = "";
   };
 
   const body = el(`<div></div>`);
@@ -923,9 +904,9 @@ export function openSol(wm: WM, rig?: string): void {
     tableTapTimer = null;
   };
   function settle(): void {
+    staleLook();
     render();
     checkWin();
-    probe();
     if (won || finishing !== null || !decided()) return;
     statusEl.textContent = GAMES_COPY.sol.finishing;
     const step = (): void => {
@@ -1077,9 +1058,8 @@ export function openSol(wm: WM, rig?: string): void {
     hist.length = 0;
     journal.length = 0;
     statusEl.textContent = "";
-    deadSaid = false;
+    staleLook();
     render();
-    probe();
   }
 
   /** One worker per review, terminated on answer or on window close. */
@@ -1206,12 +1186,20 @@ export function openSol(wm: WM, rig?: string): void {
         () => wm.dialog({ ...GAMES_COPY.sol.help, x: 420, y: 320, w: 340 }),
       ]],
     },
-    // a verb on the bar: one tap out of a hand that isn't going anywhere
-    { label: "Deal", items: [], act: newDeal },
   ]);
 
-  const status = el(`<div class="statusbar"><div></div></div>`);
-  const statusEl = status.firstElementChild as HTMLElement;
+  // bottom left, under the thumb: out of the hand, and whether it's worth staying in
+  const status = el(`<div class="statusbar verbs"><div class="sbtn">Deal</div><div class="sbtn"></div><div></div></div>`);
+  const [dealBtn, lookBtn, statusEl] = [...status.children] as [HTMLElement, HTMLElement, HTMLElement];
+  lookBtn.textContent = GAMES_COPY.sol.lookAhead;
+  dealBtn.addEventListener("click", () => {
+    play("click", 0.6);
+    newDeal();
+  });
+  lookBtn.addEventListener("click", () => {
+    play("click", 0.6);
+    lookAhead();
+  });
 
   body.append(bar, felt, status);
 
@@ -1278,7 +1266,6 @@ export function openSol(wm: WM, rig?: string): void {
 
   render();
   relayout();
-  probe();
 
   if (rig === "review") {
     // a dozen draws gives the pose a journal to review

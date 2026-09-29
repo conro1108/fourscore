@@ -246,12 +246,14 @@
 > cheap exactly when it matters (`tools/soldead.ts`: forty hands played to a
 > standstill, the dead ones proven in a median 2ms, worst 1s; the live ones
 > found won; one ran out). SOL.EXE asks it in a worker after every real move
-> and every undo, and speaks only on a proof: the status line says "There is
-> no way through from here." and a box says the machine has looked ahead and
-> offers Deal, once per dead stretch. Unknown stays silence, per the review's
-> law. The `dead` rig is a seven on a buried five. And regardless of proof,
-> "Deal" sits on the menubar as a verb (ui.ts `act`, the way BOARD.EXE's
-> Forfeit does): one tap out of a hand that isn't going anywhere. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> when asked — a "Look ahead" button, bottom left of the status bar beside
+> "Deal", both under the thumb (the desk's owner wanted a button, not a
+> pop-up, and no machine volunteering verdicts) — and answers in the status
+> line: won and lost are proofs and flat ("There is still a way through from
+> here." / "There is no way through from here."), unknown is about the
+> machine ("It could not tell."). A move made while it looks makes the
+> answer stale, and it's dropped. The `dead` rig is a seven on a buried
+> five. Status-bar verbs are `.sbtn`; on a coarse pointer that bar is 28px. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.
