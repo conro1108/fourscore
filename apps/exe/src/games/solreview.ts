@@ -198,7 +198,9 @@ export type Mv =
   | { k: "wf" }
   | { k: "wt"; to: number }
   | { k: "tf"; from: number }
-  | { k: "tt"; from: number; at: number; to: number };
+  | { k: "tt"; from: number; at: number; to: number }
+  /** Foundation back to the tableau: only `prove` generates it. */
+  | { k: "ft"; suit: number; to: number };
 
 /**
  * Legal moves, best-first (flips and column-emptying first, draw last).
@@ -271,9 +273,92 @@ function apply(s: S, m: Mv): S {
     flip(n, m.from);
     return n;
   }
+  if (m.k === "ft") {
+    n.up[m.to]!.push(((n.found[m.suit]! - 1) << 2) | m.suit);
+    n.found[m.suit]!--;
+    return n;
+  }
   n.up[m.to]!.push(...n.up[m.from]!.splice(m.at));
   flip(n, m.from);
   return n;
+}
+
+/* ---- proof of death ----
+   `solve` says won or unknown; this says won, lost or unknown. `lost` is a
+   proof: every position reachable from here was visited and none is a win.
+   That needs what `solve` trades away — every legal move (foundation back to
+   the tableau, a lone king between empty columns), an exact visited set, no
+   depth cap. Safe auto-moves stay: a position is dead iff its safe reduct is
+   (a safe move never costs a win). A hand that is truly stuck has few moves
+   and a small graph, so the proof is cheap exactly when it matters; a hard
+   live hand runs the budget out and stays `unknown`. ---- */
+
+export type Verdict3 = Verdict | "lost";
+
+/** Every legal move, best first (LIFO expansion pops the last pushed, so the caller reverses). */
+function allMoves(s: S): Mv[] {
+  const out = moves(s);
+  for (let i = 0; i < 7; i++) {
+    const pile = s.up[i]!;
+    if (pile.length === 1 && !s.down[i]!.length && RANK(pile[0]!) === 13)
+      for (let k = 0; k < 7; k++)
+        if (k !== i && !s.up[k]!.length && !s.down[k]!.length) out.push({ k: "tt", from: i, at: 0, to: k });
+  }
+  for (let suit = 0; suit < 4; suit++) {
+    const r = s.found[suit]!;
+    if (!r) continue;
+    const c = ((r - 1) << 2) | suit;
+    for (let k = 0; k < 7; k++) {
+      const pile = s.up[k]!;
+      const ok = pile.length
+        ? RANK(pile[pile.length - 1]!) === r + 1 && RED(pile[pile.length - 1]!) !== RED(c)
+        : !s.down[k]!.length && r === 13;
+      if (ok) out.push({ k: "ft", suit, to: k });
+    }
+  }
+  return out;
+}
+
+/** Exact key; columns sorted so their order doesn't split one position into many. */
+function exactKey(s: S): string {
+  const piles: string[] = [];
+  for (let i = 0; i < 7; i++) piles.push(`${s.down[i]!.join(",")}/${s.up[i]!.join(",")}`);
+  piles.sort();
+  return `${s.stock.join(",")}|${s.waste.join(",")}|${s.found.join(",")}|${piles.join(";")}`;
+}
+
+export interface ProveResult {
+  verdict: Verdict3;
+  nodes: number;
+  ms: number;
+}
+
+/** Won, lost (proven) or unknown (budget). */
+export function prove(state: SolState, budget: Budget = BUDGET): ProveResult {
+  const t0 = Date.now();
+  const root = pack(state);
+  autoSafe(root);
+  if (solved(root)) return { verdict: "won", nodes: 0, ms: 0 };
+  const seen = new Set<string>([exactKey(root)]);
+  const stack: S[] = [root];
+  let nodes = 0;
+  while (stack.length) {
+    const s = stack.pop()!;
+    nodes++;
+    if (nodes >= budget.nodes || ((nodes & 255) === 0 && Date.now() - t0 >= budget.ms))
+      return { verdict: "unknown", nodes, ms: Date.now() - t0 };
+    const ms = allMoves(s);
+    for (let i = ms.length - 1; i >= 0; i--) {
+      const next = apply(s, ms[i]!);
+      autoSafe(next);
+      if (solved(next)) return { verdict: "won", nodes, ms: Date.now() - t0 };
+      const k = exactKey(next);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      stack.push(next);
+    }
+  }
+  return { verdict: "lost", nodes, ms: Date.now() - t0 };
 }
 
 // Max line length. Draws are moves, so real lines run to hundreds; 400 cut off winnable deals.

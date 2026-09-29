@@ -363,8 +363,9 @@ const seededRand = (seed: number) => {
 };
 
 /** `rig` is a harness pose: "won" (one double-click from the bounce), "review"
-    (fixed deal, review open), "deal" (the same fixed deal, nothing else) or
-    "decided" (stock spent, four runs K..6 face up: one move from the machine finishing). */
+    (fixed deal, review open), "deal" (the same fixed deal, nothing else),
+    "decided" (stock spent, four runs K..6 face up: one move from the machine
+    finishing) or "dead" (a hand with no way through: the look-ahead says so). */
 export function openSol(wm: WM, rig?: string): void {
   const existing = wm.get("sol");
   if (existing?.isOpen()) {
@@ -399,6 +400,18 @@ export function openSol(wm: WM, rig?: string): void {
       })),
     };
   }
+  if (rig === "dead") {
+    // a seven of hearts on a buried five: nothing can ever leave
+    s = {
+      stock: [],
+      waste: [],
+      found: [[], [], [], []],
+      tab: [
+        { down: [{ rank: 5, suit: 0 }], up: [{ rank: 7, suit: 1 }] },
+        ...Array.from({ length: 6 }, () => ({ down: [] as Card[], up: [] as Card[] })),
+      ],
+    };
+  }
   let won = false;
 
   // Snapshot before every real move. `hist` (undo) is capped; `journal` (the review's
@@ -422,6 +435,53 @@ export function openSol(wm: WM, rig?: string): void {
     s = prev;
     statusEl.textContent = "";
     render();
+    probe();
+  };
+
+  /* The look-ahead: after every real move the worker searches for a proof
+     that no line from here wins (solreview.ts `prove`). Only a proof is
+     spoken — "unknown" is silence. The box asks once per dead stretch; the
+     status line keeps saying it through undos until a live state is reached. */
+  let prober: Worker | null = null;
+  let probeGen = 0;
+  let probeBusy = false;
+  let deadSaid = false;
+  const probe = (): void => {
+    if (won || rig === "won") return;
+    const gen = ++probeGen;
+    if (probeBusy) {
+      // a solve in flight is for a position that no longer exists
+      prober?.terminate();
+      prober = null;
+    }
+    if (!prober) {
+      prober = new Worker(new URL("./solworker.ts", import.meta.url), { type: "module" });
+      prober.onmessage = (e: MessageEvent<SolReviewResponse>): void => {
+        probeBusy = false;
+        if (!("probe" in e.data) || e.data.gen !== probeGen || won || !win.isOpen()) return;
+        if (e.data.probe !== "lost") {
+          deadSaid = false;
+          return;
+        }
+        statusEl.textContent = GAMES_COPY.sol.dead;
+        if (deadSaid) return;
+        deadSaid = true;
+        wm.dialog({
+          ...GAMES_COPY.sol.deadBox,
+          x: 420,
+          y: 320,
+          w: 340,
+          onButton: (i) => {
+            if (i === 0) newDeal();
+          },
+        });
+      };
+      prober.onerror = (): void => {
+        probeBusy = false;
+      };
+    }
+    probeBusy = true;
+    prober.postMessage({ probe: cloneState(s), gen } satisfies SolReviewRequest);
   };
 
   const body = el(`<div></div>`);
@@ -865,6 +925,7 @@ export function openSol(wm: WM, rig?: string): void {
   function settle(): void {
     render();
     checkWin();
+    probe();
     if (won || finishing !== null || !decided()) return;
     statusEl.textContent = GAMES_COPY.sol.finishing;
     const step = (): void => {
@@ -1016,7 +1077,9 @@ export function openSol(wm: WM, rig?: string): void {
     hist.length = 0;
     journal.length = 0;
     statusEl.textContent = "";
+    deadSaid = false;
     render();
+    probe();
   }
 
   /** One worker per review, terminated on answer or on window close. */
@@ -1029,7 +1092,9 @@ export function openSol(wm: WM, rig?: string): void {
       };
       w.onmessage = (e: MessageEvent<SolReviewResponse>): void =>
         done(() =>
-          "review" in e.data ? resolve(e.data.review) : reject(new Error(e.data.error)),
+          "review" in e.data
+            ? resolve(e.data.review)
+            : reject(new Error("error" in e.data ? e.data.error : "the review worker answered something else")),
         );
       w.onerror = (): void => done(() => reject(new Error("the review worker failed")));
       w.postMessage({ journal: path } satisfies SolReviewRequest);
@@ -1184,6 +1249,8 @@ export function openSol(wm: WM, rig?: string): void {
     onMaximize: relayout,
     onClose: () => {
       stopFinishing();
+      prober?.terminate();
+      prober = null;
       bounceStop?.();
       bounceStop = null;
     },
@@ -1209,6 +1276,7 @@ export function openSol(wm: WM, rig?: string): void {
 
   render();
   relayout();
+  probe();
 
   if (rig === "review") {
     // a dozen draws gives the pose a journal to review

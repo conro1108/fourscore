@@ -11,7 +11,7 @@ import {
   type Card,
   type SolState,
 } from "./solstate.js";
-import { reviewGame, solve, type Mv } from "./solreview.js";
+import { prove, reviewGame, solve, type Mv } from "./solreview.js";
 
 const seeded = (seed: number) => {
   let s = seed;
@@ -63,6 +63,7 @@ function replay(start: SolState, line: readonly Mv[]): SolState {
       flip(m.from);
       continue;
     }
+    if (m.k === "ft") throw new Error("solve never generates foundation-to-tableau");
     const from = s.tab[m.from]!;
     const head = from.up[m.at];
     expect(head).toBeTruthy();
@@ -82,6 +83,22 @@ describe("solve", () => {
     expect(r.verdict).toBe("won");
     expect(r.line.length).toBeGreaterThan(0);
     expect(isWon(replay(start, r.line))).toBe(true);
+  });
+});
+
+describe("prove", () => {
+  it("calls a hand with no way through lost, and a live one won", () => {
+    const dead: SolState = {
+      stock: [],
+      waste: [],
+      found: [[], [], [], []],
+      tab: [
+        { down: [{ rank: 5, suit: 0 }], up: [{ rank: 7, suit: 1 }] },
+        ...Array.from({ length: 6 }, () => ({ down: [] as Card[], up: [] as Card[] })),
+      ],
+    };
+    expect(prove(dead).verdict).toBe("lost");
+    expect(prove(deal(seeded(7919)), { nodes: 60_000, ms: 5000 }).verdict).toBe("won");
   });
 });
 

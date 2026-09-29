@@ -234,7 +234,22 @@
 > that way relative to its heading, turns queue three deep for keys and taps
 > alike (a U-turn is two quick inputs), every edge wraps so only the snake
 > is in its own way, it quickens a touch per chip toward a floor, and it
-> remembers its longest. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> remembers its longest.
+
+> **The machine looks ahead (2026-09-28).** The review could prove a hand
+> winnable and never that it wasn't: `solve` drops moves, caps depth and lets
+> a hash collision prune, so "unknown" was never a loss. `prove` in
+> solreview.ts is the other half — every legal move (foundation back to the
+> tableau, a lone king between empty columns), an exact visited set, no depth
+> cap, safe auto-moves kept because they never cost a win — so "lost" is a
+> proof: every position reachable from here was visited and none wins. It is
+> cheap exactly when it matters (`tools/soldead.ts`: forty hands played to a
+> standstill, the dead ones proven in a median 2ms, worst 1s; the live ones
+> found won; one ran out). SOL.EXE asks it in a worker after every real move
+> and every undo, and speaks only on a proof: the status line says "There is
+> no way through from here." and a box says the machine has looked ahead and
+> offers Deal, once per dead stretch. Unknown stays silence, per the review's
+> law. The `dead` rig is a seven on a buried five. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.

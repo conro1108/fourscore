@@ -398,6 +398,34 @@ async function phone(viewport, tag) {
   }
   await page.screenshot({ path: here("../shots/mobile-sol-finished.png") });
   console.log("shot mobile-sol-finished");
+
+  // dead: the look-ahead proves there is no way through, says so, and offers a deal
+  await page.goto(`${BASE}/?state=sol&rig=dead`);
+  try {
+    await page.waitForFunction(
+      () => [...document.querySelectorAll(".dlg-body")].some((d) => d.textContent.includes("no way through")),
+      null,
+      { timeout: 8000 },
+    );
+    console.log("the look-ahead called the dead hand");
+  } catch {
+    fail("the look-ahead never called the dead hand");
+  }
+  await page.screenshot({ path: here("../shots/mobile-sol-dead.png") });
+  console.log("shot mobile-sol-dead");
+  const dealBtn = await page.evaluate(() => {
+    const b = [...document.querySelectorAll(".btnrow .btn")].find((b) => b.textContent === "Deal");
+    const r = b?.getBoundingClientRect();
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+  });
+  if (!dealBtn) fail("the dead box has no Deal button");
+  else {
+    await page.touchscreen.tap(dealBtn.x, dealBtn.y);
+    await page.waitForTimeout(300);
+    const stock = await page.evaluate(() => !!document.querySelector('.slot[data-pile="stock"] .card'));
+    if (!stock) fail("Deal on the dead box did not deal");
+    else console.log("Deal on the dead box deals");
+  }
   await ctx.close();
 
   // landscape: same deal, the whole table on screen
