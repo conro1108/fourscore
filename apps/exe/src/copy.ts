@@ -351,7 +351,7 @@ export const GAMES_COPY = {
   mines: {
     win: { title: "MINES.EXE", body: "All mines have been avoided.<br>They remain where they are." },
     lose: { title: "MINES.EXE", body: "You have found a mine.<br>It was always there." },
-    help: { title: "MINES.EXE", body: "The numbers count the mines nearby.<br>The mines count nothing." },
+    help: { title: "MINES.EXE", body: "The numbers count the mines nearby.<br>The mines count nothing.<br>On a touchscreen: hold to flag, drag to look around, pinch to zoom." },
   },
   snake: {
     /** `best` is the record before this run; a new one is stated flat. */

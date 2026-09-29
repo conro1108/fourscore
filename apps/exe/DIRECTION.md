@@ -258,7 +258,24 @@
 > five. Status-bar verbs are `.sbtn`; on a coarse pointer that bar is 28px.
 > The win cascade launches a card every five frames instead of waiting for
 > each to clear — a dozen in the air, the desk buried in five seconds, the
-> box at eight, where the period took over a minute one card at a time. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> box at eight, where the period took over a minute one card at a time.
+
+> **MINES.EXE fits under a finger, and the chrome does too (2026-09-28).**
+> Expert on a phone was a 12px cell. On a coarse pointer the field now lives
+> in a viewport (`.minesview`): the cell never goes under 48 desk px, a field
+> that outgrows its window is dragged around, and two fingers pinch it
+> between the whole-field fit and 80 — on the same whole-pixel ladder, the
+> point under the fingers staying put. A pan or a pinch consumes the press,
+> so a lift reveals nothing; a tap still does; a hold still flags. The
+> owner asked for this knowing the "nothing inside a game scrolls" line:
+> a scrollbar was the joke, a thumb on a field is not. The window takes the
+> phone's full height when the field needs panning (`GridFit.tall`, read
+> live). And a real bug: the coarse-pointer block in chrome.css sat *before*
+> the base rules for `.tbtn`, `.menu span`, `.popup div` and the taskbar, so
+> at equal specificity it had never applied — every titlebar button on a
+> phone was the 16px original. It's last in the file now, says why, and the
+> buttons also catch a thumb past their bevel (`.tbtn::after`). The harness
+> checks a tap just under the close button closes the window. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.

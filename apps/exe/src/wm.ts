@@ -159,6 +159,8 @@ export interface GridFit {
       or the natural size won't round-trip to `cell.base`. */
   chrome: { w: number; h: number };
   cell: { base: number; step: number; min: number; max: number };
+  /** The field uses all the height the desk has (a panned Minesweeper); default keeps the grid's aspect. */
+  readonly tall?: boolean;
 }
 
 /** Everything a window needs to answer its own resize with a size. */
@@ -180,7 +182,7 @@ function fitToDesk(f: GridFit): { w: number; h: number } {
   );
   return {
     w: Math.min(availW, Math.ceil(cols * size + f.chrome.w)),
-    h: Math.min(availH, Math.ceil(rows * size + f.chrome.h)),
+    h: f.tall ? availH : Math.min(availH, Math.ceil(rows * size + f.chrome.h)),
   };
 }
 

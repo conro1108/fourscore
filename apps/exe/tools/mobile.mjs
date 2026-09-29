@@ -194,6 +194,21 @@ async function phone(viewport, tag) {
   if (!folderOpen) fail("tapping the games icon did not open the folder");
   else console.log("icon tap launches");
 
+  // a titlebar button catches a thumb that lands under its bevel
+  const closeBtn = await page.evaluate(() => {
+    const w = [...document.querySelectorAll(".win")].find((el) =>
+      el.querySelector(".titlebar .t")?.textContent === "games",
+    );
+    const r = w.querySelector('.tbtn[data-b="close"]').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.bottom + 6, w: r.width };
+  });
+  if (closeBtn.w < 22) fail(`close button is ${closeBtn.w.toFixed(0)} device px wide`);
+  await page.touchscreen.tap(closeBtn.x, closeBtn.y);
+  await page.waitForTimeout(300);
+  const folderGone = await page.evaluate(() => !document.querySelector(".folderpane"));
+  if (!folderGone) fail("a tap just under the close button did not close the window");
+  else console.log("titlebar buttons catch a thumb");
+
   // Start menu sits above the thickened taskbar
   const start = await center(page, "#start");
   await page.touchscreen.tap(start.x, start.y);
@@ -460,6 +475,88 @@ async function phone(viewport, tag) {
   await land.page.screenshot({ path: here("../shots/mobile-sol-landscape.png") });
   console.log("shot mobile-sol-landscape");
   await land.ctx.close();
+}
+
+/* ---- minesweeper: Expert on a phone is a field you drag around and pinch ---- */
+{
+  const { ctx, page } = await phone({ width: 393, height: 852 }, "mines");
+  await page.goto(`${BASE}/?state=mines`);
+  await page.waitForTimeout(1200);
+  const menuTap = async (label, item) => {
+    const m = await page.evaluate((l) => {
+      const win = [...document.querySelectorAll(".win")].find((el) =>
+        el.querySelector(".titlebar .t")?.textContent.startsWith("MINES"),
+      );
+      const span = [...win.querySelectorAll(".menu span")].find((s) => s.textContent === l);
+      const r = span.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, label);
+    await page.touchscreen.tap(m.x, m.y);
+    await page.waitForTimeout(150);
+    const it = await page.evaluate((l) => {
+      const d = [...document.querySelectorAll(".popup div")].find(
+        (d) => d.firstChild?.textContent === l && d.offsetParent,
+      );
+      const r = d.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, item);
+    await page.touchscreen.tap(it.x, it.y);
+    await page.waitForTimeout(300);
+  };
+  await menuTap("Game", "Expert");
+  const geom = () =>
+    page.evaluate(() => {
+      const v = document.querySelector(".minesview")?.getBoundingClientRect();
+      const g = document.querySelector(".minesgrid").getBoundingClientRect();
+      const c = document.querySelector(".mcell").getBoundingClientRect();
+      return { view: v && { w: v.width, h: v.height, x: v.left, y: v.top }, grid: { w: g.width, x: g.left }, cell: c.width };
+    });
+  let g = await geom();
+  if (!g.view) fail("no touch viewport around the Expert field");
+  else if (g.cell < 34) fail(`Expert cell is ${g.cell.toFixed(0)} device px on a phone`);
+  else if (g.grid.w <= g.view.w) fail("Expert field fits its viewport, so nothing to pan");
+  else console.log(`Expert cell is ${g.cell.toFixed(0)} device px; the field is wider than its window`);
+  const cdp = await ctx.newCDPSession(page);
+  const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts });
+  // drag left: the field follows the finger
+  if (g.view) {
+    const y = g.view.y + g.view.h / 2;
+    const x0 = g.view.x + g.view.w * 0.8;
+    await touch("touchStart", [{ x: x0, y }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: x0 - i * 20, y }]);
+    await touch("touchEnd", []);
+    await page.waitForTimeout(200);
+    const after = await geom();
+    if (after.grid.x >= g.grid.x - 100) fail("dragging the field did not pan it");
+    else console.log("a drag pans the field");
+    // pinch out: the cells grow
+    const cx = g.view.x + g.view.w / 2;
+    await touch("touchStart", [{ x: cx - 30, y }, { x: cx + 30, y }]);
+    for (let i = 1; i <= 6; i++) await touch("touchMove", [{ x: cx - 30 - i * 15, y }, { x: cx + 30 + i * 15, y }]);
+    await touch("touchEnd", []);
+    await page.waitForTimeout(200);
+    const zoomed = await geom();
+    if (zoomed.cell <= after.cell) fail("a pinch did not zoom the field");
+    else console.log(`a pinch zooms: cell ${after.cell.toFixed(0)} → ${zoomed.cell.toFixed(0)} device px`);
+    // a plain tap still opens a cell
+    const target = await page.evaluate(() => {
+      const v = document.querySelector(".minesview").getBoundingClientRect();
+      const c = [...document.querySelectorAll(".mcell")].find((c) => {
+        const r = c.getBoundingClientRect();
+        return r.left > v.left + 10 && r.right < v.right - 10 && r.top > v.top + 10 && r.bottom < v.bottom - 10;
+      });
+      const r = c.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.touchscreen.tap(target.x, target.y);
+    await page.waitForTimeout(200);
+    const opened = await page.evaluate(() => document.querySelectorAll(".mcell.open").length);
+    if (!opened) fail("a tap on the panned field did not open a cell");
+    else console.log("a tap on the panned field opens a cell");
+  }
+  await page.screenshot({ path: here("../shots/mobile-mines.png") });
+  console.log("shot mobile-mines");
+  await ctx.close();
 }
 
 /* ---- snake: a tap on either half turns it; it goes around every edge ---- */

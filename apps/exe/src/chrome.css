@@ -6,7 +6,7 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
      /* no tap flash, long-press callout or double-tap zoom (iOS) */
      -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;touch-action:manipulation}
 /* surfaces that drag 1:1 own their gestures outright */
-.titlebar,.rz,.icon,#grid,#pickerRow,.felt,.minesgrid,.trackbar,.snakefield,.pin,.paintgrid{touch-action:none}
+.titlebar,.rz,.icon,#grid,#pickerRow,.felt,.minesgrid,.minesview,.trackbar,.snakefield,.pin,.paintgrid{touch-action:none}
 /* the desk: authored 1280x800, scaled by fitStage() */
 #stage{position:relative;width:1280px;height:800px;background:#0e8078;overflow:hidden}
 
@@ -28,17 +28,6 @@ body{background:#0e8078;font-family:Tahoma,Geneva,"Segoe UI",sans-serif;font-siz
 .rz-se{bottom:-2px;right:-2px;width:9px;height:9px;cursor:se-resize}
 .rz-sw{bottom:-2px;left:-2px;width:9px;height:9px;cursor:sw-resize}
 .win.max .rz{display:none}
-/* touch: borders and titlebar buttons grow thumb-sized; the authored geometry
-   the layout math reads (titlebar 22, taskbar 36) must stay untouched */
-@media (pointer: coarse){
-  .rz-n{height:12px}.rz-s{height:12px}
-  .rz-e{width:12px}.rz-w{width:12px}
-  .rz-ne,.rz-nw,.rz-se,.rz-sw{width:18px;height:18px}
-  .tbtn{width:26px;height:20px;font-size:11px;line-height:19px}
-  .menu span{padding:5px 9px}
-  .popup div{padding:7px 20px 7px 22px}
-  .task,#start,#clock{height:30px;line-height:30px}
-}
 /* in a resized window a `flexwell` grows, notepads drop their cap, the
    statusbar keeps the bottom edge; a window with no flexwell just gets more gray */
 .win.sized > .winbody{display:flex;flex-direction:column}
@@ -206,6 +195,9 @@ canvas.pix{image-rendering:pixelated;display:block}
 .mface:active{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff}
 .mface .pix{width:22px;height:22px}
 .minesgrid{display:grid;margin:0 auto 10px;padding:3px;width:max-content}
+/* touch: the field lives in a viewport it can be dragged around in and pinched (mines.ts) */
+.minesview{position:relative;overflow:hidden;margin:0 10px 10px}
+.minesview .minesgrid{position:absolute;left:0;top:0;margin:0}
 /* --mc is the live cell (mines.ts), authored 24; sprites are fractions of it */
 .mcell{width:var(--mc,24px);height:var(--mc,24px);display:grid;place-items:center;background:#c0c0c0;position:relative;
      font-weight:bold;font-size:calc(var(--mc,24px)*7/12);font-family:Tahoma,sans-serif;
@@ -382,3 +374,19 @@ textarea.notepad-edit{display:block;margin:0;border:0;outline:none;resize:none;w
 .btn.ptool{min-width:0;font-size:11px}
 .btn.down{box-shadow:inset 1px 1px #0a0a0a,inset -1px -1px #fff,inset 2px 2px #808080,inset -2px -2px #dfdfdf;background:#dfdfdf}
 .pin{position:absolute;z-index:20;image-rendering:pixelated}
+
+/* touch: borders, titlebar buttons, menus and the taskbar grow thumb-sized; the
+   authored geometry the layout math reads (titlebar 22, taskbar 36) must stay
+   untouched. Last in the file on purpose: same-specificity rules above would win. */
+@media (pointer: coarse){
+  .rz-n{height:12px}.rz-s{height:12px}
+  .rz-e{width:12px}.rz-w{width:12px}
+  .rz-ne,.rz-nw,.rz-se,.rz-sw{width:18px;height:18px}
+  /* titlebar buttons: wider, and each catches a thumb well past its bevel
+     (above the bar is nothing; below, the menu's verbs are all at the left) */
+  .tbtn{width:30px;height:20px;font-size:11px;line-height:19px;position:relative}
+  .tbtn::after{content:"";position:absolute;left:-3px;right:-3px;top:-10px;bottom:-12px}
+  .menu span{padding:5px 9px}
+  .popup div{padding:7px 20px 7px 22px}
+  .task,#start,#clock{height:30px;line-height:30px}
+}

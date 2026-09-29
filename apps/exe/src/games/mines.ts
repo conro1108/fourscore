@@ -4,7 +4,7 @@ import { el } from "../dom.js";
 import { px } from "../icons.js";
 import { GAMES_COPY, TITLES } from "../copy.js";
 import { play } from "../audio/index.js";
-import { fieldScaler, type FieldFit, type WM } from "../wm.js";
+import { deskWidth, fieldScaler, stageScale, type FieldFit, type WM } from "../wm.js";
 import { lcd, menubar } from "./ui.js";
 
 interface Level {
@@ -17,6 +17,10 @@ interface Level {
 /** Authored cell px, and the ladder's minimum. */
 const MC = 24;
 const MC_MIN = 16;
+/* Touch: the cell never goes under this; a field that then outgrows its window
+   is dragged around instead, and pinched between the fit and MC_TOUCH_MAX. */
+const MC_TOUCH = 48;
+const MC_TOUCH_MAX = 80;
 const LEVELS: readonly Level[] = [
   { id: "beginner", label: "Beginner", w: 9, h: 9, count: 10 },
   { id: "intermediate", label: "Intermediate", w: 16, h: 16, count: 40 },
@@ -250,6 +254,12 @@ export function openMines(wm: WM): void {
       gridEl.appendChild(c);
       cells.push(c);
     }
+    // touch: the field sits in a viewport; a finger drags it, two pinch it
+    view = coarse ? el(`<div class="minesview sunken flexwell"></div>`) : null;
+    view?.appendChild(gridEl);
+    gridNow = gridEl;
+    zoomCell = null;
+    pan = { x: 0, y: 0 };
 
     const toggleFlag = (i: number, cell: HTMLElement): void => {
       if (open.has(i)) return;
@@ -275,8 +285,37 @@ export function openMines(wm: WM): void {
       press = null;
     };
 
+    /* touch gestures on the viewport: fingers down (pointerId → client px),
+       and what this contact turned out to be. A pan or a pinch consumes the
+       press so the lift reveals nothing. */
+    const fingers = new Map<number, [number, number]>();
+    let gesture: "tap" | "pan" | "pinch" | null = null;
+    let panFrom: { pan: { x: number; y: number }; at: [number, number] } | null = null;
+    let pinchFrom: { dist: number; cell: number } | null = null;
+    const pinchDist = (): number => {
+      const [a, b] = [...fingers.values()] as [[number, number], [number, number]];
+      return Math.hypot(a[0] - b[0], a[1] - b[1]);
+    };
+    const pinchMid = (): [number, number] => {
+      const [a, b] = [...fingers.values()] as [[number, number], [number, number]];
+      return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    };
+    const surface = view ?? gridEl;
+
     gridEl.addEventListener("contextmenu", (e) => e.preventDefault());
-    gridEl.addEventListener("pointerdown", (e) => {
+    surface.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "touch") {
+        fingers.set(e.pointerId, [e.clientX, e.clientY]);
+        if (fingers.size === 2) {
+          clearPress();
+          pressConsumed = true;
+          gesture = "pinch";
+          pinchFrom = { dist: pinchDist(), cell: cellNow };
+          return;
+        }
+        gesture = "tap";
+        panFrom = { pan: { ...pan }, at: [e.clientX, e.clientY] };
+      }
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
       if (!cell) return;
       if (alive && !won && e.button === 0) setFace("o");
@@ -290,16 +329,59 @@ export function openMines(wm: WM): void {
         }, 450);
       }
     });
-    gridEl.addEventListener("pointermove", (e) => {
-      if (press && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 8) clearPress();
+    surface.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "touch" || !fingers.has(e.pointerId)) return;
+      fingers.set(e.pointerId, [e.clientX, e.clientY]);
+      const k = stageScale();
+      if (gesture === "pinch" && pinchFrom && fingers.size === 2) {
+        const want = (pinchFrom.cell * pinchDist()) / pinchFrom.dist;
+        const next = Math.max(zoomMin(), Math.min(MC_TOUCH_MAX, Math.round(want / 4) * 4));
+        if (next !== cellNow) {
+          // the point under the fingers stays under the fingers
+          const [mx, my] = pinchMid();
+          const r = surface.getBoundingClientRect();
+          const fx = (mx - r.left) / k;
+          const fy = (my - r.top) / k;
+          const gx = (fx - pan.x) / cellNow;
+          const gy = (fy - pan.y) / cellNow;
+          zoomCell = next;
+          setCell(next);
+          pan = { x: fx - gx * cellNow, y: fy - gy * cellNow };
+          placeGrid();
+        }
+        return;
+      }
+      if (gesture === "tap" && panFrom) {
+        if (Math.hypot(e.clientX - panFrom.at[0], e.clientY - panFrom.at[1]) < 10) return;
+        clearPress();
+        pressConsumed = true;
+        gesture = "pan";
+      }
+      if (gesture === "pan" && panFrom) {
+        pan = {
+          x: panFrom.pan.x + (e.clientX - panFrom.at[0]) / k,
+          y: panFrom.pan.y + (e.clientY - panFrom.at[1]) / k,
+        };
+        placeGrid();
+      }
     });
-    gridEl.addEventListener("pointercancel", () => {
+    const lift = (e: PointerEvent): void => {
+      fingers.delete(e.pointerId);
+      if (!fingers.size) {
+        gesture = null;
+        panFrom = null;
+        pinchFrom = null;
+      }
+    };
+    surface.addEventListener("pointercancel", (e) => {
+      lift(e);
       clearPress();
       if (alive && !won) setFace("happy");
     });
-    gridEl.addEventListener("pointerup", (e) => {
+    surface.addEventListener("pointerup", (e) => {
+      lift(e);
       clearPress();
-      if (pressConsumed) return; // long-press already flagged
+      if (pressConsumed) return; // long-press already flagged, or the finger was looking around
       const cell = (e.target as HTMLElement).closest<HTMLElement>(".mcell");
       if (!cell || !alive) return;
       const i = Number(cell.dataset.i);
@@ -344,7 +426,7 @@ export function openMines(wm: WM): void {
       },
     ]);
 
-    body.append(bar, top, gridEl);
+    body.append(bar, top, view ?? gridEl);
     // a level change discards any hand-sized window
     win.el.classList.remove("sized");
     win.el.style.height = "";
@@ -356,13 +438,55 @@ export function openMines(wm: WM): void {
     reset();
   }
 
+  /* Touch viewport state (build() makes `view`; null with a mouse). `fitCell`
+     is what the window holds whole; `cellNow` what's shown — never under
+     MC_TOUCH, or whatever a pinch chose. */
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  let view: HTMLElement | null = null;
+  let gridNow: HTMLElement | null = null;
+  let fitCell = MC;
+  let cellNow = MC;
+  let zoomCell: number | null = null;
+  let pan = { x: 0, y: 0 };
+  /** A pinch can zoom out no further than seeing the whole field. */
+  const zoomMin = (): number => Math.min(fitCell, MC_TOUCH);
+  const setCell = (mc: number): void => {
+    cellNow = mc;
+    body.style.setProperty("--mc", `${mc}px`);
+  };
+  /** Keep the field inside its viewport: centred when it fits, clamped when it doesn't. */
+  const placeGrid = (): void => {
+    if (!view || !gridNow) return;
+    const vw = view.clientWidth;
+    const vh = view.clientHeight;
+    const gw = gridNow.offsetWidth;
+    const gh = gridNow.offsetHeight;
+    pan.x = gw <= vw ? (vw - gw) / 2 : Math.max(vw - gw, Math.min(0, pan.x));
+    pan.y = gh <= vh ? (vh - gh) / 2 : Math.max(vh - gh, Math.min(0, pan.y));
+    gridNow.style.transform = `translate(${Math.round(pan.x)}px,${Math.round(pan.y)}px)`;
+  };
+
   // chrome measured: natural Beginner window is 248x328 around a 9x9 field of 24px cells
   const fit: FieldFit = {
     win: () => win.el,
     grid: () => ({ cols: level.w, rows: level.h }),
     chrome: { w: 32, h: 112 },
     cell: { base: MC, step: 4, min: MC_MIN, max: 48 },
-    apply: (mc) => body.style.setProperty("--mc", `${mc}px`),
+    // a field that has to be panned takes all the height the phone has
+    get tall() {
+      return coarse && level.w * MC_TOUCH + 32 > deskWidth();
+    },
+    apply(mc) {
+      fitCell = mc;
+      if (!view) {
+        setCell(mc);
+        return;
+      }
+      setCell(zoomCell ?? Math.max(mc, MC_TOUCH));
+      // a natural (unsized) window gives the viewport the field's own height
+      view.style.height = win.el.classList.contains("sized") || win.el.classList.contains("max") ? "" : `${level.h * mc + 6}px`;
+      placeGrid();
+    },
   };
   const relayout = fieldScaler(fit);
 
