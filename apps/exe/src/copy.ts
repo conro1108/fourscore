@@ -364,7 +364,9 @@ export const GAMES_COPY = {
     win: { title: "SOL.EXE", body: "The cards have been freed.<br>They will be recaptured." },
     stuckDeal: "The deck has started over. It does this.",
     nothingToUndo: "Nothing to take back.",
-    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back.<br>Click a card, then where it should go. Dragging is also permitted." },
+    /** Stock and waste empty, nothing face down: the machine plays the rest out. */
+    finishing: "The rest is arithmetic.",
+    help: { title: "SOL.EXE", body: "Red on black, in descending order.<br>The aces leave first. Undo takes it back.<br>Click a card, then where it should go. Dragging is also permitted.<br>A click on the table turns the deck." },
     /* Review (solreview.ts): winnable is provable, unwinnable is not (the search
        stops). Every "yes" is flat; every "no" is about the machine, not the deal. */
     review: {

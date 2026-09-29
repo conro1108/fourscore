@@ -363,7 +363,8 @@ const seededRand = (seed: number) => {
 };
 
 /** `rig` is a harness pose: "won" (one double-click from the bounce), "review"
-    (fixed deal, review open) or "deal" (the same fixed deal, nothing else). */
+    (fixed deal, review open), "deal" (the same fixed deal, nothing else) or
+    "decided" (stock spent, four runs K..6 face up: one move from the machine finishing). */
 export function openSol(wm: WM, rig?: string): void {
   const existing = wm.get("sol");
   if (existing?.isOpen()) {
@@ -380,6 +381,24 @@ export function openSol(wm: WM, rig?: string): void {
       tab: Array.from({ length: 7 }, (_, i) => ({ down: [], up: i < 4 ? [{ rank: 13, suit: i }] : [] })),
     };
   }
+  if (rig === "decided") {
+    // suit order per column alternates colour down each run
+    const runs = [
+      [0, 1],
+      [1, 0],
+      [2, 3],
+      [3, 2],
+    ];
+    s = {
+      stock: [],
+      waste: [],
+      found: [0, 1, 2, 3].map((suit) => Array.from({ length: 5 }, (_, i) => ({ rank: i + 1, suit }))),
+      tab: Array.from({ length: 7 }, (_, i) => ({
+        down: [],
+        up: i < 4 ? Array.from({ length: 8 }, (_, j) => ({ rank: 13 - j, suit: runs[i]![j % 2]! })) : [],
+      })),
+    };
+  }
   let won = false;
 
   // Snapshot before every real move. `hist` (undo) is capped; `journal` (the review's
@@ -393,7 +412,7 @@ export function openSol(wm: WM, rig?: string): void {
     if (hist.length > 300) hist.shift();
   };
   const undo = (): void => {
-    if (won) return;
+    if (won || finishing !== null) return;
     const prev = hist.pop();
     if (!prev) {
       statusEl.textContent = GAMES_COPY.sol.nothingToUndo;
@@ -622,17 +641,20 @@ export function openSol(wm: WM, rig?: string): void {
   }
 
   /* input */
+  const turnDeck = (): void => {
+    play("click", 0.5);
+    clearSel();
+    if (s.stock.length || s.waste.length) snap();
+    const recycled = drawFromStock(s);
+    if (recycled) statusEl.textContent = GAMES_COPY.sol.stuckDeal;
+    render();
+  };
   felt.addEventListener("pointerdown", (e) => {
     if (won || e.button !== 0 || !e.isPrimary) return;
     lastPointerType = e.pointerType;
     const target = e.target as HTMLElement;
     if (pileAt(e.clientX, e.clientY) === "stock") {
-      play("click", 0.5);
-      clearSel();
-      if (s.stock.length || s.waste.length) snap();
-      const recycled = drawFromStock(s);
-      if (recycled) statusEl.textContent = GAMES_COPY.sol.stuckDeal;
-      render();
+      turnDeck();
       return;
     }
     const tag = target.closest<HTMLElement>("[data-drag]")?.dataset.drag;
@@ -716,8 +738,7 @@ export function openSol(wm: WM, rig?: string): void {
         (carried ? pileAt(carried.left + carried.width / 2, carried.top + carried.height / 2) : null);
       if (to && to !== "stock" && tryDrop(cards, from, to)) {
         play("disc-land", 0.4);
-        render();
-        checkWin();
+        settle();
         return;
       }
     }
@@ -735,14 +756,17 @@ export function openSol(wm: WM, rig?: string): void {
       if (src && to && tryDrop(src.cards, src.from, to)) {
         play("disc-land", 0.4);
         clearSel();
-        render();
-        checkWin();
+        settle();
         return;
       }
     }
     const tag = (e.target as HTMLElement).closest<HTMLElement>("[data-drag]")?.dataset.drag ?? null;
     if (!tag || tag === selTag) {
+      // nothing chosen and nothing under the finger: the table turns the deck
+      // (the stock is a reach for a thumb); with a run chosen, it only lets go
+      const had = selTag !== null;
       clearSel();
+      if (!had && !tag && !finishing) turnDeck();
       return;
     }
     clearSel();
@@ -769,10 +793,43 @@ export function openSol(wm: WM, rig?: string): void {
     }
     if (sendHome(ref, card)) {
       play("disc-land", 0.4);
-      render();
-      checkWin();
+      settle();
     }
   };
+
+  /* Stock and waste empty, nothing face down: the game is decided, and the
+     rest is a card home every 90ms until the bounce. Stepped, not eased. */
+  let finishing: number | null = null;
+  const decided = (): boolean =>
+    !s.stock.length && !s.waste.length && s.tab.every((p) => !p.down.length);
+  const stopFinishing = (): void => {
+    if (finishing !== null) clearTimeout(finishing);
+    finishing = null;
+  };
+  function settle(): void {
+    render();
+    checkWin();
+    if (won || finishing !== null || !decided()) return;
+    statusEl.textContent = GAMES_COPY.sol.finishing;
+    const step = (): void => {
+      finishing = null;
+      if (won) return;
+      // the lowest card that can leave, so the piles climb together
+      let best: { i: number; card: Card } | null = null;
+      s.tab.forEach((p, i) => {
+        const c = p.up[p.up.length - 1];
+        if (c && canFoundation(c, s.found[c.suit]!) && (!best || c.rank < best.card.rank)) best = { i, card: c };
+      });
+      if (!best) return;
+      const b: { i: number; card: Card } = best;
+      sendHome({ kind: "tab", i: b.i }, b.card);
+      play("disc-land", 0.3);
+      render();
+      checkWin();
+      if (!won) finishing = window.setTimeout(step, 90);
+    };
+    finishing = window.setTimeout(step, 400);
+  }
   felt.addEventListener("dblclick", (e) => {
     if (lastPointerType !== "touch") autoHome(e.target as HTMLElement);
   });
@@ -894,6 +951,7 @@ export function openSol(wm: WM, rig?: string): void {
   }
 
   function newDeal(): void {
+    stopFinishing();
     bounceStop?.();
     bounceStop = null;
     wm.stage.querySelectorAll(".solbounce").forEach((c) => c.remove());
@@ -1069,6 +1127,7 @@ export function openSol(wm: WM, rig?: string): void {
     onResize: relayout,
     onMaximize: relayout,
     onClose: () => {
+      stopFinishing();
       bounceStop?.();
       bounceStop = null;
     },

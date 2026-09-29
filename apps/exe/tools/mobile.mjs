@@ -345,8 +345,42 @@ async function phone(viewport, tag) {
   if (!waste) fail("tapping the stock dealt nothing to the waste");
   else console.log("stock deals on a tap");
 
+  // a tap on the table (below the cards, nothing chosen) turns the deck too
+  const wasteTop = () =>
+    page.evaluate(() => document.querySelector('.slot[data-pile="waste"] [data-card]')?.dataset.card);
+  const was = await wasteTop();
+  const table = await page.evaluate(() => {
+    const f = document.querySelector(".felt").getBoundingClientRect();
+    return { x: f.left + f.width / 2, y: f.bottom - 40 };
+  });
+  await page.touchscreen.tap(table.x, table.y);
+  await page.waitForTimeout(200);
+  if ((await wasteTop()) === was) fail("a tap on the table did not turn the deck");
+  else console.log("a tap on the table turns the deck");
+
   await page.screenshot({ path: here("../shots/mobile-sol.png") });
   console.log("shot mobile-sol");
+
+  // decided: stock spent, everything face up — one card home and the machine plays the rest
+  await page.goto(`${BASE}/?state=sol&rig=decided`);
+  await page.waitForTimeout(1200);
+  const six = await center(page, '.tabcol [data-card="6h"]');
+  await page.touchscreen.tap(six.x, six.y);
+  await page.waitForTimeout(120);
+  await page.touchscreen.tap(six.x, six.y);
+  try {
+    await page.waitForFunction(
+      () => [...document.querySelectorAll(".titlebar .t")].some((t) => t.textContent === "SOL.EXE") &&
+        !document.querySelector(".tabcol [data-card]") && !!document.querySelector(".solbounce"),
+      null,
+      { timeout: 8000 },
+    );
+    console.log("decided game finished itself");
+  } catch {
+    fail("decided game did not finish itself");
+  }
+  await page.screenshot({ path: here("../shots/mobile-sol-finished.png") });
+  console.log("shot mobile-sol-finished");
   await ctx.close();
 
   // landscape: same deal, the whole table on screen

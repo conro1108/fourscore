@@ -224,7 +224,11 @@
 > pointer, a column that would run off the felt closing up the way the
 > period's did, a drop judged by the carried card's middle when the finger
 > misses, a tap slop so a wobble is still a tap, and one send-home per
-> double-tap. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
+> double-tap. A tap on the table with nothing chosen turns the deck (the
+> stock is a reach for a thumb), and once the stock is spent and nothing is
+> face down the game is decided, so the machine plays it out — a card home
+> every 90ms, stepped, "The rest is arithmetic." — instead of asking for
+> twenty-eight more taps. `npm run mobile` now plays a fixed deal — tap-tap, Game > Undo
 > by finger, a real drag, the stock — and taps the board's titlebar before
 > its drag, because a beat dialog can take focus and a touch on an unfocused
 > board only focuses it.
