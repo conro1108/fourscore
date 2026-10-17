@@ -229,10 +229,15 @@ function spr(key: string, rows: readonly string[], pal: Record<string, string>):
   sprCache.set(key, c);
   return c;
 }
-const suitSpr = (suit: number, large: boolean): HTMLCanvasElement =>
-  spr(`s${suit}${large ? "L" : "S"}`, (large ? SUIT_LG : SUIT_SM)[suit]!, {
-    X: isRed(suit) ? CARD_RED : "#000",
-  });
+/** `flip` turns the bitmap itself, not the canvas, so the bottom half samples as cleanly as the top. */
+const suitSpr = (suit: number, large: boolean, flip = false): HTMLCanvasElement => {
+  const rows = (large ? SUIT_LG : SUIT_SM)[suit]!;
+  return spr(
+    `s${suit}${large ? "L" : "S"}${flip ? "F" : ""}`,
+    flip ? [...rows].reverse().map((r) => [...r].reverse().join("")) : rows,
+    { X: isRed(suit) ? CARD_RED : "#000" },
+  );
+};
 const courtSpr = (rank: number): HTMLCanvasElement => spr(`c${rank}`, COURT[rank]!, PAL);
 const backTile = (): HTMLCanvasElement => spr("back", BACK_TILE, { X: BACK_LINE });
 
@@ -317,21 +322,18 @@ export function paintCard(
   ctx.restore();
 
   if (c.rank <= 10) {
-    const lg = suitSpr(c.suit, true);
-    const pw = c.rank === 1 ? S(22) : S(12);
-    const ph = Math.round((pw * lg.height) / lg.width);
+    // whole multiples only — an 11px pip stretched to 12 doubles a random column, squeezed to 8 it's a blob —
+    // so a phone gets the small bitmap instead
+    const want = c.rank === 1 ? S(22) : S(12);
+    const large = want >= SUIT_LG[c.suit]![0]!.length;
+    const pip = suitSpr(c.suit, large);
+    const k = Math.max(1, Math.floor(want / pip.width));
+    const pw = pip.width * k;
+    const ph = pip.height * k;
     for (const [fx, fy, flip] of PIP_LAYOUT[c.rank]!) {
-      const cx = x + fx * w;
-      const cy = y + fy * h;
-      if (flip) {
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(Math.PI);
-        drawSpr(ctx, lg, -pw / 2, -ph / 2, pw, ph);
-        ctx.restore();
-      } else {
-        drawSpr(ctx, lg, cx - pw / 2, cy - ph / 2, pw, ph);
-      }
+      const px = Math.round(x + fx * w - pw / 2);
+      const py = Math.round(y + fy * h - ph / 2);
+      drawSpr(ctx, flip ? suitSpr(c.suit, large, true) : pip, px, py, pw, ph);
     }
   } else {
     const fx = x + S(14);
@@ -852,7 +854,7 @@ export function openSol(wm: WM, rig?: string): void {
   };
 
   /* The table (felt with no card under the finger — the stock is a reach for
-     a thumb): one tap turns the deck, two send a card home, a swipe left
+     a thumb): one tap turns the deck, two send the waste card home, a swipe left
      undoes. The single tap waits a short beat so the second can cancel it;
      the beat is the lag on every deal, so it stays tight. */
   const TABLE_TAP_MS = 240;
@@ -870,7 +872,7 @@ export function openSol(wm: WM, rig?: string): void {
       if (!won) turnDeck();
     }, TABLE_TAP_MS);
   };
-  /** The first card that can leave — waste top, then tableau tops. */
+  /** The waste top only — the tableau's cards leave when they're tapped themselves. */
   const homeOne = (): void => {
     if (won) return;
     const w = s.waste[s.waste.length - 1];
@@ -878,15 +880,6 @@ export function openSol(wm: WM, rig?: string): void {
       play("disc-land", 0.4);
       settle();
       return;
-    }
-    for (let i = 0; i < 7; i++) {
-      const up = s.tab[i]!.up;
-      const c = up[up.length - 1];
-      if (c && sendHome({ kind: "tab", i }, c)) {
-        play("disc-land", 0.4);
-        settle();
-        return;
-      }
     }
     statusEl.textContent = GAMES_COPY.sol.nothingHome;
   };
