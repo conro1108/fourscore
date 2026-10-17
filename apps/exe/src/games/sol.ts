@@ -742,10 +742,15 @@ export function openSol(wm: WM, rig?: string): void {
       slop: e.pointerType === "touch" ? 8 : 3,
       moved: false,
     };
-    ghost.style.left = `${(cardBox.left - stageR.left) / k}px`;
-    ghost.style.top = `${(cardBox.top - stageR.top) / k}px`;
+    placeGhost(ghost, (cardBox.left - stageR.left) / k, (cardBox.top - stageR.top) / k);
     wm.stage.appendChild(ghost);
   });
+
+  // moved by transform on its own layer: left/top repaints the felt, and iOS at a
+  // fractional stage scale leaves 1px slivers of the card outline behind
+  const placeGhost = (g: HTMLElement, x: number, y: number): void => {
+    g.style.transform = `translate3d(${x}px,${y}px,0)`;
+  };
 
   addEventListener("pointermove", (e) => {
     if (!drag) return;
@@ -758,8 +763,7 @@ export function openSol(wm: WM, rig?: string): void {
     }
     const stageR = wm.stage.getBoundingClientRect();
     const k = stageScale();
-    drag.ghost.style.left = `${(e.clientX - stageR.left) / k - drag.dx}px`;
-    drag.ghost.style.top = `${(e.clientY - stageR.top) / k - drag.dy}px`;
+    placeGhost(drag.ghost, (e.clientX - stageR.left) / k - drag.dx, (e.clientY - stageR.top) / k - drag.dy);
   });
 
   addEventListener("pointercancel", () => {

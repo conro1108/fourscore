@@ -220,7 +220,7 @@ canvas.pix{image-rendering:pixelated;display:block}
 /* selected run: blue dither */
 .card.sel::after{content:"";position:absolute;inset:1px;
       background:conic-gradient(#000080 0 25%,#0000 0 50%,#000080 0 75%,#0000 0) 0 0/2px 2px}
-.solghost{position:absolute;width:var(--cw,62px);z-index:500;pointer-events:none}
+.solghost{position:absolute;left:0;top:0;will-change:transform;width:var(--cw,62px);z-index:500;pointer-events:none}
 .solbounce{position:absolute;inset:0;z-index:210}
 
 /* SNAKE.EXE's touch arrows: PAD_H in snake.ts is this block's height (30+4+30+6) */
