@@ -261,8 +261,7 @@ function drawSpr(
   ctx.drawImage(s, Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
-/** The one card renderer (table, drag ghost, win bounce). `c` null is the back; `u` is the live pitch;
-    `big` is the phone's corner index, legible in a fanned column at a finger's card size. */
+/** The one card renderer (table, drag ghost, win bounce). `c` null is the back; `u` is the live pitch. */
 export function paintCard(
   ctx: CanvasRenderingContext2D,
   c: Card | null,
@@ -271,7 +270,6 @@ export function paintCard(
   w: number,
   h: number,
   u: number,
-  big = false,
 ): void {
   const S = (n: number): number => Math.max(1, scaleOf(u, n));
   stepRect(ctx, x, y, w, h, "#000");
@@ -303,18 +301,17 @@ export function paintCard(
 
   const ink = isRed(c.suit) ? CARD_RED : "#000";
   const sm = suitSpr(c.suit, false);
-  const smW = S(big ? 9 : 7);
+  const smW = S(7);
   const smH = Math.round((smW * sm.height) / sm.width);
 
   // corner index, drawn twice (second rotated)
   const index = (): void => {
     ctx.fillStyle = ink;
-    ctx.font = `bold ${S(big ? 15 : 11)}px "Times New Roman",serif`;
+    ctx.font = `bold ${S(11)}px "Times New Roman",serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    const cx = S(big ? 9 : 8);
-    ctx.fillText(RANKS[c.rank]!, cx, S(big ? 15 : 12), S(big ? 16 : 14));
-    drawSpr(ctx, sm, cx - smW / 2, S(big ? 17 : 14), smW, smH);
+    ctx.fillText(RANKS[c.rank]!, S(8), S(12));
+    drawSpr(ctx, sm, S(8) - smW / 2, S(14), smW, smH);
   };
   ctx.save();
   ctx.translate(x, y);
@@ -334,16 +331,14 @@ export function paintCard(
     const pw = pip.width * k;
     const ph = pip.height * k;
     for (const [fx, fy, flip] of PIP_LAYOUT[c.rank]!) {
-      // the big index takes the corner, so the pip columns close in
-      const px = Math.round(x + (big ? C + (fx - C) * 0.8 : fx) * w - pw / 2);
+      const px = Math.round(x + fx * w - pw / 2);
       const py = Math.round(y + fy * h - ph / 2);
       drawSpr(ctx, flip ? suitSpr(c.suit, large, true) : pip, px, py, pw, ph);
     }
   } else {
-    const ix = S(big ? 18 : 14);
-    const fx = x + ix;
+    const fx = x + S(14);
     const fy = y + S(11);
-    const fw = w - 2 * ix;
+    const fw = w - 2 * S(14);
     const fh = h - 2 * S(11);
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 1;
@@ -477,11 +472,11 @@ export function openSol(wm: WM, rig?: string): void {
 
   // `u` is the live column pitch; all felt geometry derives from it.
   let u = PITCH;
-  // a finger gets wider cards (thinner gutters) and needs a wider strip of each face-up card than a mouse does
-  const coarse = matchMedia("(pointer: coarse)").matches;
-  const cardW = (): number => scaleOf(u, coarse ? 66 : CARD_W);
+  const cardW = (): number => scaleOf(u, CARD_W);
   const cardH = (): number => Math.round((cardW() * CARD_H) / CARD_W);
-  const COL_X = (i: number): number => scaleOf(u, coarse ? 8 : 10) + i * u;
+  const COL_X = (i: number): number => scaleOf(u, 10) + i * u;
+  // a finger needs a wider strip of each face-up card than a mouse does
+  const coarse = matchMedia("(pointer: coarse)").matches;
   const UP_DY = (): number => scaleOf(u, coarse ? 32 : 20);
   const DOWN_DY = (): number => scaleOf(u, 6);
 
@@ -495,7 +490,7 @@ export function openSol(wm: WM, rig?: string): void {
     const h = cardH();
     cv.width = w;
     cv.height = h;
-    paintCard(cv.getContext("2d")!, faceUp ? c : null, 0, 0, w, h, u, coarse);
+    paintCard(cv.getContext("2d")!, faceUp ? c : null, 0, 0, w, h, u);
     d.appendChild(cv);
     return d;
   }
@@ -607,7 +602,7 @@ export function openSol(wm: WM, rig?: string): void {
       const need = pile.down.length * DOWN_DY() + Math.max(0, pile.up.length - 1) * UP_DY();
       const k = room > 0 && need > room ? room / need : 1;
       const downDy = Math.max(2, Math.floor(DOWN_DY() * k));
-      const upDy = Math.max(scaleOf(u, coarse ? 22 : 12), Math.floor(UP_DY() * k));
+      const upDy = Math.max(scaleOf(u, 12), Math.floor(UP_DY() * k));
       let y = 0;
       for (const c of pile.down) {
         const e = cardEl(c, false);
@@ -995,7 +990,7 @@ export function openSol(wm: WM, rig?: string): void {
     let done = false;
 
     const paint = (c: Card, x: number, y: number): void =>
-      paintCard(ctx, c, Math.round(x), Math.round(y), cw, ch, u, coarse);
+      paintCard(ctx, c, Math.round(x), Math.round(y), cw, ch, u);
 
     const frame = (): void => {
       if (done) return;
