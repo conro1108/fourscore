@@ -416,10 +416,10 @@ async function phone(viewport, tag) {
   // decided: stock spent, everything face up — one card home and the machine plays the rest
   await page.goto(`${BASE}/?state=sol&rig=decided`);
   await page.waitForTimeout(1200);
-  // two taps on the table send the first card that can leave
+  // two taps on a card that can leave send it home
   const tbl = await page.evaluate(() => {
-    const f = document.querySelector(".felt").getBoundingClientRect();
-    return { x: f.left + f.width / 2, y: f.bottom - 40 };
+    const r = [...document.querySelectorAll('[data-pile="t0"] [data-card]')].at(-1).getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.bottom - 6 };
   });
   await page.touchscreen.tap(tbl.x, tbl.y);
   await page.waitForTimeout(100);
