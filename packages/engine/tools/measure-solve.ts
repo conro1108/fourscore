@@ -1,5 +1,5 @@
 /**
- * Measures `exactFrom` per variant (CLAUDE.md § exactFrom is measured).
+ * Measures `exactFrom` per variant (CLAUDE.md § proven vs estimated). `live` is the worst case of a cold `analyze`.
  *
  *   npx vite-node packages/engine/tools/measure-solve.ts -- connect5 5000   # review-style, warm table
  *   npx vite-node packages/engine/tools/measure-solve.ts -- live connect5   # what a bot actually pays

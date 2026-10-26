@@ -4,6 +4,11 @@ Things we decided were good but deliberately deferred, and things we tried that
 didn't work. Not a backlog to burn down — just enough detail that picking one up
 later doesn't start from scratch.
 
+## Known plateau: `quill > vane` on Connect 4, ~63%
+
+Just under the 65% bar `tools/ladder.ts` flags, and not a bug. The same rung
+plateaus on Connect 5 (~56%) and Connect 6 (~59%), below.
+
 ## Dead end: Connect 7's ladder is draw-shaped, not broken
 
 The first sweep read three middle rungs soft and the top inverted, and long

@@ -1,38 +1,37 @@
 # CLAUDE.md
 
-Connect 4/5/6/7 against a ladder of bots plus an exact solver, played inside a
-possessed Win95 (BOARD.EXE). TypeScript, npm workspaces: `packages/engine` is
-pure game logic, `apps/exe` is the client and owns only rendering and the match
-runtime. The desktop also contains a real 16-bit CPU, a C compiler for it, and
-a language model the CPU runs.
+A possessed Win95 desktop full of games: SOL.EXE, CHESS, CHECKERS, MINES,
+SNAKE, PAINT, a shell. BOARD.EXE is the original: Connect 4/5/6/7 against a
+ladder of bots plus an exact solver. The deep end is a real 16-bit CPU, a C
+compiler for it, and a language model the CPU runs off the drive. TypeScript,
+npm workspaces: `packages/engine` is pure game logic, `apps/exe` is the desktop.
 
 `npm run dev` / `npm test` (~3s, the whole gate) / `npm run check` (typecheck +
 test) / `npm run build`. Measurement scripts live under `tools/` and run by hand.
 
-Docs, and what each governs:
-- `apps/exe/DIRECTION.md` — the law for everything visual, audible and copy in the app. Read before building there.
-- `llm_llm_llm.md` — the CPU / compiler / on-drive LLM: plan and decisions. Read before touching vm/cc/llmc.
+Docs:
+- `apps/exe/DIRECTION.md` — the visual, audio and copy reference; read it before working in the app.
+- `llm_llm_llm.md` — the CPU / compiler / on-drive LLM: plan, decisions, measured numbers.
 - `llm_training.md`, `corpus_howto.md` — training a model to write C for the machine (tools/corpus).
-- `feature_ideas.md` — backlog plus documented dead ends (ladder measurements live here).
-- Approved art: `apps/exe/reference/`, `apps/exe/proposals/`; original pitches `redesign/proposals/`. Deleted clients `apps/web`, `apps/fever` are in git history only.
+- `feature_ideas.md` — backlog plus documented dead ends, including the ladder measurements.
+- Approved art: `apps/exe/reference/`, `apps/exe/proposals/`.
 
 ## Map
 
-Comments in source are terse by design: header = what the file owns + its
-constraints. Use this map to go straight to the file instead of grepping.
+Each file's header says what it owns; this points at it.
 
-`packages/engine/src/` — pure, I/O-free
-- `board.ts` — `Variant` geometry, bitboard `Position`, win detection. Only file that knows the bit packing.
-- `evaluate.ts` — heuristic eval, `searchHeuristic`, weight vectors.
-- `solver.ts` — exact negamax + transposition table (`analyze`, `solve`).
-- `bots.ts` — the ladder roster: depth, weights, `slipRate`, `exactFrom`, `exactnessNote`.
-- `match.ts` — `Match` state and the post-game review (per-ply scoring, `turningPoint`).
-- `index.ts` — public exports.
+`packages/engine/` — pure, I/O-free
+- `src/board.ts` — `Variant` geometry, bitboard `Position`, win detection. Only file that knows the bit packing.
+- `src/evaluate.ts` — heuristic eval, `searchHeuristic`, weight vectors.
+- `src/solver.ts` — exact negamax + transposition table (`analyze`, `solve`).
+- `src/bots.ts` — the ladder roster: depth, weights, `slipRate`, `exactFrom`, `exactnessNote`.
+- `src/match.ts` — `Match` state and the post-game review (per-ply scoring, `turningPoint`).
+- `src/index.ts` — public exports.
 - `tools/ladder.ts` (rung sweep), `measure-solve.ts` (exact-solve crossover), `bench-solve.ts`.
 
 `apps/exe/src/` — the desktop
 - `main.ts` — boot, wiring, `?state=`/`?fever=`/`?beat=`/`?demo=`/`?chips=` deep links.
-- `wm.ts` window manager · `dom.ts` two DOM helpers · `chrome.css` period chrome · `icons.ts` pixel icons.
+- `wm.ts` window manager, phone-desk `fit` · `dom.ts` two DOM helpers · `chrome.css` period chrome · `icons.ts` pixel icons.
 - `desktop.ts` icons/taskbar/Start/clock · `deskpos.ts` icon positions · `containers.ts` folder + drive windows.
 - `board.ts` — BOARD.EXE window and match loop · `boardfit.ts` its geometry per variant · `chips.ts` pieces.ctl.
 - `engine/` — `worker.ts` search off-thread, `client.ts` promise wrapper, `protocol.ts` messages.
@@ -46,64 +45,53 @@ constraints. Use this map to go straight to the file instead of grepping.
 - `sprite.ts` .spr format · `paint.ts` PAINT.EXE · `pins.ts` pinned pictures · `fire.ts` flames.scr automaton.
 - `games/` — `folder.ts` roster; `sol.ts`/`solstate.ts`/`solreview.ts`/`solworker.ts` Klondike; `chess.ts`, `checkers.ts`, `mines.ts`, `snake.ts`; `ui.ts` shared game chrome.
 
-`apps/exe/tools/` — live harnesses (real Chrome): `shots.mjs`, `timeline.mjs`, `fever.mjs`, `audio.mjs`, `mobile.mjs`, `paint.mjs`, `files.mjs`, `live.mjs`, `llm.mjs`, `trace.ts` (fever curve replay), `appicon.mjs`.
+`apps/exe/tools/` — live harnesses (real Chrome): `shots.mjs`, `timeline.mjs`, `mobile.mjs`, `fever.mjs`, `audio.mjs`, `paint.mjs`, `files.mjs`, `live.mjs`, `llm.mjs`, `trace.ts` (fever curve replay), `appicon.mjs`, `soldead.ts` (SOL dead-hand proof rate).
 - `llm/` — `pack.ts` float checkpoint → drive image, `checkpoint.ts` reader, `intref.ts` fixed-point oracle, `compare.ts` machine vs oracle, `grade.ts` quantised vs float, `build.ts`, `reference.ts`.
 - `corpus/` — `synth.ts`, `gen.ts`, `prompt.ts`, `graders.ts`, `verify.ts`, `mutants.ts`, `farm.ts`, `bench.ts`.
 
-## Rules
+## Gotchas
 
-**Engine stays I/O-free.** `packages/engine` imports nothing from DOM, network
-or app. Game logic goes in the engine even when the app is the only caller.
+- **Look at it**: tests can't see visual work. `npm run shots` (every named state),
+  `timeline` (motion), `mobile` (a phone, touch), `npm run llm` (slow vs stuck).
+- **Engine stays I/O-free**, so search runs in the worker and tools in node.
+  Game logic goes there even when the app is the only caller.
+- **Geometry is a `Variant` value.** Anything reachable from search reads
+  `p.variant`; a module-level `WIDTH` breaks every board but one.
+- **Bit packing only in `board.ts`**, whose fuzz test vs brute force is the only
+  coverage. `computeAlignmentSpots` is the hottest function: its prefix/suffix
+  chains are linear in N; don't "simplify" them back to the nested loop.
+- **TT keys are exact.** Float64 rounds silently past 53 bits and the solver
+  returns wrong scores, so keys are split into lanes (`solver.ts`), not hashed.
+- **The ladder has to stay a ladder.** Deeper with worse weights can be weaker,
+  so run `tools/ladder.ts <variant>` after any retune; known soft rungs are in
+  `feature_ideas.md`. `searchHeuristic` goes blind, silently, when it clips its
+  node budget: check that before weights. Strength is `slipRate`/`depth`.
+- **Proven vs estimated stay apart.** Every ply carries `source`; estimated plies
+  never set `turningPoint` and their copy is hedged ("looks like"); the UI never
+  shows the distinction. `exactFrom` comes from `measure-solve.ts live <variant>`
+  and `exactnessNote` generates the bot's claim from it, so they can't drift.
+- **The machine inside the machine** (`cd /src; cc llm.c; run llm`). llm.c barely
+  fits program space and any CC change moves it (`llm.test.ts` asserts the fit).
+  After numerics or compiler changes run `tools/llm/compare.ts` (machine vs
+  `intref.ts`; each has caught the other) and argue with `grade.ts`.
 
-**Geometry is a value.** Board size and run length live in a `Variant`; masks,
-move order, shifts, centre weights and score bounds are derived once per
-variant. No module-level `WIDTH`/`HEIGHT`; anything reachable from search reads
-`p.variant`. Shipped: C4 7x6/4, C5 9x8/5, C6 11x10/6, C7 13x12/7 — odd width,
-even height, line density ≈1.6/cell. `makeVariant` takes anything.
+### Touch
 
-**Bit packing lives only in `board.ts`.** Nothing else does arithmetic on
-`position`/`mask`. Coverage is the fuzz test vs brute force over three
-geometries (C4, C7, unshipped 5x4 run-3). One sentinel row suffices for any N
-(a wrapping line must cross it on an ANDed intermediate step).
-`computeAlignmentSpots` is the hottest function — its prefix/suffix chains are
-linear in N; don't "simplify" to the nested loop.
-
-**TT keys are exact, never hashed down.** `Position.key()` needs
-`width*(height+1)` bits (49/81/121/169); Float64 rounds silently past 53, so
-keys are stored in four 32-bit lanes + remainder, exact to `TT_MAX_KEY_BITS`
-(181), and the solver throws beyond. Costs ~5% C4 throughput, measured.
-
-**The ladder has to stay a ladder.** Depth and weights interact (deeper with
-worse weights can be weaker). `tools/ladder.ts <variant>` flags rungs under
-65%; run it after any retune. Tune strength with `slipRate`/`depth`; weights
-are personality. A slip draws non-best moves geometrically by rank and above
-tier 1 never picks a proven loss, so `slipRate` is far from linear in strength.
-`searchHeuristic` shares one node budget across root moves and goes nearly
-blind when it clips, silently — `depthFor` and `heuristicBudget` scale with the
-board (C4 is identity). If a rung goes soft, check budget clipping before
-weights. Known plateaus that are not bugs: C4 `quill > vane` ~63%, C5 ~56%,
-C6 ~59%, C6 `cinder > bramble` ~60%, and C7 reads soft everywhere because most
-games fill the board — see the dead ends in `feature_ideas.md` before retuning.
-
-**Proven vs estimated.** Every ply carries `source: proven | estimated`. Engine
-keeps them apart; UI never shows the distinction (one line, no legend, no
-badges). Estimated plies never set `turningPoint`; the advantage scale keeps
-proven results in a band above any estimate; estimated copy is hedged
-("looks like"), proven copy is flat. `exactFrom` is measured per variant with
-`measure-solve.ts live <variant>` (worst case of a cold `analyze`): C4 ~10-13
-of 42, C5 44/72, C6 82/110, C7 127/156. `exactnessNote` generates the bot's
-claim from the number — never hand-write it.
-
-**The machine inside the machine.** `cd /src; cc llm.c; run llm` — ~1.7s a
-word. Program space is 3840 words; llm.c uses 3261 + 428 heap, and
-`llm.test.ts` asserts the fit — any CC change moves it. `tools/llm/intref.ts`
-is the oracle: same fixed-point pipeline over the same image; run `compare.ts`
-after any numerics or compiler change (each side has caught the other before).
-Argue numerics changes against `grade.ts` (currently 94% top-1, 0.06 nats).
-Rebuilding weights needs `.cache/stories260K.bin` + `tok512.bin` from
-huggingface.co/karpathy/tinyllamas; the built `WEIGHTS.BIN` is committed.
-
-**Screenshot before you claim.** Tests can't see visual work. `npm run shots`
-photographs every named state; `timeline` for anything that moves over
-seconds; `npm run llm` photographs the LLM every 5s (slow vs stuck). If you
-didn't look at it, it isn't done.
+- **Whole pixels.** The stage scale is fractional on a phone. Canvas
+  rotate/scale at fractional values drops and doubles pixel rows, and iOS
+  leaves 1px slivers behind anything moved by `left`/`top`: pre-flip bitmaps,
+  scale by whole multiples, move drag ghosts by `transform`.
+- **`chrome.css`: coarse-pointer block last**, or same-specificity base rules win
+  and phones get desktop-sized buttons; grow hit areas there, not the geometry
+  the layout math reads (titlebar 22, taskbar 36). A drag surface goes in the
+  `touch-action:none` list at the top, or the browser scrolls and zooms instead.
+- **One gesture, one action.** `dblclick` also fires after a touch double-tap,
+  so a pointerup path that already answered acts twice. A pan or pinch must
+  consume the press, or the lift taps. A tap that only focused a window
+  (the WM raises on pointerdown) mustn't also move.
+- **A tap that waits for a second tap lags by that window**: 170ms too tight,
+  280 sluggish, SOL's `TABLE_TAP_MS` is 240.
+- **Tap-anywhere controls misfire.** SNAKE's tap-to-turn read stray taps as
+  turns; it has buttons now. Touch drags need a bigger slop (8px vs 3).
+- **Game windows take `fit`** in their `wm` spec, or open at desktop size on a
+  phone. Text inputs turn off autocapitalize/autocorrect, or iOS "fixes" commands.

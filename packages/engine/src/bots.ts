@@ -161,7 +161,7 @@ export const ROSTER: readonly BotProfile[] = [
     depth: 10,
     weights: w({ parity: 34, threat: 18, immediate: 30, center: 9 }),
     // Quill's weights are a strength knob, not personality. Parity 46 and 52 both
-    // measure 56% vs Vane on Connect 5 (plateau); rung is known soft — CLAUDE.md § ladder.
+    // measure 56% vs Vane on Connect 5 (plateau); rung is known soft — feature_ideas.md.
     weightsByVariant: {
       connect5: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),
       connect6: w({ parity: 46, threat: 18, immediate: 30, center: 9 }),

@@ -1,6 +1,7 @@
 /**
  * Build the drive image: calibrate on the float model, quantise, generate from
- * both pipelines side by side. Needs .cache/stories260K.bin + tok512.bin.
+ * both pipelines side by side. Needs .cache/stories260K.bin + tok512.bin
+ * (huggingface.co/karpathy/tinyllamas).
  *   npx vite-node apps/exe/tools/llm/build.ts [--write]   (--write ships WEIGHTS.BIN)
  */
 
