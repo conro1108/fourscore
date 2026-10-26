@@ -77,21 +77,10 @@ Each file's header says what it owns; this points at it.
 
 ### Touch
 
-- **Whole pixels.** The stage scale is fractional on a phone. Canvas
-  rotate/scale at fractional values drops and doubles pixel rows, and iOS
-  leaves 1px slivers behind anything moved by `left`/`top`: pre-flip bitmaps,
-  scale by whole multiples, move drag ghosts by `transform`.
-- **`chrome.css`: coarse-pointer block last**, or same-specificity base rules win
-  and phones get desktop-sized buttons; grow hit areas there, not the geometry
-  the layout math reads (titlebar 22, taskbar 36). A drag surface goes in the
-  `touch-action:none` list at the top, or the browser scrolls and zooms instead.
-- **One gesture, one action.** `dblclick` also fires after a touch double-tap,
-  so a pointerup path that already answered acts twice. A pan or pinch must
-  consume the press, or the lift taps. A tap that only focused a window
-  (the WM raises on pointerdown) mustn't also move.
-- **A tap that waits for a second tap lags by that window**: 170ms too tight,
-  280 sluggish, SOL's `TABLE_TAP_MS` is 240.
-- **Tap-anywhere controls misfire.** SNAKE's tap-to-turn read stray taps as
-  turns; it has buttons now. Touch drags need a bigger slop (8px vs 3).
-- **Game windows take `fit`** in their `wm` spec, or open at desktop size on a
-  phone. Text inputs turn off autocapitalize/autocorrect, or iOS "fixes" commands.
+- **Whole pixels.** The stage scale is fractional on a phone: fractional canvas
+  rotate/scale drops and doubles pixel rows, and iOS leaves 1px slivers behind
+  anything moved by `left`/`top` (move by `transform`).
+- **`chrome.css`: the coarse-pointer block goes last**, or same-specificity base
+  rules win and phones get desktop-sized buttons.
+- **`dblclick` also fires after a touch double-tap**, so a handler that already
+  answered the taps acts twice.
