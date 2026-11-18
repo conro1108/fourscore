@@ -233,9 +233,11 @@ consideration does.
   over 2,047 tokens.** At today's dimensions that cache is ~776KB
   (K 450K + V 328K + rope 16K), so it no longer fits below `WEIGHT_BASE` in
   bank 0, and the cache moves past the weights and gets written through the bank
-  latch. Rough cost, at 8 instructions a MAC and today's 301K MACs plus
-  ~128 per position of attention: a 2,000-token pong is ~6.9G instructions,
-  about an hour at the period clock, before the model gets any bigger.
+  latch. Rough cost, at 8 instructions a MAC: today's 301K MACs a token plus
+  attention at 640 MACs per position (8 heads × 5 layers × 16), or 960 with
+  two-pass streaming. A 2,000-token pong is then ~2.5G MACs, ~20G
+  instructions, **about three hours** at the period clock. Attention is most
+  of that, and near the end a token takes ~10 seconds.
 - **Vocab costs drive space and classifier time**, linear in VOCAB. 512 was
   right for stories260K; keep it unless measurement argues.
 - **A token is at most 7 characters**, because `pack.ts` stores each token's text in
