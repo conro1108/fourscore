@@ -179,7 +179,10 @@ export const EDITS: Record<Tier, string[]> = {
 
 /** Constraints the graders enforce, said out loud. */
 const TIER_NOTES: Record<Tier, string[]> = {
-  1: ["It must print something and then return from main."],
+  1: [
+    "It must print something with putc/putn/puts and then return from main.",
+    "Console only: no vpos, vput or vsync.",
+  ],
   2: [
     "It must read the keyboard with getc() and what it prints must depend on",
     "what was typed. It has to finish: a run where the player types every",
@@ -194,7 +197,8 @@ const TIER_NOTES: Record<Tier, string[]> = {
     "one 'O' on the court, not an 'O' that is also a paddle. W moves the",
     "player's paddle up and S moves it down. The score is drawn as digits and",
     "goes up when a point is won, and the game ends when someone reaches the",
-    "winning score.",
+    "winning score. Left alone with nobody at the keys, a game must last",
+    "well past four seconds — the ball is watched for that long.",
   ],
 };
 

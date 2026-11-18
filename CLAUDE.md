@@ -47,7 +47,7 @@ Each file's header says what it owns; this points at it.
 
 `apps/exe/tools/` — live harnesses (real Chrome): `shots.mjs`, `timeline.mjs`, `mobile.mjs`, `fever.mjs`, `audio.mjs`, `paint.mjs`, `files.mjs`, `live.mjs`, `llm.mjs`, `trace.ts` (fever curve replay), `appicon.mjs`, `soldead.ts` (SOL dead-hand proof rate).
 - `llm/` — `pack.ts` float checkpoint → drive image, `checkpoint.ts` reader, `intref.ts` fixed-point oracle, `compare.ts` machine vs oracle, `grade.ts` quantised vs float, `build.ts`, `reference.ts`.
-- `corpus/` — `synth.ts`, `gen.ts`, `prompt.ts`, `graders.ts`, `verify.ts`, `mutants.ts`, `farm.ts`, `bench.ts`.
+- `corpus/` — `synth.ts`, `gen.ts`, `prompt.ts`, `graders.ts`, `verify.ts`, `mutants.ts`, `farm.ts`, `bench.ts`, `dir.ts` (grade a folder of `.c` files).
 
 ## Gotchas
 
