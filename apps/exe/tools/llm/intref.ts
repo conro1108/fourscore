@@ -4,11 +4,13 @@
  * multiply of two bytes, 32-bit accumulate, shifts, unsigned divide, table
  * lookup) — no floats. `row()` is the one shape everything is built from: three
  * header bytes, n drive bytes MAC'd against n RAM words, bias undone, shifted.
- * A weight row, a cached key and a value's history are all that shape.
+ * A weight row and a cached key are that shape. Attention streams: two passes
+ * over the cache and nothing kept per position, so context length costs drive
+ * and time but no RAM; it normalises once, at the end, in 32 bits.
  */
 
 import {
-  ATT_BITS, EXPS_PER_LAYER, EXP_BIAS, GUMBEL_ENTRIES, LUT_ENTRIES, MAGIC, ROW_HEADER,
+  ATT_BITS, EXPS_PER_LAYER, EXP_BIAS, GUMBEL_ENTRIES, kvRowBytes, LUT_ENTRIES, MAGIC, ROW_HEADER,
   LUT_ONE, SCORE_BITS, TEXT_STRIDE,
 } from "./pack.js";
 
@@ -26,8 +28,8 @@ export interface Head {
   gumbel: number;
   exps: number;
   text: number;
-  kCache: number;
-  vCache: number;
+  kvCache: number;
+  driveBytes: number;
   embed: number;
   layerBase: number;
   layerStride: number;
@@ -89,15 +91,16 @@ export class Machine {
   private readonly q8: Int16Array;
   private readonly k8: Int16Array;
   private readonly v8: Int16Array;
-  /** Scores, then exps, then weights, in one array: the machine has 128 spare words once. */
-  private readonly att: Int16Array;
   private readonly xb: Int16Array;
+  /** One head's 32-bit sums of e*v', the only per-head state attention keeps. */
+  private readonly acc: Float64Array;
   /** Normalised vector before the int8 squeeze. */
   private readonly norm: Int16Array;
   /** MACs per token, for the machine's clock. */
   macs = 0;
   saturations = 0;
 
+  /** `drive` must already be driveBytes long (src/drive.ts `driveFor`). */
   constructor(readonly drive: Uint8Array) {
     const u16 = (a: number): number => drive[a]! | (drive[a + 1]! << 8);
     const u32 = (a: number): number => (u16(a) | (u16(a + 2) << 16)) >>> 0;
@@ -119,8 +122,8 @@ export class Machine {
       gumbel: u32(28),
       exps: u32(32),
       text: u32(36),
-      kCache: u32(40),
-      vCache: u32(44),
+      kvCache: u32(40),
+      driveBytes: u32(44),
       embed: u32(48),
       layerBase: u32(52),
       layerStride: u32(56),
@@ -143,8 +146,8 @@ export class Machine {
     this.q8 = new Int16Array(dim);
     this.k8 = new Int16Array(this.h.kvDim);
     this.v8 = new Int16Array(this.h.kvDim);
-    this.att = new Int16Array(this.h.maxSeq);
     this.xb = new Int16Array(dim);
+    this.acc = new Float64Array(dim / heads);
     this.norm = new Int16Array(dim);
   }
 
@@ -241,10 +244,9 @@ export class Machine {
   forward(token: number, pos: number, rand: () => number): number {
     const { dim, hidden, kvDim, headSize, heads, kvMul, maxSeq, ares } = this.h;
     const x = this.x;
-    const kRow = ROW_HEADER + headSize;
-    const vRow = ROW_HEADER + maxSeq;
-    const kLayer = this.h.kvHeads * maxSeq * kRow;
-    const vLayer = this.h.kvHeads * headSize * vRow;
+    const kvRow = kvRowBytes(headSize);
+    /** Where one layer's one K/V head keeps its positions, front to back. */
+    const run = (l: number, g: number): number => this.h.kvCache + (l * this.h.kvHeads + g) * maxSeq * kvRow;
 
     // the embedding is the residual stream's first value
     this.seek(this.h.embed + token * (1 + dim));
@@ -285,52 +287,55 @@ export class Machine {
         }
       }
 
-      // cache in read-back shape: a key is a row (sum in front) so the score
-      // loop is the row loop; a value is spread down its component's run
+      // into the cache, one row per position: a key with its header (so the
+      // score is the row loop), then the value beside it
       for (let g = 0; g < this.h.kvHeads; g++) {
-        this.seek(this.h.kCache + l * kLayer + (g * maxSeq + pos) * kRow + 1);
+        this.seek(run(l, g) + pos * kvRow);
         let sum = 0;
         for (let i = 0; i < headSize; i++) sum += k[g * headSize + i]! + 128;
+        this.put(EXP_BIAS);
         this.put(sum);
         this.put(sum >> 8);
         for (let i = 0; i < headSize; i++) this.put(k[g * headSize + i]! + 128);
-        for (let i = 0; i < headSize; i++) {
-          this.seek(this.h.vCache + l * vLayer + (g * headSize + i) * vRow + ROW_HEADER + pos);
-          this.put(v[g * headSize + i]! + 128);
-        }
+        for (let i = 0; i < headSize; i++) this.put(v[g * headSize + i]! + 128);
       }
 
+      const acc = this.acc;
       for (let hh = 0; hh < heads; hh++) {
         const qo = hh * headSize;
         const g = Math.floor(hh / kvMul);
         for (let i = 0; i < headSize; i++) q[qo + i]! += 128;
         const sq = Machine.unbiasedSum(q, qo, headSize);
-        this.seek(this.h.kCache + l * kLayer + g * maxSeq * kRow);
+        const ssh = E.aq + E.ak - SCORE_BITS;
+        // pass one: only the largest score is kept
+        this.seek(run(l, g));
         let maxs = -32768;
         for (let t = 0; t <= pos; t++) {
-          const sc = this.row(q, qo, headSize, sq, E.aq + E.ak - SCORE_BITS);
-          this.att[t] = sc;
+          const sc = this.row(q, qo, headSize, sq, ssh);
           if (sc > maxs) maxs = sc;
+          this.addr += headSize;
         }
-        // softmax out of the table, then the weights in 256ths
-        let esum = 0;
+        // pass two: the same scores again, each weighted out of the table
+        // against the largest (0..127), into 32-bit sums of e and of e*v'
+        this.seek(run(l, g));
+        let z = 0;
+        acc.fill(0);
         for (let t = 0; t <= pos; t++) {
-          const i = maxs - this.att[t]!;
-          const e = i > LUT_ENTRIES - 1 ? 0 : this.lut[i]!;
-          this.att[t] = e;
-          esum += e;
+          const d = maxs - this.row(q, qo, headSize, sq, ssh);
+          const e = d > LUT_ENTRIES - 1 ? 0 : this.lut[d]!;
+          z += e;
+          for (let i = 0; i < headSize; i++) acc[i] += e * this.next();
+          this.macs += headSize;
         }
-        let psum = 0;
-        for (let t = 0; t <= pos; t++) {
-          const p = Math.floor((this.att[t]! << ATT_BITS) / esum);
-          this.att[t] = p;
-          psum += p;
-        }
+        // once, at the end: drop both until z fits fifteen bits, then the
+        // weighted mean in 256ths of a step, out of a 16-bit long division
+        let zs = z;
+        let k2 = 0;
+        while (zs >= 0x8000) (zs = Math.floor(zs / 2)), k2++;
         for (let i = 0; i < headSize; i++) {
-          this.seek(this.h.vCache + l * vLayer + (g * headSize + i) * vRow);
-          this.xb[qo + i] = this.clamp8(
-            this.row(this.att, 0, pos + 1, psum, ATT_BITS + E.av - E.axo),
-          );
+          const a = Math.floor(acc[i]! / Math.pow(2, k2));
+          const mean = Math.floor((a * 256) / zs) - 32768; // v' was biased by 128
+          this.xb[qo + i] = this.clamp8(rshift(mean, ATT_BITS + E.av - E.axo));
         }
       }
 

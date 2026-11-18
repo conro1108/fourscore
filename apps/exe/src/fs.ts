@@ -4,6 +4,7 @@
  * ("DESKTOP\readme.txt"); lookup is case-blind on the whole path, names keep
  * their saved case. A corrupt or pre-v2 volume is formatted (plus its sibling
  * keys), not migrated. Missing seeds are re-added on every boot; edits kept.
+ * A seed still byte-for-byte a version we have since replaced is upgraded.
  */
 
 import { SEED_DIRS, SEED_FILES } from "./copy.js";
@@ -119,7 +120,25 @@ function loadVolume(raw: string | null): Volume | null {
   return null;
 }
 
-export function makeDisk(store: DiskStore): Disk {
+/** FNV-1a of a file's text, as eight hex digits. */
+export const fingerprint = (text: string): string => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
+  return h.toString(16).padStart(8, "0");
+};
+
+/**
+ * Every shipped version of a seed that has since been replaced, by
+ * fingerprint. Without this a returning player keeps the old one forever:
+ * llm.c has to match WEIGHTS.BIN (its header checks MAXSEQ), so an old copy
+ * says DRIVE NOT READY. Changing a seed that must agree with something else?
+ * Add the outgoing version's fingerprint here.
+ */
+export const SUPERSEDED: Record<string, readonly string[]> = {
+  "llm.c": ["5b90e3c3", "3ced8cfd", "10c32aff", "91463ad1", "94a44e4d"],
+};
+
+export function makeDisk(store: DiskStore, superseded = SUPERSEDED): Disk {
   const raw = store.getItem(KEY);
   let vol = loadVolume(raw);
   const fresh = vol === null;
@@ -149,11 +168,16 @@ export function makeDisk(store: DiskStore): Disk {
   for (const d of SEED_DIRS) if (!hasDir(d)) dirs.push(d);
   const seedPresent = (name: string): boolean =>
     files.some((f) => lower(baseName(f.name)) === lower(baseName(name)));
-  for (const s of SEED_FILES)
+  for (const s of SEED_FILES) {
+    const old = superseded[lower(baseName(s.name))];
+    if (old)
+      for (const f of files)
+        if (lower(baseName(f.name)) === lower(baseName(s.name)) && old.includes(fingerprint(f.text))) f.text = s.text;
     if (!seedPresent(s.name) && !hasDir(s.name)) {
       ensureParents(s.name);
       files.push({ ...s });
     }
+  }
 
   const save = (): void => store.setItem(KEY, JSON.stringify({ v: 2, dirs, files }));
   const listeners: ((ev: DiskChange) => void)[] = [];

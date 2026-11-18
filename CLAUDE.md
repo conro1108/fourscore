@@ -74,6 +74,11 @@ Each file's header says what it owns; this points at it.
   fits program space and any CC change moves it (`llm.test.ts` asserts the fit).
   After numerics or compiler changes run `tools/llm/compare.ts` (machine vs
   `intref.ts`; each has caught the other) and argue with `grade.ts`.
+  Its hidden units live above the ports (`0x0F10..0x0FBB`), so a new port
+  there corrupts the model silently.
+- **Saved disks keep old seeds.** A seed that must agree with something else
+  (llm.c with WEIGHTS.BIN's header) needs its outgoing version's fingerprint
+  in `SUPERSEDED` (`fs.ts`), or returning players get DRIVE NOT READY.
 
 ### Touch
 

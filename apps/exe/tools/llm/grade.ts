@@ -7,12 +7,13 @@
 import { forward, loadCheckpoint, loadTokenizer, makeRng, makeState, sampleFloat } from "./checkpoint.js";
 import { buildImage, calibrate, MAX_SEQ, SCORE_BITS, TEMPERATURE } from "./pack.js";
 import { Machine } from "./intref.js";
+import { driveFor } from "../../src/drive.js";
 
 const ck = loadCheckpoint(".cache/stories260K.bin");
 const tok = loadTokenizer(".cache/tok512.bin", ck.config.vocabSize);
 const calib = calibrate(ck, [1, 7, 99], 48);
 const image = buildImage(ck, tok, calib);
-const drive = new Uint8Array(image.bytes.length);
+const drive = driveFor(image.bytes);
 
 /** A token path to walk, sampled from the float model so it stays on-distribution. */
 function floatPath(seed: number, steps: number): number[] {
@@ -55,6 +56,7 @@ let clips = 0;
 for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
   const path = floatPath(seed, 64);
   const fs = makeState(ck.config, MAX_SEQ);
+  drive.fill(0);
   drive.set(image.bytes);
   const m = new Machine(drive);
   for (let pos = 0; pos + 1 < path.length; pos++) {

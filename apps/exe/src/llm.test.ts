@@ -7,8 +7,10 @@ import { assemble, MEM_SIZE, MMIO_BASE } from "./vm.js";
 import { compileC } from "./cc.js";
 import { LLM_C } from "./llmc.js";
 
-/** What llm.c asks malloc for: the seven buffers, two of which share. */
-const HEAP_WORDS = 64 + 64 + 172 + 64 + 32 + 32;
+/** What llm.c asks malloc for: five buffers. The hidden units (and
+    attention's sums, which share them) live in the top page above the
+    ports, at 0x0F10..0x0FBB. */
+const HEAP_WORDS = 64 + 64 + 64 + 32 + 32;
 /** Return addresses and expression temporaries, generously. */
 const STACK_WORDS = 32;
 

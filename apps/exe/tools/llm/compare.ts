@@ -10,6 +10,7 @@ import { assemble, makeVm, type VmIO } from "../../src/vm.js";
 import { compileC } from "../../src/cc.js";
 import { LLM_C } from "../../src/llmc.js";
 import { Machine } from "./intref.js";
+import { driveFor } from "../../src/drive.js";
 import { makeRng } from "./checkpoint.js";
 
 const args = process.argv.slice(2).filter((a) => a !== "--");
@@ -24,11 +25,11 @@ const res = assemble(cc.asm);
 if (!res.ok) throw new Error(res.errors.map((e) => `line ${e.line}: ${e.msg}`).join("; "));
 
 // the oracle
-const oracle = new Machine(Uint8Array.from(image));
+const oracle = new Machine(driveFor(image));
 const orand = makeRng(SEED);
 let token = 1;
 let want = "";
-for (let pos = 0; pos < 128 && want.length < CHARS + 8; pos++) {
+for (let pos = 0; pos < oracle.h.maxSeq && want.length < CHARS + 8; pos++) {
   const next = oracle.forward(token, pos, orand);
   if (next < 3) break;
   want += oracle.text(next);
@@ -43,14 +44,14 @@ const io: VmIO = {
   putNum: (n) => (out += String(n)),
   key: () => 0,
   rand: () => rand(),
-  drive: () => Uint8Array.from(image),
+  drive: () => driveFor(image),
 };
 const vm = makeVm(res.words, io);
 let steps = 0;
 // the banner ends with a blank line; everything after it is the story
 const story = (): string => out.split("\n\n")[1] ?? "";
 const t0 = performance.now();
-while (!vm.halted && vm.fault === null && steps < 200_000_000) {
+while (!vm.halted && vm.fault === null && steps < Number(process.env.STEPS ?? 200_000_000)) {
   steps += vm.run(500_000);
   if (story().length >= CHARS) break;
 }

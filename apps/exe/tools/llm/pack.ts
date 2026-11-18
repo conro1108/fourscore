@@ -13,18 +13,19 @@ import type { Checkpoint, Config, Tokenizer } from "./checkpoint.js";
 import { forward, makeState, pieceText } from "./checkpoint.js";
 
 export const MAGIC = 0x4d4c; // 'L','M'
-export const VERSION = 2; // 2 appended WARM_TOKENS
+export const VERSION = 3; // 2 appended WARM_TOKENS; 3 moved the KV cache past the weights
 export const HEADER_BYTES = 128;
-/** Context length; the K/V cache is sized from it. */
-export const MAX_SEQ = 128;
+/** Context length; the K/V cache is sized from it. A pong is ~2,000 tokens
+    (llm_training.md), and attention streams, so RAM doesn't bound this. */
+export const MAX_SEQ = 2048;
 /** exp(-i/32) table, shared by softmax and sigmoid. */
 export const LUT_ENTRIES = 256;
-/** The table's 1.0. Not 255: attention divides by the table total and 127
-    keeps that numerator inside the signed word the machine's divide needs. */
+/** The table's 1.0. Not 255: attention adds e times a biased value byte,
+    and 127 * 255 is what fits the one word a multiply gives back. */
 export const LUT_ONE = 127;
 /** Fixed-point bits for attention scores and logits: 1/32 of a logit. */
 export const SCORE_BITS = 5;
-/** Attention weights in 256ths — as fine as a 16-bit numerator allows. */
+/** Attention's weighted mean comes out of the division in 256ths of a step. */
 export const ATT_BITS = 8;
 /** Gumbel quantiles the sampler draws from. */
 export const GUMBEL_ENTRIES = 512;
@@ -46,9 +47,12 @@ export const EXP_BIAS = 64;
 export const EXPS_PER_LAYER = 8;
 /** Every multiplied row carries three header bytes: exponent, then byte sum (LE). */
 export const ROW_HEADER = 3;
-/** Weights start on a bank boundary; everything the machine writes lives
-    below it, where the address latch's low word is the whole address. */
+/** Weights start on a bank boundary; bank 0 below it holds the tables, where
+    the address latch's low word is the whole address. */
 export const WEIGHT_BASE = 0x10000;
+/** One cached position for one K/V head: [exp, sum lo, sum hi, k'×hs, v'×hs].
+    K and V side by side, so attention's second pass reads both in one sweep. */
+export const kvRowBytes = (headSize: number): number => ROW_HEADER + 2 * headSize;
 
 /** Where each section starts, in bytes from the front of the drive. */
 export interface Layout {
@@ -57,14 +61,16 @@ export interface Layout {
   gumbel: number;
   exps: number;
   text: number;
-  kCache: number;
-  vCache: number;
+  /** The K/V cache: past the weights, written by the machine, never shipped. */
+  kvCache: number;
+  /** How big the drive must be: the cache's end. */
+  driveBytes: number;
   embed: number;
   layers: number;
   layerStride: number;
   rmsFinal: number;
   classifier: number;
-  /** Where the machine's writes stop. */
+  /** Where bank 0's tables stop. */
   bank0End: number;
   bytes: number;
 }
@@ -186,10 +192,8 @@ export function layoutFor(c: Config): Layout {
   const gumbel = rope + MAX_SEQ * c.headSize;
   const exps = gumbel + GUMBEL_ENTRIES * 2;
   const text = align(exps + c.nLayers * EXPS_PER_LAYER);
-  const kCache = text + c.vocabSize * TEXT_STRIDE;
-  const vCache = kCache + c.nLayers * c.nKvHeads * MAX_SEQ * row(c.headSize);
-  const afterCache = vCache + c.nLayers * c.nKvHeads * c.headSize * row(MAX_SEQ);
-  if (afterCache > WEIGHT_BASE) throw new Error(`bank 0 overflows: ${afterCache} bytes`);
+  const bank0End = text + c.vocabSize * TEXT_STRIDE;
+  if (bank0End > WEIGHT_BASE) throw new Error(`bank 0 overflows: ${bank0End} bytes`);
   const embed = WEIGHT_BASE;
   const layers = embed + c.vocabSize * vec(c.dim);
   const layerStride =
@@ -200,10 +204,12 @@ export function layoutFor(c: Config): Layout {
     c.dim * row(c.hiddenDim);
   const rmsFinal = layers + c.nLayers * layerStride;
   const classifier = rmsFinal + vec(c.dim);
+  const bytes = classifier + c.vocabSize * row(c.dim);
+  const kvCache = align(bytes);
   return {
-    lut, rope, gumbel, exps, text, kCache, vCache, embed, layers, layerStride, rmsFinal, classifier,
-    bank0End: afterCache,
-    bytes: classifier + c.vocabSize * row(c.dim),
+    lut, rope, gumbel, exps, text, kvCache,
+    driveBytes: kvCache + c.nLayers * c.nKvHeads * MAX_SEQ * kvRowBytes(c.headSize),
+    embed, layers, layerStride, rmsFinal, classifier, bank0End, bytes,
   };
 }
 
@@ -256,6 +262,12 @@ export interface Image {
 
 export function buildImage(ck: Checkpoint, tok: Tokenizer, calib: Calib): Image {
   const c = ck.config;
+  // llm.c's attout folds the rounding into the dividend and shifts at least
+  // once; a shift outside 1..15 would need code the program has no room for
+  for (const [l, L] of calib.layers.entries()) {
+    const s = ATT_BITS + L.av - L.axo;
+    if (s < 1 || s > 15) throw new Error(`layer ${l}: attention shift ${s} is outside 1..15`);
+  }
   const w = ck.weights;
   const lay = layoutFor(c);
   const out = new Writer(lay.bytes);
@@ -271,7 +283,7 @@ export function buildImage(ck: Checkpoint, tok: Tokenizer, calib: Calib): Image 
   out.u16(c.vocabSize);
   out.u16(MAX_SEQ);
   out.u16(calib.ares + EXP_BIAS);
-  for (const a of [lay.lut, lay.rope, lay.gumbel, lay.exps, lay.text, lay.kCache, lay.vCache,
+  for (const a of [lay.lut, lay.rope, lay.gumbel, lay.exps, lay.text, lay.kvCache, lay.driveBytes,
                    lay.embed, lay.layers, lay.layerStride, lay.rmsFinal, lay.classifier])
     out.u32(a);
   // appended (v2): an older program reads zero padding and just doesn't warm up
@@ -281,13 +293,20 @@ export function buildImage(ck: Checkpoint, tok: Tokenizer, calib: Calib): Image 
   out.seek(lay.lut);
   for (let i = 0; i < LUT_ENTRIES; i++) out.u8(Math.round(LUT_ONE * Math.exp(-i / (1 << SCORE_BITS))));
 
-  /* RoPE cos/sin in 1/127ths, biased */
+  /* RoPE cos/sin in 1/127ths, biased. The checkpoint carries seqLen rows;
+     past that they are worked out (llama2.c's frequencies), and the stored
+     rows are checked against the formula so the two can't quietly differ. */
   out.seek(lay.rope);
   const half = c.headSize / 2;
+  const angle = (p: number, j: number): number => p / Math.pow(10000, (2 * j) / c.headSize);
+  for (let p = 0; p < Math.min(c.seqLen, MAX_SEQ); p++)
+    for (let j = 0; j < half; j++)
+      if (Math.abs(w.freqReal[p * half + j]! - Math.cos(angle(p, j))) > 1e-4)
+        throw new Error(`checkpoint RoPE row ${p} is not llama2.c's; can't extend it past ${c.seqLen}`);
   for (let p = 0; p < MAX_SEQ; p++)
     for (let j = 0; j < half; j++) {
-      out.u8(clamp8(Math.round(w.freqReal[p * half + j]! * 127)) + 128);
-      out.u8(clamp8(Math.round(w.freqImag[p * half + j]! * 127)) + 128);
+      out.u8(clamp8(Math.round(Math.cos(angle(p, j)) * 127)) + 128);
+      out.u8(clamp8(Math.round(Math.sin(angle(p, j)) * 127)) + 128);
     }
 
   /* Gumbel quantiles in 32nds: argmax(logit + gumbel) is an exact softmax draw */
@@ -321,17 +340,6 @@ export function buildImage(ck: Checkpoint, tok: Tokenizer, calib: Calib): Image 
     out.seek(lay.text + t * TEXT_STRIDE);
     out.u8(keep.length);
     out.bytes(keep);
-  }
-
-  /* K/V cache rows are read by the same matvec routine, so each needs its
-     header; formatted here rather than at boot (only the exponent is nonzero) */
-  for (let i = 0; i < c.nLayers * c.nKvHeads * MAX_SEQ; i++) {
-    out.seek(lay.kCache + i * (ROW_HEADER + c.headSize));
-    out.exp(0);
-  }
-  for (let i = 0; i < c.nLayers * c.nKvHeads * c.headSize; i++) {
-    out.seek(lay.vCache + i * (ROW_HEADER + MAX_SEQ));
-    out.exp(0);
   }
 
   /* embedding table */

@@ -42,16 +42,15 @@ export const LLM_C = String.raw`/* llm.c — a language model, on this machine's
 #define KVDIM   32
 #define KVMUL   2
 #define VOCAB   512
-#define MAXSEQ  128
+#define MAXSEQ  2048
 
-/* ROWHDR: a row's exponent, then its byte sum. KROW and VROW are that plus
-   what the K and V caches keep in a row. SCOREB: scores and logits are kept
+/* ROWHDR: a row's exponent, then its byte sum. KVROW is one remembered
+   position for one head: a key as a row, then its value. SCOREB: scores and logits are kept
    in 32nds, ATTB: attention weights in 256ths. (A #define here is a name and
    a number, nothing else — no arithmetic, and no comment after it. But sums
    of constants are worked out while compiling. See /docs/c.txt.) */
 #define ROWHDR  3
-#define KROW    11
-#define VROW    131
+#define KVROW   19
 #define SCOREB  5
 #define ATTB    8
 #define MAGIC   0x4D4C
@@ -59,38 +58,42 @@ export const LLM_C = String.raw`/* llm.c — a language model, on this machine's
 /* ---- what the machine is thinking about ----
 
    These live on the heap rather than in the program, because the program is
-   what has to fit: 556 blank words in the image are 556 words the code does
-   not get, and malloc hands out the space past the end of it, which is
-   otherwise nothing but the gap in front of the stack. */
+   what has to fit: blank words in the image are words the code does not
+   get, and malloc hands out the space past the end of it, which is
+   otherwise nothing but the gap in front of the stack. The biggest of them
+   lives higher still, above the ports: see getroom. */
 
 int *xres;                      /* the residual stream, sixteen bits a word */
 int *xq;                        /* it, quantised and biased, for the matvecs */
 int *hq;                        /* the feed-forward's hidden units, likewise */
-                                /* att shares hq's words: see getroom */
+                                /* acc shares hq's words: see getroom */
 int *qv;                        /* the queries */
 int *kk;                        /* this position's keys */
 int *vv;                        /* and values */
-int *att;                       /* scores, then exponentials, then weights */
+int *acc;                       /* a head's weighted sum: 8 low words, 8 high */
 
 void getroom() {
     xres = malloc(DIM);
     xq   = malloc(DIM);
-    hq   = malloc(HIDDEN);
+    /* the top page of memory is the hardware, but only its first ten words
+       are ports; the rest answers like any other memory, and the hidden
+       units are the one buffer big enough to be worth putting there. The
+       program needed the 172 words below it more. */
+    hq   = 0x0F10;
     qv   = malloc(DIM);
     kk   = malloc(KVDIM);
     vv   = malloc(KVDIM);
-    /* the attention weights and the hidden units are never both alive: a
-       layer is done with the first before it has any of the second, and
-       HIDDEN is the larger. 128 words is not nothing here. */
-    att  = hq;
+    /* attention's sums and the hidden units are never both alive: a layer
+       is done with the first before it has any of the second */
+    acc  = hq;
 }
 
 /* ---- what the drive says about itself ---- */
 
-int hLut; int hRope; int hGum; int hExps; int hText; int hK; int hV;
+int hLut; int hRope; int hGum; int hExps; int hText; int hKVlo; int hKVhi;
 int hEmbHi; int hEmbLo; int hLayHi; int hLayLo; int hStride;
 int hFinHi; int hFinLo; int hClsHi; int hClsLo; int ares; int warm;
-int klayer; int vlayer; int offQkv; int offWo; int offFfn; int offW13; int offW2;
+int kvHi; int kvLo; int offQkv; int offWo; int offFfn; int offW13; int offW2;
 int eq[LAYERS]; int ek[LAYERS]; int ev[LAYERS]; int eo[LAYERS];
 int ez[LAYERS]; int e3[LAYERS]; int eh[LAYERS];
 
@@ -668,51 +671,228 @@ int sigm(int z, int az) {
    each into e^(score - biggest), and then each of those into its share of
    the total, in 256ths. Returns what the shares add up to, which is what
    undoes the bias in the weighted sum that follows. */
-int smax(int n, int mx) {
-    asm("ld r6, [$att]");
-    asm("ld r3, [$n]");
-    asm("ld r4, [$mx]");
-    asm("mov r2, 0");           /* the total */
-    asm("sml:");
-    asm("ld r0, [r6]");
-    asm("mov r1, r4");
-    asm("sub r1, r0");          /* how far below the biggest, in 32nds */
-    asm("cmp r1, 256");
-    asm("jnc smz");             /* past the end of the table is zero */
-    asm("mov r0, 0");
-    asm("st r0, [dbnk]");
-    asm("ld r0, [$hLut]");
-    asm("add r0, r1");
-    asm("st r0, [dpos]");
-    asm("ld r0, [dsk]");
-    asm("add r2, r0");
-    asm("jmp smw");
-    asm("smz:");
-    asm("mov r0, 0");
-    asm("smw:");
-    asm("st r0, [r6]");
-    asm("add r6, 1");
-    asm("sub r3, 1");
-    asm("jnz sml");
+/* ---- attention, streamed ----
 
-    asm("cmp r2, 1");
-    asm("jnc smn");
-    asm("mov r2, 1");
-    asm("smn:");
-    asm("ld r6, [$att]");
-    asm("ld r3, [$n]");
-    asm("mov r4, 0");           /* what the shares add up to */
-    asm("smp:");
-    asm("ld r0, [r6]");
-    asm("shl r0, 8");
-    asm("div r0, r2");
-    asm("st r0, [r6]");
+   The machine remembers every position it has seen, on the drive: for each
+   layer and each of the four key heads, a run of rows, one per position,
+   each a key (with its row header, so the score is mvrow) and the value
+   beside it. Nothing is kept per position in memory, so how far back it
+   can look costs drive and time, never words. Twice down the run: the first
+   time for the biggest score, the second to weigh every value against it.
+   Then one division, at the end, in thirty-two bits. */
+
+int at_n; int at_c; int at_mx;
+int zlo; int zhi;               /* the weights' total */
+int vsh; int abias;             /* this layer's shift, and the bias it leaves */
+int azs; int ak; int achi; int aclo; int ai; int ab;
+
+/* Aim the head at position t of key head g, this layer. */
+void kvat(int g, int t) {
+    ahi = kvHi; alo = kvLo;
+    while (g) { aadd(MAXSEQ * KVROW); g--; }
+    aadd(t * KVROW);
+    ago();
+}
+
+/* The first time down: only the biggest score is kept. */
+void attn1() {
+    asm("mov r0, 0x8000");      /* the smallest signed word there is */
+    asm("st r0, [$at_mx]");
+    asm("ld r0, [$at_n]");
+    asm("st r0, [$at_c]");
+    asm("a1l:");
+    asm("call $mvrow");
+    asm("ld r0, [$mv_r]");
+    asm("xor r0, 0x8000");      /* compare signed, the usual way */
+    asm("ld r1, [$at_mx]");
+    asm("xor r1, 0x8000");
+    asm("cmp r1, r0");
+    asm("jnc a1k");
+    asm("ld r0, [$mv_r]");
+    asm("st r0, [$at_mx]");
+    asm("a1k:");
+    asm("ld r0, [dsk]");        /* step over the value */
+    asm("ld r0, [dsk]");
+    asm("ld r0, [dsk]");
+    asm("ld r0, [dsk]");
+    asm("ld r0, [dsk]");
+    asm("ld r0, [dsk]");
+    asm("ld r0, [dsk]");
+    asm("ld r0, [dsk]");
+    asm("ld r0, [$at_c]");
+    asm("sub r0, 1");
+    asm("st r0, [$at_c]");
+    asm("jnz a1l");
+}
+
+/* The second time: each score again, its weight out of the table against
+   the biggest (0..127), and the value under it added in that many times. */
+void attn2() {
+    asm("ld r0, [$at_n]");
+    asm("st r0, [$at_c]");
+    asm("a2l:");
+    asm("call $mvrow");
+    asm("ld r0, [$at_mx]");
+    asm("ld r1, [$mv_r]");
+    asm("sub r0, r1");          /* how far below the biggest, in 32nds */
+    asm("mov r4, 0");
+    asm("cmp r0, 256");
+    asm("jnc a2z");             /* past the end of the table is zero */
+    asm("ld r1, [dpos]");       /* the table moves the head: keep its place */
+    asm("ld r2, [dbnk]");
+    asm("mov r3, 0");
+    asm("st r3, [dbnk]");
+    asm("ld r3, [$hLut]");
+    asm("add r3, r0");
+    asm("st r3, [dpos]");
+    asm("ld r4, [dsk]");
+    asm("st r2, [dbnk]");
+    asm("st r1, [dpos]");
+    asm("a2z:");
+    asm("ld r0, [$zlo]");
+    asm("add r0, r4");
+    asm("jnc a2c");
+    asm("ld r1, [$zhi]");
+    asm("add r1, 1");
+    asm("st r1, [$zhi]");
+    asm("a2c:");
+    asm("st r0, [$zlo]");
+    asm("ld r6, [$acc]");
+    asm("mov r3, 8");
+    asm("a2v:");
+    asm("ld r0, [dsk]");
+    asm("mul r0, r4");          /* 127 * 255 at most: one word */
+    asm("ld r1, [r6]");
+    asm("add r1, r0");
+    asm("jnc a2n");
+    asm("add r6, 8");           /* the high word, eight along */
+    asm("ld r2, [r6]");
+    asm("add r2, 1");
+    asm("st r2, [r6]");
+    asm("sub r6, 8");
+    asm("a2n:");
+    asm("st r1, [r6]");
     asm("add r6, 1");
-    asm("add r4, r0");
     asm("sub r3, 1");
-    asm("jnz smp");
-    asm("st r4, [$n]");
-    return n;
+    asm("jnz a2v");
+    asm("ld r0, [$at_c]");
+    asm("sub r0, 1");
+    asm("st r0, [$at_c]");
+    asm("jnz a2l");
+}
+
+/* The weighted mean of each value, in the layer's scale, over its own low
+   word in acc. The total comes down to fifteen bits first, the sums with
+   it; the rounding of the shift goes into the dividend, so the shift is
+   part of the division, and the division is sixteen steps of the long kind:
+       floor((256a + zs<<(s-1)) >> s, / zs) - 1<<(15-s)
+   is the rounded shift of the mean, biased by 128, divided out. */
+void attout() {
+    asm("ld r1, [$zhi]");
+    asm("ld r2, [$zlo]");
+    asm("mov r3, 0");
+    asm("aon:");
+    asm("cmp r1, 0");
+    asm("jnz aoh");
+    asm("cmp r2, 0x8000");
+    asm("jc aod");
+    asm("aoh:");
+    asm("mov r0, r1");
+    asm("shl r0, 15");
+    asm("shr r1, 1");
+    asm("shr r2, 1");
+    asm("or r2, r0");
+    asm("add r3, 1");
+    asm("jmp aon");
+    asm("aod:");
+    asm("st r2, [$azs]");
+    asm("st r3, [$ak]");
+    asm("mov r1, 0");           /* zs << (s-1), thirty-two bits of it */
+    asm("ld r3, [$vsh]");
+    asm("sub r3, 1");
+    asm("aoc:");
+    asm("cmp r3, 0");
+    asm("jz aocd");
+    asm("mov r0, r2");
+    asm("shr r0, 15");
+    asm("shl r1, 1");
+    asm("or r1, r0");
+    asm("shl r2, 1");
+    asm("sub r3, 1");
+    asm("jmp aoc");
+    asm("aocd:");
+    asm("st r1, [$achi]");
+    asm("st r2, [$aclo]");
+
+    asm("ld r6, [$acc]");
+    asm("mov r0, 8");
+    asm("st r0, [$ai]");
+    asm("aoi:");
+    asm("ld r2, [r6]");         /* the sum, low */
+    asm("add r6, 8");
+    asm("ld r1, [r6]");         /* and high */
+    asm("sub r6, 8");
+    asm("ld r3, [$ak]");        /* down as far as the total came */
+    asm("aok:");
+    asm("cmp r3, 0");
+    asm("jz aokd");
+    asm("mov r0, r1");
+    asm("shl r0, 15");
+    asm("shr r1, 1");
+    asm("shr r2, 1");
+    asm("or r2, r0");
+    asm("sub r3, 1");
+    asm("jmp aok");
+    asm("aokd:");
+    asm("shl r1, 8");           /* times 256 */
+    asm("mov r0, r2");
+    asm("shr r0, 8");
+    asm("or r1, r0");
+    asm("shl r2, 8");
+    asm("ld r0, [$aclo]");      /* the rounding */
+    asm("add r2, r0");
+    asm("jnc aoa");
+    asm("add r1, 1");
+    asm("aoa:");
+    asm("ld r0, [$achi]");
+    asm("add r1, r0");
+    asm("ld r3, [$vsh]");       /* the shift; at least one, by the packer */
+    asm("aos:");
+    asm("mov r0, r1");
+    asm("shl r0, 15");
+    asm("shr r1, 1");
+    asm("shr r2, 1");
+    asm("or r2, r0");
+    asm("sub r3, 1");
+    asm("jnz aos");
+    asm("ld r3, [$azs]");       /* r1 the remainder, r2 feeds it, r4 the answer */
+    asm("mov r4, 0");
+    asm("mov r0, 16");
+    asm("st r0, [$ab]");
+    asm("aov:");
+    asm("mov r0, r2");
+    asm("shr r0, 15");
+    asm("shl r1, 1");
+    asm("or r1, r0");
+    asm("shl r2, 1");
+    asm("shl r4, 1");
+    asm("cmp r1, r3");
+    asm("jc aon2");
+    asm("sub r1, r3");
+    asm("or r4, 1");
+    asm("aon2:");
+    asm("ld r0, [$ab]");
+    asm("sub r0, 1");
+    asm("st r0, [$ab]");
+    asm("jnz aov");
+    asm("ld r0, [$abias]");
+    asm("sub r4, r0");
+    asm("st r4, [r6]");
+    asm("add r6, 1");
+    asm("ld r0, [$ai]");
+    asm("sub r0, 1");
+    asm("st r0, [$ai]");
+    asm("jnz aoi");
 }
 
 /* The vocabulary and the draw, in one pass. mvset and the head are already
@@ -793,8 +973,8 @@ int loadhdr() {
     hGum = rd16(); rd16();
     hExps = rd16(); rd16();
     hText = rd16(); rd16();
-    hK = rd16(); rd16();
-    hV = rd16(); rd16();
+    hKVlo = rd16(); hKVhi = rd16();
+    rd16(); rd16();             /* how big the drive is: the terminal's business */
     hEmbLo = rd16(); hEmbHi = rd16();
     hLayLo = rd16(); hLayHi = rd16();
     hStride = rd16(); rd16();
@@ -802,8 +982,6 @@ int loadhdr() {
     hClsLo = rd16(); hClsHi = rd16();
     warm = rd16();
 
-    klayer = KVHEADS * MAXSEQ * KROW;
-    vlayer = KVHEADS * HEADSZ * VROW;
     offQkv = 1 + DIM;
     offWo  = offQkv + (DIM + KVDIM + KVDIM) * (ROWHDR + DIM);
     offFfn = offQkv + (DIM + DIM + KVDIM + KVDIM) * (ROWHDR + DIM);
@@ -827,11 +1005,11 @@ int loadhdr() {
 /* ---- one token in, the next token out ---- */
 
 int step(int tok, int pos) {
-    int l; int i; int j; int h; int g; int t; int o;
-    int an; int sa; int s; int mx; int z; int t3;
+    int l; int i; int j; int h; int g; int o;
+    int an; int sa; int s; int z; int t3;
     int cr; int ci; int whi; int wlo;
     int Eq; int Ek; int Ev; int Eo; int Ez; int E3; int Eh;
-    int kbase; int vbase; int ssh; int vsh; int zsh; int va;
+    int ssh; int zsh;
 
     /* the embedding row is the residual stream's first value */
     ahi = hEmbHi; alo = hEmbLo;
@@ -841,13 +1019,12 @@ int step(int tok, int pos) {
     for (i = 0; i < DIM; i++) xres[i] = rsh(dget() - 128, an);
 
     lbHi = hLayHi; lbLo = hLayLo;
+    kvHi = hKVhi; kvLo = hKVlo;
     for (l = 0; l < LAYERS; l++) {
         /* everything this layer's loops would otherwise work out again and
            again: its exponents, its slice of the cache, its three shifts */
         Eq = eq[l]; Ek = ek[l]; Ev = ev[l]; Eo = eo[l];
         Ez = ez[l]; E3 = e3[l]; Eh = eh[l];
-        kbase = hK + l * klayer;
-        vbase = hV + l * vlayer;
         ssh = Eq + Ek - SCOREB;
         vsh = ATTB + Ev - Eo;
         zsh = Ez + E3 - Eh;
@@ -876,46 +1053,35 @@ int step(int tok, int pos) {
             }
         }
 
-        /* into the cache, each in the shape it will be read back in: a key as
-           a row of its own, sum in front, so that the score loop is the row
-           loop; a value spread down its own component's run, so that the
-           weighted sum is too */
+        /* into the cache: one row a position, the key with its header so the
+           score is a row like any other, and the value beside it */
         for (g = 0; g < KVHEADS; g++) {
             o = g * HEADSZ;
             s = 0;
             for (i = 0; i < HEADSZ; i++) s = s + kk[o + i] + 128;
-            seek0(kbase + (g * MAXSEQ + pos) * KROW + 1);
+            kvat(g, pos);
+            dput(64);
             dput(s);
             dput(s >> 8);
             for (i = 0; i < HEADSZ; i++) dput(kk[o + i] + 128);
-            va = vbase + o * VROW + ROWHDR + pos;
-            for (i = 0; i < HEADSZ; i++) {
-                seek0(va);
-                dput(vv[o + i] + 128);
-                va = va + VROW;
-            }
+            for (i = 0; i < HEADSZ; i++) dput(vv[o + i] + 128);
         }
 
+        at_n = pos + 1;
+        abias = 1 << (15 - vsh);
         for (h = 0; h < HEADS; h++) {
             o = h * HEADSZ;
             g = h / KVMUL;
             for (i = 0; i < HEADSZ; i++) qv[o + i] = qv[o + i] + 128;
             mvset(qv + o, HEADSZ, usum(qv + o, HEADSZ), ssh);
-            seek0(kbase + g * MAXSEQ * KROW);
-            mx = 0 - 32768;
-            for (t = 0; t <= pos; t++) {
-                mvrow();
-                att[t] = mv_r;
-                if (mv_r > mx) mx = mv_r;
-            }
-            mvset(att, pos + 1, smax(pos + 1, mx), vsh);
-            va = vbase + g * HEADSZ * VROW;
-            for (i = 0; i < HEADSZ; i++) {
-                seek0(va);
-                mvrow();
-                xq[o + i] = clip8(mv_r) + 128;
-                va = va + VROW;
-            }
+            kvat(g, 0);
+            attn1();
+            for (i = 0; i < HEADSZ * 2; i++) acc[i] = 0;
+            zlo = 0; zhi = 0;
+            kvat(g, 0);
+            attn2();
+            attout();
+            for (i = 0; i < HEADSZ; i++) xq[o + i] = clip8(acc[i]) + 128;
         }
 
         /* the out projection, straight into the residual stream */
@@ -952,6 +1118,8 @@ int step(int tok, int pos) {
 
         ahi = lbHi; alo = lbLo; aadd(hStride);
         lbHi = ahi; lbLo = alo;
+        kvat(KVHEADS, 0);       /* the next layer's runs start past this one's */
+        kvHi = ahi; kvLo = alo;
     }
 
     /* the last norm, then the vocabulary — and the draw happens in the same

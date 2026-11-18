@@ -175,6 +175,37 @@ The parts that were decided rather than planned:
   first recursive helper would land its frame in the attention weights. The MMIO page has 246 unused words in it if a future phase
   gets desperate.
 
+**Streaming attention (2026-11-17), so a pong fits in context.** A pong is
+~2,000 tokens (llm_training.md), and attention kept a score per position in
+the 172 words it shared with the hidden units. Now it keeps nothing per
+position: for each head, one pass down the cache for the largest score, a
+second that weighs each value against it (e from the table, 0..127) into
+32-bit sums of e and e·v′, and one long division at the end that folds in the
+rounded shift. MAXSEQ is 2048. K and V sit side by side, 19 bytes a
+position, in runs past the weights. That is ~760KB, so it gets written through the bank latch, and it
+is never shipped: the header says how big the drive must be and `mount()`
+makes it that big. What it cost and what it showed:
+
+- **Words.** The new routines are 201 words more than `smax` and the old
+  nine-seek write; 3,946 against 3,840. The desperate future phase came:
+  the hidden units (and attention's sums, which share them) moved above the
+  ports, 0x0F10..0x0FBB. 3,484 + 256 + stack fits with 68 to spare.
+- **Time.** 9% more instructions at the start of a story (two passes over K,
+  a table lookup that has to put the head back), growing with position:
+  960 MACs a position against 640. A 2,000-token pong is about three hours at
+  the period clock.
+- **Numerics.** Normalising once at the end is exact where the old weights
+  floored to 256ths and summed in 16 bits. On stories260K it made no
+  difference to measure: at 128 positions KL 0.062 vs 0.055 over 40 seeds,
+  and that gap is the old floor accidentally offsetting an attention scale
+  calibrated slightly hot (a 3% shrink gives 0.051). At 450 tokens the two
+  grade the same. The change is required by RAM, and past ~500 positions by
+  the 16-bit total. stories260K's own attention is too peaked to show it.
+- **Checked.** Machine against oracle token for token through 335 positions,
+  including three cache runs that cross a bank mid-run (at positions 67, 175,
+  282). stories260K was trained on 512 positions, so it rambles past that,
+  but the plumbing is right.
+
 **Phase 3 — Distill a model that only knows this machine.** No corpus exists
 for the dialect, so manufacture one: tens of thousands of small dialect-C
 programs, most of them synthesised combinatorially and varied in *structure*

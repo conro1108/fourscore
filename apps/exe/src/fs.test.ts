@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeDisk, type DiskStore } from "./fs.js";
+import { fingerprint, makeDisk, type DiskStore } from "./fs.js";
 import { SEED_DIRS, SEED_FILES } from "./copy.js";
 
 function memStore(init: Record<string, string> = {}): DiskStore & { data: Record<string, string> } {
@@ -16,6 +16,14 @@ const sortedSeeds = (): string[] =>
   [...SEED_FILES.map((f) => f.name)].sort((a, b) => a.localeCompare(b));
 
 describe("disk", () => {
+  it("an untouched old seed is brought up to date; an edited one is kept", () => {
+    const seed = SEED_FILES.find((f) => f.name === "SRC\\llm.c")!;
+    const vol = (text: string) => memStore({ "exe.fs": JSON.stringify({ v: 2, dirs: ["SRC"], files: [{ name: "SRC\\llm.c", text }] }) });
+    const old = { "llm.c": [fingerprint("old llm.c")] };
+    expect(makeDisk(vol("old llm.c"), old).read("SRC\\llm.c")).toBe(seed.text);
+    expect(makeDisk(vol("old llm.c, edited"), old).read("SRC\\llm.c")).toBe("old llm.c, edited");
+  });
+
   it("a fresh volume arrives seeded, arranged and persisted", () => {
     const store = memStore();
     const disk = makeDisk(store);

@@ -230,7 +230,8 @@ consideration does.
   word. Letting punctuation runs merge buys 5%, a 15-character cap
   over 7 buys 4%, and doubling the vocabulary buys 7%. None of these closes a 10×
   gap. So: **MAXSEQ 2048, streaming attention, and assembly drops documents
-  over 2,047 tokens.** At today's dimensions that cache is ~776KB
+  over 2,047 tokens.** Streaming attention is built (llm_llm_llm.md, after
+  Phase 2). At today's dimensions that cache is ~776KB
   (K 450K + V 328K + rope 16K), so it no longer fits below `WEIGHT_BASE` in
   bank 0, and the cache moves past the weights and gets written through the bank
   latch. Rough cost, at 8 instructions a MAC: today's 301K MACs a token plus
