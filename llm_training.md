@@ -217,8 +217,30 @@ consideration does.
   doc already plans for. **Confirm with the real BPE on real verified pongs
   before writing the code.** It is the first measurement of the phase, not
   the last.
+
+  **Measured (2026-11-17), and the wall is twice as high.** `tokenize.ts`, a
+  provisional 512 BPE on 2,652 programs (synth plus the first model-written
+  batch): **~2.0 characters a token, not 4.5.** A pong is 1,070–1,230 tokens
+  when it comes from the synthesiser, 1,150–1,850 when a model wrote it, and
+  1,450–2,500 for freestyle pongs the vocabulary never saw — and five of
+  those eleven exceed 2,048, so a freestyle prompt that doesn't ask for
+  economy will lose a real share of its output at assembly. It is C, not the tokenizer: 40% of a pong's tokens are
+  single punctuation (`(` `;` `,` cannot merge with anything without
+  crossing a lexeme), comments are 6%, and indentation merges into the next
+  word. Letting punctuation runs merge buys 5%, a 15-character cap
+  over 7 buys 4%, and doubling the vocabulary buys 7%. None of these closes a 10×
+  gap. So: **MAXSEQ 2048, streaming attention, and assembly drops documents
+  over 2,047 tokens.** At today's dimensions that cache is ~776KB
+  (K 450K + V 328K + rope 16K), so it no longer fits below `WEIGHT_BASE` in
+  bank 0, and the cache moves past the weights and gets written through the bank
+  latch. Rough cost, at 8 instructions a MAC and today's 301K MACs plus
+  ~128 per position of attention: a 2,000-token pong is ~6.9G instructions,
+  about an hour at the period clock, before the model gets any bigger.
 - **Vocab costs drive space and classifier time**, linear in VOCAB. 512 was
   right for stories260K; keep it unless measurement argues.
+- **A token is at most 7 characters**, because `pack.ts` stores each token's text in
+  `TEXT_STRIDE` 8 bytes, a length byte included. `tokenize.ts` caps merges there;
+  raising it is an `llm.c` change for ~4% shorter programs.
 
 ## Curriculum — which is to say, the dataset
 

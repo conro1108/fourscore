@@ -8,14 +8,14 @@ step produces a number you are supposed to read before taking the next one.
 
 ## The machine you are operating
 
-Five stations were planned. Three are built; the last two are not yet needed:
+Five stations were planned. Station 3 (`assemble.ts`) is the one not built:
 
 ```
  synth.ts ──┐                      ┌── raw/*.jsonl      (everything, rejects too)
             ├──▶ verify ──▶ keep ──┤
  gen.ts ────┘   (farm.ts /         └── verified/*.jsonl (the corpus-to-be)
                  inline)
-                                       assemble.ts, tokenize.ts — not built yet
+                                       assemble.ts — not built yet; tokenize.ts — provisional
 ```
 
 - **`apps/exe/tools/corpus/verify.ts` + `graders.ts` + `farm.ts`** — the
@@ -166,7 +166,15 @@ total. Between pilots, read the histogram. How to read it:
 Also per the plan: once a pilot exists, this is the moment to train a
 provisional BPE on pilot + seeds and measure a real pong's token length —
 it settles MAXSEQ versus streaming attention in `llm.c` and should not wait
-for the full corpus. (Tokenizer tooling is station 4, not yet built.)
+for the full corpus. That is `tokenize.ts`, below; the answer was 2,048.
+
+```
+npx vite-node apps/exe/tools/corpus/tokenize.ts data/corpus/claude/verified-all.jsonl data/corpus/raw/t*-synth-*.jsonl --hold t4/opus-t4/
+```
+
+It writes `data/corpus/tok/tok512.bin` (llama2.c format), checks the round trip
+through `loadTokenizer`, and prints token lengths per tier plus the held-out
+docs. `--hold` takes an id prefix; leave it off for the vocabulary you keep.
 
 ### 6. The night
 
@@ -184,9 +192,9 @@ everything needed to re-grade or trace any candidate later.
 ### 7. What comes after (not built, deliberately)
 
 Station 3 (`assemble.ts`: normalise formatting, dedup by skeleton caps and
-axis cells, hold out cells rather than random documents) and station 4
-(`tokenize.ts`: the ~512-token BPE in llama2.c format) are next, and the
-plan's sections on them are precise about the traps — n-gram dedup would
+axis cells, hold out cells rather than random documents, drop anything over
+2,047 tokens) is next, then retraining `tokenize.ts` on the assembled pool.
+The plan is precise about the traps — n-gram dedup would
 delete exactly the family coverage tier 4 exists to buy, and a random
 holdout split leaks near-duplicates so the validation loss lies. Then the
 toy-scale dry run through pack → grade → oracle → machine, then the real
